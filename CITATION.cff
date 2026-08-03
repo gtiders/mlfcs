@@ -1,11 +1,13 @@
 cff-version: 1.2.0
 message: "If you use MLFCS in research, please cite the archived software release."
-title: "MLFCS: symmetry-reduced finite-difference force constants with ASE and JAX"
+title: "MLFCS: arbitrary-order finite-difference force constants with ASE and JAX"
 type: software
 version: 3.0.0
 date-released: 2026-08-03
 authors:
-  - family-names: "gtiders"
+  - given-names: "Yibo"
+    family-names: "Gao"
+    affiliation: "Central South University"
     email: "gtiders@qq.com"
 repository-code: "https://github.com/gtiders/mlfcs"
 url: "https://github.com/gtiders/mlfcs"

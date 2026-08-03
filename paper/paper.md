@@ -1,5 +1,5 @@
 ---
-title: "MLFCS: symmetry-reduced finite-difference force constants with ASE and JAX"
+title: "MLFCS: arbitrary-order finite-difference force constants with ASE and JAX"
 tags:
   - Python
   - force constants
@@ -7,10 +7,12 @@ tags:
   - finite differences
   - materials science
 authors:
-  - name: gtiders
+  - given-names: Yibo
+    surname: Gao
+    corresponding: true
     affiliation: "1"
 affiliations:
-  - name: Independent Researcher
+  - name: Central South University, China
     index: 1
 date: 3 August 2026
 bibliography: paper.bib
@@ -18,105 +20,137 @@ bibliography: paper.bib
 
 # Summary
 
-Interatomic force constants describe how the energy of a crystal changes when its atoms move.
-They are the central input to harmonic phonon calculations and to anharmonic calculations of
-thermal expansion, phonon scattering, and lattice thermal conductivity. MLFCS is a Python library
-that reconstructs these tensors from atomic forces. A user supplies an ASE structure and either an
-ASE calculator or forces evaluated by an external workflow; MLFCS handles symmetry reduction,
-finite-displacement generation, reconstruction, optional translational constraints, and export.
+Interatomic force constants quantify how the energy of a crystal changes when its atoms move.
+Second-order force constants determine harmonic phonons, while third- and fourth-order terms are
+needed for quantities such as phonon scattering rates and lattice thermal conductivity. Obtaining
+these tensors by finite differences is conceptually simple—displace atoms and calculate
+forces—but becomes computationally demanding because the number of atomic clusters, Cartesian
+components, and displacement combinations grows rapidly with order.
 
-Unlike order-specific displacement programs, MLFCS uses one parameterized implementation for
-second and arbitrarily higher orders. Third- and fourth-order calculations are the primary
-production paths, while higher-order tensors remain available through a sparse HDF5
-representation. The package supports CPU execution and JAX-accelerated Cartesian tensor
-operations on compatible GPUs [@jax2018].
+MLFCS is an open-source Python library for reconstructing symmetry-reduced force constants from
+second to arbitrary order. It accepts structures through the Atomic Simulation Environment (ASE)
+and receives forces either from a user-selected ASE calculator or an external electronic-
+structure workflow [@ase2017]. A single order-parameterized pipeline performs periodic cluster
+enumeration, symmetry reduction, recursive central finite differences, sparse reconstruction,
+optional enforcement of translational invariance, and output to established phonon formats.
+Third- and fourth-order calculations are the principal production paths; higher-order results use
+the same algorithm and can be retained in a generic sparse HDF5 representation.
 
 # Statement of need
 
-Finite-displacement force constants require more than repeatedly moving atoms. Equivalent atomic
-clusters and Cartesian tensor components must be identified under crystal symmetry and index
-permutations; displacement configurations must be reproducible; periodic images and atom order
-must remain consistent from force generation through export; and the rapidly increasing tensor
-size must not force premature dense allocation. These concerns become particularly visible for
-fourth and higher orders and for multicomponent cells.
+High-order finite-difference calculations present three connected problems. First, space-group
+symmetry, permutations of force-constant indices, and tensor stabilizers must be applied
+consistently so that only independent quantities are sampled. Second, atom identities and
+periodic images must remain unambiguous from displacement generation to force collection and
+file export. Third, a nominally straightforward implementation can become limited by memory
+before the force calculations begin: a dense order-$n$ Cartesian action scales as
+$3^n \times 3^n$, a dense force-constant array grows with multiple powers of the supercell atom
+count, and a full singular-value decomposition can allocate matrices unrelated to the number of
+independent parameters.
 
-Established packages address important parts of this problem. phonopy and phono3py provide widely
-used harmonic and third-order workflows [@phonopy2015; @phono3py2015]. ALAMODE provides
-displacement- and regression-based anharmonic lattice-dynamics methods [@alamode2018], while
-hiphive builds force-constant models through regression in symmetry-adapted cluster spaces
-[@hiphive2019]. ShengBTE consumes second- and third-order force constants for phonon Boltzmann
-transport [@shengbte2014], and FourPhonon extends that workflow to fourth-order interactions and
-four-phonon scattering [@fourphonon2022]. MLFCS serves users who specifically need deterministic,
-central finite differences
-from arbitrary ASE-compatible force providers, a direct order parameter extending beyond FC3,
-and a sparse result that can be exported without coupling force generation to a particular
-electronic-structure program or potential.
+These limitations are especially important when the force provider is a machine-learning
+potential. Fast force evaluation exposes symmetry processing and tensor reconstruction as a
+significant fraction of the total runtime, while loading several calculator instances in
+parallel can unnecessarily multiply memory use. MLFCS therefore treats resource efficiency as a
+scientific-enabling requirement rather than an implementation detail. It stores force constants
+as sparse symmetry-generated cluster tensors, applies Cartesian rotations without materializing
+high-rank representation matrices, deduplicates equivalent displacement tasks, streams large
+format conversions, and evaluates an in-process ASE calculator serially by default. JAX provides
+JIT-compiled and batched tensor contractions on CPUs or compatible GPUs [@jax2018], while large
+sparse constraints remain on memory-efficient CPU solvers.
 
 # State of the field
 
-MLFCS is complementary to, rather than a replacement for, phonopy, phono3py, ALAMODE, or hiphive.
-It adopts ASE [@ase2017] as the calculator boundary, allowing classical, machine-learning, and
-first-principles adapters to share the same calculation object. Its `sow()` and `reap()` contract
-also supports schedulers and electronic-structure calculations that cannot run inside Python.
-Stable configuration identifiers and a plan hash detect missing, duplicated, reordered, or stale
-force datasets.
+phonopy and phono3py provide widely used harmonic and third-order finite-displacement workflows
+[@phonopy2015; @phono3py2015]. ALAMODE supports displacement and regression approaches for
+anharmonic lattice dynamics [@alamode2018], and hiphive fits force-constant models in
+symmetry-adapted cluster spaces [@hiphive2019]. ShengBTE consumes second- and third-order force
+constants for phonon Boltzmann transport [@shengbte2014], while FourPhonon adds fourth-order
+interactions and four-phonon scattering [@fourphonon2022].
 
-The distinctive contribution is the combination of a recursive order-independent central-
-difference plan, symmetry-reduced cluster tensors, and sparse reconstruction. ShengBTE export is
-provided for FC3 and FC4, including inputs used by ShengBTE and FourPhonon; dense phonopy output
-is provided for FC2, phonopy/phono3py HDF5 interoperability for
-FC2/FC3, and a generic HDF5 schema for higher orders. A compatibility mode reproduces the
-historical thirdorder periodic-image convention, while the default export uses the same
-symmetry-closed support as reconstruction.
+MLFCS is complementary to these packages. Its specific role is deterministic central finite
+differences from an arbitrary ASE-compatible force source, expressed through one order parameter
+rather than separate implementations for each tensor rank. The calculation remains independent
+of a particular electronic-structure code or machine-learning potential, and sparse results can
+be retained without forcing conversion to a dense array. MLFCS exports dense phonopy FC2,
+phonopy/phono3py HDF5 for FC2/FC3, and ShengBTE-compatible FC3/FC4, while generic HDF5 preserves
+higher orders. The library also provides an optional stochastic effective-harmonic module for
+temperature-dependent FC2; this module is separate from the finite-difference reconstruction.
 
 # Software design
 
-For order $n$, MLFCS treats a force constant as an $(n-1)$-fold displacement derivative of force.
-A recursive centered stencil generates signed displacement keys. Space-group operations,
-permutations of force-constant indices, and cluster stabilizers reduce each cluster tensor to its
-independent Cartesian parameters. Only required force derivatives are sampled, after which the
-parameters are expanded to symmetry-related sparse cluster images.
+For force-constant order $n$, MLFCS evaluates an $(n-1)$-fold displacement derivative of force.
+A recursive centered stencil produces signed displacement keys. Space-group operations are
+combined with all relevant index permutations and Cartesian tensor rotations to construct
+orbits of equivalent atomic clusters. Stabilizer constraints determine a basis of independent
+Cartesian components for each orbit. After the requested forces are returned, the sampled
+derivatives are reconstructed directly into sparse cluster images.
 
-The acoustic sum rule is imposed as a constrained projection in the independent orbit-parameter
-space rather than by relative post-hoc tensor corrections. Small systems use a Gram-matrix null
-space with sparse LSMR refinement; large systems use a matrix-free sparse LSMR projection. Dense
-tensors are materialized only on request. Contiguous sparse arrays, batched JAX transformations,
-JIT compilation, displacement-key deduplication, and streamed external output limit time and
-peak memory.
+The acoustic sum rule is imposed as a constrained projection in this independent parameter
+space. If $p$ contains the orbit parameters and $A$ is the translational-constraint matrix,
+MLFCS finds the nearest admissible solution satisfying
 
-The API deliberately does not own the force calculator. `run()` evaluates a user-owned ASE
-calculator serially to avoid multiplying the memory of large machine-learning models. `sow()`
-returns an ordered list of ASE structures for external evaluation, and `reap()` validates and
-reconstructs returned forces. This separation keeps scientific provenance and parallel execution
-under user control.
+$$A p = 0.$$
+
+For moderate parameter counts, a small Gram matrix identifies the null space and sparse LSMR
+refines the result against the original constraints. Larger systems use sparse LSMR directly,
+avoiding a dense decomposition. Dense materialization is explicit and preceded by an allocation
+estimate; sparse HDF5 output never requires the complete high-order array.
+
+Reproducibility is part of the data model. Each displaced structure carries a stable
+configuration identifier, atom-order label, displacement array, and hash of the complete
+displacement plan. Returned forces can follow the exact generated order or be supplied as an
+identifier-keyed mapping. Missing, duplicated, reordered, or stale force sets are detected before
+reconstruction. This contract permits the same calculation object to be used with a local ASE
+calculator, a batch scheduler, or first-principles calculations such as VASP without embedding
+site-specific execution logic in MLFCS.
+
+# Verification and computational performance
+
+The test suite separates mathematical unit tests from independent scientific references. FC2
+and FC3 are compared with phonopy and phono3py for binary AlN and multicomponent K4As4Pt2 models,
+including atom-order conversion and tests with and without acoustic-sum-rule projection. A
+3x3x3 silicon reference exercises the complete external VASP-force and ShengBTE-export path.
+FC4 is tested without another force-constant fitter: an independent JAX implementation
+differentiates an analytic FCC Morse pair energy four times, and halving the finite-difference
+step produces the expected second-order error reduction.
+
+Resource tests demonstrate the effect of retaining sparse representations. For a NaS fourth-
+order calculation using a 2x2x2 supercell and three neighbor shells, the measured serial peak
+memory is approximately 1.14 GiB. A dense-oriented calculation of the same interaction problem
+used approximately 4.92 GiB. In a fifth-order NaS first-shell smoke test, the stored sparse result
+contains 1,686 cluster images and occupies about 789 KiB in HDF5, whereas materializing its full
+dense tensor would require approximately 243 GiB. These measurements are workload-specific, but
+they expose the scaling regime addressed by sparse storage, matrix-free tensor actions, and
+adaptive constrained solvers. Continuous integration restricts scientific references to serial
+execution and tests Python 3.12 and 3.13 independently to keep resource use reproducible.
 
 # Research impact statement
 
-MLFCS has been publicly developed and used for force-constant and thermal-transport workflows.
-Version 3.0 adds a reproducible test hierarchy rather than relying on agreement with the previous
-implementation. FC2 and FC3 are compared with independent phonopy and phono3py results for both
-binary AlN and multicomponent K4As4Pt2 models. A 3x3x3 silicon dataset checks the complete external
-sow/reap and ShengBTE path against VASP forces. FC4 is tested against a separate JAX fourth
-derivative of an analytic FCC Morse energy; halving the displacement produces the expected
-second-order reduction in finite-difference error. Provenance files, checksums, atom-order
-adapters, and explicit ASR-on/off comparisons accompany the reference data.
-
-Continuous integration runs the public API on Python 3.12 and 3.13, builds distributions, and
-executes scientific references serially to control memory. These tests establish a foundation for
-reusing force constants in transport, anharmonic phonon, and temperature-dependent effective
-harmonic studies while keeping the generating potential replaceable.
+MLFCS makes high-order finite differences practical for researchers who already have a force
+provider but need a reproducible route from displaced structures to interoperable force
+constants. The same public workflow supports classical potentials, machine-learning potentials,
+and externally scheduled first-principles calculations. Its order-independent representation is
+also a foundation for studying higher-order interactions without creating another fixed-order
+code path. Provenance records, frozen force datasets, checksums, and independently readable
+exports make numerical results auditable and reusable in downstream phonon-transport workflows.
 
 # AI usage disclosure
 
-Generative AI tools were used during the version 3 refactoring to assist code drafting,
-documentation, test organization, and preparation of this paper. The maintainer reviewed all
-changes. Numerical claims were checked with executable tests, independent reference data,
-analytic differentiation where available, and continuous integration; generated text was checked
-against the implementation and cited sources.
+Generative AI tools assisted code drafting, refactoring, documentation, test organization, and
+manuscript preparation. The author reviewed all changes. Scientific claims were checked with
+executable tests, independently generated reference data, analytic differentiation where
+available, and continuous integration. Generated prose was checked against the implementation
+and cited literature.
 
 # Acknowledgements
 
-The author thanks the developers of ASE, JAX, phonopy, phono3py, spglib, hiphive, ALAMODE, NumPy,
-and SciPy. No external funding is declared in this draft.
+The author acknowledges Central South University for institutional support and thanks the
+author's research group for providing computational resources and a test dataset used during
+software verification. The author also thanks the developers and maintainers of ASE, JAX,
+NumPy, SciPy, spglib, phonopy, phono3py, hiphive, ALAMODE, ShengBTE, and FourPhonon. This work
+received no external financial support, and no sponsor had a role in the software design,
+validation, manuscript preparation, or decision to submit. The author declares no competing
+interests.
 
 # References
