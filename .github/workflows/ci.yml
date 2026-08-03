@@ -55,6 +55,8 @@ jobs:
         run: uv sync --locked --dev
       - name: hiphive adapter contract
         run: uv run pytest tests/reference/phono3py/AlN_FC3/test_adapter.py
+      - name: AlN reference provenance
+        run: uv run pytest tests/reference/phono3py/AlN_FC3/test_provenance.py
       - name: AlN FC3 without ASR
         run: uv run pytest tests/reference/phono3py/AlN_FC3/test_raw.py
       - name: AlN FC3 with ASR

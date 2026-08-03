@@ -58,8 +58,8 @@ hiphive 仅属于开发依赖和独立验证工具，不参与 MLFCS 的计算�
 GitHub Actions 分为三个相互独立的任务：
 
 - `unit-and-api`：在 Python 3.12 和 3.13 上运行 Ruff、格式检查以及所有非参考测试；
-- `scientific-reference`：在 Python 3.12 上依次独立运行 hiphive 适配器、AlN 无 ASR
-  FC3 和 AlN 有 ASR FC3；
+- `scientific-reference`：在 Python 3.12 上依次独立运行 hiphive 适配器、训练材料
+  SHA-256 溯源、AlN 无 ASR FC3 和 AlN 有 ASR FC3；
 - `package`：构建 Python sdist 和 wheel。
 
 BLAS、OpenMP 和 JAX CPU 后端均限制为单线程，避免小型 CI 任务因嵌套并行产生不稳定
@@ -72,3 +72,7 @@ BLAS、OpenMP 和 JAX CPU 后端均限制为单线程，避免小型 CI 任务�
 夹具的固定上游提交、许可证、软件版本与生成命令记录在
 `tests/reference/phono3py/AlN_FC3/data/README.md`。生成程序为
 `tools/generate_AlN_phono3py_fixture.py`。
+
+同一目录的 `data/training/` 还保存 phono3py 官方 200 结构 AlN 训练数据和本次实际
+使用的 `polymlp.yaml`。普通 CI 只读取 `reference.npz`，维护者可以完全使用仓库内
+文件重新生成该夹具，无需再次下载或训练势函数。

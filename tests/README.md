@@ -14,6 +14,7 @@
 - `test_raw.py` 独立比较未施加 ASR 的 FC3；
 - `test_asr.py` 独立比较施加 ASR 后的 FC3 和双方残差；
 - `test_adapter.py` 只验证 hiphive 表示转换和原子顺序匹配。
+- `test_provenance.py` 独立校验训练数据、势函数和派生夹具的 SHA-256。
 
 ## 命名约定
 
@@ -26,6 +27,7 @@
 ```bash
 uv run pytest -m "not reference"
 uv run pytest tests/reference/phono3py/AlN_FC3/test_adapter.py
+uv run pytest tests/reference/phono3py/AlN_FC3/test_provenance.py
 uv run pytest tests/reference/phono3py/AlN_FC3/test_raw.py
 uv run pytest tests/reference/phono3py/AlN_FC3/test_asr.py
 ```
