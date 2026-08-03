@@ -259,7 +259,9 @@ raw = calculation.reap(forces, acoustic_sum_rule=False)
 
 ```python
 fc2.write("FORCE_CONSTANTS", format="phonopy")
+fc2.write("fc2.hdf5", format="phonopy_hdf5")
 fc3.write("fc3.h5", format="hdf5")
+fc3.write("fc3.hdf5", format="phono3py_hdf5")
 fc3.write("fc3.npz", format="numpy")
 fc3.write("FORCE_CONSTANTS_3RD", format="shengbte")
 fc4.write("FORCE_CONSTANTS_4TH", format="shengbte")
@@ -269,8 +271,25 @@ fc4.write("FORCE_CONSTANTS_4TH", format="shengbte")
 |---|---|---|
 | `hdf5` | 任意阶 | 稀疏团簇张量或稠密数组 |
 | `numpy` / `npz` | 任意阶 | 物化后的 NumPy 数组 |
-| `shengbte` | 3、4 | 基于晶格平移的文本块 |
+| `shengbte` | 3、4 | 对称闭合、基于晶格平移的文本块 |
 | `phonopy` | 2 | 完整稠密超胞 FC2 文本 |
+| `phonopy_hdf5` | 2 | phonopy 兼容的完整超胞 `force_constants` HDF5 |
+| `phono3py_hdf5` | 3 | phono3py 兼容的完整超胞 `fc3` HDF5 |
+
+ShengBTE 默认使用保真模式：严格写出重建后稀疏结果携带的对称闭合团簇支撑域。
+如需复现旧 thirdorder 的二次 joint-image 过滤和块顺序，必须显式启用兼容模式：
+
+```python
+fc3.write(
+    "FORCE_CONSTANTS_3RD",
+    format="shengbte",
+    compatibility="thirdorder",
+)
+```
+
+phonopy 和 phono3py HDF5 使用按原胞原子分组的超胞顺序，并逐个第一原子 slab
+流式写入，因此不会在内存中构造完整 FC3。原生 `hdf5` 仍然是 MLFCS 的紧凑、
+阶数参数化表示。
 
 高阶结果推荐使用稀疏 HDF5。显式稠密化超过默认 2 GB 建议预算时会发出警告：
 

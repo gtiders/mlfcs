@@ -39,7 +39,7 @@ jobs:
 
   scientific-reference:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     env:
       JAX_PLATFORMS: cpu
       OMP_NUM_THREADS: "1"
@@ -71,6 +71,10 @@ jobs:
         run: uv run pytest tests/reference/phono3py/K4As4Pt2_FC23/test_fc2.py
       - name: K4As4Pt2 FC3 comparison
         run: uv run pytest tests/reference/phono3py/K4As4Pt2_FC23/test_fc3.py
+      - name: K4As4Pt2 phonopy and phono3py HDF5 roundtrip
+        run: uv run pytest tests/reference/phono3py/K4As4Pt2_FC23/test_external_hdf5.py
+      - name: K4As4Pt2 faithful ShengBTE roundtrip
+        run: uv run pytest tests/reference/phono3py/K4As4Pt2_FC23/test_shengbte_roundtrip.py
       - name: Si FC3 external sow contract
         run: uv run pytest tests/reference/shengbte/Si_FC3/test_sow_contract.py
       - name: Si FC3 ShengBTE provenance

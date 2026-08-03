@@ -271,7 +271,9 @@ The output format is always explicit:
 
 ```python
 fc2.write("FORCE_CONSTANTS", format="phonopy")
+fc2.write("fc2.hdf5", format="phonopy_hdf5")
 fc3.write("fc3.h5", format="hdf5")
+fc3.write("fc3.hdf5", format="phono3py_hdf5")
 fc3.write("fc3.npz", format="numpy")
 fc3.write("FORCE_CONSTANTS_3RD", format="shengbte")
 fc4.write("FORCE_CONSTANTS_4TH", format="shengbte")
@@ -281,8 +283,26 @@ fc4.write("FORCE_CONSTANTS_4TH", format="shengbte")
 |---|---|---|
 | `hdf5` | Any | Sparse cluster tensors or dense arrays |
 | `numpy` / `npz` | Any | Materialized NumPy arrays |
-| `shengbte` | 3 and 4 | Translation-based text blocks |
+| `shengbte` | 3 and 4 | Symmetry-closed translation-based text blocks |
 | `phonopy` | 2 | Full dense supercell FC2 text |
+| `phonopy_hdf5` | 2 | Phonopy-compatible full-supercell `force_constants` HDF5 |
+| `phono3py_hdf5` | 3 | Phono3py-compatible full-supercell `fc3` HDF5 |
+
+ShengBTE output is faithful by default: it writes exactly the symmetry-closed cluster support
+carried by the reconstructed sparse result. To reproduce the legacy thirdorder secondary
+joint-image filtering and block order, request compatibility explicitly:
+
+```python
+fc3.write(
+    "FORCE_CONSTANTS_3RD",
+    format="shengbte",
+    compatibility="thirdorder",
+)
+```
+
+The phonopy and phono3py HDF5 writers use primitive-atom-grouped supercell order and stream one
+first-atom slab at a time. They therefore do not materialize the full FC3 in memory. The native
+`hdf5` format remains the compact, order-parameterized MLFCS representation.
 
 Sparse HDF5 is recommended for high orders. Dense materialization is explicit and emits a
 warning above the default 2 GB advisory budget:

@@ -47,6 +47,14 @@ class SparseOrderForceConstants:
     def dense_nbytes(self) -> int:
         return int(np.prod(self.dense_shape, dtype=np.int64)) * self.tensors.dtype.itemsize
 
+    @property
+    def support(self) -> np.ndarray:
+        """Return the symmetry-closed atomic-cluster support."""
+        result = np.zeros(self.dense_shape[: self.order], dtype=bool)
+        if len(self.clusters):
+            result[tuple(self.clusters.T)] = True
+        return result
+
     def to_dense(self, *, max_bytes: int | None = 2_000_000_000) -> np.ndarray:
         """Materialize the compact tensor, warning when it exceeds the budget."""
         if max_bytes is not None and self.dense_nbytes > max_bytes:
@@ -99,7 +107,14 @@ class ForceConstants:
         *,
         format: str,
         order: int | None = None,
+        compatibility: str | None = None,
     ) -> None:
         from mlfcs.io import write_force_constants
 
-        write_force_constants(self, target, format=format, order=order)
+        write_force_constants(
+            self,
+            target,
+            format=format,
+            order=order,
+            compatibility=compatibility,
+        )

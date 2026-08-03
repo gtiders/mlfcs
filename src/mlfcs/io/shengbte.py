@@ -14,6 +14,8 @@ def write_shengbte(
     supercell: Atoms,
     *,
     cutoff: float,
+    support: np.ndarray | None = None,
+    compatibility: str | None = None,
 ) -> None:
     """Write an order-parameterized ShengBTE-style force-constant file.
 
@@ -29,6 +31,10 @@ def write_shengbte(
     expected = (n_primitive,) + (n_supercell,) * (order - 1) + (3,) * order
     if force_constants.shape != expected:
         raise ValueError(f"force constants must have shape {expected}")
+    if compatibility not in {None, "thirdorder"}:
+        raise ValueError("compatibility must be None or 'thirdorder'")
+    if support is not None and np.asarray(support).shape != expected[:order]:
+        raise ValueError(f"support must have shape {expected[:order]}")
 
     geometry = _nanometre_geometry(supercell)
     cutoff_nm = cutoff * 0.1
@@ -42,6 +48,8 @@ def write_shengbte(
         shifts,
         cutoff_nm,
         order,
+        support=None if support is None else np.asarray(support, dtype=bool),
+        compatibility=compatibility,
     )
     Path(target).write_text(text)
 
@@ -87,6 +95,9 @@ def _format_force_constants(
     shifts: np.ndarray,
     cutoff: float,
     order: int,
+    *,
+    support: np.ndarray | None,
+    compatibility: str | None,
 ) -> str:
     shift_vectors = np.asarray(list(product(range(-1, 2), repeat=3)))
     blocks: list[str] = []
@@ -95,16 +106,21 @@ def _format_force_constants(
         for remaining in product(range(len(supercell)), repeat=order - 1):
             atom_indices = (first,) + remaining
             tensor = fc[atom_indices]
-            has_force_constants = bool(np.any(tensor != 0.0))
-            if not has_force_constants and any(
-                distances[first, atom] >= cutoff for atom in remaining
-            ):
+            if compatibility is None:
+                included = (
+                    bool(support[atom_indices])
+                    if support is not None
+                    else bool(np.any(tensor != 0.0))
+                )
+                if not included:
+                    continue
+            elif any(distances[first, atom] >= cutoff for atom in remaining):
                 continue
             possible_shifts = [
                 shift_vectors[shifts[first, atom, : counts[first, atom]]] for atom in remaining
             ]
             best_distance, best_shifts = _best_joint_images(supercell, remaining, possible_shifts)
-            if not has_force_constants and best_distance >= cutoff * cutoff:
+            if compatibility == "thirdorder" and best_distance >= cutoff * cutoff:
                 continue
             primitive_atoms = (first,) + tuple(atom % n_primitive for atom in remaining)
             translations = tuple(

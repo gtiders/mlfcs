@@ -24,7 +24,8 @@
 
 `reference/shengbte/Si_FC3/` 冻结 3x3x3、`cutoff=-6` 的外部 VASP sow 顺序，
 并用 168 份 VASP 力端到端重建 ShengBTE `FORCE_CONSTANTS_3RD`，与原始
-thirdorder 输出比较周期规范化后的块顺序和 FC3 数值。
+thirdorder 输出比较周期规范化后的块顺序和 FC3 数值。该比较显式使用
+`compatibility="thirdorder"`；默认 ShengBTE 模式另行验证对称闭合支撑域的保真往返。
 
 ## 命名约定
 
