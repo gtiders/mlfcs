@@ -93,13 +93,18 @@ def _format_force_constants(
     block_number = 0
     for first in range(n_primitive):
         for remaining in product(range(len(supercell)), repeat=order - 1):
-            if any(distances[first, atom] >= cutoff for atom in remaining):
+            atom_indices = (first,) + remaining
+            tensor = fc[atom_indices]
+            has_force_constants = bool(np.any(tensor != 0.0))
+            if not has_force_constants and any(
+                distances[first, atom] >= cutoff for atom in remaining
+            ):
                 continue
             possible_shifts = [
                 shift_vectors[shifts[first, atom, : counts[first, atom]]] for atom in remaining
             ]
             best_distance, best_shifts = _best_joint_images(supercell, remaining, possible_shifts)
-            if best_distance >= cutoff * cutoff:
+            if not has_force_constants and best_distance >= cutoff * cutoff:
                 continue
             primitive_atoms = (first,) + tuple(atom % n_primitive for atom in remaining)
             translations = tuple(
@@ -115,7 +120,6 @@ def _format_force_constants(
                 *[_vector_line(vector) for vector in translations],
                 " ".join(f"{atom + 1:>6d}" for atom in primitive_atoms),
             ]
-            atom_indices = (first,) + remaining
             for directions in product(range(3), repeat=order):
                 direction_text = " ".join(f"{direction + 1:>2d}" for direction in directions)
                 value = fc[atom_indices + directions]
