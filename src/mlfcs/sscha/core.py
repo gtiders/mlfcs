@@ -23,10 +23,9 @@ ForceInput = NDArray[np.floating] | Sequence[ArrayLike] | Mapping[int, ArrayLike
 
 def _optional_imports():
     try:
+        from phonopy import Phonopy
         from phonopy.harmonic.force_constants import compact_fc_to_full_fc
         from phonopy.structure.atoms import PhonopyAtoms
-
-        from phonopy import Phonopy
     except ModuleNotFoundError as exc:  # pragma: no cover - exercised without extra
         raise ModuleNotFoundError(
             "SSCHA requires the optional dependencies; install with `uv sync --extra sscha`."
