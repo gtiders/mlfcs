@@ -23,3 +23,7 @@ wheels/
 /POSCAR
 /polymlp.yaml
 /main.py
+/batch.sh
+
+# Local raw VASP provenance; compact scientific fixtures are tracked beside it.
+/tests/reference/shengbte/Si_FC3/data/vasp/
