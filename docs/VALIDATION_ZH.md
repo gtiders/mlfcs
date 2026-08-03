@@ -43,6 +43,19 @@ hiphive 仅属于开发依赖和独立验证工具，不参与 MLFCS 的计算�
 `2.87e-4`，相关系数约 `0.9999999615`。CI 同时限制这些指标，避免仅靠相关系数
 掩盖系统误差。
 
+## 独立的 AlN 二阶基准
+
+同一个 AlN pypolymlp 势函数还用于比较 MLFCS 与 phonopy traditional solver 的
+完整 FC2。双方使用相同的 2x2x2 超胞、0.01 Å 位移和全超胞覆盖条件；MLFCS 使用
+12 个中心差分构型，phonopy 使用 4 个对称性选择构型，因此验证的是最终 FC2，而不是
+要求两边拥有相同的位移计划。
+
+未施加 MLFCS ASR 时，FC2 最大量级约为 `21.4348 eV/Å²`，最大绝对差约为
+`0.003326 eV/Å²`，RMS 差约为 `0.000357 eV/Å²`，相对二范数误差约为
+`1.48e-4`，相关系数约为 `0.9999999933`。双方分别施加 ASR 后，相对二范数误差
+约为 `1.43e-4`，相关系数约为 `0.9999999944`；MLFCS 与 phonopy 的 ASR 残差
+分别约为 `5.50e-14` 和 `1.08e-14 eV/Å²`。
+
 ## 有 ASR 的交叉验证
 
 第二项测试显式比较 MLFCS `acoustic_sum_rule=True` 与 phono3py traditional
@@ -60,7 +73,7 @@ GitHub Actions 分为三个相互独立的任务：
 
 - `unit-and-api`：在 Python 3.12 和 3.13 上运行 Ruff、格式检查以及所有非参考测试；
 - `scientific-reference`：在 Python 3.12 上依次独立运行 hiphive 适配器、训练材料
-  SHA-256 溯源、AlN 无 ASR FC3 和 AlN 有 ASR FC3；
+  SHA-256 溯源、AlN FC2，以及无 ASR 和有 ASR 的 AlN FC3；
 - `package`：构建 Python sdist 和 wheel。
 
 BLAS、OpenMP 和 JAX CPU 后端均限制为单线程，避免小型 CI 任务因嵌套并行产生不稳定
