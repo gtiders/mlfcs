@@ -95,6 +95,11 @@ MLFCS requires Python 3.12 or newer. Install and run it with uv:
 uv sync
 ```
 
+Runnable API examples are available in [`examples/`](examples/):
+
+- [`basic_fc2.py`](examples/basic_fc2.py) runs FC2 directly with ASE's built-in EMT calculator;
+- [`external_fc3.py`](examples/external_fc3.py) shows the external `sow()` / `reap()` contract.
+
 Install the optional SSCHA dependencies when needed:
 
 ```bash
@@ -388,8 +393,8 @@ All commands use uv and tests run serially:
 uv sync --extra sscha
 uv run pytest
 uv run pytest -m "not reference"
-uv run ruff check src tests tools
-uv run ruff format --check src tests tools
+uv run ruff check src tests tools examples
+uv run ruff format --check src tests tools examples
 uv build
 ```
 
@@ -399,7 +404,8 @@ both atom orderings and tensor representations to the same full-supercell form.
 The test hierarchy and independent reference commands are documented in
 [tests/README.md](tests/README.md).
 
-The current development version is `0.5.0`.
+The current release is `3.0.0`. See [CHANGELOG.md](CHANGELOG.md) for release notes and
+[CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow.
 
 ## License
 

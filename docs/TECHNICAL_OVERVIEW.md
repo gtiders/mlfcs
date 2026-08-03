@@ -1,4 +1,4 @@
-# MLFCS v0.5 technical overview
+# MLFCS v3.0 technical overview
 
 ## 1. Scope and design goals
 
@@ -332,7 +332,7 @@ output. The complete v0.5 suite contains 30 serial tests.
 the neighbor-shell capacity of the current supercell, and this consolidated technical record on
 top of the generic sparse reconstruction and strict ASR work introduced in `v0.2.0`.
 
-`v0.5.0` adds the independent optional `mlfcs.sscha` module, a redesigned ASE-first direct and
+`v3.0.0` includes the independent optional `mlfcs.sscha` module, a redesigned ASE-first direct and
 external API, structured iteration history, free-energy uncertainty, final-iteration averaging,
 and phonopy-native FC2 output. The base force-constant implementation remains free of phonopy and
 symfc runtime dependencies.

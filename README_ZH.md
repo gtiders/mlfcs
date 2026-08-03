@@ -88,6 +88,11 @@ MLFCS 要求 Python 3.12 或更高版本，使用 uv 安装和运行：
 uv sync
 ```
 
+[`examples/`](examples/) 提供可执行的 API 示例：
+
+- [`basic_fc2.py`](examples/basic_fc2.py) 使用 ASE 自带 EMT calculator 直接计算 FC2；
+- [`external_fc3.py`](examples/external_fc3.py) 展示外部 `sow()` / `reap()` 数据契约。
+
 需要 SSCHA 时安装可选依赖：
 
 ```bash
@@ -369,8 +374,8 @@ README 中重复。
 uv sync --extra sscha
 uv run pytest
 uv run pytest -m "not reference"
-uv run ruff check src tests tools
-uv run ruff format --check src tests tools
+uv run ruff check src tests tools examples
+uv run ruff format --check src tests tools examples
 uv build
 ```
 
@@ -378,7 +383,8 @@ hiphive 和 phono3py 仅作为开发验证依赖。CI 中的 AlN 三阶基准先
 原子顺序和张量表示统一为完整超胞 FC3，再与独立的 phono3py 有限差分结果做数值比较。
 测试层级和各项独立参考测试的运行命令见 [tests/README.md](tests/README.md)。
 
-当前开发版本为 `0.5.0`。
+当前正式版本为 `3.0.0`。版本变化见 [CHANGELOG.md](CHANGELOG.md)，开发流程见
+[CONTRIBUTING.md](CONTRIBUTING.md)。
 
 ## 许可证
 

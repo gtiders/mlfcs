@@ -1,0 +1,23 @@
+cff-version: 1.2.0
+message: "If you use MLFCS in research, please cite the archived software release."
+title: "MLFCS: symmetry-reduced finite-difference force constants with ASE and JAX"
+type: software
+version: 3.0.0
+date-released: 2026-08-03
+authors:
+  - family-names: "gtiders"
+    email: "gtiders@qq.com"
+repository-code: "https://github.com/gtiders/mlfcs"
+url: "https://github.com/gtiders/mlfcs"
+license: Apache-2.0
+keywords:
+  - anharmonic force constants
+  - finite differences
+  - phonons
+  - ASE
+  - JAX
+abstract: >-
+  MLFCS reconstructs symmetry-reduced interatomic force constants from second to arbitrary
+  order using recursive central finite differences and forces supplied through ASE calculators
+  or external sow/reap workflows. It provides sparse storage, translational sum-rule projection,
+  CPU/GPU tensor operations, and interoperable HDF5, phonopy, phono3py, and ShengBTE output.
