@@ -185,6 +185,11 @@ np.savez_compressed("forces.npz", forces=forces, plan_hash=calculation.plan.hash
 fc3 = calculation.reap(forces, plan_hash=calculation.plan.hash)
 ```
 
+`sow()`、`reap()` 和直接 ASE Calculator 运行默认开启阶段信息，输出对称性、不可约
+团簇、位移计划、ASR 和力计算进度。这些信息只使用计算过程中已经得到的数据，不会
+重复执行昂贵分析。传入 `verbose=False` 可关闭全部阶段信息和截断输出；
+`report_cutoff=False` 只关闭详细的近邻壳层两行。
+
 ## 阶数和近邻截断
 
 所有阶数使用同一个构造接口：

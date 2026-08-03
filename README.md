@@ -192,6 +192,11 @@ np.savez_compressed("forces.npz", forces=forces, plan_hash=calculation.plan.hash
 fc3 = calculation.reap(forces, plan_hash=calculation.plan.hash)
 ```
 
+Stage reporting is enabled by default for `sow()`, `reap()`, and direct ASE-calculator runs.
+It reports symmetry, cluster, displacement-plan, ASR, and force-evaluation progress using values
+already computed by the calculation. Pass `verbose=False` to silence all stage and cutoff output.
+`report_cutoff=False` suppresses only the detailed neighbor-shell lines.
+
 ## Orders and cutoffs
 
 The same constructor is used for all supported orders:

@@ -81,6 +81,36 @@ def test_second_order_uses_the_same_pipeline():
     assert result[2].shape == (2, 16, 3, 3)
 
 
+def test_stage_reporting_is_enabled_by_default(capsys):
+    job = ForceConstantCalculation(
+        bulk("Si", "diamond", a=5.43),
+        order=2,
+        supercell=(2, 2, 2),
+        cutoff=-1,
+    )
+    job.evaluate(ZeroCalculator())
+    output = capsys.readouterr().out
+    assert "Creating 2x2x2 supercell" in output
+    assert "Space group Fd-3m" in output
+    assert "cluster equivalence classes" in output
+    assert "force calculations required" in output
+    assert "Evaluating" in output
+    assert "Forces:" in output
+
+
+def test_stage_reporting_can_be_disabled_completely(capsys):
+    job = ForceConstantCalculation(
+        bulk("Si", "diamond", a=5.43),
+        order=2,
+        supercell=(2, 2, 2),
+        cutoff=-1,
+        verbose=False,
+    )
+    forces = job.evaluate(ZeroCalculator())
+    job.reap(forces)
+    assert capsys.readouterr().out == ""
+
+
 def test_invalid_jax_platform_is_rejected():
     with pytest.raises(ValueError, match="jax_platform"):
         configure_jax("tpu")
