@@ -8,6 +8,10 @@
 - `integration/`：`sow`、`reap`、ASE calculator 和 SSCHA 的公开 API 流程；
 - `reference/`：来自独立软件和固定数据的科学数值基准。
 
+`reference/analytic/Morse_FCC_FC4/` 使用 ASE Morse 势产生力，并用独立的 JAX Morse
+能量四次自动微分作为解析 FC4 参考。它同时验证 FCC 解析平衡晶格常数、四阶张量数值和
+中心有限差分的二阶步长收敛，不依赖其他力常数拟合器或 MLFCS 的 ASR。
+
 外部比较必须各自拥有独立目录、数据来源、许可、适配器和 CI 步骤。当前参考基准包括
 `reference/phono3py/AlN_FC3/`：
 
@@ -37,6 +41,7 @@ thirdorder 输出比较周期规范化后的块顺序和 FC3 数值。该比较�
 
 ```bash
 uv run pytest -m "not reference"
+uv run pytest tests/reference/analytic/Morse_FCC_FC4/test_morse_fc4.py
 uv run pytest tests/reference/phono3py/AlN_FC3/test_adapter.py
 uv run pytest tests/reference/phono3py/AlN_FC3/test_provenance.py
 uv run pytest tests/reference/phono3py/AlN_FC3/test_raw.py

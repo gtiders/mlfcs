@@ -53,6 +53,8 @@ jobs:
           python-version: "3.12"
       - name: Install locked development environment
         run: uv sync --locked --dev
+      - name: Analytic FCC Morse FC4 reference
+        run: uv run pytest tests/reference/analytic/Morse_FCC_FC4/test_morse_fc4.py
       - name: hiphive adapter contract
         run: uv run pytest tests/reference/phono3py/AlN_FC3/test_adapter.py
       - name: AlN reference provenance

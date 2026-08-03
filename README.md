@@ -69,6 +69,8 @@ systems use a sparse LSMR projection directly.
 
 - One API and one numerical pipeline for `order >= 2`.
 - Production-tested third- and fourth-order force constants.
+- Analytic FC4 validation against an independently differentiated FCC Morse energy, including
+  second-order finite-difference step convergence.
 - End-to-end second- and fifth-order validation.
 - ASE `Atoms` and ASE `Calculator` at the public boundary.
 - External, checkpoint-friendly `sow()` / `reap()` workflow.
