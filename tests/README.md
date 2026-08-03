@@ -22,9 +22,9 @@
 - `test_provenance.py` 校验二阶派生夹具的 SHA-256；
 - 二阶与三阶基准共用同一训练数据和 pypolymlp 势函数，但拥有独立参考夹具。
 
-`reference/shengbte/Si_FC3/` 冻结 3x3x3、`cutoff=-6` 的外部 VASP sow 顺序。
-获得对应 `vasprun.xml` 后，该目录将继续加入 ShengBTE `FORCE_CONSTANTS_3RD`
-端到端数值比较。
+`reference/shengbte/Si_FC3/` 冻结 3x3x3、`cutoff=-6` 的外部 VASP sow 顺序，
+并用 168 份 VASP 力端到端重建 ShengBTE `FORCE_CONSTANTS_3RD`，与原始
+thirdorder 输出比较周期规范化后的块顺序和 FC3 数值。
 
 ## 命名约定
 
@@ -42,6 +42,8 @@ uv run pytest tests/reference/phono3py/AlN_FC3/test_raw.py
 uv run pytest tests/reference/phono3py/AlN_FC3/test_asr.py
 uv run pytest tests/reference/phonopy/AlN_FC2
 uv run pytest tests/reference/shengbte/Si_FC3/test_sow_contract.py
+uv run pytest tests/reference/shengbte/Si_FC3/test_provenance.py
+uv run pytest tests/reference/shengbte/Si_FC3/test_numerical.py
 ```
 
 参考基准必须串行运行。生成势函数和派生参考数据属于维护者操作，不进入普通 CI。

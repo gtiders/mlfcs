@@ -67,6 +67,10 @@ jobs:
         run: uv run pytest tests/reference/phonopy/AlN_FC2/test_fc2.py
       - name: Si FC3 external sow contract
         run: uv run pytest tests/reference/shengbte/Si_FC3/test_sow_contract.py
+      - name: Si FC3 ShengBTE provenance
+        run: uv run pytest tests/reference/shengbte/Si_FC3/test_provenance.py
+      - name: Si FC3 ShengBTE numerical comparison
+        run: uv run pytest tests/reference/shengbte/Si_FC3/test_numerical.py
 
   package:
     runs-on: ubuntu-latest
