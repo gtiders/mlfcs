@@ -310,7 +310,7 @@ Detailed usage, formulas, ordering rules, and stability guidance are in
 The SSCHA tests exercise the real installed phonopy and symfc implementations with an ASE
 harmonic test calculator. They cover Cartesian initialization, canonical sampling, external
 ID-mapped reap, two successive direct fits, FC2 averaging, free-energy evaluation, and HDF5
-output. The complete v0.5 suite contains 30 serial tests.
+output. The v3.0 suite separates fast API tests from serial scientific references.
 
 ## 9. Current limitations and likely next steps
 

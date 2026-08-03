@@ -98,7 +98,9 @@ uv sync
 Runnable API examples are available in [`examples/`](examples/):
 
 - [`basic_fc2.py`](examples/basic_fc2.py) runs FC2 directly with ASE's built-in EMT calculator;
-- [`external_fc3.py`](examples/external_fc3.py) shows the external `sow()` / `reap()` contract.
+- [`external_fc3.py`](examples/external_fc3.py) shows the external `sow()` / `reap()` contract;
+- [`nep89_orders.py`](examples/nep89_orders.py) evaluates one or more orders with a user-supplied
+  NEP89 model through calorine's ASE calculator.
 
 Install the optional SSCHA dependencies when needed:
 
@@ -393,8 +395,8 @@ All commands use uv and tests run serially:
 uv sync --extra sscha
 uv run pytest
 uv run pytest -m "not reference"
-uv run ruff check src tests tools examples
-uv run ruff format --check src tests tools examples
+uv run ruff check src tests reference_tools examples
+uv run ruff format --check src tests reference_tools examples
 uv build
 ```
 

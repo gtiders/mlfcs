@@ -1,9 +1,4 @@
-"""Regenerate the compact AlN third-order validation fixture.
-
-This is a maintainer tool, not a public MLFCS command-line interface.  It uses
-the phono3py ``example/AlN-rd`` training dataset and a pypolymlp model trained
-from that dataset.  CI consumes only the derived NPZ fixture.
-"""
+"""Maintenance utility to regenerate the AlN second-order phonopy validation fixture."""
 
 from __future__ import annotations
 
@@ -12,7 +7,7 @@ from pathlib import Path
 
 import numpy as np
 from ase import Atoms
-from phono3py import Phono3py, load
+from phonopy import Phonopy, load
 from phonopy.structure.atoms import PhonopyAtoms
 from pypolymlp.calculator.utils.ase_calculator import PolymlpASECalculator
 
@@ -34,7 +29,7 @@ def _ase_atoms(atoms: PhonopyAtoms) -> Atoms:
 
 
 def generate_fixture(dataset: Path, potential: Path, target: Path) -> None:
-    """Generate captured MLFCS forces and an independent phono3py FC3."""
+    """Generate captured MLFCS forces and an independent phonopy FC2."""
     source = load(dataset, produce_fc=False)
     unitcell_ph = source.unitcell
     unitcell = _ase_atoms(unitcell_ph)
@@ -45,7 +40,7 @@ def generate_fixture(dataset: Path, potential: Path, target: Path) -> None:
 
     calculation = ForceConstantCalculation(
         unitcell,
-        order=3,
+        order=2,
         supercell=SUPERCELL,
         cutoff=full_supercell_cutoff,
         displacement=DISPLACEMENT,
@@ -54,24 +49,23 @@ def generate_fixture(dataset: Path, potential: Path, target: Path) -> None:
     )
     mlfcs_forces = calculation.evaluate(calculator)
 
-    ph3 = Phono3py(unitcell_ph, supercell_matrix=np.diag(SUPERCELL))
-    ph3.generate_displacements(distance=DISPLACEMENT, is_plusminus=True)
-    phono3py_forces = []
-    for displaced in ph3.supercells_with_displacements:
-        if displaced is None:
-            # phono3py retains a positional placeholder for pairs excluded by
-            # cutoff; the traditional solver ignores these force entries.
-            phono3py_forces.append(np.zeros((len(ph3.supercell), 3)))
-            continue
+    phonon = Phonopy(unitcell_ph, supercell_matrix=np.diag(SUPERCELL))
+    phonon.generate_displacements(distance=DISPLACEMENT, is_plusminus=True)
+    phonopy_forces = []
+    for displaced in phonon.supercells_with_displacements:
         atoms = _ase_atoms(displaced)
         atoms.calc = calculator
-        phono3py_forces.append(atoms.get_forces())
-    ph3.forces = np.asarray(phono3py_forces)
-    ph3.produce_fc3(is_compact_fc=False, fc_calculator="traditional")
-    phono3py_supercell = _ase_atoms(ph3.supercell)
-    phono3py_fc3 = np.asarray(ph3.fc3).copy()
-    ph3.symmetrize_fc3(use_symfc_projector=False, options="level=3")
-    phono3py_fc3_asr = np.asarray(ph3.fc3).copy()
+        phonopy_forces.append(atoms.get_forces())
+    phonon.forces = np.asarray(phonopy_forces)
+    phonon.produce_force_constants(
+        calculate_full_force_constants=True,
+        fc_calculator="traditional",
+        show_drift=False,
+    )
+    phonopy_supercell = _ase_atoms(phonon.supercell)
+    phonopy_fc2 = np.asarray(phonon.force_constants).copy()
+    phonon.symmetrize_force_constants(level=3, show_drift=False, use_symfc_projector=False)
+    phonopy_fc2_asr = np.asarray(phonon.force_constants).copy()
 
     target.parent.mkdir(parents=True, exist_ok=True)
     np.savez_compressed(
@@ -85,12 +79,12 @@ def generate_fixture(dataset: Path, potential: Path, target: Path) -> None:
         displacement_angstrom=np.asarray(DISPLACEMENT),
         maximum_mic_distance_angstrom=np.asarray(maximum_mic_distance),
         cutoff_mode=np.asarray("full_supercell"),
-        phono3py_supercell_numbers=phono3py_supercell.numbers,
-        phono3py_supercell_cell=np.asarray(phono3py_supercell.cell),
-        phono3py_supercell_scaled_positions=phono3py_supercell.get_scaled_positions(),
-        phono3py_fc3=phono3py_fc3,
-        phono3py_fc3_asr=phono3py_fc3_asr,
-        phono3py_configurations=np.asarray(len(phono3py_forces)),
+        phonopy_supercell_numbers=phonopy_supercell.numbers,
+        phonopy_supercell_cell=np.asarray(phonopy_supercell.cell),
+        phonopy_supercell_scaled_positions=phonopy_supercell.get_scaled_positions(),
+        phonopy_fc2=phonopy_fc2,
+        phonopy_fc2_asr=phonopy_fc2_asr,
+        phonopy_configurations=np.asarray(len(phonopy_forces)),
     )
 
 

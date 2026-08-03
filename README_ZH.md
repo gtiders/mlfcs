@@ -91,7 +91,9 @@ uv sync
 [`examples/`](examples/) 提供可执行的 API 示例：
 
 - [`basic_fc2.py`](examples/basic_fc2.py) 使用 ASE 自带 EMT calculator 直接计算 FC2；
-- [`external_fc3.py`](examples/external_fc3.py) 展示外部 `sow()` / `reap()` 数据契约。
+- [`external_fc3.py`](examples/external_fc3.py) 展示外部 `sow()` / `reap()` 数据契约；
+- [`nep89_orders.py`](examples/nep89_orders.py) 通过 calorine ASE calculator，使用用户提供的
+  NEP89 模型计算一个或多个阶数。
 
 需要 SSCHA 时安装可选依赖：
 
@@ -374,8 +376,8 @@ README 中重复。
 uv sync --extra sscha
 uv run pytest
 uv run pytest -m "not reference"
-uv run ruff check src tests tools examples
-uv run ruff format --check src tests tools examples
+uv run ruff check src tests reference_tools examples
+uv run ruff format --check src tests reference_tools examples
 uv build
 ```
 

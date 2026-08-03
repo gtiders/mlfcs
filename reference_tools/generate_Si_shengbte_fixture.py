@@ -1,4 +1,4 @@
-"""Derive the compact Si FC3 fixture from cleaned local VASP calculations."""
+"""Maintenance utility to derive the Si FC3 fixture from local VASP calculations."""
 
 from __future__ import annotations
 

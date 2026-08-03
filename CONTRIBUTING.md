@@ -25,8 +25,8 @@ uv sync --locked --dev
 The public API and fast suite must pass before a pull request:
 
 ```bash
-uv run ruff check src tests tools examples
-uv run ruff format --check src tests tools examples
+uv run ruff check src tests reference_tools examples
+uv run ruff format --check src tests reference_tools examples
 uv run pytest -m "not reference"
 uv build
 ```

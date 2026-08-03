@@ -44,7 +44,10 @@ Established packages address important parts of this problem. phonopy and phono3
 used harmonic and third-order workflows [@phonopy2015; @phono3py2015]. ALAMODE provides
 displacement- and regression-based anharmonic lattice-dynamics methods [@alamode2018], while
 hiphive builds force-constant models through regression in symmetry-adapted cluster spaces
-[@hiphive2019]. MLFCS serves users who specifically need deterministic, central finite differences
+[@hiphive2019]. ShengBTE consumes second- and third-order force constants for phonon Boltzmann
+transport [@shengbte2014], and FourPhonon extends that workflow to fourth-order interactions and
+four-phonon scattering [@fourphonon2022]. MLFCS serves users who specifically need deterministic,
+central finite differences
 from arbitrary ASE-compatible force providers, a direct order parameter extending beyond FC3,
 and a sparse result that can be exported without coupling force generation to a particular
 electronic-structure program or potential.
@@ -60,7 +63,8 @@ force datasets.
 
 The distinctive contribution is the combination of a recursive order-independent central-
 difference plan, symmetry-reduced cluster tensors, and sparse reconstruction. ShengBTE export is
-provided for FC3 and FC4, dense phonopy output for FC2, phonopy/phono3py HDF5 interoperability for
+provided for FC3 and FC4, including inputs used by ShengBTE and FourPhonon; dense phonopy output
+is provided for FC2, phonopy/phono3py HDF5 interoperability for
 FC2/FC3, and a generic HDF5 schema for higher orders. A compatibility mode reproduces the
 historical thirdorder periodic-image convention, while the default export uses the same
 symmetry-closed support as reconstruction.

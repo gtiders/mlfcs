@@ -1,4 +1,4 @@
-"""Generate the external VASP sow set for the Si ShengBTE FC3 reference."""
+"""Maintenance utility to generate the VASP sow set for the Si FC3 reference."""
 
 from __future__ import annotations
 

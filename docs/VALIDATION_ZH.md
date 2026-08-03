@@ -85,7 +85,7 @@ BLAS、OpenMP 和 JAX CPU 后端均限制为单线程，避免小型 CI 任务�
 
 夹具的固定上游提交、许可证、软件版本与生成命令记录在
 `tests/reference/phono3py/AlN_FC3/data/README.md`。生成程序为
-`tools/generate_AlN_phono3py_fixture.py`。
+`reference_tools/generate_AlN_phono3py_fixture.py`。
 
 同一目录的 `data/training/` 还保存 phono3py 官方 200 结构 AlN 训练数据和本次实际
 使用的 `polymlp.yaml`。普通 CI 只读取 `reference.npz`，维护者可以完全使用仓库内
