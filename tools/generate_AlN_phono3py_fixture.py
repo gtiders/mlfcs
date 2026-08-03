@@ -17,6 +17,11 @@ from phonopy.structure.atoms import PhonopyAtoms
 from pypolymlp.calculator.utils.ase_calculator import PolymlpASECalculator
 
 from mlfcs import ForceConstantCalculation
+from mlfcs.core.geometry import make_supercell
+
+SUPERCELL = (2, 2, 2)
+DISPLACEMENT = 0.01
+CUTOFF_MARGIN = 1e-6
 
 
 def _ase_atoms(atoms: PhonopyAtoms) -> Atoms:
@@ -34,24 +39,23 @@ def generate_fixture(dataset: Path, potential: Path, target: Path) -> None:
     unitcell_ph = source.unitcell
     unitcell = _ase_atoms(unitcell_ph)
     calculator = PolymlpASECalculator(pot=str(potential))
+    trial_supercell, _ = make_supercell(unitcell, SUPERCELL)
+    maximum_mic_distance = float(trial_supercell.get_all_distances(mic=True).max())
+    full_supercell_cutoff = maximum_mic_distance + CUTOFF_MARGIN
 
     calculation = ForceConstantCalculation(
         unitcell,
         order=3,
-        supercell=(2, 2, 1),
-        cutoff=-2,
-        displacement=0.01,
+        supercell=SUPERCELL,
+        cutoff=full_supercell_cutoff,
+        displacement=DISPLACEMENT,
         jax_platform="cpu",
         report_cutoff=False,
     )
     mlfcs_forces = calculation.evaluate(calculator)
 
-    ph3 = Phono3py(unitcell_ph, supercell_matrix=np.diag((2, 2, 1)))
-    ph3.generate_displacements(
-        distance=0.01,
-        cutoff_pair_distance=calculation.cutoff,
-        is_plusminus=True,
-    )
+    ph3 = Phono3py(unitcell_ph, supercell_matrix=np.diag(SUPERCELL))
+    ph3.generate_displacements(distance=DISPLACEMENT, is_plusminus=True)
     phono3py_forces = []
     for displaced in ph3.supercells_with_displacements:
         if displaced is None:
@@ -78,7 +82,9 @@ def generate_fixture(dataset: Path, potential: Path, target: Path) -> None:
         mlfcs_forces=mlfcs_forces,
         mlfcs_plan_hash=np.asarray(calculation.plan.hash),
         cutoff_angstrom=np.asarray(calculation.cutoff),
-        displacement_angstrom=np.asarray(0.01),
+        displacement_angstrom=np.asarray(DISPLACEMENT),
+        maximum_mic_distance_angstrom=np.asarray(maximum_mic_distance),
+        cutoff_mode=np.asarray("full_supercell"),
         phono3py_supercell_numbers=phono3py_supercell.numbers,
         phono3py_supercell_cell=np.asarray(phono3py_supercell.cell),
         phono3py_supercell_scaled_positions=phono3py_supercell.get_scaled_positions(),
