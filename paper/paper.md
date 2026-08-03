@@ -105,7 +105,7 @@ reconstruction. This contract permits the same calculation object to be used wit
 calculator, a batch scheduler, or first-principles calculations such as VASP without embedding
 site-specific execution logic in MLFCS.
 
-# Verification and computational performance
+# Verification and resource-aware execution
 
 The test suite separates mathematical unit tests from independent scientific references. FC2
 and FC3 are compared with phonopy and phono3py for binary AlN and multicomponent K4As4Pt2 models,
@@ -115,15 +115,21 @@ FC4 is tested without another force-constant fitter: an independent JAX implemen
 differentiates an analytic FCC Morse pair energy four times, and halving the finite-difference
 step produces the expected second-order error reduction.
 
-Resource tests demonstrate the effect of retaining sparse representations. For a NaS fourth-
-order calculation using a 2x2x2 supercell and three neighbor shells, the measured serial peak
-memory is approximately 1.14 GiB. A dense-oriented calculation of the same interaction problem
-used approximately 4.92 GiB. In a fifth-order NaS first-shell smoke test, the stored sparse result
-contains 1,686 cluster images and occupies about 789 KiB in HDF5, whereas materializing its full
-dense tensor would require approximately 243 GiB. These measurements are workload-specific, but
-they expose the scaling regime addressed by sparse storage, matrix-free tensor actions, and
-adaptive constrained solvers. Continuous integration restricts scientific references to serial
-execution and tests Python 3.12 and 3.13 independently to keep resource use reproducible.
+Performance is addressed at the algorithm and operator levels rather than through whole-program
+comparisons with packages that solve different fitting or finite-displacement problems. Symmetry
+reduction and displacement-key deduplication avoid unnecessary force evaluations. Matrix-free
+tensor actions avoid constructing $3^n \times 3^n$ Cartesian representation matrices, and sparse
+constraint solvers avoid dense decompositions. The remaining high-rank tensor operations are
+expressed as JAX transformations using JIT compilation, `vmap`, and batched contractions. The
+same kernels run on CPUs and can be placed on a compatible GPU through an explicit backend
+option; cluster enumeration and large sparse solves remain on the CPU.
+
+The stored representation provides a directly reproducible scaling check without comparing
+unlike end-to-end workflows. In a fifth-order NaS first-shell smoke test, the result contains
+1,686 sparse cluster images and occupies about 789 KiB in HDF5, whereas the corresponding full
+dense tensor has an estimated size of approximately 243 GiB. Continuous integration executes
+scientific references serially and tests Python 3.12 and 3.13 independently so that correctness
+checks do not rely on high-memory parallel execution.
 
 # Research impact statement
 
