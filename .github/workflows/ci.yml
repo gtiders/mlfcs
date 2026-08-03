@@ -24,10 +24,11 @@ jobs:
       MKL_NUM_THREADS: "1"
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v9
         with:
           enable-cache: true
           python-version: ${{ matrix.python-version }}
+          version: "0.11.26"
       - name: Install locked development environment
         run: uv sync --locked --dev
       - name: Lint
@@ -47,10 +48,11 @@ jobs:
       MKL_NUM_THREADS: "1"
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v9
         with:
           enable-cache: true
           python-version: "3.12"
+          version: "0.11.26"
       - name: Install locked development environment
         run: uv sync --locked --dev
       - name: Analytic FCC Morse FC4 reference
@@ -89,9 +91,10 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v9
         with:
           enable-cache: true
           python-version: "3.12"
+          version: "0.11.26"
       - name: Build distributions
         run: uv build
