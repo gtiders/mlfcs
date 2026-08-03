@@ -226,28 +226,6 @@ Higher orders grow combinatorially through cluster combinations, tensor componen
 permutations, and finite-difference signs. Use small cutoffs first and monitor configuration
 count and memory.
 
-### Choosing the displacement step
-
-The displacement is a numerical-accuracy parameter, not a universal material constant. Central
-differences have a leading truncation error proportional to `h²`, so reducing `h` initially
-improves the result. Force noise and floating-point cancellation act in the opposite direction;
-for an order-`n` force constant, differentiation of forces can amplify their noise roughly as
-`h^{-(n-1)}`. This makes FC4 and higher orders especially sensitive to an excessively small step.
-
-As practical starting points, try `0.001–0.003 Å` for smooth analytic classical potentials,
-`0.003–0.01 Å` for accurate machine-learning potentials, and about `0.01 Å` for well-converged
-electronic-structure forces. These are starting ranges, not guaranteed optima. For production
-work, evaluate at least three steps around the candidate value and compare important tensor
-components, norms, or downstream observables. Choose a plateau where truncation error has fallen
-but force noise has not begun to grow; convergence with respect to cutoff and supercell must be
-checked separately.
-
-The analytic FC4 CI uses ASE's one-parameter-set Morse calculator because it permits an
-independent exact fourth derivative. It can run on geometrically complex and multi-atom
-structures, but it does not distinguish chemical pair types and therefore is not a physically
-meaningful potential for general multicomponent materials. Multicomponent coverage is provided
-separately by the K4As4Pt2 machine-learning-potential reference tests.
-
 ## Atom ordering
 
 The canonical internal supercell order is:
