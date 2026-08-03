@@ -53,8 +53,10 @@ jobs:
           enable-cache: true
           python-version: "3.12"
           version: "0.11.26"
+      - name: Install pypolymlp system build dependency
+        run: sudo apt-get update && sudo apt-get install --yes libeigen3-dev
       - name: Install locked development environment
-        run: uv sync --locked --dev
+        run: uv sync --locked --dev --group reference
       - name: Analytic FCC Morse FC4 reference
         run: uv run pytest tests/reference/analytic/Morse_FCC_FC4/test_morse_fc4.py
       - name: hiphive adapter contract

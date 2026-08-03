@@ -486,7 +486,6 @@ dependencies = [
     { name = "h5py" },
     { name = "jax" },
     { name = "numpy" },
-    { name = "pypolymlp" },
     { name = "scipy" },
     { name = "spglib" },
 ]
@@ -504,6 +503,9 @@ dev = [
     { name = "pytest" },
     { name = "ruff" },
 ]
+reference = [
+    { name = "pypolymlp" },
+]
 
 [package.metadata]
 requires-dist = [
@@ -512,7 +514,6 @@ requires-dist = [
     { name = "jax", specifier = ">=0.11.0" },
     { name = "numpy", specifier = ">=1.26.0,<2.5" },
     { name = "phonopy", marker = "extra == 'sscha'", specifier = ">=2.43" },
-    { name = "pypolymlp", specifier = ">=0.20.4" },
     { name = "scipy", specifier = ">=1.16" },
     { name = "spglib", specifier = ">=2.6" },
     { name = "symfc", marker = "extra == 'sscha'", specifier = ">=1.5" },
@@ -526,6 +527,7 @@ dev = [
     { name = "pytest", specifier = ">=8.4" },
     { name = "ruff", specifier = ">=0.12" },
 ]
+reference = [{ name = "pypolymlp", specifier = ">=0.20.4" }]
 
 [[package]]
 name = "mpmath"
