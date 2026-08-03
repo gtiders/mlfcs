@@ -9,6 +9,7 @@ tags:
 authors:
   - given-names: Yibo
     surname: Gao
+    orcid: 0009-0007-9783-1490
     corresponding: true
     affiliation: "1"
 affiliations:

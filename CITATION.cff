@@ -7,6 +7,7 @@ date-released: 2026-08-03
 authors:
   - given-names: "Yibo"
     family-names: "Gao"
+    orcid: "https://orcid.org/0009-0007-9783-1490"
     affiliation: "School of Physics, Central South University"
     email: "242211044@csu.edu.cn"
 repository-code: "https://github.com/gtiders/mlfcs"

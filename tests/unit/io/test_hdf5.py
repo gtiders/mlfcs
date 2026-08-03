@@ -64,6 +64,7 @@ def test_phonopy_hdf5_is_readable_and_uses_grouped_full_supercell_order(tmp_path
     np.testing.assert_allclose(full[1, 2], compact[0, 3], atol=0, rtol=0)
     with h5py.File(target) as handle:
         np.testing.assert_array_equal(handle["p2s_map"], [0, 2])
+        assert handle["version"][()].decode().startswith("mlfcs 3.0.0")
 
 
 def test_phono3py_hdf5_streams_full_fc3_and_is_readable(tmp_path):

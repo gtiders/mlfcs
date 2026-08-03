@@ -1,5 +1,5 @@
 [project]
-name = "mlfcs-new"
+name = "mlfcs"
 version = "3.0.0"
 description = "ASE-first symmetry-reduced force constants from second to arbitrary order"
 readme = "README.md"

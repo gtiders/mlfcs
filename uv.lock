@@ -478,7 +478,7 @@ wheels = [
 ]
 
 [[package]]
-name = "mlfcs-new"
+name = "mlfcs"
 version = "3.0.0"
 source = { editable = "." }
 dependencies = [

@@ -77,10 +77,10 @@ def write_phonon_hdf5(
         n_cells = n_supercell // n_primitive
         handle.create_dataset("p2s_map", data=np.arange(n_primitive, dtype=np.int64) * n_cells)
         try:
-            release = version("mlfcs-new")
+            release = version("mlfcs")
         except PackageNotFoundError:
             release = "unknown"
-        handle.create_dataset("version", data=np.bytes_(f"mlfcs-new {release}"))
+        handle.create_dataset("version", data=np.bytes_(f"mlfcs {release}"))
         if order == 2:
             handle.create_dataset("physical_unit", data=np.asarray([b"eV/angstrom^2"]))
 
