@@ -12,6 +12,8 @@ pytest.importorskip("symfc")
 
 from mlfcs.sscha import SSCHA
 
+pytestmark = pytest.mark.integration
+
 
 class TranslationalHarmonic(Calculator):
     implemented_properties: ClassVar[list[str]] = ["energy", "forces"]

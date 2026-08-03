@@ -1,9 +1,10 @@
 [project]
 name = "mlfcs-new"
 version = "0.5.0"
-description = "Add your description here"
+description = "ASE-first symmetry-reduced force constants from second to arbitrary order"
 readme = "README.md"
 requires-python = ">=3.12"
+license = "Apache-2.0"
 dependencies = [
     "ase>=3.29.0",
     "h5py>=3.14",
@@ -22,6 +23,8 @@ sscha = [
 
 [dependency-groups]
 dev = [
+    "hiphive>=1.5",
+    "phono3py>=3.18",
     "pytest>=8.4",
     "ruff>=0.12",
 ]
@@ -40,6 +43,10 @@ packages = ["src/mlfcs"]
 [tool.pytest.ini_options]
 addopts = "-q"
 testpaths = ["tests"]
+markers = [
+    "integration: public API integration tests",
+    "reference: independent external scientific reference tests",
+]
 
 [tool.ruff]
 line-length = 100

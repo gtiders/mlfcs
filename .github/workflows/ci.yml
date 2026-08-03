@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  unit-and-api:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    env:
+      JAX_PLATFORMS: cpu
+      OMP_NUM_THREADS: "1"
+      OPENBLAS_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          python-version: ${{ matrix.python-version }}
+      - name: Install locked development environment
+        run: uv sync --locked --dev
+      - name: Lint
+        run: uv run ruff check src tests tools
+      - name: Check formatting
+        run: uv run ruff format --check src tests tools
+      - name: Unit and API tests
+        run: uv run pytest -m "not reference"
+
+  scientific-reference:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      JAX_PLATFORMS: cpu
+      OMP_NUM_THREADS: "1"
+      OPENBLAS_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          python-version: "3.12"
+      - name: Install locked development environment
+        run: uv sync --locked --dev
+      - name: hiphive adapter contract
+        run: uv run pytest tests/reference/phono3py/AlN_FC3/test_adapter.py
+      - name: AlN FC3 without ASR
+        run: uv run pytest tests/reference/phono3py/AlN_FC3/test_raw.py
+      - name: AlN FC3 with ASR
+        run: uv run pytest tests/reference/phono3py/AlN_FC3/test_asr.py
+
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          python-version: "3.12"
+      - name: Build distributions
+        run: uv build

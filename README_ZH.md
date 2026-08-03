@@ -329,6 +329,7 @@ DOS 和热力学性质。
 ## 文档
 
 - [技术总览](docs/TECHNICAL_OVERVIEW.md)
+- [数值验证与持续集成](docs/VALIDATION_ZH.md)
 - [SSCHA 使用说明](docs/SSCHA.md)
 - [新旧实现详细对比](docs/OLD_NEW_COMPARISON_ZH.md)
 
@@ -342,9 +343,18 @@ README 中重复。
 ```bash
 uv sync --extra sscha
 uv run pytest
+uv run pytest -m "not reference"
 uv run ruff check src tests tools
 uv run ruff format --check src tests tools
 uv build
 ```
 
+hiphive 和 phono3py 仅作为开发验证依赖。CI 中的 AlN 三阶基准先由 hiphive 将双方的
+原子顺序和张量表示统一为完整超胞 FC3，再与独立的 phono3py 有限差分结果做数值比较。
+测试层级和各项独立参考测试的运行命令见 [tests/README.md](tests/README.md)。
+
 当前开发版本为 `0.5.0`。
+
+## 许可证
+
+MLFCS 使用 [Apache License 2.0](LICENSE) 发布。

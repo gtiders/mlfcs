@@ -17,3 +17,9 @@ wheels/
 
 # Generated force-constant artifact kept locally for inspection
 /FORCE_CONSTANTS_2ND
+/FORCE_CONSTANTS_3RD
+
+# Local calculator inputs and interactive scratch files
+/POSCAR
+/polymlp.yaml
+/main.py

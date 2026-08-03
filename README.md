@@ -73,7 +73,7 @@ systems use a sparse LSMR projection directly.
 - ASE `Atoms` and ASE `Calculator` at the public boundary.
 - External, checkpoint-friendly `sow()` / `reap()` workflow.
 - Stable configuration IDs, plan hashes, and explicit atom-order mappings.
-- Legacy-compatible periodic cluster cutoff geometry.
+- Joint periodic-image cluster cutoff geometry.
 - Recursive central-difference stencils.
 - JAX-accelerated high-rank tensor transformations with CPU/GPU selection.
 - JAX JIT, `vmap`, and batched contractions for high-rank tensor throughput.
@@ -345,6 +345,7 @@ calculation. See the [SSCHA guide](docs/SSCHA.md) for details.
 ## Documentation
 
 - [Technical overview](docs/TECHNICAL_OVERVIEW.md)
+- [Numerical validation and CI (Chinese)](docs/VALIDATION_ZH.md)
 - [SSCHA guide](docs/SSCHA.md)
 - [Detailed old/new implementation comparison (Chinese)](docs/OLD_NEW_COMPARISON_ZH.md)
 
@@ -359,9 +360,20 @@ All commands use uv and tests run serially:
 ```bash
 uv sync --extra sscha
 uv run pytest
+uv run pytest -m "not reference"
 uv run ruff check src tests tools
 uv run ruff format --check src tests tools
 uv build
 ```
 
+hiphive and phono3py are development-only validation dependencies. The CI reference compares
+AlN FC3 values against an independent phono3py finite-difference result after hiphive converts
+both atom orderings and tensor representations to the same full-supercell form.
+The test hierarchy and independent reference commands are documented in
+[tests/README.md](tests/README.md).
+
 The current development version is `0.5.0`.
+
+## License
+
+MLFCS is distributed under the [Apache License 2.0](LICENSE).

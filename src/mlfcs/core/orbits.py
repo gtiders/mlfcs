@@ -95,7 +95,7 @@ def build_orbit_space(
     """Enumerate cutoff clusters and reduce them by permutation and space group."""
     if order < 2:
         raise ValueError("order must be at least two")
-    distances, tail_compatibility = _legacy_cluster_geometry(
+    distances, tail_compatibility = _joint_periodic_cluster_geometry(
         supercell,
         index.n_primitive,
         cutoff,
@@ -155,7 +155,7 @@ def _inside_cluster_cutoff(
     return all(tail_compatibility[first, a, b] for a, b in combinations(cluster[1:], 2))
 
 
-def _legacy_cluster_geometry(
+def _joint_periodic_cluster_geometry(
     supercell: Atoms,
     n_primitive: int,
     cutoff: float,

@@ -8,6 +8,8 @@ from ase.calculators.calculator import Calculator, all_changes
 from mlfcs import ForceConstantCalculation
 from mlfcs.runtime import configure_jax
 
+pytestmark = pytest.mark.integration
+
 
 class ZeroCalculator(Calculator):
     implemented_properties: ClassVar[list[str]] = ["forces"]
