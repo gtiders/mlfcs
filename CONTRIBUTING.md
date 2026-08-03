@@ -1,5 +1,7 @@
 # Contributing to MLFCS
 
+[中文](CONTRIBUTING_ZH.md)
+
 Bug reports, reference datasets, documentation fixes, and focused pull requests are welcome.
 
 ## Before opening an issue

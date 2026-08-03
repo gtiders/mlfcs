@@ -1,5 +1,7 @@
 # Changelog
 
+[中文](CHANGELOG_ZH.md)
+
 All notable changes are documented here. Releases follow semantic versioning.
 
 ## 3.0.0 — 2026-08-03

@@ -91,7 +91,8 @@ uv sync
 [`examples/`](examples/) 提供可执行的 API 示例：
 
 - [`basic_fc2.py`](examples/basic_fc2.py) 使用 ASE 自带 EMT calculator 直接计算 FC2；
-- [`external_fc3.py`](examples/external_fc3.py) 展示外部 `sow()` / `reap()` 数据契约；
+- [`vasp_external_fc3.py`](examples/vasp_external_fc3.py) 给出完整的外部 VASP
+  `sow`、力收集和 `reap` 工作流；
 - [`nep89_orders.py`](examples/nep89_orders.py) 通过 calorine ASE calculator，使用用户提供的
   NEP89 模型计算一个或多个阶数。
 
@@ -347,7 +348,7 @@ result = sscha.reap(
 DOS 和热力学性质。
 
 该方法是随机有效谐波方法，不是显式 FC3 bubble 或 FC4 loop 计算。详见
-[SSCHA 文档](docs/SSCHA.md)。
+[SSCHA 文档](docs/SSCHA_ZH.md)。
 
 ## 当前限制
 
@@ -360,9 +361,11 @@ DOS 和热力学性质。
 
 ## 文档
 
-- [技术总览](docs/TECHNICAL_OVERVIEW.md)
+- [文档索引](docs/README_ZH.md)（[English](docs/README.md)）
+- [外部 VASP 工作流](docs/EXTERNAL_VASP_WORKFLOW_ZH.md)
+- [技术总览](docs/TECHNICAL_OVERVIEW_ZH.md)
 - [数值验证与持续集成](docs/VALIDATION_ZH.md)
-- [SSCHA 使用说明](docs/SSCHA.md)
+- [SSCHA 使用说明](docs/SSCHA_ZH.md)
 - [新旧实现详细对比](docs/OLD_NEW_COMPARISON_ZH.md)
 
 旧版兼容决策、基准构型数量和实测内存统一放在对比与技术文档中，不在用户入口

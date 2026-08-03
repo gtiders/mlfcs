@@ -1,5 +1,7 @@
 # Scientific reference maintenance tools
 
+English | [中文](README_ZH.md)
+
 These scripts regenerate frozen scientific-reference fixtures and external sow plans under
 `tests/reference/`. They are maintainer utilities, not public MLFCS APIs or ordinary user tools.
 

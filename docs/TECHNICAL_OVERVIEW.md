@@ -1,10 +1,12 @@
-# MLFCS v3.0 technical overview
+# MLFCS 3.0 technical overview
+
+English | [中文](TECHNICAL_OVERVIEW_ZH.md)
 
 ## 1. Scope and design goals
 
 The base MLFCS pipeline is a clean ASE-first implementation for reconstructing force constants
 from user-supplied forces. It does not embed a force calculator, does not require phonopy or
-symfc, and has no command-line interface. Version 0.5 adds an isolated, optional
+symfc, and has no command-line interface. Version 3.0 includes an isolated, optional
 `mlfcs.sscha` module that deliberately depends on phonopy and symfc for finite-temperature
 effective FC2 calculations. The main public workflow remains a Python API:
 
@@ -160,7 +162,7 @@ process-global, so applications should configure it before other JAX workloads.
 ### 4.2 Matrix-free symmetry transformations
 
 The old-style approach of materializing large tensor representation matrices becomes expensive
-as `3**order` grows. v0.3 stores the underlying Cartesian rotation and permutation, then applies
+as `3**order` grows. MLFCS stores the underlying Cartesian rotation and permutation, then applies
 them through tensor contractions. A dense action matrix remains available only when a small
 linear-algebra operation explicitly requires it.
 
@@ -170,7 +172,7 @@ Reconstruction and ASR use SciPy sparse matrices. Large rectangular constraint s
 passed to a full SVD. This avoids the failure mode where `full_matrices=True` creates an enormous
 left-singular-vector matrix unrelated to the small number of unknown parameters.
 
-For ASR projection, v0.3 uses an adaptive method:
+For ASR projection, MLFCS uses an adaptive method:
 
 - up to 4096 independent parameters, diagonalize the small Gram matrix `A.T @ A` to identify the
   null space;
@@ -189,7 +191,7 @@ sum over one atom axis of Phi(i1, ..., in) = 0
 ```
 
 with all other atom and Cartesian indices fixed. Permutation symmetry makes equivalent atom axes
-redundant. v0.3 constructs this constraint in the independent orbit-parameter space and projects
+redundant. MLFCS constructs this constraint in the independent orbit-parameter space and projects
 onto its null space.
 
 This agrees with the physical constraint used by ALAMODE and hiphive. It differs from the
@@ -220,7 +222,9 @@ I/O is selected explicitly through `format`:
 - `hdf5`: generic dense or sparse storage for any order;
 - `numpy` / `npz`: materialized NumPy tensors;
 - `shengbte`: scientific-notation text for orders 3 and 4;
-- `phonopy`: full dense second-order text format.
+- `phonopy`: full dense second-order text format;
+- `phonopy_hdf5`: streamed full-supercell FC2 HDF5;
+- `phono3py_hdf5`: streamed full-supercell FC3 HDF5.
 
 The phonopy writer expands compact FC2 to `(N, N, 3, 3)`, applies translational equivalence to
 every first supercell atom, and converts both atom axes to phonopy's primitive-atom-grouped
@@ -228,13 +232,17 @@ ordering. It has no phonopy runtime dependency. A generated K3Au3Sb2 3x3x3 file 
 read by phonopy's own parser as `(216, 216, 3, 3)` with a maximum ASR residual of
 `2.60e-14`.
 
+The phonopy and phono3py HDF5 writers convert to primitive-atom-grouped order at the format
+boundary and stream one first-atom slab at a time. This avoids constructing a second complete
+full-supercell tensor solely for output.
+
 ShengBTE output is cluster-and-translation based rather than a simple global supercell tensor
 order. The writer derives its primitive atom indices and lattice translations from the canonical
 internal geometry and uses scientific notation for both supported orders.
 
 ## 6. Comparison with the previous implementation
 
-| Area | Previous implementation | MLFCS v0.3 |
+| Area | Previous implementation | MLFCS 3.0 |
 |---|---|---|
 | Public interface | Order-specific CLI workflows | Pure Python ASE API |
 | Code organization | Separate third/fourth-order implementations | Shared order-parameterized pipeline |
@@ -288,7 +296,7 @@ The complex-material neighbor-shell regression results at fourth order and cutof
 
 ## 8. Optional stochastic effective-harmonic module
 
-Version 0.5 implements the phonopy-style SSCHA loop behind an optional dependency boundary:
+MLFCS 3.0 implements the phonopy-style SSCHA loop behind an optional dependency boundary:
 
 1. generate small random Cartesian displacements when no initial FC2 is available;
 2. evaluate arbitrary ASE forces and optionally energies;
@@ -328,11 +336,9 @@ output. The v3.0 suite separates fast API tests from serial scientific reference
 
 ## 10. Version summary
 
-`v0.3.0` adds dependency-free full phonopy FC2 text export, explicit reporting and validation of
-the neighbor-shell capacity of the current supercell, and this consolidated technical record on
-top of the generic sparse reconstruction and strict ASR work introduced in `v0.2.0`.
-
-`v3.0.0` includes the independent optional `mlfcs.sscha` module, a redesigned ASE-first direct and
+`v3.0.0` consolidates dependency-free phonopy FC2 export, explicit neighbor-shell diagnostics,
+generic sparse reconstruction, strict ASR, and the independent optional `mlfcs.sscha` module.
+It also includes a redesigned ASE-first direct and
 external API, structured iteration history, free-energy uncertainty, final-iteration averaging,
 and phonopy-native FC2 output. The base force-constant implementation remains free of phonopy and
 symfc runtime dependencies.

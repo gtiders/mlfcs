@@ -98,7 +98,8 @@ uv sync
 Runnable API examples are available in [`examples/`](examples/):
 
 - [`basic_fc2.py`](examples/basic_fc2.py) runs FC2 directly with ASE's built-in EMT calculator;
-- [`external_fc3.py`](examples/external_fc3.py) shows the external `sow()` / `reap()` contract;
+- [`vasp_external_fc3.py`](examples/vasp_external_fc3.py) implements a complete external VASP
+  `sow` / force collection / `reap` workflow;
 - [`nep89_orders.py`](examples/nep89_orders.py) evaluates one or more orders with a user-supplied
   NEP89 model through calorine's ASE calculator.
 
@@ -378,10 +379,12 @@ calculation. See the [SSCHA guide](docs/SSCHA.md) for details.
 
 ## Documentation
 
+- [Documentation index](docs/README.md) ([中文](docs/README_ZH.md))
+- [External VASP workflow](docs/EXTERNAL_VASP_WORKFLOW.md)
 - [Technical overview](docs/TECHNICAL_OVERVIEW.md)
-- [Numerical validation and CI (Chinese)](docs/VALIDATION_ZH.md)
+- [Numerical validation and CI](docs/VALIDATION.md)
 - [SSCHA guide](docs/SSCHA.md)
-- [Detailed old/new implementation comparison (Chinese)](docs/OLD_NEW_COMPARISON_ZH.md)
+- [Detailed old/new implementation comparison](docs/OLD_NEW_COMPARISON.md)
 
 Implementation comparisons, compatibility decisions, benchmark counts, and measured memory
 figures are intentionally kept in the comparison and technical documents rather than this user

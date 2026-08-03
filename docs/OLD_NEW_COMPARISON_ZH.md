@@ -1,5 +1,7 @@
 # MLFCS 新旧实现差异
 
+[English](OLD_NEW_COMPARISON.md) | 中文
+
 本文对比旧版 MLFCS 与当前 `mlfcs-new` v3.0 的设计、算法、输出和已验证行为。
 “兼容”不表示逐行复制旧代码，而是区分以下三类目标：
 
@@ -480,4 +482,4 @@ ShengBTE 只有三阶和四阶 writer，不限制内部计算阶数；更高阶�
 6. Calculator 保持用户所有，核心包不绑定具体势函数。
 
 更完整的架构和数值细节见[技术总览](TECHNICAL_OVERVIEW.md)，SSCHA 使用方式见
-[SSCHA 文档](SSCHA.md)。
+[SSCHA 文档](SSCHA_ZH.md)。
