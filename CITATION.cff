@@ -7,8 +7,8 @@ date-released: 2026-08-03
 authors:
   - given-names: "Yibo"
     family-names: "Gao"
-    affiliation: "Central South University"
-    email: "gtiders@qq.com"
+    affiliation: "School of Physics, Central South University"
+    email: "242211044@csu.edu.cn"
 repository-code: "https://github.com/gtiders/mlfcs"
 url: "https://github.com/gtiders/mlfcs"
 license: Apache-2.0

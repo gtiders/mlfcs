@@ -1,7 +1,7 @@
 # MLFCS：基于 ASE 和 JAX 的任意阶有限差分力常数
 
 本文件是 JOSS 英文稿 [`paper.md`](paper.md) 的中文阅读版；正式投稿以英文稿为准。
-作者为高一波（Yibo Gao），单位为中南大学。
+作者为高一波（Yibo Gao），单位为中南大学物理学院。
 
 ## 摘要
 
@@ -87,8 +87,8 @@ MLFCS 面向已经拥有力生成器、但需要从位移结构可靠得到可�
 
 ## 致谢
 
-作者感谢中南大学提供机构支持，感谢所在课题组提供软件验证所需的计算资源和一个测试
-数据集，并感谢 ASE、JAX、NumPy、SciPy、spglib、phonopy、phono3py、hiphive、
+作者感谢中南大学物理学院提供机构支持，感谢所在课题组提供计算资源和一个用于软件验证
+的测试数据集，并感谢 ASE、JAX、NumPy、SciPy、spglib、phonopy、phono3py、hiphive、
 ALAMODE、ShengBTE 和 FourPhonon 的开发维护者。本工作未获得外部经费资助，任何赞助方
 均未参与软件设计、验证、论文撰写或投稿决定。作者声明不存在利益冲突。文献条目见英文稿
 及 [`paper.bib`](paper.bib)。

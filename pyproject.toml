@@ -5,7 +5,7 @@ description = "ASE-first symmetry-reduced force constants from second to arbitra
 readme = "README.md"
 requires-python = ">=3.12"
 license = "Apache-2.0"
-authors = [{ name = "Yibo Gao", email = "gtiders@qq.com" }]
+authors = [{ name = "Yibo Gao", email = "242211044@csu.edu.cn" }]
 keywords = [
     "anharmonicity",
     "force-constants",

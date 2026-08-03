@@ -12,7 +12,7 @@ authors:
     corresponding: true
     affiliation: "1"
 affiliations:
-  - name: Central South University, China
+  - name: School of Physics, Central South University, Changsha 410083, China
     index: 1
 date: 3 August 2026
 bibliography: paper.bib
@@ -151,12 +151,12 @@ and cited literature.
 
 # Acknowledgements
 
-The author acknowledges Central South University for institutional support and thanks the
-author's research group for providing computational resources and a test dataset used during
-software verification. The author also thanks the developers and maintainers of ASE, JAX,
-NumPy, SciPy, spglib, phonopy, phono3py, hiphive, ALAMODE, ShengBTE, and FourPhonon. This work
-received no external financial support, and no sponsor had a role in the software design,
-validation, manuscript preparation, or decision to submit. The author declares no competing
-interests.
+The author acknowledges the School of Physics at Central South University for institutional
+support and thanks the author's research group for access to computational resources and for
+providing a test dataset used in software verification. The author also thanks the developers
+and maintainers of ASE, JAX, NumPy, SciPy, spglib, phonopy, phono3py, hiphive, ALAMODE,
+ShengBTE, and FourPhonon. This work received no external financial support, and no sponsor had a
+role in the software design, validation, manuscript preparation, or decision to submit. The
+author declares no competing interests.
 
 # References
