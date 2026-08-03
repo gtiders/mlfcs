@@ -14,6 +14,7 @@ wheels/
 /mlfcs/
 /nep89_20250409/
 /phonopy/
+/ntrain_130_ntest_20/
 
 # Generated force-constant artifact kept locally for inspection
 /FORCE_CONSTANTS_2ND

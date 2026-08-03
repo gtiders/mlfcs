@@ -65,6 +65,12 @@ jobs:
         run: uv run pytest tests/reference/phonopy/AlN_FC2/test_provenance.py
       - name: AlN FC2 with and without ASR
         run: uv run pytest tests/reference/phonopy/AlN_FC2/test_fc2.py
+      - name: K4As4Pt2 reference provenance and potential
+        run: uv run pytest tests/reference/phono3py/K4As4Pt2_FC23/test_provenance.py tests/reference/phono3py/K4As4Pt2_FC23/test_potential.py
+      - name: K4As4Pt2 FC2 comparison
+        run: uv run pytest tests/reference/phono3py/K4As4Pt2_FC23/test_fc2.py
+      - name: K4As4Pt2 FC3 comparison
+        run: uv run pytest tests/reference/phono3py/K4As4Pt2_FC23/test_fc3.py
       - name: Si FC3 external sow contract
         run: uv run pytest tests/reference/shengbte/Si_FC3/test_sow_contract.py
       - name: Si FC3 ShengBTE provenance
