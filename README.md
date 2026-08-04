@@ -128,9 +128,20 @@ JAX numerical kernels use 64-bit floating point.
 
 ### External force workflow
 
+`sow()` does not write files or run a DFT program. It returns an ordered Python list of displaced
+ASE `Atoms` objects. The user chooses how to serialize and calculate them: ASE can write each
+structure as `POSCAR-xxx` for VASP or in another calculator's input format, after which the jobs
+can be submitted by any local scheduler. When the calculations finish, use ASE to read each
+result, extract its forces, restore the sow order (or key the forces by configuration ID), and
+pass only those forces to `reap()`.
+
+For example, a positional VASP workflow is:
+
 ```python
+from pathlib import Path
+
 import numpy as np
-from ase.io import read
+from ase.io import read, write
 from mlfcs import ForceConstantCalculation
 
 calculation = ForceConstantCalculation(
@@ -143,16 +154,42 @@ calculation = ForceConstantCalculation(
     jax_platform="auto",  # "auto", "cpu", or "gpu"
 )
 
-structures = calculation.sow()
-forces = np.asarray(evaluate_structures(structures))
+# 1. sow(): obtain the displaced ASE structures in the exact reap order.
+structures = calculation.sow(atom_order="grouped")
+Path("vasp-jobs").mkdir(exist_ok=True)
+for configuration_id, atoms in enumerate(structures):
+    job = Path("vasp-jobs") / f"POSCAR-{configuration_id + 1:03d}"
+    job.mkdir(exist_ok=True)
+    write(job / "POSCAR", atoms, format="vasp", direct=True, vasp5=True)
 
+# 2. The user supplies INCAR, KPOINTS, POTCAR and submits every directory.
+#    MLFCS does not launch or configure VASP.
+
+# 3. Read completed results with ASE in the same filename/order convention.
+forces = []
+for configuration_id in range(len(structures)):
+    job = Path("vasp-jobs") / f"POSCAR-{configuration_id + 1:03d}"
+    completed = read(job / "vasprun.xml", index=-1)
+    forces.append(completed.get_forces())
+forces = np.asarray(forces)
+
+# 4. reap(): the force at forces[i] must belong to structures[i].
 fc3 = calculation.reap(
     forces,
+    atom_order="grouped",
     plan_hash=calculation.plan.hash,
     acoustic_sum_rule=True,
 )
 fc3.write("fc3.h5", format="hdf5")
 ```
+
+For Quantum ESPRESSO, ABINIT, CP2K, or another external program, replace only the ASE `write()`
+and `read()` formats and provide that program's required input parameters. The sow/reap contract
+is unchanged. File formats such as POSCAR do not preserve the Python `atoms.info` metadata, so
+the filename-to-configuration-ID relation and the plan hash should be stored in a manifest. The
+complete [`vasp_external_fc3.py`](examples/vasp_external_fc3.py) example implements this manifest,
+force collection, missing-result checks, and final export; see the
+[external VASP workflow guide](docs/EXTERNAL_VASP_WORKFLOW.md).
 
 The force array must have shape:
 
@@ -169,11 +206,13 @@ atoms.info["mlfcs_atom_order"]
 atoms.arrays["mlfcs_displacement"]
 ```
 
-When jobs return out of order, pass a mapping keyed by configuration ID:
+When jobs return out of order, read them in any order and pass a mapping keyed by the original
+zero-based configuration ID:
 
 ```python
 fc3 = calculation.reap(
     forces_by_configuration_id,
+    atom_order="grouped",
     plan_hash=calculation.plan.hash,
 )
 ```

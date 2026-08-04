@@ -120,9 +120,19 @@ JAX 数值核使用 64 位浮点数。
 
 ### 外部力计算
 
+`sow()` 本身不写文件，也不启动 DFT 程序；它返回一个有确定顺序的 ASE `Atoms` 位移
+结构列表。用户可以自行用 ASE 将这些结构写成 VASP 的 `POSCAR-xxx`，也可以选择其他
+第一性原理软件的输入格式，再通过任意本地调度系统提交。计算完成后，仍由用户使用 ASE
+读取每个结果、提取力，并恢复 `sow()` 的原始顺序（或按构型 ID 建立字典），最后只把
+力交给 `reap()`。
+
+下面是按位置顺序组织的 VASP 案例：
+
 ```python
+from pathlib import Path
+
 import numpy as np
-from ase.io import read
+from ase.io import read, write
 from mlfcs import ForceConstantCalculation
 
 calculation = ForceConstantCalculation(
@@ -135,16 +145,41 @@ calculation = ForceConstantCalculation(
     jax_platform="auto",  # "auto"、"cpu" 或 "gpu"
 )
 
-structures = calculation.sow()
-forces = np.asarray(evaluate_structures(structures))
+# 1. sow()：获得与 reap 完全对应的 ASE 位移结构列表。
+structures = calculation.sow(atom_order="grouped")
+Path("vasp-jobs").mkdir(exist_ok=True)
+for configuration_id, atoms in enumerate(structures):
+    job = Path("vasp-jobs") / f"POSCAR-{configuration_id + 1:03d}"
+    job.mkdir(exist_ok=True)
+    write(job / "POSCAR", atoms, format="vasp", direct=True, vasp5=True)
 
+# 2. 用户提供 INCAR、KPOINTS、POTCAR，并提交所有目录。
+#    MLFCS 不启动 VASP，也不规定 VASP 参数。
+
+# 3. 计算完成后，按照相同文件名和顺序用 ASE 读取 vasprun.xml。
+forces = []
+for configuration_id in range(len(structures)):
+    job = Path("vasp-jobs") / f"POSCAR-{configuration_id + 1:03d}"
+    completed = read(job / "vasprun.xml", index=-1)
+    forces.append(completed.get_forces())
+forces = np.asarray(forces)
+
+# 4. reap()：forces[i] 必须对应 structures[i]。
 fc3 = calculation.reap(
     forces,
+    atom_order="grouped",
     plan_hash=calculation.plan.hash,
     acoustic_sum_rule=True,
 )
 fc3.write("fc3.h5", format="hdf5")
 ```
+
+若使用 Quantum ESPRESSO、ABINIT、CP2K 或其他外部程序，只需更换 ASE `write()` 和
+`read()` 所使用的格式，并补充该程序需要的输入参数；`sow/reap` 契约不变。POSCAR 这类
+文件不会保存 Python 中的 `atoms.info` 元数据，因此必须用 manifest 保存文件名与构型 ID
+的对应关系以及计划哈希。完整的
+[`vasp_external_fc3.py`](examples/vasp_external_fc3.py) 示例已经实现 manifest、力收集、
+缺失结果检查和最终导出，详见[外部 VASP 工作流](docs/EXTERNAL_VASP_WORKFLOW_ZH.md)。
 
 力数组的形状必须为：
 
@@ -161,11 +196,12 @@ atoms.info["mlfcs_atom_order"]
 atoms.arrays["mlfcs_displacement"]
 ```
 
-如果外部任务乱序返回，可以传入以构型 ID 为键的字典：
+如果外部任务乱序返回，可以按任意顺序读取，但应传入以原始零基构型 ID 为键的字典：
 
 ```python
 fc3 = calculation.reap(
     forces_by_configuration_id,
+    atom_order="grouped",
     plan_hash=calculation.plan.hash,
 )
 ```
