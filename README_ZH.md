@@ -124,7 +124,7 @@ JAX 数值核使用 64 位浮点数。
 结构列表。用户可以自行用 ASE 将这些结构写成 VASP 的 `POSCAR-xxx`，也可以选择其他
 第一性原理软件的输入格式，再通过任意本地调度系统提交。计算完成后，仍由用户使用 ASE
 读取每个结果、提取力，并恢复 `sow()` 的原始顺序（或按构型 ID 建立字典），最后只把
-力交给 `reap()`。
+力交给 `reap()`。只要能够保证这个位置顺序，就不需要构型 ID 和计划哈希。
 
 下面是按位置顺序组织的 VASP 案例：
 
@@ -168,18 +168,19 @@ forces = np.asarray(forces)
 fc3 = calculation.reap(
     forces,
     atom_order="grouped",
-    plan_hash=calculation.plan.hash,
     acoustic_sum_rule=True,
 )
 fc3.write("fc3.h5", format="hdf5")
 ```
 
 若使用 Quantum ESPRESSO、ABINIT、CP2K 或其他外部程序，只需更换 ASE `write()` 和
-`read()` 所使用的格式，并补充该程序需要的输入参数；`sow/reap` 契约不变。POSCAR 这类
-文件不会保存 Python 中的 `atoms.info` 元数据，因此必须用 manifest 保存文件名与构型 ID
-的对应关系以及计划哈希。完整的
-[`vasp_external_fc3.py`](examples/vasp_external_fc3.py) 示例已经实现 manifest、力收集、
-缺失结果检查和最终导出，详见[外部 VASP 工作流](docs/EXTERNAL_VASP_WORKFLOW_ZH.md)。
+`read()` 所使用的格式，并补充该程序需要的输入参数；`sow/reap` 契约不变。若文件名和
+返回的力严格保持 sow 顺序，位置式 `reap()` 不需要任何额外元数据。POSCAR 这类文件
+不会保存 Python 中的 `atoms.info`，因此对于任务乱序、断点续算、长期归档或防止混入
+其他数据集的情况，建议用 manifest 保存文件名—构型 ID 对应关系和计划哈希。完整的
+[`vasp_external_fc3.py`](examples/vasp_external_fc3.py) 示例把 manifest 作为可选安全层，
+并实现力收集、缺失结果检查和最终导出，详见
+[外部 VASP 工作流](docs/EXTERNAL_VASP_WORKFLOW_ZH.md)。
 
 力数组的形状必须为：
 
@@ -187,7 +188,7 @@ fc3.write("fc3.h5", format="hdf5")
 (len(calculation.sow()), len(calculation.supercell), 3)
 ```
 
-每个位移结构都包含：
+当位移结构仍是 ASE 对象时，它还包含以下可选审计元数据：
 
 ```python
 atoms.info["mlfcs_configuration_id"]

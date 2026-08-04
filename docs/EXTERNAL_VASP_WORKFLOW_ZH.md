@@ -6,6 +6,10 @@ MLFCS 不启动 VASP，也不规定 INCAR、KPOINTS、POTCAR、调度器或收�
 有限位移结构，以及力必须按什么契约返回。完整示例为
 [`examples/vasp_external_fc3.py`](../examples/vasp_external_fc3.py)。
 
+从 API 契约看，严格的位置顺序已经足够：第 `i` 组力必须对应 `sow()` 返回的第 `i` 个
+结构，此时 `reap(forces, atom_order=...)` 不需要 ID 或计划哈希。本示例额外使用 manifest
+和哈希，只是为了给批处理任务、断点续算、缺失结果检查和长期来源记录增加安全层。
+
 ## 1. 按确定顺序生成结构
 
 从 VASP 原胞结构开始，并确定后续重建必须保持一致的物理参数：

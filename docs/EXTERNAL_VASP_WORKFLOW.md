@@ -6,6 +6,11 @@ MLFCS does not launch VASP or prescribe INCAR, KPOINTS, POTCAR, scheduler, or co
 settings. It defines the displaced structures and the exact positional contract by which their
 forces return. The complete example is [`examples/vasp_external_fc3.py`](../examples/vasp_external_fc3.py).
 
+At the API level, an exact positional workflow is sufficient: force set `i` must correspond to
+structure `i` returned by `sow()`, and `reap(forces, atom_order=...)` needs neither IDs nor a plan
+hash. This example deliberately adds a manifest and hash as an operational safety layer for batch
+jobs, restarts, missing results, and long-term provenance.
+
 ## 1. Sow ordered structures
 
 Start from a primitive VASP structure and choose the same physical parameters that will later be

@@ -133,7 +133,8 @@ ASE `Atoms` objects. The user chooses how to serialize and calculate them: ASE c
 structure as `POSCAR-xxx` for VASP or in another calculator's input format, after which the jobs
 can be submitted by any local scheduler. When the calculations finish, use ASE to read each
 result, extract its forces, restore the sow order (or key the forces by configuration ID), and
-pass only those forces to `reap()`.
+pass only those forces to `reap()`. If this positional order is guaranteed, configuration IDs
+and a plan hash are not required.
 
 For example, a positional VASP workflow is:
 
@@ -177,7 +178,6 @@ forces = np.asarray(forces)
 fc3 = calculation.reap(
     forces,
     atom_order="grouped",
-    plan_hash=calculation.plan.hash,
     acoustic_sum_rule=True,
 )
 fc3.write("fc3.h5", format="hdf5")
@@ -185,10 +185,12 @@ fc3.write("fc3.h5", format="hdf5")
 
 For Quantum ESPRESSO, ABINIT, CP2K, or another external program, replace only the ASE `write()`
 and `read()` formats and provide that program's required input parameters. The sow/reap contract
-is unchanged. File formats such as POSCAR do not preserve the Python `atoms.info` metadata, so
-the filename-to-configuration-ID relation and the plan hash should be stored in a manifest. The
-complete [`vasp_external_fc3.py`](examples/vasp_external_fc3.py) example implements this manifest,
-force collection, missing-result checks, and final export; see the
+is unchanged. Positional `reap()` needs no metadata when file names and returned forces preserve
+the exact sow order. File formats such as POSCAR do not preserve the Python `atoms.info` metadata,
+so a manifest containing the filename-to-configuration-ID relation and plan hash is recommended
+for out-of-order jobs, restarts, long-term archives, and accidental-dataset detection. The complete
+[`vasp_external_fc3.py`](examples/vasp_external_fc3.py) example implements this optional safety
+layer, force collection, missing-result checks, and final export; see the
 [external VASP workflow guide](docs/EXTERNAL_VASP_WORKFLOW.md).
 
 The force array must have shape:
@@ -197,7 +199,8 @@ The force array must have shape:
 (len(calculation.sow()), len(calculation.supercell), 3)
 ```
 
-Every displaced structure contains:
+While the structures remain as ASE objects, every displaced structure also contains optional
+audit metadata:
 
 ```python
 atoms.info["mlfcs_configuration_id"]
