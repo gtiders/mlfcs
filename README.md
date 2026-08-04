@@ -9,6 +9,12 @@ Fifth and higher orders can also be calculated and exported through the generic 
 format; practical size is determined by cluster count, cutoff, supercell size, and available
 memory.
 
+The third-order lineage of MLFCS explicitly references and draws on the algorithms, periodic-
+image conventions, and `sow`/`reap` workflow of the GPL-licensed
+[thirdorder](https://gitlab.com/sousaw/thirdorder) project. MLFCS develops these ideas into an
+order-parameterized ASE/JAX architecture with new sparse, constraint-solving, acceleration, and
+interoperability layers. See [Third-party provenance](THIRD_PARTY.md) for attribution and scope.
+
 Numerical execution supports both CPU and GPU. CPU mode handles ordinary calculations and
 large sparse linear algebra, while a CUDA-enabled JAX installation can move high-rank Cartesian
 tensor rotations and batched transformations to a GPU. Memory is controlled through symmetry
@@ -456,4 +462,6 @@ The current release is `3.0.0`. See [CHANGELOG.md](CHANGELOG.md) for release not
 
 ## License
 
-MLFCS is distributed under the [Apache License 2.0](LICENSE).
+MLFCS is distributed under the [GNU General Public License v3.0 or later](LICENSE). Its
+third-order lineage and the boundary between borrowed ideas and new MLFCS development are
+documented in [Third-party provenance](THIRD_PARTY.md).

@@ -7,6 +7,11 @@ MLFCS 是一个以 ASE 为公共接口、根据原子力计算对称性约化力
 验证路径。五阶及更高阶也可以直接计算，并通过通用稀疏 HDF5 格式导出；实际可算
 规模取决于团簇数量、近邻截断、超胞大小和可用内存。
 
+MLFCS 的三阶技术路线明确参考并借鉴了 GPL 许可的
+[thirdorder](https://gitlab.com/sousaw/thirdorder) 项目，包括其算法、周期镜像约定和
+`sow`/`reap` 工作流。MLFCS 在此基础上发展出阶数参数化的 ASE/JAX 架构，并新增稀疏
+表示、约束求解、加速和互操作层。具体归属和范围见[第三方来源说明](THIRD_PARTY_ZH.md)。
+
 数值计算同时支持 CPU 和 GPU：CPU 模式适合常规计算和大规模稀疏线性代数，安装
 CUDA 版 JAX 后可将高阶笛卡尔张量旋转与批处理变换放到 GPU。实现通过对称性约化、
 连续稀疏数组、惰性稠密物化、矩阵无关张量操作、小 Gram 零空间和稀疏 LSMR 控制
@@ -430,4 +435,5 @@ hiphive 和 phono3py 仅作为开发验证依赖。CI 中的 AlN 三阶基准先
 
 ## 许可证
 
-MLFCS 使用 [Apache License 2.0](LICENSE) 发布。
+MLFCS 使用 [GNU 通用公共许可证第 3 版或更高版本](LICENSE)发布。三阶算法来源以及
+参考借鉴内容与 MLFCS 新增开发之间的边界见[第三方来源说明](THIRD_PARTY_ZH.md)。

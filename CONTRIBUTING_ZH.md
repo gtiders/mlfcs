@@ -53,4 +53,4 @@ uv run pytest tests/reference/analytic/Morse_FCC_FC4/test_morse_fc4.py
 拉取请求应保持范围清晰并解释科学或 API 动机。公共行为变化时同步更新中英文文档，
 不要覆盖无关工作区修改，不提交构建产物，并在变更记录中说明用户可见变化。
 
-贡献按照仓库 Apache License 2.0 接收。
+贡献按照仓库的 GNU 通用公共许可证第 3 版或更高版本接收。

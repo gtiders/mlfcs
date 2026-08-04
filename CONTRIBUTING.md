@@ -58,4 +58,4 @@ Keep changes scoped and explain the scientific or API motivation. Update both En
 user documentation when public behavior changes. Preserve unrelated worktree changes, avoid
 committing generated build products, and add a changelog entry for user-visible changes.
 
-Contributions are accepted under the repository's Apache License 2.0.
+Contributions are accepted under the repository's GNU General Public License v3.0 or later.

@@ -12,7 +12,7 @@ authors:
     email: "242211044@csu.edu.cn"
 repository-code: "https://github.com/gtiders/mlfcs"
 url: "https://github.com/gtiders/mlfcs"
-license: Apache-2.0
+license: GPL-3.0-or-later
 keywords:
   - anharmonic force constants
   - finite differences

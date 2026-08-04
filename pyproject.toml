@@ -4,7 +4,7 @@ version = "3.0.0"
 description = "ASE-first symmetry-reduced force constants from second to arbitrary order"
 readme = "README.md"
 requires-python = ">=3.12"
-license = "Apache-2.0"
+license = "GPL-3.0-or-later"
 authors = [{ name = "Yibo Gao", email = "242211044@csu.edu.cn" }]
 keywords = [
     "anharmonicity",
@@ -16,7 +16,7 @@ keywords = [
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: Apache Software License",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
