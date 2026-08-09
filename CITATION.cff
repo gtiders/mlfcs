@@ -2,8 +2,8 @@ cff-version: 1.2.0
 message: "If you use MLFCS in research, please cite the archived software release."
 title: "MLFCS: arbitrary-order finite-difference force constants with ASE and JAX"
 type: software
-version: 3.0.0
-date-released: 2026-08-03
+version: 3.1.0
+date-released: 2026-08-09
 authors:
   - given-names: "Yibo"
     family-names: "Gao"

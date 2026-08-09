@@ -137,10 +137,20 @@ def neighbor_shell_limit(
 def resolve_cutoff(
     supercell: Atoms,
     index: SupercellIndex,
-    cutoff: float,
+    cutoff: float | None,
     *,
     report: bool = True,
 ) -> float:
+    if cutoff is None:
+        maximum_shell, maximum_radius = neighbor_shell_limit(supercell, index)
+        if report:
+            print(
+                "Supercell neighbor limit: "
+                f"maximum shell = {maximum_shell}, "
+                f"maximum cutoff radius = {maximum_radius:.10f} Å"
+            )
+            print(f"Selected maximum cutoff radius: {maximum_radius:.10f} Å")
+        return maximum_radius
     value = float(cutoff)
     if value < 0 and value.is_integer():
         return neighbor_shell_cutoff(supercell, index, -int(value), report=report)

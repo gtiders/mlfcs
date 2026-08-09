@@ -51,7 +51,7 @@ recursive central-difference displacement plan
 user-provided forces
         │
         ▼
-sparse symmetry reconstruction and optional strict ASR
+sparse symmetry reconstruction and optional sum-rule projection
         │
         ▼
 ForceConstants → HDF5 / NumPy / ShengBTE / phonopy
@@ -68,8 +68,8 @@ parameter space:
 sum over one atom index of Phi(i1, ..., in) = 0
 ```
 
-Small constraint systems use a Gram-matrix null space followed by sparse LSMR refinement; large
-systems use a sparse LSMR projection directly.
+All constraint systems use a sparse, matrix-free LSMR projection. Harmonic calculations may also
+enable the optional Born-Huang rotational sum rules; see [Sum rules](docs/SUM_RULES.md).
 
 ## Features
 
@@ -87,7 +87,8 @@ systems use a sparse LSMR projection directly.
 - JAX JIT, `vmap`, and batched contractions for high-rank tensor throughput.
 - Contiguous sparse arrays, matrix-free actions, and lazy materialization to reduce peak memory.
 - Displacement-key deduplication to reduce expensive calculator evaluations.
-- Strict translational ASR using Gram null spaces and sparse LSMR.
+- Strict translational ASR using sparse matrix-free LSMR.
+- Optional Born-Huang rotational sum rules for FC2.
 - Generic sparse HDF5 for any order.
 - ShengBTE output for orders 3 and 4.
 - Full dense phonopy text output for order 2.
@@ -127,6 +128,7 @@ the calculator required by your application separately.
 | Order-`n` force constants | eV/Åⁿ |
 | Positive cutoff | Å |
 | Negative integer cutoff | Neighbor shell |
+| `None` cutoff | Maximum radius enumerable by the supercell |
 
 JAX numerical kernels use 64-bit floating point.
 
@@ -263,11 +265,13 @@ The same constructor is used for all supported orders:
 fc2_calculation = ForceConstantCalculation(atoms, order=2, cutoff=-6)
 fc4_calculation = ForceConstantCalculation(atoms, order=4, cutoff=-3)
 fc5_calculation = ForceConstantCalculation(atoms, order=5, cutoff=-1)
+full_calculation = ForceConstantCalculation(atoms, order=3, cutoff=None)
 ```
 
 A positive cutoff is a radius in Å. A negative integer selects a one-based neighbor shell. For
-example, `cutoff=-8` selects the eighth shell. MLFCS reports both the supercell capacity and the
-selected radius:
+example, `cutoff=-8` selects the eighth shell. `cutoff=None` selects the maximum radius that the
+current finite supercell can enumerate; it does not mean an unbounded interaction range. MLFCS
+reports both the supercell capacity and the selected radius:
 
 ```text
 Supercell neighbor limit: maximum shell = 33, maximum cutoff radius = 15.7504983443 Å
@@ -322,6 +326,20 @@ raw = calculation.reap(forces, acoustic_sum_rule=False)
 The constrained result is the nearest solution in independent parameter space that satisfies
 translational invariance. Permutation symmetry supplies equivalent constraints on the other atom
 axes.
+
+For harmonic force constants, rotational sum rules are optional and disabled by default:
+
+```python
+fc2 = calculation.reap(
+    forces,
+    acoustic_sum_rule=True,
+    rotational_sum_rule=True,
+)
+```
+
+Translational and rotational constraints are projected together. The current single-order API
+accepts `rotational_sum_rule=True` only for order 2 because rigorous higher-order rotational
+conditions couple adjacent force-constant orders. See [Sum rules](docs/SUM_RULES.md).
 
 ## Output formats
 
@@ -457,7 +475,7 @@ both atom orderings and tensor representations to the same full-supercell form.
 The test hierarchy and independent reference commands are documented in
 [tests/README.md](tests/README.md).
 
-The current release is `3.0.0`. See [CHANGELOG.md](CHANGELOG.md) for release notes and
+The current release is `3.1.0`. See [CHANGELOG.md](CHANGELOG.md) for release notes and
 [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow.
 
 ## License

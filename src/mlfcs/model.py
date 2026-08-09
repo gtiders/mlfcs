@@ -14,7 +14,7 @@ class RunConfig:
 
     order: int
     supercell: tuple[int, int, int] = (2, 2, 2)
-    cutoff: float | int = -5
+    cutoff: float | int | None = -5
     displacement: float = 0.01
     symprec: float = 1e-5
 

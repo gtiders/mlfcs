@@ -28,7 +28,7 @@ class ForceConstantCalculation:
         *,
         order: int,
         supercell: tuple[int, int, int] = (2, 2, 2),
-        cutoff: float = -5,
+        cutoff: float | None = -5,
         displacement: float = 0.01,
         symprec: float = 1e-5,
         jax_platform: JaxPlatform = "auto",
@@ -62,7 +62,7 @@ class ForceConstantCalculation:
             config.cutoff,
             report=report_cutoff and self.verbose,
         )
-        if config.cutoff >= 0 or not report_cutoff:
+        if config.cutoff is not None and (config.cutoff >= 0 or not report_cutoff):
             self._report(f"- Cutoff radius: {self.cutoff:.10f} Å")
         self._report("Analyzing crystal symmetries")
         self.symmetry = SymmetryOperations.from_atoms(
@@ -136,6 +136,7 @@ class ForceConstantCalculation:
         atom_order: str = "internal",
         plan_hash: str | None = None,
         acoustic_sum_rule: bool = True,
+        rotational_sum_rule: bool = False,
     ) -> ForceConstants:
         """Reconstruct force constants from forces supplied by the user.
 
@@ -144,6 +145,11 @@ class ForceConstantCalculation:
         insertion order.
         """
         self._report(f"Reaping forces for order-{self.config.order} force constants")
+        if rotational_sum_rule and self.config.order != 2:
+            raise ValueError(
+                "rotational_sum_rule is currently available only for order=2; "
+                "higher-order rotational conditions couple adjacent force-constant orders"
+            )
         if plan_hash is not None and plan_hash != self.plan.hash:
             raise ValueError("force dataset plan hash does not match this calculation")
         values = self._normalize_forces(forces)
@@ -156,13 +162,17 @@ class ForceConstantCalculation:
         self._report(f"- Contracted {len(derivatives)} finite-difference derivatives")
         self._report(
             "Reconstructing symmetry-expanded force constants "
-            f"(ASR {'enabled' if acoustic_sum_rule else 'disabled'})"
+            f"(ASR {'enabled' if acoustic_sum_rule else 'disabled'}, "
+            f"rotational sum rule {'enabled' if rotational_sum_rule else 'disabled'})"
         )
         sparse = reconstruct_sparse(
             self.orbit_space,
             self.index,
             derivatives,
             enforce_asr=acoustic_sum_rule,
+            enforce_rotational=rotational_sum_rule,
+            supercell=self.supercell,
+            report=self._report,
         )
         self._report(f"- Reconstructed {len(sparse.clusters)} sparse cluster tensors")
         return ForceConstants(
@@ -176,6 +186,7 @@ class ForceConstantCalculation:
                 "configurations": len(self.plan),
                 "plan_hash": self.plan.hash,
                 "acoustic_sum_rule": acoustic_sum_rule,
+                "rotational_sum_rule": rotational_sum_rule,
                 "jax_platform": self.jax_platform,
             },
             sparse={self.config.order: sparse},
@@ -187,6 +198,7 @@ class ForceConstantCalculation:
         *,
         progress: Progress | None = None,
         acoustic_sum_rule: bool = True,
+        rotational_sum_rule: bool = False,
     ) -> ForceConstants:
         """Evaluate the sow list serially with a user-owned ASE Calculator."""
         forces = self.evaluate(calculator, progress=progress)
@@ -194,6 +206,7 @@ class ForceConstantCalculation:
             forces,
             plan_hash=self.plan.hash,
             acoustic_sum_rule=acoustic_sum_rule,
+            rotational_sum_rule=rotational_sum_rule,
         )
 
     def evaluate(

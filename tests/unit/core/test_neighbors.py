@@ -32,3 +32,16 @@ def test_shell_above_supercell_limit_is_rejected():
     maximum_shell, _ = neighbor_shell_limit(supercell, index)
     with np.testing.assert_raises_regex(ValueError, "exceeds this supercell"):
         resolve_cutoff(supercell, index, -(maximum_shell + 1), report=False)
+
+
+def test_none_selects_the_supercell_maximum_cutoff(capsys):
+    primitive = bulk("Si", "diamond", a=5.43)
+    supercell, index = make_supercell(primitive, (2, 2, 2))
+    maximum_shell, maximum_radius = neighbor_shell_limit(supercell, index)
+
+    selected = resolve_cutoff(supercell, index, None)
+
+    assert selected == maximum_radius
+    output = capsys.readouterr().out
+    assert f"maximum shell = {maximum_shell}" in output
+    assert "Selected maximum cutoff radius:" in output

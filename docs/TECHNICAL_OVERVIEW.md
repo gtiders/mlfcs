@@ -172,12 +172,9 @@ Reconstruction and ASR use SciPy sparse matrices. Large rectangular constraint s
 passed to a full SVD. This avoids the failure mode where `full_matrices=True` creates an enormous
 left-singular-vector matrix unrelated to the small number of unknown parameters.
 
-For ASR projection, MLFCS uses an adaptive method:
-
-- up to 4096 independent parameters, diagonalize the small Gram matrix `A.T @ A` to identify the
-  null space;
-- refine the projected parameters against the original sparse constraint matrix using LSMR;
-- above that threshold, skip the dense Gram matrix and use sparse LSMR projection directly.
+For sum-rule projection, MLFCS uses sparse LSMR for every parameter-space size. It computes the
+minimum-norm correction without forming `A.T @ A`, avoiding quadratic Gram storage and squared
+conditioning.
 
 The final convergence test is relative to the parameter and constraint scale, not a fixed
 absolute residual alone.
@@ -206,7 +203,7 @@ The major memory techniques are:
 - reconstruct only symmetry-generated cluster images;
 - retain sparse tensors through HDF5 output;
 - avoid dense high-order action matrices where possible;
-- use small parameter-space Gram matrices rather than full rectangular SVDs;
+- use matrix-free sparse LSMR rather than Gram matrices or full rectangular SVDs;
 - evaluate ASE calculator configurations serially;
 - expose `evaluate()` so forces can be checkpointed before reconstruction;
 - warn before dense materialization rather than unexpectedly allocating silently.

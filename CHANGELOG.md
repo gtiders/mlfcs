@@ -4,6 +4,23 @@
 
 All notable changes are documented here. Releases follow semantic versioning.
 
+## 3.1.0 — 2026-08-09
+
+### Added
+
+- Optional harmonic Born-Huang rotational sum rules through
+  `rotational_sum_rule=True`, with explicit rejection for higher orders until a joint-order API
+  can represent their coupled constraints.
+- Joint sparse LSMR projection of translational and rotational constraints.
+- Phonopy-style maximum drift reports before and after sum-rule projection.
+- `cutoff=None` for the maximum interaction radius enumerable by the current supercell.
+- Paired English and Chinese sum-rule documentation.
+
+### Changed
+
+- Translational ASR now uses one sparse, matrix-free LSMR path at every parameter-space size;
+  dense Gram construction and its size threshold were removed.
+
 ## 3.0.0 — 2026-08-03
 
 Version 3.0 is a complete ASE-first redesign of MLFCS. It replaces the earlier order-specific

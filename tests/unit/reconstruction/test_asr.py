@@ -5,6 +5,7 @@ from ase.build import bulk
 from mlfcs.core.geometry import make_supercell, resolve_cutoff
 from mlfcs.core.orbits import build_orbit_space
 from mlfcs.core.symmetry import SymmetryOperations
+from mlfcs.reconstruction.asr import project_sum_rules
 from mlfcs.reconstruction.solver import reconstruct_compact
 
 
@@ -28,3 +29,52 @@ def test_acoustic_sum_rule_projection_is_strict(order):
     projected_residual = np.linalg.norm(projected.sum(axis=order - 1))
     assert projected_residual < raw_residual
     assert projected_residual < 1e-10
+
+
+def test_asr_reports_phonopy_style_maximum_drift():
+    primitive = bulk("Si", "diamond", a=5.43)
+    supercell, index = make_supercell(primitive, (2, 2, 2))
+    symmetry = SymmetryOperations.from_atoms(primitive, supercell)
+    space = build_orbit_space(
+        supercell,
+        index,
+        symmetry,
+        order=3,
+        cutoff=resolve_cutoff(supercell, index, -1),
+    )
+    rng = np.random.default_rng(8)
+    derivatives = {key: rng.normal(size=(len(supercell), 3)) for key in space.displacement_keys}
+    messages = []
+
+    reconstruct_compact(space, index, derivatives, enforce_asr=True, report=messages.append)
+
+    assert len(messages) == 1
+    assert messages[0].startswith("- Max drift of fc3: ")
+    assert " -> " in messages[0]
+    assert messages[0].endswith(" eV/angstrom^3")
+
+
+def test_harmonic_translational_and_rotational_rules_are_projected_together():
+    primitive = bulk("Si", "diamond", a=5.43)
+    supercell, index = make_supercell(primitive, (2, 2, 2))
+    symmetry = SymmetryOperations.from_atoms(primitive, supercell)
+    space = build_orbit_space(
+        supercell,
+        index,
+        symmetry,
+        order=2,
+        cutoff=resolve_cutoff(supercell, index, -2),
+    )
+    rng = np.random.default_rng(9)
+    pivots = [rng.normal(size=orbit.dimension) for orbit in space.orbits]
+
+    _, drifts = project_sum_rules(
+        space,
+        pivots,
+        supercell=supercell,
+        acoustic=True,
+        rotational=True,
+    )
+
+    assert drifts["translational"][1] < 1e-8
+    assert drifts["rotational"][1] < 1e-8

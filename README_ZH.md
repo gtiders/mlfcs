@@ -45,7 +45,7 @@ ASE 原胞结构
 用户提供的原子力
     │
     ▼
-稀疏对称性重建和可选严格 ASR
+稀疏对称性重建和可选求和规则投影
     │
     ▼
 ForceConstants → HDF5 / NumPy / ShengBTE / phonopy
@@ -61,8 +61,8 @@ ForceConstants → HDF5 / NumPy / ShengBTE / phonopy
 对一个原子指标求和：Σ Φ(i1, ..., in) = 0
 ```
 
-小型约束系统使用 Gram 矩阵零空间并通过稀疏 LSMR 精修；大型系统直接使用稀疏
-LSMR 投影。
+所有约束系统统一使用稀疏、矩阵无关的 LSMR 投影。二阶计算还可主动开启可选的
+Born–Huang 旋转求和规则，详见[求和规则](docs/SUM_RULES_ZH.md)。
 
 ## 主要特点
 
@@ -79,7 +79,8 @@ LSMR 投影。
 - JAX JIT、`vmap` 和批量张量收缩减少高阶张量处理开销；
 - 连续稀疏数组、矩阵无关变换和惰性稠密物化降低峰值内存；
 - 位移键去重减少需要调用势函数的构型数量；
-- Gram 零空间与稀疏 LSMR 实现严格平移 ASR；
+- 稀疏矩阵无关 LSMR 实现严格平移 ASR；
+- 二阶力常数可选 Born–Huang 旋转求和规则；
 - 任意阶通用稀疏 HDF5；
 - 三阶、四阶 ShengBTE 输出；
 - 二阶完整 phonopy 文本输出；
@@ -118,6 +119,7 @@ calorine、MACE 等势函数包不是基础依赖，请根据实际任务单独�
 | `n` 阶力常数 | eV/Åⁿ |
 | 正数截断 | Å |
 | 负整数截断 | 近邻壳层 |
+| `None` 截断 | 当前超胞可枚举的最大半径 |
 
 JAX 数值核使用 64 位浮点数。
 
@@ -249,10 +251,12 @@ fc3 = calculation.reap(forces, plan_hash=calculation.plan.hash)
 fc2_calculation = ForceConstantCalculation(atoms, order=2, cutoff=-6)
 fc4_calculation = ForceConstantCalculation(atoms, order=4, cutoff=-3)
 fc5_calculation = ForceConstantCalculation(atoms, order=5, cutoff=-1)
+full_calculation = ForceConstantCalculation(atoms, order=3, cutoff=None)
 ```
 
 正数截断表示 Å 半径；负整数表示从 1 开始编号的近邻壳层。例如 `cutoff=-8` 表示
-第八近邻。程序同时打印超胞容量和本次选择的实际半径：
+第八近邻。`cutoff=None` 表示使用当前有限超胞可枚举的最大半径，并不表示无穷大的
+相互作用范围。程序同时打印超胞容量和本次选择的实际半径：
 
 ```text
 Supercell neighbor limit: maximum shell = 33, maximum cutoff radius = 15.7504983443 Å
@@ -303,6 +307,20 @@ raw = calculation.reap(forces, acoustic_sum_rule=False)
 
 受约束结果是在独立参数空间中距离测量结果最近、同时满足平移不变性的解。置换对称性
 会给出其他原子轴上的等价约束。
+
+二阶力常数可以主动开启旋转求和规则；默认关闭：
+
+```python
+fc2 = calculation.reap(
+    forces,
+    acoustic_sum_rule=True,
+    rotational_sum_rule=True,
+)
+```
+
+程序会联合投影平移和旋转约束。严格的高阶旋转条件会耦合相邻阶力常数，因此当前
+单阶 API 只允许在二阶设置 `rotational_sum_rule=True`。详见
+[求和规则](docs/SUM_RULES_ZH.md)。
 
 ## 输出格式
 
@@ -430,7 +448,7 @@ hiphive 和 phono3py 仅作为开发验证依赖。CI 中的 AlN 三阶基准先
 原子顺序和张量表示统一为完整超胞 FC3，再与独立的 phono3py 有限差分结果做数值比较。
 测试层级和各项独立参考测试的运行命令见 [tests/README.md](tests/README.md)。
 
-当前正式版本为 `3.0.0`。版本变化见 [CHANGELOG.md](CHANGELOG.md)，开发流程见
+当前正式版本为 `3.1.0`。版本变化见 [CHANGELOG.md](CHANGELOG.md)，开发流程见
 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 ## 许可证
