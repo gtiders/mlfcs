@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
 from math import ceil
+from typing import Literal
 
 import numpy as np
 from ase import Atoms
@@ -10,6 +11,7 @@ from ase.calculators.calculator import Calculator
 from mlfcs.core.geometry import make_supercell, resolve_cutoff
 from mlfcs.core.orbits import OrbitSpace, build_orbit_space
 from mlfcs.core.symmetry import SymmetryOperations
+from mlfcs.finite_difference.extrapolation import ExtrapolationBackend
 from mlfcs.finite_difference.sampling import DisplacementPlan, build_displacement_plan
 from mlfcs.model import ForceConstants, RunConfig
 from mlfcs.reconstruction.solver import reconstruct_sparse
@@ -160,6 +162,25 @@ class ForceConstantCalculation:
             raise ValueError("atom_order must be 'internal' or 'grouped'")
         derivatives = self.plan.contract_forces(values)
         self._report(f"- Contracted {len(derivatives)} finite-difference derivatives")
+        return self._reconstruct(
+            derivatives,
+            acoustic_sum_rule=acoustic_sum_rule,
+            rotational_sum_rule=rotational_sum_rule,
+            metadata={
+                "derivative_backend": "central",
+                "configurations": len(self.plan),
+                "plan_hash": self.plan.hash,
+            },
+        )
+
+    def _reconstruct(
+        self,
+        derivatives,
+        *,
+        acoustic_sum_rule: bool,
+        rotational_sum_rule: bool,
+        metadata: dict[str, object],
+    ) -> ForceConstants:
         self._report(
             "Reconstructing symmetry-expanded force constants "
             f"(ASR {'enabled' if acoustic_sum_rule else 'disabled'}, "
@@ -183,11 +204,10 @@ class ForceConstantCalculation:
                 "cutoff_angstrom": self.cutoff,
                 "displacement_angstrom": self.config.displacement,
                 "spacegroup": self.symmetry.symbol,
-                "configurations": len(self.plan),
-                "plan_hash": self.plan.hash,
                 "acoustic_sum_rule": acoustic_sum_rule,
                 "rotational_sum_rule": rotational_sum_rule,
                 "jax_platform": self.jax_platform,
+                **metadata,
             },
             sparse={self.config.order: sparse},
         )
@@ -199,14 +219,113 @@ class ForceConstantCalculation:
         progress: Progress | None = None,
         acoustic_sum_rule: bool = True,
         rotational_sum_rule: bool = False,
+        derivative_backend: Literal["central", "extrapolate"] = "central",
+        extrapolation_spacing: float | None = None,
+        extrapolation_side_steps: int = 1,
+        extrapolation_degree: int = 1,
     ) -> ForceConstants:
-        """Evaluate the sow list serially with a user-owned ASE Calculator."""
+        """Evaluate force constants serially with a user-owned ASE Calculator."""
+        if derivative_backend == "extrapolate":
+            if extrapolation_spacing is None:
+                raise ValueError(
+                    "extrapolation_spacing is required for derivative_backend='extrapolate'"
+                )
+            return self._run_extrapolation(
+                calculator,
+                spacing=extrapolation_spacing,
+                side_steps=extrapolation_side_steps,
+                degree=extrapolation_degree,
+                progress=progress,
+                acoustic_sum_rule=acoustic_sum_rule,
+                rotational_sum_rule=rotational_sum_rule,
+            )
+        if derivative_backend != "central":
+            raise ValueError("derivative_backend must be 'central' or 'extrapolate'")
+        if (
+            extrapolation_spacing is not None
+            or extrapolation_side_steps != 1
+            or extrapolation_degree != 1
+        ):
+            raise ValueError("extrapolation options require derivative_backend='extrapolate'")
         forces = self.evaluate(calculator, progress=progress)
         return self.reap(
             forces,
             plan_hash=self.plan.hash,
             acoustic_sum_rule=acoustic_sum_rule,
             rotational_sum_rule=rotational_sum_rule,
+        )
+
+    def _run_extrapolation(
+        self,
+        calculator: Calculator,
+        *,
+        spacing: float,
+        side_steps: int,
+        degree: int,
+        progress: Progress | None,
+        acoustic_sum_rule: bool,
+        rotational_sum_rule: bool,
+    ) -> ForceConstants:
+        if not isinstance(calculator, Calculator):
+            raise TypeError("calculator must be an ASE Calculator")
+        if rotational_sum_rule and self.config.order != 2:
+            raise ValueError(
+                "rotational_sum_rule is currently available only for order=2; "
+                "higher-order rotational conditions couple adjacent force-constant orders"
+            )
+        backend = ExtrapolationBackend(
+            self.config.displacement,
+            spacing,
+            side_steps,
+            degree,
+        )
+        plans = backend.plans(self.supercell, self.orbit_space)
+        total = sum(len(plan) for plan in plans)
+        grid_text = ", ".join(f"{step:.10f}" for step in backend.grid)
+        self._report("Derivative backend: zero-step extrapolation")
+        self._report(f"- Displacement grid: {grid_text} Å")
+        self._report(f"- Polynomial degree in h^2: {degree}")
+        self._report(f"- {len(plans)} central-difference subplans")
+        self._report(f"- {total} force calculations required")
+
+        derivative_sets = []
+        completed = 0
+        for step, plan in zip(backend.grid, plans, strict=True):
+            self._report(f"Evaluating displacement step {step:.10f} Å")
+            forces = self._evaluate_plan(
+                plan,
+                calculator,
+                progress=progress,
+                completed_offset=completed,
+                total=total,
+            )
+            derivative_sets.append(plan.contract_forces(forces))
+            completed += len(plan)
+        derivatives, metrics = backend.extrapolate(derivative_sets)
+        unit = f"eV/angstrom^{self.config.order}"
+        self._report("Zero-step derivative extrapolation")
+        self._report(
+            f"- Maximum correction from central displacement: "
+            f"{metrics.maximum_correction:.10e} {unit}"
+        )
+        self._report(f"- Relative L2 correction: {metrics.relative_l2_correction:.10e}")
+        self._report(
+            f"- Maximum polynomial fit residual: {metrics.maximum_fit_residual:.10e} {unit}"
+        )
+        return self._reconstruct(
+            derivatives,
+            acoustic_sum_rule=acoustic_sum_rule,
+            rotational_sum_rule=rotational_sum_rule,
+            metadata={
+                "derivative_backend": "extrapolate",
+                "configurations": total,
+                "plan_hash": backend.plan_hash(plans),
+                "extrapolation_grid_angstrom": backend.grid.tolist(),
+                "extrapolation_degree": degree,
+                "extrapolation_maximum_correction": metrics.maximum_correction,
+                "extrapolation_relative_l2_correction": metrics.relative_l2_correction,
+                "extrapolation_maximum_fit_residual": metrics.maximum_fit_residual,
+            },
         )
 
     def evaluate(
@@ -219,21 +338,38 @@ class ForceConstantCalculation:
         if not isinstance(calculator, Calculator):
             raise TypeError("calculator must be an ASE Calculator")
         self._report(f"Evaluating {len(self.plan)} configurations with {type(calculator).__name__}")
-        forces = np.empty((len(self.plan), len(self.supercell), 3), dtype=float)
-        reporting_interval = max(1, ceil(len(self.plan) / 10))
-        for configuration_id, atoms in enumerate(self.sow()):
+        return self._evaluate_plan(
+            self.plan,
+            calculator,
+            progress=progress,
+            completed_offset=0,
+            total=len(self.plan),
+        )
+
+    def _evaluate_plan(
+        self,
+        plan: DisplacementPlan,
+        calculator: Calculator,
+        *,
+        progress: Progress | None,
+        completed_offset: int,
+        total: int,
+    ) -> np.ndarray:
+        forces = np.empty((len(plan), len(self.supercell), 3), dtype=float)
+        reporting_interval = max(1, ceil(total / 10))
+        for configuration_id, atoms in enumerate(plan):
             atoms.calc = calculator
             forces[configuration_id] = atoms.get_forces()
+            completed = completed_offset + configuration_id + 1
             if progress is not None:
-                progress(configuration_id + 1, len(self.plan))
+                progress(completed, total)
             elif self.verbose and (
-                configuration_id == 0
-                or configuration_id + 1 == len(self.plan)
-                or (configuration_id + 1) % reporting_interval == 0
+                completed == 1
+                or completed == total
+                or completed % reporting_interval == 0
             ):
-                completed = configuration_id + 1
-                percentage = 100.0 * completed / len(self.plan)
-                self._report(f"- Forces: {completed}/{len(self.plan)} ({percentage:.0f}%)")
+                percentage = 100.0 * completed / total
+                self._report(f"- Forces: {completed}/{total} ({percentage:.0f}%)")
         return forces
 
     def _report(self, message: str) -> None:
