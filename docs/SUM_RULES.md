@@ -46,5 +46,7 @@ physically misleading.
 
 The current single-order API deliberately rejects `rotational_sum_rule=True` for orders above 2.
 Rigorous higher-order rotational identities couple adjacent orders—for example FC3 to FC2 and FC4
-to FC3—and therefore require a future joint-order constraint interface. MLFCS does not label an
-order-local approximation as complete higher-order rotational invariance.
+to FC3. The separate `mlfcs.fitting` development API supplies this joint-order interface through
+`rotational_invariance=2` or `3`. Because that fitter uses Wick polynomials internally, it maps
+the Taylor rotational system into Wick coordinates as `C_W = C_T @ T(Sigma)` before solving and
+uses the same map for output. The finite-difference single-order restriction remains unchanged.

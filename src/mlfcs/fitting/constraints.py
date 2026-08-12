@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from itertools import pairwise
+from math import factorial
 
 import numpy as np
 from ase.geometry import find_mic
@@ -18,7 +19,13 @@ class JointConstraints:
     rotational_mode: int
 
 
-def build_joint_constraints(calculations, *, acoustic: bool, rotational_mode: int) -> JointConstraints:
+def build_joint_constraints(
+    calculations,
+    *,
+    acoustic: bool,
+    rotational_mode: int,
+    covariance: np.ndarray | None = None,
+) -> JointConstraints:
     """Build order-local ASR and adjacent-order Cartesian rotation constraints.
 
     ``rotational_mode=2`` follows ALAMODE ICONST=2 and omits the maximum-order
@@ -52,6 +59,10 @@ def build_joint_constraints(calculations, *, acoustic: bool, rotational_mode: in
             rotational.append(_highest_order_rotational_boundary(calculations[-1], dimensions))
     matrices = translational + rotational
     matrix = sparse.vstack(matrices, format="csr") if matrices else sparse.csr_matrix((0, total))
+    if rotational_mode:
+        if covariance is None:
+            raise ValueError("covariance is required for rotational constraints in the Wick basis")
+        matrix = matrix @ build_wick_to_taylor_transform(calculations, covariance)
     matrix = _compress_rows(matrix)
     return JointConstraints(
         matrix,
@@ -59,6 +70,77 @@ def build_joint_constraints(calculations, *, acoustic: bool, rotational_mode: in
         sum(item.shape[0] for item in rotational),
         rotational_mode,
     )
+
+
+def build_wick_to_taylor_transform(calculations, covariance) -> sparse.csr_matrix:
+    """Map symmetry-reduced Wick parameters to ordinary Taylor IFC parameters.
+
+    The map is the identity plus same-parity contractions with the displacement
+    covariance.  Building it in the irreducible orbit basis lets Taylor ASR and
+    rotational constraints be imposed exactly during a Wick-basis fit.
+    """
+    dimensions = [_parameter_count(calculation) for calculation in calculations]
+    offsets = np.cumsum([0, *dimensions])
+    total = int(offsets[-1])
+    transform = sparse.eye(total, format="lil", dtype=float)
+    covariance = np.asarray(covariance).reshape(
+        len(calculations[0].supercell), 3, len(calculations[0].supercell), 3
+    )
+    by_order = {calculation.config.order: (index, calculation) for index, calculation in enumerate(calculations)}
+    image_maps = {
+        order: {
+            cluster: (int(offsets[index] + local_offset), columns)
+            for cluster, columns, local_offset in _image_columns(calculation)
+        }
+        for order, (index, calculation) in by_order.items()
+    }
+
+    for target_order in by_order:
+        for source_order in range(target_order + 2, max(by_order, default=0) + 1, 2):
+            if source_order not in by_order:
+                continue
+            source_index, source = by_order[source_order]
+            pairs = (source_order - target_order) // 2
+            coefficient = (-1.0) ** pairs / (2.0**pairs * factorial(pairs))
+            contracted_by_target: dict[tuple[int, ...], dict[int, np.ndarray]] = {}
+            for cluster, columns, local_offset in _image_columns(source):
+                contracted = columns.reshape((3,) * source_order + (-1,))
+                for pair in reversed(range(pairs)):
+                    left = target_order + 2 * pair
+                    contracted = np.einsum(
+                        "...abp,ab->...p",
+                        contracted,
+                        covariance[cluster[left], :, cluster[left + 1], :],
+                        optimize=True,
+                    )
+                target_cluster = cluster[:target_order]
+                if target_cluster not in image_maps[target_order]:
+                    raise ValueError(
+                        f"Wick-to-Taylor contraction creates FC{target_order} cluster "
+                        f"{target_cluster} outside its configured support"
+                    )
+                source_offset = int(offsets[source_index] + local_offset)
+                contributions = contracted_by_target.setdefault(target_cluster, {})
+                contribution = contracted.reshape(3**target_order, -1)
+                contributions[source_offset] = contributions.get(
+                    source_offset, np.zeros_like(contribution)
+                ) + contribution
+            for target_cluster, contributions in contracted_by_target.items():
+                target_offset, target_columns = image_maps[target_order][target_cluster]
+                source_offsets = sorted(contributions)
+                contracted = np.concatenate(
+                    [contributions[source_offset] for source_offset in source_offsets], axis=1
+                )
+                mapping = np.linalg.lstsq(target_columns, contracted, rcond=None)[0]
+                begin = 0
+                for source_offset in source_offsets:
+                    width = contributions[source_offset].shape[1]
+                    transform[
+                        target_offset : target_offset + mapping.shape[0],
+                        source_offset : source_offset + width,
+                    ] += coefficient * mapping[:, begin : begin + width]
+                    begin += width
+    return transform.tocsr()
 
 
 def _parameter_count(calculation):

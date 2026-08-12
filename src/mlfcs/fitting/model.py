@@ -20,7 +20,7 @@ from scipy.linalg.blas import dsyrk
 from scipy.sparse.linalg import LinearOperator, cg, lsmr, minres
 
 from mlfcs.api import ForceConstantCalculation
-from mlfcs.fitting.constraints import build_joint_constraints
+from mlfcs.fitting.constraints import build_joint_constraints, build_wick_to_taylor_transform
 from mlfcs.fitting.data import FitDataset, ReferenceSupercell
 from mlfcs.model import ForceConstants, SparseOrderForceConstants
 from mlfcs.reconstruction.asr import (
@@ -204,6 +204,7 @@ class ForceConstantFitter:
             self.calculations,
             acoustic=acoustic_sum_rule,
             rotational_mode=rotational_invariance,
+            covariance=covariance if rotational_invariance else None,
         )
         self._report(
             f"Constraint system: {constraints.matrix.shape[0]} independent candidate rows "
@@ -313,7 +314,14 @@ class ForceConstantFitter:
             self.index.n_primitive,
             len(self.canonical_supercell),
         )
-        sparse_values = _wick_to_taylor_sparse(sparse_values, covariance)
+        taylor_transform = build_wick_to_taylor_transform(self.calculations, covariance)
+        taylor_parameters = np.asarray(taylor_transform @ parameters_numpy)
+        sparse_values = _expand_sparse(
+            taylor_parameters,
+            self.calculations,
+            self.index.n_primitive,
+            len(self.canonical_supercell),
+        )
         force_constants = ForceConstants(
             {},
             self.canonical_supercell.copy(),

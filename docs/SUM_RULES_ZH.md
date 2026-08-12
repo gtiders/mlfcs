@@ -41,5 +41,7 @@ fc2 = calculation.reap(
 ## 高阶限制
 
 当前单阶 API 会拒绝在二阶以上设置 `rotational_sum_rule=True`。严格的高阶旋转恒等式
-会耦合相邻阶，例如 FC3 与 FC2、FC4 与 FC3，因此需要未来的联合阶数约束接口。
-MLFCS 不会把同阶近似表述为完整的高阶旋转不变性。
+会耦合相邻阶，例如 FC3 与 FC2、FC4 与 FC3。独立的 `mlfcs.fitting` 开发接口通过
+`rotational_invariance=2` 或 `3` 提供联合阶数约束。由于该拟合器内部使用Wick多项式，
+求解前会按 `C_W = C_T @ T(Sigma)` 把Taylor旋转约束映射到Wick坐标，输出时使用同一
+换基映射。有限差分单阶API的限制保持不变。

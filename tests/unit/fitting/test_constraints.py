@@ -1,11 +1,15 @@
 import numpy as np
+from ase import Atoms
 from scipy import sparse
 from scipy.sparse.linalg import LinearOperator
 
+from mlfcs.api import ForceConstantCalculation
+from mlfcs.fitting.constraints import build_joint_constraints, build_wick_to_taylor_transform
 from mlfcs.fitting.model import (
     _ConstraintNullSpace,
     _solve_constrained_lsmr,
     _StreamingGramSystem,
+    _symmetrized_covariance,
 )
 
 
@@ -66,3 +70,47 @@ def test_projected_gram_cg_matches_explicit_constrained_solution():
     assert result[1] == 0
     assert result[2] < 10
     assert result[4] < 1e-11
+
+
+def test_wick_rotational_constraints_equal_taylor_constraints_after_transform():
+    primitive = Atoms("Si", positions=[[0, 0, 0]], cell=np.eye(3) * 4.0, pbc=True)
+    calculations = tuple(
+        ForceConstantCalculation(
+            primitive,
+            order=order,
+            supercell=(2, 1, 1),
+            cutoff=4.1,
+            verbose=False,
+        )
+        for order in (2, 3, 4)
+    )
+    dimensions = [sum(orbit.dimension for orbit in item.orbit_space.orbits) for item in calculations]
+    rng = np.random.default_rng(31)
+    displacement = rng.normal(size=(20, 2, 3))
+    displacement -= displacement.mean(axis=1, keepdims=True)
+    covariance = _symmetrized_covariance(displacement, calculations[0])
+    transform = build_wick_to_taylor_transform(calculations, covariance)
+    # Build the same Taylor rotational rows explicitly, then map them into
+    # Wick coordinates and compare with the public constraint builder.
+    from mlfcs.fitting.constraints import (
+        _adjacent_rotational_constraints,
+        _compress_rows,
+    )
+
+    rotational = sparse.vstack(
+        [
+            _adjacent_rotational_constraints(
+                calculations[index], calculations[index + 1], dimensions, index
+            )
+            for index in range(len(calculations) - 1)
+        ],
+        format="csr",
+    )
+    expected = _compress_rows(rotational @ transform)
+    wick = build_joint_constraints(
+        calculations,
+        acoustic=False,
+        rotational_mode=2,
+        covariance=covariance,
+    ).matrix
+    np.testing.assert_allclose(wick.toarray(), expected.toarray(), atol=1e-12, rtol=1e-12)

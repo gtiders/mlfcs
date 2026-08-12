@@ -23,6 +23,20 @@ This is a polynomial change of coordinates, not another fit. `FittingResult.para
 the fitted Wick parameter vector; `FittingResult.force_constants` contains Taylor IFCs ready for
 common output formats.
 
+Translational constraints commute with the covariance contractions and therefore remain valid
+under this conversion. Rotational constraints couple adjacent Taylor orders and cannot be applied
+directly to Wick coefficients. When `rotational_invariance=2` or `3`, MLFCS constructs the Taylor
+constraint matrix `C_T`, the covariance-dependent Wick-to-Taylor map `T(Sigma)`, and solves with
+
+```text
+C_W = C_T @ T(Sigma).
+```
+
+The same `T(Sigma)` produces the exported Taylor IFCs. Thus the constrained fit and the output
+use one definition, rather than projecting a completed result afterward. Results produced by an
+earlier development implementation that enabled rotational fitting before this mapping was added
+must be recomputed; ASR-only and `rotational_invariance=0` results are unaffected.
+
 ```python
 from ase.io import read
 from mlfcs.fitting import ForceConstantFitter
