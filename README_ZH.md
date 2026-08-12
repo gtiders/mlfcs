@@ -72,6 +72,7 @@ Born–Huang 旋转求和规则，详见[求和规则](docs/SUM_RULES_ZH.md)。
 - 二阶和五阶完成端到端验证；
 - 公共结构与计算器接口完全采用 ASE；
 - 支持适合外部调度和断点续算的 `sow()` / `reap()`；
+- 直接 calculator 路径支持可配置偶次幂阶数的零步长外推；
 - 稳定的构型 ID、计划哈希和显式原子顺序映射；
 - 与既有逻辑兼容的周期团簇截断；
 - 递归中心有限差分模板；
@@ -79,6 +80,7 @@ Born–Huang 旋转求和规则，详见[求和规则](docs/SUM_RULES_ZH.md)。
 - JAX JIT、`vmap` 和批量张量收缩减少高阶张量处理开销；
 - 连续稀疏数组、矩阵无关变换和惰性稠密物化降低峰值内存；
 - 位移键去重减少需要调用势函数的构型数量；
+- 使用 Wick 正交特征联合拟合 FC2--FCn，并输出兼容通用格式的 Taylor 力常数；
 - 稀疏矩阵无关 LSMR 实现严格平移 ASR；
 - 二阶力常数可选 Born–Huang 旋转求和规则；
 - 任意阶通用稀疏 HDF5；
@@ -229,6 +231,23 @@ fc3 = calculation.run(
 
 Calculator 默认串行执行，避免同时复制多个大型机器学习势导致内存峰值。需要外部
 并行或断点续算时，应使用 `sow()` / `reap()`。
+
+直接 ASE calculator 路径可以选择将指定阶导数外推到零位移：
+
+```python
+fc4 = calculation.run(
+    calculator,
+    derivative_backend="extrapolate",
+    extrapolation_spacing=0.005,
+    extrapolation_side_steps=2,
+    extrapolation_degree=1,
+)
+```
+
+中心位移为 `0.03` Å 时，上例采样 `0.02`、`0.025`、`0.03`、`0.035` 和 `0.04` Å。
+默认阶数 `1` 拟合 `D(h) = D0 + c2 h²`；更高阶数继续加入偶次幂。该后端有意只通过
+`run()` 开放，不属于外部 `sow()` / `reap()` 工作流。详见
+[零步长外推](docs/EXTRAPOLATION_ZH.md)。
 
 显式保存力：
 
@@ -425,11 +444,8 @@ DOS 和热力学性质。
 - [外部 VASP 工作流](docs/EXTERNAL_VASP_WORKFLOW_ZH.md)
 - [技术总览](docs/TECHNICAL_OVERVIEW_ZH.md)
 - [数值验证与持续集成](docs/VALIDATION_ZH.md)
+- [仅力数据拟合](docs/FITTING_ZH.md)
 - [SSCHA 使用说明](docs/SSCHA_ZH.md)
-- [新旧实现详细对比](docs/OLD_NEW_COMPARISON_ZH.md)
-
-旧版兼容决策、基准构型数量和实测内存统一放在对比与技术文档中，不在用户入口
-README 中重复。
 
 ## 开发与测试
 

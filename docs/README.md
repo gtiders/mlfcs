@@ -12,6 +12,9 @@ implementation details, validation, and compatibility decisions.
 | Technical architecture and algorithms | [Overview](TECHNICAL_OVERVIEW.md) | [概览](TECHNICAL_OVERVIEW_ZH.md) |
 | Numerical validation and CI | [Validation](VALIDATION.md) | [数值验证](VALIDATION_ZH.md) |
 | Translational and rotational sum rules | [Sum rules](SUM_RULES.md) | [求和规则](SUM_RULES_ZH.md) |
+| Direct-calculator zero-step extrapolation | [Extrapolation](EXTRAPOLATION.md) | [零步长外推](EXTRAPOLATION_ZH.md) |
+| Joint force-only FC2--FCn fitting | [Fitting](FITTING.md) | [仅力数据拟合](FITTING_ZH.md) |
+| Fitting architecture versus ALAMODE | [Comparison](ALAMODE_COMPARISON.md) | [比较](ALAMODE_COMPARISON_ZH.md) |
 | Optional finite-temperature SSCHA | [SSCHA](SSCHA.md) | [SSCHA](SSCHA_ZH.md) |
 | Previous and current implementations | [Comparison](OLD_NEW_COMPARISON.md) | [对比](OLD_NEW_COMPARISON_ZH.md) |
 

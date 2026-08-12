@@ -80,6 +80,7 @@ enable the optional Born-Huang rotational sum rules; see [Sum rules](docs/SUM_RU
 - End-to-end second- and fifth-order validation.
 - ASE `Atoms` and ASE `Calculator` at the public boundary.
 - External, checkpoint-friendly `sow()` / `reap()` workflow.
+- Optional direct-calculator zero-step extrapolation with configurable even-power degree.
 - Stable configuration IDs, plan hashes, and explicit atom-order mappings.
 - Joint periodic-image cluster cutoff geometry.
 - Recursive central-difference stencils.
@@ -87,6 +88,8 @@ enable the optional Born-Huang rotational sum rules; see [Sum rules](docs/SUM_RU
 - JAX JIT, `vmap`, and batched contractions for high-rank tensor throughput.
 - Contiguous sparse arrays, matrix-free actions, and lazy materialization to reduce peak memory.
 - Displacement-key deduplication to reduce expensive calculator evaluations.
+- Joint force-only FC2--FCn fitting with Wick-orthogonalized features and Taylor-compatible
+  force-constant output.
 - Strict translational ASR using sparse matrix-free LSMR.
 - Optional Born-Huang rotational sum rules for FC2.
 - Generic sparse HDF5 for any order.
@@ -243,6 +246,23 @@ fc3 = calculation.run(
 
 Calculator evaluation is serial by design to avoid multiplying the memory used by large machine
 learning potentials. Use `sow()` / `reap()` when external parallelism or checkpointing is needed.
+
+Direct ASE-calculator runs can optionally extrapolate the selected order to zero displacement:
+
+```python
+fc4 = calculation.run(
+    calculator,
+    derivative_backend="extrapolate",
+    extrapolation_spacing=0.005,
+    extrapolation_side_steps=2,
+    extrapolation_degree=1,
+)
+```
+
+For a central displacement of `0.03` Å, this samples `0.02`, `0.025`, `0.03`, `0.035`, and
+`0.04` Å. The default degree `1` fits `D(h) = D0 + c2 h²`; higher degrees fit additional even
+powers. This backend is intentionally available only through `run()`, not external `sow()` /
+`reap()`. See [Zero-step extrapolation](docs/EXTRAPOLATION.md).
 
 For explicit checkpointing:
 
@@ -449,12 +469,8 @@ calculation. See the [SSCHA guide](docs/SSCHA.md) for details.
 - [External VASP workflow](docs/EXTERNAL_VASP_WORKFLOW.md)
 - [Technical overview](docs/TECHNICAL_OVERVIEW.md)
 - [Numerical validation and CI](docs/VALIDATION.md)
+- [Force-only fitting](docs/FITTING.md)
 - [SSCHA guide](docs/SSCHA.md)
-- [Detailed old/new implementation comparison](docs/OLD_NEW_COMPARISON.md)
-
-Implementation comparisons, compatibility decisions, benchmark counts, and measured memory
-figures are intentionally kept in the comparison and technical documents rather than this user
-introduction.
 
 ## Development
 
