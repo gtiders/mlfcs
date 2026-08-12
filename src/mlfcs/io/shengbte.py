@@ -7,10 +7,12 @@ import numpy as np
 from ase import Atoms
 from scipy.spatial.distance import cdist
 
+from mlfcs.model import SparseOrderForceConstants
+
 
 def write_shengbte(
     target: str | Path,
-    force_constants: np.ndarray,
+    force_constants: np.ndarray | SparseOrderForceConstants,
     supercell: Atoms,
     *,
     cutoff: float,
@@ -23,13 +25,21 @@ def write_shengbte(
     lattice translations, ``order`` primitive atom indices, and ``3**order``
     Cartesian components. Values use scientific notation at every order.
     """
-    order = force_constants.ndim // 2
-    if order not in {3, 4} or force_constants.ndim != 2 * order:
+    if isinstance(force_constants, SparseOrderForceConstants):
+        order = force_constants.order
+        n_primitive = force_constants.n_primitive
+        if force_constants.n_supercell != len(supercell):
+            raise ValueError("sparse force constants and supercell sizes differ")
+    else:
+        order = force_constants.ndim // 2
+        if force_constants.ndim != 2 * order:
+            raise ValueError("force constants must have matching atomic and Cartesian axes")
+        n_primitive = force_constants.shape[0]
+    if order not in {3, 4}:
         raise ValueError("ShengBTE output supports only third- and fourth-order tensors")
-    n_primitive = force_constants.shape[0]
     n_supercell = len(supercell)
     expected = (n_primitive,) + (n_supercell,) * (order - 1) + (3,) * order
-    if force_constants.shape != expected:
+    if not isinstance(force_constants, SparseOrderForceConstants) and force_constants.shape != expected:
         raise ValueError(f"force constants must have shape {expected}")
     if compatibility not in {None, "thirdorder"}:
         raise ValueError("compatibility must be None or 'thirdorder'")
@@ -39,19 +49,74 @@ def write_shengbte(
     geometry = _nanometre_geometry(supercell)
     cutoff_nm = cutoff * 0.1
     distances, counts, shifts = _periodic_distances(geometry)
-    text = _format_force_constants(
-        force_constants,
-        geometry,
-        n_primitive,
-        distances,
-        counts,
-        shifts,
-        cutoff_nm,
-        order,
-        support=None if support is None else np.asarray(support, dtype=bool),
-        compatibility=compatibility,
-    )
+    if isinstance(force_constants, SparseOrderForceConstants):
+        text = _format_sparse_force_constants(
+            force_constants, geometry, distances, counts, shifts, cutoff_nm,
+            compatibility=compatibility,
+        )
+    else:
+        text = _format_force_constants(
+            force_constants,
+            geometry,
+            n_primitive,
+            distances,
+            counts,
+            shifts,
+            cutoff_nm,
+            order,
+            support=None if support is None else np.asarray(support, dtype=bool),
+            compatibility=compatibility,
+        )
     Path(target).write_text(text)
+
+
+def _format_sparse_force_constants(
+    fc: SparseOrderForceConstants,
+    supercell: Atoms,
+    distances: np.ndarray,
+    counts: np.ndarray,
+    shifts: np.ndarray,
+    cutoff: float,
+    *,
+    compatibility: str | None,
+) -> str:
+    """Serialize unique sparse clusters without constructing the dense FC tensor."""
+    shift_vectors = np.asarray(list(product(range(-1, 2), repeat=3)))
+    blocks: list[str] = []
+    ordering = np.lexsort(np.asarray(fc.clusters).T[::-1])
+    for cluster, tensor in zip(fc.clusters[ordering], fc.tensors[ordering], strict=True):
+        atom_indices = tuple(int(atom) for atom in cluster)
+        first, *remaining_list = atom_indices
+        remaining = tuple(remaining_list)
+        if compatibility == "thirdorder" and any(
+            distances[first, atom] >= cutoff for atom in remaining
+        ):
+            continue
+        possible_shifts = [
+            shift_vectors[shifts[first, atom, : counts[first, atom]]] for atom in remaining
+        ]
+        best_distance, best_shifts = _best_joint_images(supercell, remaining, possible_shifts)
+        if compatibility == "thirdorder" and best_distance >= cutoff * cutoff:
+            continue
+        primitive_atoms = (first,) + tuple(atom % fc.n_primitive for atom in remaining)
+        translations = tuple(
+            _translation(supercell, atom, primitive_atom, shift)
+            for atom, primitive_atom, shift in zip(
+                remaining, primitive_atoms[1:], best_shifts, strict=True
+            )
+        )
+        lines = [
+            "",
+            f"{len(blocks) + 1:>5}",
+            *[_vector_line(vector) for vector in translations],
+            " ".join(f"{atom + 1:>6d}" for atom in primitive_atoms),
+        ]
+        for directions in product(range(3), repeat=fc.order):
+            direction_text = " ".join(f"{direction + 1:>2d}" for direction in directions)
+            value = tensor[directions]
+            lines.append(f"{direction_text} {value:>20.10e}")
+        blocks.append("\n".join(lines) + "\n")
+    return f"{len(blocks):>5}\n" + "".join(blocks)
 
 
 def _nanometre_geometry(supercell: Atoms) -> Atoms:
