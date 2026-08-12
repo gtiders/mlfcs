@@ -450,6 +450,7 @@ DOS 和热力学性质。
 - [数值验证与持续集成](docs/VALIDATION_ZH.md)
 - [仅力数据拟合](docs/FITTING_ZH.md)
 - [SSCHA 使用说明](docs/SSCHA_ZH.md)
+- [开发路线图](docs/ROADMAP_ZH.md)
 
 ## 开发与测试
 
