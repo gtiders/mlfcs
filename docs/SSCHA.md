@@ -1,41 +1,37 @@
-# SSCHA module
+# Native SSCHA module
 
 [中文](SSCHA_ZH.md)
 
-`mlfcs.sscha` uses phonopy to sample thermal displacements, symfc to fit effective second-order
-force constants, and any user-owned ASE Calculator for energies and forces. It is an isolated
-optional module: the base order-parameterized finite-difference pipeline does not depend on
-phonopy or symfc.
+`mlfcs.sscha` iteratively fits an effective FC2 from ASE force snapshots and samples the next
+harmonic canonical ensemble. It uses the native MLFCS symmetry-reduced Gram fitter and a compact
+q-space sampler; phonopy and symfc are not runtime dependencies.
 
-## Installation
+## Method
 
-```bash
-uv sync --extra sscha
-```
-
-The optional dependencies are phonopy for supercells, harmonic canonical sampling, phonons, and
-thermodynamic quantities, and symfc for symmetry-aware FC2 fitting and sum rules. Users install
-and construct their actual calculator; MLFCS does not require calorine, MACE, GAP, or another
-specific potential package.
-
-## Iteration
-
-Without supplied initial force constants, iteration zero fits FC2 from small random Cartesian
-displacements. Each subsequent iteration samples the harmonic canonical ensemble defined by the
-current FC2, evaluates the real potential on those configurations, and refits FC2:
+The first iteration uses small Gaussian Cartesian displacements unless an initial FC2 is supplied.
+Every completed force batch is fitted with `ForceConstantFitter(orders=(2,))`, all snapshots are
+used, and ASR is imposed in the irreducible parameter space. Subsequent structures are drawn from
+the current harmonic Hamiltonian:
 
 ```text
-small Cartesian displacements → ASE forces → initial symfc FC2
-                                                │
-                                                ▼
-canonical phonopy snapshots → ASE forces → refitted symfc FC2 → repeat
+initial Cartesian snapshots → ASE forces → native Gram FC2 fit
+                                             │
+                                             ▼
+compact-FC2 q-space ensemble → ASE forces → native Gram FC2 fit → repeat
 ```
 
-`max_iterations=10` therefore produces eleven fits including initialization. If
-`initial_force_constants` is supplied, it is used for the first canonical sampling step instead
-of Cartesian initialization. This stochastic effective-harmonic procedure is distinct from an
-explicit FC3 bubble, FC4 loop, or deterministic ALAMODE SCPH expansion; anharmonicity enters
-through the calculator forces on thermally displaced structures.
+The sampler Fourier-transforms translation-reduced FC2 at the q points commensurate with the
+diagonal supercell. It diagonalizes `3 * primitive_atoms` matrices rather than one full
+`3 * supercell_atoms` matrix. Conjugate q points are paired explicitly, and the three
+mass-weighted translations are projected out at Gamma.
+
+Quantum statistics are the default:
+
+```text
+variance(q_s) = hbar / (2 omega_s) coth[hbar omega_s / (2 kB T)].
+```
+
+Set `statistics="classical"` for `kB T / omega_s**2`.
 
 ## Direct ASE workflow
 
@@ -43,26 +39,25 @@ through the calculator forces on thermally displaced structures.
 from ase.io import read
 from mlfcs.sscha import SSCHA
 
-atoms = read("POSCAR")
-calculator = make_my_ase_calculator()
-
 sscha = SSCHA(
-    atoms,
+    read("POSCAR"),
     supercell=(3, 3, 3),
     temperature=300.0,
+    statistics="quantum",
     snapshots=1000,
     max_iterations=10,
     initial_displacement=0.01,
     random_seed=42,
-    symprec=1e-5,
+    cutoff_frequency=0.01,       # THz
+    imaginary_modes="error",
+    max_displacement=None,       # canonical sampling is not clipped
     log_level=1,
 )
-sscha.run(calculator)
+sscha.run(make_my_ase_calculator())
 ```
 
-`run()` evaluates configurations serially to avoid replicating a large calculator. A progress
-callback may be supplied. Energies are evaluated by default for the free-energy estimate; use
-`calculate_free_energy=False` when only effective FC2 is required.
+`run()` evaluates one structure at a time. Use `calculate_free_energy=False` when energies and the
+variational free-energy estimate are not required.
 
 ## External sow/reap workflow
 
@@ -70,9 +65,11 @@ callback may be supplied. Energies are evaluated by default for the free-energy 
 structures = sscha.sow()
 
 for atoms in structures:
-    iteration = atoms.info["mlfcs_sscha_iteration"]
-    configuration_id = atoms.info["mlfcs_configuration_id"]
-    dispatch(iteration, configuration_id, atoms)
+    dispatch(
+        atoms.info["mlfcs_sscha_iteration"],
+        atoms.info["mlfcs_configuration_id"],
+        atoms,
+    )
 
 result = sscha.reap(
     forces_by_configuration_id,
@@ -81,75 +78,51 @@ result = sscha.reap(
 )
 ```
 
-Within one iteration, IDs must cover `0..N-1`. A positional array must follow `sow()` exactly; a
-mapping may arrive in any insertion order but must contain every ID once. Force shape is
-`(snapshots, supercell_atoms, 3)`. ASE units are used: Å, eV/Å, eV, and eV/Å².
+Positional force arrays must follow `sow()` order. Mappings must contain every integer ID from zero
+through `snapshots - 1`. Forces are required; energies and the reference energy are used only for
+free energy.
 
-Forces are the only required fitting input. Snapshot energies and the undisplaced-supercell
-reference energy are used only for the free-energy estimate; if either is absent,
-`free_energy` and `free_energy_error` are `None`.
+## Stability controls
 
-## Results and convergence
+- `cutoff_frequency` excludes non-translational modes below the given absolute frequency in THz.
+- `imaginary_modes="error"` is the default and rejects an unstable trial Hamiltonian.
+- `imaginary_modes="absolute"` samples using the absolute frequency and records a warning-level
+  diagnostic.
+- `imaginary_modes="exclude"` removes imaginary modes from sampling.
+- `max_displacement=None` preserves the canonical distribution. A positive value enables
+  phonopy-style per-atom radial clipping: direction is retained and only vector length is shortened.
+  The number of clipped atoms and affected snapshots is reported because clipping makes the sample
+  distribution non-canonical.
 
-Every `reap()` or `step()` returns an immutable `SSCHAIteration` and appends it to
-`sscha.history`. It records the zero-based index, sampling mode, full-supercell FC2, free energy
-per primitive cell, its finite-sample standard error, and average real and harmonic potential
-energies.
+`SSCHAIteration.ensemble` records q-point, mode, imaginary-mode, exclusion, and clipping counts.
+`fitting_relative_force_error` records the native fitter's training error.
 
-The API performs exactly the requested number of iterations and does not impose a universal
-stopping threshold. Call `step()` explicitly and monitor FC2, phonon frequencies, or free energy:
+## Results and output
 
 ```python
-import numpy as np
-
 previous = sscha.force_constants
-result = sscha.step(calculator)
-if previous is not None:
-    rms = np.sqrt(np.mean((result.force_constants - previous) ** 2))
-    print("FC2 RMS change:", rms)
-```
+iteration = sscha.step(calculator)
 
-Random fits may fluctuate near convergence. Average the last iterations explicitly:
-
-```python
 average = sscha.averaged_force_constants(last=5)
 sscha.use_average(last=5)
-```
 
-Write phonopy-native full FC2 and continue with the underlying Phonopy object:
-
-```python
-sscha.write("fc2-300K.hdf5", format="hdf5")
 sscha.write("FORCE_CONSTANTS", format="text")
-
-ph = sscha.phonopy
-ph.run_mesh([20, 20, 20])
-ph.run_thermal_properties(temperatures=[300])
+sscha.write("fc2-300K.hdf5", format="hdf5")
 ```
 
-## Free-energy estimate
+`force_constants` and iteration FC2 arrays use full MLFCS internal supercell order. The active
+translation-reduced array is available as `compact_force_constants`. Text and HDF5 output use the
+shared phonopy-compatible MLFCS writers without importing phonopy.
 
-For current FC2 $\Phi$, the implementation follows the phonopy-style estimator
+## Free energy
+
+The same commensurate q-point eigensolutions provide the quantum harmonic free energy per primitive
+cell. With snapshot energies, the reported estimator is
 
 ```text
-F = F_harm + mean[(E(u) - E(0) - 1/2 u Φ u) / n_cell].
+F = F_harm + mean[(E(u) - E(0) - 1/2 u Phi u) / number_of_cells].
 ```
 
-The reported error is the standard error of the finite-snapshot mean in brackets. It does not
-include FC2 fitting uncertainty or systematic error between self-consistent iterations.
-
-## Stability and memory
-
-- Canonical sampling requires a sufficiently stable current FC2. Supply stable initial force
-  constants or perform a zero-temperature harmonic calculation for unstable starting points.
-- `cutoff_frequency` removes very low-frequency modes and `max_displacement` limits amplitudes.
-- A fixed `random_seed` reproduces base random samples, although Cartesian displacements still
-  change when the FC2 eigenvectors change.
-- Full FC2 storage scales as `N²×3×3`; snapshot forces and symfc bases can dominate memory.
-- `run()` is serial by design. Use `sow()` / `reap()` for user-controlled external parallelism.
-- Configure non-analytic corrections through `sscha.phonopy.nac_params` with phonopy-compatible
-  Born charges and dielectric tensors.
-
-Unlike the earlier `MLPSSCHA` interface, the current module accepts ASE calculators directly,
-provides complete per-iteration sow/reap, exposes random seeds and structured history, reports a
-finite-sample free-energy error, and makes averaging and file output explicit operations.
+The error is the standard error of the sampled correction. If `max_displacement` clips any sample,
+the distribution is no longer strictly canonical and the estimator must be interpreted as an
+approximation.

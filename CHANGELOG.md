@@ -4,6 +4,23 @@
 
 All notable changes are documented here. Releases follow semantic versioning.
 
+## Unreleased
+
+### Added
+
+- Native compact-FC2 commensurate-q sampling for quantum and classical harmonic ensembles.
+- Explicit imaginary-mode policies, frequency filtering, sampling diagnostics, and optional
+  per-atom radial displacement clipping; clipping is disabled by default.
+- Analytic harmonic-model tests and an independent development-only phonopy sampling reference.
+- An end-to-end KCl SSCHA reference using phonopy's official pypolymlp potential and fixtures.
+
+### Changed
+
+- `mlfcs.sscha` now fits FC2 with the shared MLFCS symmetry-reduced Gram fitter and writes through
+  the shared force-constant I/O layer; phonopy and symfc are no longer runtime dependencies.
+- Canonical iterations derive independent reproducible child seeds. Cartesian initialization no
+  longer reports a statistically undefined SSCHA free energy.
+
 ## 3.1.0 — 2026-08-09
 
 ### Added

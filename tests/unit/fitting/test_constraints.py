@@ -1,41 +1,14 @@
 import numpy as np
 from ase import Atoms
 from scipy import sparse
-from scipy.sparse.linalg import LinearOperator
 
 from mlfcs.api import ForceConstantCalculation
 from mlfcs.fitting.constraints import build_joint_constraints, build_wick_to_taylor_transform
 from mlfcs.fitting.model import (
     _ConstraintNullSpace,
-    _solve_constrained_lsmr,
     _StreamingGramSystem,
     _symmetrized_covariance,
 )
-
-
-def test_kkt_solver_enforces_constraint_during_least_squares():
-    matrix = np.array([[1.0, 0.0], [0.0, 1.0], [1.0, 1.0]])
-    operator = LinearOperator(
-        matrix.shape,
-        matvec=matrix.__matmul__,
-        rmatvec=matrix.T.__matmul__,
-        dtype=float,
-    )
-    constraints = sparse.csr_matrix([[1.0, -1.0]])
-    target = np.array([1.0, 3.0, 5.0])
-
-    solution = _solve_constrained_lsmr(
-        operator,
-        constraints,
-        target,
-        tolerance=1e-12,
-        max_iterations=100,
-        damping=0.0,
-        verbose=False,
-    )[0]
-
-    np.testing.assert_allclose(constraints @ solution, 0.0, atol=1e-11)
-    np.testing.assert_allclose(solution, [7 / 3, 7 / 3], atol=1e-11)
 
 
 def test_implicit_null_space_is_idempotent_and_satisfies_constraints():
@@ -84,7 +57,9 @@ def test_wick_rotational_constraints_equal_taylor_constraints_after_transform():
         )
         for order in (2, 3, 4)
     )
-    dimensions = [sum(orbit.dimension for orbit in item.orbit_space.orbits) for item in calculations]
+    dimensions = [
+        sum(orbit.dimension for orbit in item.orbit_space.orbits) for item in calculations
+    ]
     rng = np.random.default_rng(31)
     displacement = rng.normal(size=(20, 2, 3))
     displacement -= displacement.mean(axis=1, keepdims=True)

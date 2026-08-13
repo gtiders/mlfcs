@@ -24,9 +24,9 @@ deduplication improve throughput. Actual gains depend on the system, order, and 
 execution does not replace cluster enumeration or sparse solvers that still run on the CPU.
 
 The base package does not prescribe how forces are generated. Structures can be evaluated with
-any user-owned ASE Calculator or dispatched to an external workflow. An independent optional
-module uses phonopy and symfc to calculate temperature-dependent effective second-order force
-constants with a stochastic self-consistent harmonic approximation (SSCHA).
+any user-owned ASE Calculator or dispatched to an external workflow. The native SSCHA module
+combines q-space quantum harmonic sampling with the MLFCS Gram fitter to calculate
+temperature-dependent effective second-order force constants.
 
 MLFCS provides a Python API only; it has no CLI.
 
@@ -99,7 +99,7 @@ enable the optional Born-Huang rotational sum rules; see [Sum rules](docs/SUM_RU
 - Generic sparse HDF5 for any order.
 - ShengBTE output for orders 3 and 4.
 - Full dense phonopy text output for order 2.
-- Optional phonopy/symfc SSCHA with arbitrary ASE calculators.
+- Native quantum/classical SSCHA with arbitrary ASE calculators.
 
 ## Installation
 
@@ -116,12 +116,6 @@ Runnable API examples are available in [`examples/`](examples/):
   `sow` / force collection / `reap` workflow;
 - [`nep89_orders.py`](examples/nep89_orders.py) evaluates one or more orders with a user-supplied
   NEP89 model through calorine's ASE calculator.
-
-Install the optional SSCHA dependencies when needed:
-
-```bash
-uv sync --extra sscha
-```
 
 Calculator packages such as calorine or MACE are intentionally not base dependencies. Install
 the calculator required by your application separately.
@@ -413,7 +407,7 @@ dense = fc5.materialize(5)
 dense = fc5.materialize(5, max_bytes=None)  # explicitly disable the warning budget
 ```
 
-## Optional SSCHA
+## Native SSCHA
 
 The independent `mlfcs.sscha` module fits a temperature-dependent effective harmonic FC2 from
 thermally sampled forces:
@@ -425,6 +419,7 @@ sscha = SSCHA(
     atoms,
     supercell=(3, 3, 3),
     temperature=300,
+    statistics="quantum",
     snapshots=1000,
     max_iterations=10,
     random_seed=42,
@@ -436,8 +431,8 @@ sscha.write("fc2-300K.hdf5", format="hdf5")
 ```
 
 Iteration zero fits an initial FC2 from small random Cartesian displacements. Each subsequent
-iteration uses phonopy to sample the canonical harmonic ensemble and symfc to refit full FC2.
-Thus `max_iterations=10` performs one initialization and ten updates.
+iteration samples the canonical harmonic ensemble in compact-FC2 q space and refits FC2 with the
+native streamed-Gram fitter. Thus `max_iterations=10` performs one initialization and ten updates.
 
 External per-iteration execution is also supported:
 
@@ -451,8 +446,8 @@ result = sscha.reap(
 ```
 
 Forces are sufficient for FC2 fitting. Energies are required only for the free-energy estimate.
-Completed iterations are stored in `sscha.history`, and `sscha.phonopy` exposes the underlying
-Phonopy object for meshes, bands, DOS, and thermal properties.
+Completed iterations and sampling diagnostics are stored in `sscha.history`. Phonopy-compatible
+text and HDF5 output use the shared MLFCS writers without requiring phonopy at runtime.
 
 This is a stochastic effective-harmonic method, not an explicit FC3 bubble or FC4 loop
 calculation. See the [SSCHA guide](docs/SSCHA.md) for details.
@@ -482,7 +477,7 @@ calculation. See the [SSCHA guide](docs/SSCHA.md) for details.
 All commands use uv and tests run serially:
 
 ```bash
-uv sync --extra sscha
+uv sync
 uv run pytest
 uv run pytest -m "not reference"
 uv run ruff check src tests reference_tools examples

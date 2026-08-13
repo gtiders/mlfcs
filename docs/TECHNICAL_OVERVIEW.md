@@ -6,9 +6,9 @@ English | [中文](TECHNICAL_OVERVIEW_ZH.md)
 
 The base MLFCS pipeline is a clean ASE-first implementation for reconstructing force constants
 from user-supplied forces. It does not embed a force calculator, does not require phonopy or
-symfc, and has no command-line interface. Version 3.1 includes an isolated, optional
-`mlfcs.sscha` module that deliberately depends on phonopy and symfc for finite-temperature
-effective FC2 calculations. The main public workflow remains a Python API:
+symfc, and has no command-line interface. The native `mlfcs.sscha` module combines compact-FC2
+q-space sampling with the same Gram fitting parameterization for finite-temperature effective
+FC2 calculations. The main public workflow remains a Python API:
 
 ```python
 calculation = ForceConstantCalculation(
@@ -59,17 +59,17 @@ src/mlfcs/
     numpy.py                     NumPy storage
     phonopy.py                   full dense FC2 text output
     shengbte.py                  third- and fourth-order ShengBTE output
-  sscha/                         optional phonopy/symfc dependency boundary
-    core.py                      thermal sampling, ASE evaluation, and FC2 iteration
+  sscha/
+    core.py                      ASE evaluation and FC2 iteration
+    ensemble.py                  commensurate-q harmonic sampling and thermodynamics
 ```
 
 This replaces the previous order-specific third- and fourth-order packages with a shared
 pipeline. Order-dependent behavior is expressed through `order`, tensor rank, permutations, and
 recursive finite-difference keys instead of duplicated source trees.
 
-The SSCHA package is intentionally separate from this generic pipeline. Importing `mlfcs` does
-not import phonopy or symfc; applications opt in with `from mlfcs.sscha import SSCHA` and install
-the `sscha` package extra.
+The SSCHA package is an explicit submodule but has no additional runtime dependency. Applications
+opt in with `from mlfcs.sscha import SSCHA`.
 
 ## 3. Generic force-constant pipeline
 
@@ -113,8 +113,17 @@ The orbit engine is parameterized by order. It combines:
 - stabilizer constraints;
 - independent tensor bases and pivot components.
 
-A tensor action is kept as a rotation plus an axis permutation. It is applied directly to tensor
-columns instead of constructing every dense `3**order x 3**order` transformation matrix.
+Cluster discovery does not traverse the ordered Cartesian product of all neighbor labels. It
+recursively generates nondecreasing neighbor multisets and rejects an incompatible prefix as soon
+as one pair violates the joint periodic cutoff. A cheap anchored, tail-sorted canonical image is
+then evaluated before the complete tensor orbit is constructed. Equal-site Cartesian axes are
+reduced in a label-symmetric basis before stabilizer constraints are accumulated. This preserves
+the FC2--FC4 orbit subspaces while preventing repeated-site FC5/FC6 stabilizers from allocating
+the full square `3**order` action matrix.
+
+A tensor action is kept as a rotation plus an axis permutation. Stabilizers are contracted with
+the compressed basis by matrix-free NumPy tensor operations instead of constructing every dense
+`3**order x 3**order` transformation matrix.
 
 ### 3.4 Recursive finite differences
 
@@ -299,31 +308,31 @@ The complex-material neighbor-shell regression results at fourth order and cutof
 | KAsPt | 45 | 2936 |
 | NaS | 43 | 2016 |
 
-## 8. Optional stochastic effective-harmonic module
+## 8. Native stochastic effective-harmonic module
 
-MLFCS 3.1 implements the phonopy-style SSCHA loop behind an optional dependency boundary:
+MLFCS implements the effective-harmonic loop entirely with native components:
 
 1. generate small random Cartesian displacements when no initial FC2 is available;
 2. evaluate arbitrary ASE forces and optionally energies;
-3. fit a symmetry-constrained full FC2 with symfc;
-4. sample the canonical harmonic ensemble from the current FC2 with phonopy;
+3. fit symmetry-reduced compact FC2 with the streamed-Gram fitter;
+4. sample the quantum or classical canonical ensemble at commensurate q points;
 5. repeat the force evaluation and FC2 fit for the requested number of updates.
 
 Both direct serial Calculator execution and iteration-level `sow/reap` are supported. The latter
 keeps external scheduling and concurrency under user control. Each fit produces an immutable
 result containing FC2, sampling mode, energy averages, free energy, and its finite-sampling
-standard error. The active FC2 may be replaced by an average of the final iterations and written
-through phonopy's text or HDF5 writers.
+standard error and q-space sampling diagnostics. The active FC2 may be replaced by an average of
+the final iterations and written through MLFCS's phonopy-compatible text or HDF5 writers.
 
 This module estimates a temperature-dependent effective harmonic Hamiltonian from thermal force
 samples. It is not the explicit FC3 bubble or FC4 loop implementation discussed for ALAMODE.
 Detailed usage, formulas, ordering rules, and stability guidance are in
 [`SSCHA.md`](SSCHA.md).
 
-The SSCHA tests exercise the real installed phonopy and symfc implementations with an ASE
-harmonic test calculator. They cover Cartesian initialization, canonical sampling, external
-ID-mapped reap, two successive direct fits, FC2 averaging, free-energy evaluation, and HDF5
-output. The v3.1 suite separates fast API tests from serial scientific references.
+The SSCHA tests use analytic harmonic models for classical variance, quantum zero-point motion,
+translation removal, clipping diagnostics, Cartesian initialization, canonical sampling,
+external ID-mapped reap, repeated native Gram fits, FC2 averaging, free energy, and HDF5 output.
+An independent development-only phonopy reference checks q-space frequencies and statistics.
 
 ## 9. Current limitations and likely next steps
 

@@ -5,7 +5,7 @@ from mlfcs.finite_difference.stencil import CentralDifferenceStencil
 from mlfcs.model import ForceConstants, SparseOrderForceConstants
 from mlfcs.runtime import configure_jax
 
-# SSCHA is intentionally not imported here: phonopy and symfc are optional.
+# SSCHA remains an explicit submodule so the base namespace stays compact.
 
 __all__ = [
     "Calculation",

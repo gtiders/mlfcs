@@ -33,6 +33,10 @@
 thirdorder 输出比较周期规范化后的块顺序和 FC3 数值。该比较显式使用
 `compatibility="thirdorder"`；默认 ShengBTE 模式另行验证对称闭合支撑域的保真往返。
 
+`reference/sscha/KCl_phonopy/` 将 phonopy 官方 KCl pypolymlp 势函数接入原生 MLFCS
+SSCHA 流程，并使用 phonopy 官方测试的 FC2 和自由能范围验证数值尺度。其上层
+的解析 q 空间测试则独立对比 MLFCS 与 phonopy 的频率和采样协方差。
+
 ## 命名约定
 
 文件或目录出现化学式时必须保留标准大小写，例如 `AlN`、`Si`、`NaCl`，不使用
@@ -49,6 +53,7 @@ uv run pytest tests/reference/phono3py/AlN_FC3/test_provenance.py
 uv run pytest tests/reference/phono3py/AlN_FC3/test_raw.py
 uv run pytest tests/reference/phono3py/AlN_FC3/test_asr.py
 uv run pytest tests/reference/phonopy/AlN_FC2
+uv run pytest tests/reference/sscha
 uv run pytest tests/reference/shengbte/Si_FC3/test_sow_contract.py
 uv run pytest tests/reference/shengbte/Si_FC3/test_provenance.py
 uv run pytest tests/reference/shengbte/Si_FC3/test_numerical.py

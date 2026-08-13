@@ -15,7 +15,7 @@ implementation details, validation, and compatibility decisions.
 | Direct-calculator zero-step extrapolation | [Extrapolation](EXTRAPOLATION.md) | [零步长外推](EXTRAPOLATION_ZH.md) |
 | Joint force-only FC2--FCn fitting | [Fitting](FITTING.md) | [仅力数据拟合](FITTING_ZH.md) |
 | Fitting architecture versus ALAMODE | [Comparison](ALAMODE_COMPARISON.md) | [比较](ALAMODE_COMPARISON_ZH.md) |
-| Optional finite-temperature SSCHA | [SSCHA](SSCHA.md) | [SSCHA](SSCHA_ZH.md) |
+| Native finite-temperature SSCHA | [SSCHA](SSCHA.md) | [SSCHA](SSCHA_ZH.md) |
 | Previous and current implementations | [Comparison](OLD_NEW_COMPARISON.md) | [对比](OLD_NEW_COMPARISON_ZH.md) |
 | Development roadmap | [Roadmap](ROADMAP.md) | [路线图](ROADMAP_ZH.md) |
 

@@ -1,9 +1,4 @@
-"""Stochastic self-consistent harmonic approximation with ASE force providers.
-
-This module deliberately forms an optional boundary around phonopy and symfc.
-The finite-difference force-constant implementation in the rest of mlfcs does
-not import either package.
-"""
+"""Self-consistent harmonic sampling and FC2 fitting with native MLFCS components."""
 
 from __future__ import annotations
 
@@ -17,41 +12,14 @@ from ase import Atoms
 from ase.calculators.calculator import Calculator
 from numpy.typing import ArrayLike, NDArray
 
+from mlfcs.core.fc2 import compact_fc2, expand_compact_fc2
+from mlfcs.core.geometry import make_supercell
+from mlfcs.fitting import ForceConstantFitter
+from mlfcs.model import ForceConstants
+from mlfcs.sscha.ensemble import EnsembleDiagnostics, HarmonicEnsemble
+
 Progress = Callable[[int, int], None]
 ForceInput = NDArray[np.floating] | Sequence[ArrayLike] | Mapping[int, ArrayLike]
-
-
-def _optional_imports():
-    try:
-        from phonopy import Phonopy
-        from phonopy.harmonic.force_constants import compact_fc_to_full_fc
-        from phonopy.structure.atoms import PhonopyAtoms
-    except ModuleNotFoundError as exc:  # pragma: no cover - exercised without extra
-        raise ModuleNotFoundError(
-            "SSCHA requires the optional dependencies; install with `uv sync --extra sscha`."
-        ) from exc
-    return Phonopy, PhonopyAtoms, compact_fc_to_full_fc
-
-
-def _to_phonopy(atoms: Atoms):
-    _, PhonopyAtoms, _ = _optional_imports()
-    masses = atoms.get_masses() if atoms.has("masses") else None
-    return PhonopyAtoms(
-        symbols=atoms.get_chemical_symbols(),
-        cell=np.asarray(atoms.cell),
-        positions=atoms.get_positions(),
-        masses=masses,
-    )
-
-
-def _to_ase(atoms) -> Atoms:
-    return Atoms(
-        symbols=list(atoms.symbols),
-        cell=np.asarray(atoms.cell),
-        scaled_positions=np.asarray(atoms.scaled_positions),
-        masses=None if atoms.masses is None else np.asarray(atoms.masses),
-        pbc=True,
-    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,35 +33,39 @@ class SSCHAIteration:
     free_energy_error: float | None
     potential_energy: float | None
     harmonic_potential_energy: float
+    ensemble: EnsembleDiagnostics | None
+    fitting_relative_force_error: float
 
 
 class SSCHA:
-    """Phonopy-style iterative SSCHA driven by arbitrary ASE forces.
-
-    Iteration zero fits an initial FC2 from small random Cartesian
-    displacements. Each of ``max_iterations`` subsequent iterations samples
-    the canonical harmonic ensemble of the latest FC2 and refits it with
-    symfc. Energies are optional unless free energies are requested.
-    """
+    """Iterative effective-harmonic sampling driven by arbitrary ASE forces."""
 
     def __init__(
         self,
         atoms: Atoms,
         *,
-        supercell: Sequence[int] | Sequence[Sequence[int]] = (2, 2, 2),
+        supercell: Sequence[int] = (2, 2, 2),
         temperature: float = 300.0,
+        statistics: Literal["quantum", "classical"] = "quantum",
         snapshots: int | Literal["auto"] = 1000,
         max_iterations: int = 10,
         initial_displacement: float = 0.01,
         random_seed: int | None = None,
         symprec: float = 1e-5,
-        cutoff_frequency: float | None = None,
+        cutoff_frequency: float = 0.01,
+        imaginary_modes: Literal["error", "absolute", "exclude"] = "error",
+        imaginary_tolerance: float = 1e-6,
         max_displacement: float | None = None,
         initial_force_constants: ArrayLike | None = None,
+        acoustic_sum_rule: bool = True,
+        rotational_invariance: int = 0,
         log_level: int = 0,
     ) -> None:
         if not isinstance(atoms, Atoms):
             raise TypeError("atoms must be an ASE Atoms object")
+        repeats = tuple(int(value) for value in supercell)
+        if len(repeats) != 3 or any(value < 1 for value in repeats):
+            raise ValueError("supercell must contain three positive diagonal repeats")
         if temperature < 0:
             raise ValueError("temperature must be non-negative")
         if snapshots != "auto" and snapshots < 1:
@@ -102,90 +74,128 @@ class SSCHA:
             raise ValueError("max_iterations must be non-negative")
         if initial_displacement <= 0:
             raise ValueError("initial_displacement must be positive")
+        if statistics not in {"quantum", "classical"}:
+            raise ValueError("statistics must be 'quantum' or 'classical'")
+        if imaginary_modes not in {"error", "absolute", "exclude"}:
+            raise ValueError("imaginary_modes must be 'error', 'absolute', or 'exclude'")
+        if cutoff_frequency < 0 or imaginary_tolerance < 0:
+            raise ValueError("frequency tolerances must be non-negative")
+        if max_displacement is not None and max_displacement <= 0:
+            raise ValueError("max_displacement must be positive or None")
 
-        Phonopy, _, compact_fc_to_full_fc = _optional_imports()
-        self._phonon = Phonopy(
-            _to_phonopy(atoms),
-            supercell_matrix=np.asarray(supercell, dtype=int),
-            symprec=symprec,
-            log_level=max(0, log_level - 1),
-        )
-        if initial_force_constants is not None:
-            fc = np.asarray(initial_force_constants, dtype=float)
-            if fc.ndim != 4 or fc.shape[-2:] != (3, 3):
-                raise ValueError("initial_force_constants must have shape (n, N, 3, 3)")
-            if fc.shape[0] != fc.shape[1]:
-                fc = compact_fc_to_full_fc(self._phonon.primitive, fc)
-            self._phonon.force_constants = fc
-
+        self.primitive = atoms.copy()
+        self.primitive.wrap()
+        self.supercell = repeats
+        self._reference, self._index = make_supercell(self.primitive, repeats)
         self.temperature = float(temperature)
+        self.statistics = statistics
         self.snapshots = snapshots
         self.max_iterations = max_iterations
         self.initial_displacement = float(initial_displacement)
         self.random_seed = random_seed
-        self.cutoff_frequency = cutoff_frequency
+        self.symprec = symprec
+        self.cutoff_frequency = float(cutoff_frequency)
+        self.imaginary_modes = imaginary_modes
+        self.imaginary_tolerance = float(imaginary_tolerance)
         self.max_displacement = max_displacement
+        self.acoustic_sum_rule = acoustic_sum_rule
+        self.rotational_invariance = rotational_invariance
         self.log_level = log_level
         self.history: list[SSCHAIteration] = []
         self._prepared_index: int | None = None
-        self._sampling_fc: NDArray[np.float64] | None = None
+        self._prepared_structures: list[Atoms] | None = None
+        self._sampling_compact: NDArray[np.float64] | None = None
+        self._sampling_ensemble: HarmonicEnsemble | None = None
         self._reference_energy: float | None = None
-
-    @property
-    def phonopy(self):
-        """Underlying Phonopy object for advanced phonon analysis."""
-        return self._phonon
+        self._fitter = ForceConstantFitter(
+            self.primitive,
+            self._reference,
+            supercell=repeats,
+            orders=(2,),
+            cutoffs={2: None},
+            symprec=symprec,
+            verbose=log_level > 1,
+        )
+        self._active_compact: NDArray[np.float64] | None = None
+        if initial_force_constants is not None:
+            values = np.asarray(initial_force_constants, dtype=float)
+            compact_shape = (len(self.primitive), len(self._reference), 3, 3)
+            full_shape = (len(self._reference), len(self._reference), 3, 3)
+            if values.shape == compact_shape:
+                self._active_compact = values.copy()
+            elif values.shape == full_shape:
+                self._active_compact = compact_fc2(values, self._reference)
+            else:
+                raise ValueError(
+                    "initial_force_constants must have compact shape "
+                    f"{compact_shape} or full shape {full_shape}"
+                )
 
     @property
     def force_constants(self) -> NDArray[np.float64] | None:
-        fc = self._phonon.force_constants
-        return None if fc is None else np.asarray(fc)
+        """Return the active FC2 in full internal-supercell atom order."""
+        if self._active_compact is None:
+            return None
+        return expand_compact_fc2(self._active_compact, self._reference)
+
+    @property
+    def compact_force_constants(self) -> NDArray[np.float64] | None:
+        return None if self._active_compact is None else self._active_compact.copy()
 
     @property
     def supercell_atoms(self) -> Atoms:
-        return _to_ase(self._phonon.supercell)
+        return self._reference.copy()
 
     @property
     def current_iteration(self) -> int:
-        """Index of the next fit (zero is Cartesian initialization)."""
         return len(self.history)
 
     def sow(self) -> list[Atoms]:
-        """Create and return snapshots for the next iteration in reap order."""
+        """Create snapshots for the next iteration in deterministic reap order."""
         index = self.current_iteration
         if index > self.max_iterations:
             raise StopIteration("all requested SSCHA iterations are complete")
         if self._prepared_index == index:
-            cells = self._phonon.supercells_with_displacements
-            assert cells is not None
-            return [self._tag_snapshot(cell, i, index) for i, cell in enumerate(cells)]
+            assert self._prepared_structures is not None
+            return [atoms.copy() for atoms in self._prepared_structures]
 
-        fc = self.force_constants
-        self._sampling_fc = None if fc is None else fc.copy()
-        if fc is None:
-            self._phonon.generate_displacements(
-                distance=self.initial_displacement,
-                number_of_snapshots=self.snapshots,
-                random_seed=self.random_seed,
+        count = self._snapshot_count()
+        self._sampling_compact = (
+            None if self._active_compact is None else self._active_compact.copy()
+        )
+        self._sampling_ensemble = None
+        if self._sampling_compact is None:
+            rng = np.random.default_rng(self.random_seed)
+            displacement = rng.normal(
+                scale=self.initial_displacement,
+                size=(count, len(self._reference), 3),
             )
+            displacement -= displacement.mean(axis=1, keepdims=True)
             sampling = "cartesian"
         else:
-            # generate_displacements replaces the dataset and invalidates FC2.
-            self._phonon.generate_displacements(
-                number_of_snapshots=self.snapshots,
-                temperature=self.temperature,
-                random_seed=self.random_seed,
-                cutoff_frequency=self.cutoff_frequency,
-                max_distance=self.max_displacement,
+            self._sampling_ensemble = self._make_ensemble(self._sampling_compact)
+            displacement = self._sampling_ensemble.sample(
+                count, random_seed=self._sampling_seed(index)
             )
-            self._phonon.force_constants = self._sampling_fc
             sampling = "canonical"
+
+        structures = []
+        for configuration, values in enumerate(displacement):
+            atoms = self._reference.copy()
+            atoms.positions += values
+            atoms.info.update(
+                mlfcs_sscha_iteration=index,
+                mlfcs_configuration_id=configuration,
+                mlfcs_sscha_sampling=sampling,
+            )
+            structures.append(atoms)
         self._prepared_index = index
+        self._prepared_structures = structures
         if self.log_level:
             print(f"[SSCHA {index}/{self.max_iterations}] {sampling} sampling")
-        cells = self._phonon.supercells_with_displacements
-        assert cells is not None
-        return [self._tag_snapshot(cell, i, index) for i, cell in enumerate(cells)]
+            if self._sampling_ensemble is not None:
+                self._report_ensemble(self._sampling_ensemble.diagnostics)
+        return [atoms.copy() for atoms in structures]
 
     def reap(
         self,
@@ -194,9 +204,9 @@ class SSCHA:
         energies: ArrayLike | Mapping[int, float] | None = None,
         reference_energy: float | None = None,
     ) -> SSCHAIteration:
-        """Fit effective FC2 with symfc from forces matching :meth:`sow`."""
+        """Fit the next effective FC2 using the native streamed-Gram fitter."""
         snapshots = self.sow()
-        n_snapshots, n_atoms = len(snapshots), len(self._phonon.supercell)
+        n_snapshots, n_atoms = len(snapshots), len(self._reference)
         force_array = self._ordered(forces, n_snapshots, "forces")
         if force_array.shape != (n_snapshots, n_atoms, 3):
             raise ValueError(
@@ -210,36 +220,54 @@ class SSCHA:
         if reference_energy is not None:
             self._reference_energy = float(reference_energy)
 
-        displacements = np.asarray(self._phonon.displacements)
-        sampling_fc = self._sampling_fc
-        self._phonon.forces = force_array
-        if energy_array is not None:
-            self._phonon.supercell_energies = energy_array
-        self._phonon.produce_force_constants(
-            fc_calculator="symfc",
-            calculate_full_force_constants=True,
-            show_drift=False,
-            fc_calculator_log_level=max(0, self.log_level - 1),
+        for atoms, values in zip(snapshots, force_array, strict=True):
+            atoms.new_array("forces", np.asarray(values, dtype=float))
+        fit = self._fitter.fit(
+            snapshots,
+            validation_split=0.0,
+            acoustic_sum_rule=self.acoustic_sum_rule,
+            rotational_invariance=self.rotational_invariance,
         )
-        fc = np.asarray(self._phonon.force_constants).copy()
-        harmonic_each = np.einsum("ijkl,mik,mjl->m", fc, displacements, displacements) / 2
+        fitted_compact = fit.force_constants.materialize(2, max_bytes=None)
+        fitted_full = expand_compact_fc2(fitted_compact, self._reference)
+        displacement = np.asarray(
+            [atoms.positions - self._reference.positions for atoms in snapshots]
+        )
+        trial_compact = fitted_compact if self._sampling_compact is None else self._sampling_compact
+        trial_full = expand_compact_fc2(trial_compact, self._reference)
+        harmonic_each = (
+            np.einsum("ijab,mia,mjb->m", trial_full, displacement, displacement, optimize=True) / 2
+        )
         free_energy = free_energy_error = potential_energy = None
+        ensemble = self._sampling_ensemble or self._make_ensemble(trial_compact)
         if energy_array is not None and self._reference_energy is not None:
             potential_each = energy_array - self._reference_energy
             potential_energy = float(np.mean(potential_each))
-            free_energy, free_energy_error = self._free_energy(potential_each, harmonic_each)
+            if self._sampling_compact is not None:
+                correction = (potential_each - harmonic_each) / int(np.prod(self.supercell))
+                free_energy = float(ensemble.harmonic_free_energy() + np.mean(correction))
+                free_energy_error = (
+                    float(np.std(correction, ddof=1) / np.sqrt(len(correction)))
+                    if len(correction) > 1
+                    else float("nan")
+                )
         result = SSCHAIteration(
             index=self.current_iteration,
-            sampling="cartesian" if sampling_fc is None else "canonical",
-            force_constants=fc,
+            sampling="cartesian" if self._sampling_compact is None else "canonical",
+            force_constants=fitted_full,
             free_energy=free_energy,
             free_energy_error=free_energy_error,
             potential_energy=potential_energy,
             harmonic_potential_energy=float(np.mean(harmonic_each)),
+            ensemble=None if self._sampling_ensemble is None else ensemble.diagnostics,
+            fitting_relative_force_error=fit.diagnostics.training_relative_force_error,
         )
+        self._active_compact = fitted_compact.copy()
         self.history.append(result)
         self._prepared_index = None
-        self._sampling_fc = None
+        self._prepared_structures = None
+        self._sampling_compact = None
+        self._sampling_ensemble = None
         return result
 
     def step(
@@ -249,7 +277,6 @@ class SSCHA:
         progress: Progress | None = None,
         calculate_free_energy: bool = True,
     ) -> SSCHAIteration:
-        """Evaluate one iteration serially with a user-owned ASE calculator."""
         if not isinstance(calculator, Calculator):
             raise TypeError("calculator must be an ASE Calculator")
         if calculate_free_energy and self._reference_energy is None:
@@ -259,13 +286,13 @@ class SSCHA:
         structures = self.sow()
         forces = np.empty((len(structures), len(structures[0]), 3))
         energies = np.empty(len(structures)) if calculate_free_energy else None
-        for i, atoms in enumerate(structures):
+        for index, atoms in enumerate(structures):
             atoms.calc = calculator
-            forces[i] = atoms.get_forces()
+            forces[index] = atoms.get_forces()
             if energies is not None:
-                energies[i] = atoms.get_potential_energy()
+                energies[index] = atoms.get_potential_energy()
             if progress is not None:
-                progress(i + 1, len(structures))
+                progress(index + 1, len(structures))
         return self.reap(forces, energies=energies)
 
     def run(
@@ -275,7 +302,6 @@ class SSCHA:
         progress: Progress | None = None,
         calculate_free_energy: bool = True,
     ) -> SSCHA:
-        """Run initialization and all requested self-consistent iterations."""
         while self.current_iteration <= self.max_iterations:
             self.step(
                 calculator,
@@ -285,50 +311,73 @@ class SSCHA:
         return self
 
     def averaged_force_constants(self, last: int) -> NDArray[np.float64]:
-        """Average FC2 over the last ``last`` completed iterations."""
         if last < 1 or not self.history:
             raise ValueError("last must be positive and at least one iteration must exist")
         return np.mean([item.force_constants for item in self.history[-last:]], axis=0)
 
     def use_average(self, last: int) -> NDArray[np.float64]:
-        """Set and return the last-iteration average as the active FC2."""
-        fc = self.averaged_force_constants(last)
-        self._phonon.force_constants = fc
-        return fc
+        full = self.averaged_force_constants(last)
+        self._active_compact = compact_fc2(full, self._reference)
+        return full
 
     def write(self, target: str | Path, *, format: Literal["text", "hdf5"] = "hdf5") -> None:
-        """Write the active full FC2 using phonopy's native writers."""
-        if self.force_constants is None:
+        if self._active_compact is None:
             raise RuntimeError("no force constants are available")
+        values = ForceConstants(
+            {2: self._active_compact.copy()},
+            self._reference.copy(),
+            metadata={"method": "sscha", "temperature": self.temperature},
+        )
         if format == "text":
-            from phonopy.file_IO import write_FORCE_CONSTANTS
-
-            write_FORCE_CONSTANTS(self.force_constants, filename=str(target))
+            values.write(target, format="phonopy", order=2)
         elif format == "hdf5":
-            from phonopy.file_IO import write_force_constants_to_hdf5
-
-            write_force_constants_to_hdf5(self.force_constants, filename=str(target))
+            values.write(target, format="phonopy_hdf5", order=2)
         else:
             raise ValueError("format must be 'text' or 'hdf5'")
 
-    def _free_energy(
-        self, potential_each: NDArray[np.float64], harmonic_each: NDArray[np.float64]
-    ) -> tuple[float, float]:
-        from phonopy.physical_units import get_physical_units
+    def _snapshot_count(self) -> int:
+        if self.snapshots != "auto":
+            return self.snapshots
+        equations = max(3 * len(self._reference) - 3, 1)
+        return max(1, int(np.ceil(4 * self._fitter.n_parameters / equations)))
 
-        self._phonon.run_mesh(mesh=100.0)
-        self._phonon.run_thermal_properties(temperatures=[self.temperature])
-        thermal = self._phonon.thermal_properties
-        assert thermal is not None
-        harmonic_free_energy = thermal.free_energy[0] / get_physical_units().EvTokJmol
-        n_cells = len(self._phonon.supercell) / len(self._phonon.primitive)
-        correction = (potential_each - harmonic_each) / n_cells
-        error = (
-            float(np.std(correction, ddof=1) / np.sqrt(len(correction)))
-            if len(correction) > 1
-            else float("nan")
+    def _make_ensemble(self, compact: np.ndarray) -> HarmonicEnsemble:
+        return HarmonicEnsemble(
+            self.primitive,
+            self._reference,
+            compact,
+            temperature=self.temperature,
+            statistics=self.statistics,
+            cutoff_frequency=self.cutoff_frequency,
+            imaginary_modes=self.imaginary_modes,
+            imaginary_tolerance=self.imaginary_tolerance,
+            max_displacement=self.max_displacement,
         )
-        return float(harmonic_free_energy + np.mean(correction)), error
+
+    def _sampling_seed(self, iteration: int) -> int | None:
+        """Derive an independent reproducible seed for one canonical iteration."""
+        if self.random_seed is None:
+            return None
+        sequence = np.random.SeedSequence([self.random_seed, iteration])
+        return int(sequence.generate_state(1, dtype=np.uint32)[0])
+
+    def _report_ensemble(self, diagnostics: EnsembleDiagnostics) -> None:
+        print(f"- q points: {diagnostics.qpoints}")
+        print(
+            f"- sampled modes: {diagnostics.sampled_modes}/{diagnostics.total_modes}, "
+            f"imaginary={diagnostics.imaginary_modes}, excluded={diagnostics.excluded_modes}"
+        )
+        print(
+            f"- maximum sampled atomic displacement: "
+            f"{diagnostics.maximum_sampled_displacement:.8f} Å"
+        )
+        if diagnostics.maximum_displacement is None:
+            print("- maximum displacement limit: disabled")
+        else:
+            print(
+                f"- clipped atoms: {diagnostics.clipped_atoms}, "
+                f"affected snapshots: {diagnostics.affected_snapshots}"
+            )
 
     @staticmethod
     def _ordered(values, size: int, name: str) -> NDArray[np.float64]:
@@ -336,18 +385,12 @@ class SSCHA:
             expected = set(range(size))
             if set(values) != expected:
                 raise ValueError(f"{name} IDs must be exactly 0..{size - 1}")
-            array = np.asarray([values[i] for i in range(size)], dtype=float)
+            array = np.asarray([values[index] for index in range(size)], dtype=float)
         else:
             array = np.asarray(values, dtype=float)
         if not np.isfinite(array).all():
             raise ValueError(f"{name} contain NaN or infinite values")
         return array
 
-    @staticmethod
-    def _tag_snapshot(cell, snapshot: int, iteration: int) -> Atoms:
-        atoms = _to_ase(cell)
-        atoms.info.update(
-            mlfcs_sscha_iteration=iteration,
-            mlfcs_configuration_id=snapshot,
-        )
-        return atoms
+
+__all__ = ["SSCHA", "SSCHAIteration"]

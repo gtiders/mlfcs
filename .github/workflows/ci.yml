@@ -81,6 +81,12 @@ jobs:
         run: uv run pytest tests/reference/phono3py/K4As4Pt2_FC23/test_external_hdf5.py
       - name: K4As4Pt2 faithful ShengBTE roundtrip
         run: uv run pytest tests/reference/phono3py/K4As4Pt2_FC23/test_shengbte_roundtrip.py
+      - name: Native SSCHA q-space sampling against phonopy
+        run: uv run pytest tests/reference/sscha/test_phonopy_sampling.py
+      - name: Phonopy KCl SSCHA fixture provenance
+        run: uv run pytest tests/reference/sscha/KCl_phonopy/test_provenance.py
+      - name: Phonopy KCl potential through native SSCHA
+        run: uv run pytest tests/reference/sscha/KCl_phonopy/test_kcl_potential.py
       - name: Si FC3 external sow contract
         run: uv run pytest tests/reference/shengbte/Si_FC3/test_sow_contract.py
       - name: Si FC3 ShengBTE provenance
