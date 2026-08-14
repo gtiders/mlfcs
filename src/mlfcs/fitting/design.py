@@ -47,23 +47,33 @@ class ForceDesignOperator:
         self.force_shape = self.displacements.shape
         self.reporter = reporter
 
-        def forward(parameters, batch):
-            return predict_force(parameters, batch, self.covariance, self.parameterizations)
-
-        self._forward = jax.jit(forward)
-
     def matvec(self, parameters):
+        """Predict forces through bounded physical-design groups.
+
+        Passing the parameterization arrays as dynamic group arguments avoids
+        capturing a multi-gigabyte interaction space as constants in one JAX
+        lowering, which is particularly important for validation after a
+        high-order fit.
+        """
         started = perf_counter()
         parameters = jnp.asarray(np.asarray(parameters).reshape(-1))
         output = np.empty(self.force_shape, dtype=float)
-        for begin in range(0, len(self.displacements), self.batch_size):
-            end = min(begin + self.batch_size, len(self.displacements))
-            output[begin:end] = np.asarray(
-                self._forward(parameters, jnp.asarray(self.displacements[begin:end]))
-            )
+        groups, effective_batch_size = prepare_design_kernel_groups(self)
+        rows_per_structure = int(np.prod(self.force_shape[1:]))
+        for begin in range(0, len(self.displacements), effective_batch_size):
+            end = min(begin + effective_batch_size, len(self.displacements))
+            force_rows = (end - begin) * rows_per_structure
+            displacement_batch = jnp.asarray(self.displacements[begin:end])
+            predicted = jnp.zeros(force_rows, dtype=jnp.float64)
+            for group in groups:
+                design = group.kernel(
+                    displacement_batch, *map(jnp.asarray, group.arguments)
+                ).reshape(force_rows, self.n_parameters)
+                predicted += design @ parameters
+            output[begin:end] = np.asarray(predicted).reshape(output[begin:end].shape)
         if self.reporter is not None:
             self.reporter(
-                f"- Force prediction: {len(self.displacements)} structures in "
+                f"- Bounded force prediction: {len(self.displacements)} structures in "
                 f"{perf_counter() - started:.2f} s"
             )
         return output.reshape(-1)
