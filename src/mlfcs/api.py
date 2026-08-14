@@ -8,12 +8,10 @@ import numpy as np
 from ase import Atoms
 from ase.calculators.calculator import Calculator
 
-from mlfcs.core.geometry import make_supercell, resolve_cutoff
-from mlfcs.core.orbits import OrbitSpace, build_orbit_space
-from mlfcs.core.symmetry import SymmetryOperations
+from mlfcs.core.interactions import InteractionSpace
 from mlfcs.finite_difference.extrapolation import ExtrapolationBackend
 from mlfcs.finite_difference.sampling import DisplacementPlan, build_displacement_plan
-from mlfcs.model import ForceConstants, RunConfig
+from mlfcs.model import ForceConstants
 from mlfcs.reconstruction.solver import reconstruct_sparse
 from mlfcs.runtime import JaxPlatform, configure_jax
 
@@ -31,6 +29,7 @@ class ForceConstantCalculation:
         order: int,
         supercell: tuple[int, int, int] = (2, 2, 2),
         cutoff: float | None = -5,
+        max_body_order: int | None = None,
         displacement: float = 0.01,
         symprec: float = 1e-5,
         jax_platform: JaxPlatform = "auto",
@@ -38,62 +37,31 @@ class ForceConstantCalculation:
         verbose: bool = True,
     ):
         configure_jax(jax_platform)
-        config = RunConfig(
+        self.jax_platform = jax_platform
+        self.verbose = bool(verbose)
+        self._report(f"Preparing order-{order} force-constant calculation")
+        self.interaction_space = InteractionSpace(
+            atoms,
             order=order,
             supercell=supercell,
             cutoff=cutoff,
-            displacement=displacement,
+            max_body_order=max_body_order,
             symprec=symprec,
+            displacement=displacement,
+            report_cutoff=report_cutoff,
+            reporter=self._report if self.verbose else None,
         )
-        self.primitive = atoms.copy()
-        self.config = config
-        self.jax_platform = jax_platform
-        self.verbose = bool(verbose)
-        self._report(f"Preparing order-{config.order} force-constant calculation")
-        self._report(
-            f"Creating {config.supercell[0]}x{config.supercell[1]}x{config.supercell[2]} supercell"
-        )
-        self.supercell, self.index = make_supercell(self.primitive, config.supercell)
-        self._report(
-            f"- {len(self.primitive)} primitive atoms, {len(self.supercell)} supercell atoms"
-        )
-        self._report("Resolving the interaction cutoff")
-        self.cutoff = resolve_cutoff(
-            self.supercell,
-            self.index,
-            config.cutoff,
-            report=report_cutoff and self.verbose,
-        )
-        if config.cutoff is not None and (config.cutoff >= 0 or not report_cutoff):
-            self._report(f"- Cutoff radius: {self.cutoff:.10f} Å")
-        self._report("Analyzing crystal symmetries")
-        self.symmetry = SymmetryOperations.from_atoms(
-            self.primitive,
-            self.supercell,
-            symprec=config.symprec,
-        )
-        self._report(f"- Space group {self.symmetry.symbol}")
-        self._report(f"- {self.symmetry.size} symmetry operations")
-        self._orbit_space: OrbitSpace | None = None
+        self.primitive = self.interaction_space.primitive
+        self.config = self.interaction_space.config
+        self.supercell = self.interaction_space.supercell
+        self.index = self.interaction_space.index
+        self.cutoff = self.interaction_space.cutoff
+        self.symmetry = self.interaction_space.symmetry
         self._plan: DisplacementPlan | None = None
 
     @property
-    def orbit_space(self) -> OrbitSpace:
-        if self._orbit_space is None:
-            self._report(
-                f"Finding symmetry-inequivalent order-{self.config.order} interaction clusters"
-            )
-            self._orbit_space = build_orbit_space(
-                self.supercell,
-                self.index,
-                self.symmetry,
-                order=self.config.order,
-                cutoff=self.cutoff,
-            )
-            dimensions = sum(orbit.dimension for orbit in self._orbit_space.orbits)
-            self._report(f"- {len(self._orbit_space.orbits)} cluster equivalence classes")
-            self._report(f"- {dimensions} independent tensor parameters")
-        return self._orbit_space
+    def orbit_space(self):
+        return self.interaction_space.orbit_space
 
     @property
     def plan(self) -> DisplacementPlan:
@@ -118,7 +86,6 @@ class ForceConstantCalculation:
         """
         structures = list(self.plan)
         self._report(f"Sowing {len(structures)} displaced structures in {atom_order} atom order")
-        self._report(f"- Plan hash: {self.plan.hash}")
         if atom_order == "internal":
             return structures
         if atom_order == "grouped":
@@ -136,7 +103,6 @@ class ForceConstantCalculation:
         forces: ForceInput,
         *,
         atom_order: str = "internal",
-        plan_hash: str | None = None,
         acoustic_sum_rule: bool = True,
         rotational_sum_rule: bool = False,
     ) -> ForceConstants:
@@ -152,8 +118,6 @@ class ForceConstantCalculation:
                 "rotational_sum_rule is currently available only for order=2; "
                 "higher-order rotational conditions couple adjacent force-constant orders"
             )
-        if plan_hash is not None and plan_hash != self.plan.hash:
-            raise ValueError("force dataset plan hash does not match this calculation")
         values = self._normalize_forces(forces)
         self._report(f"- Validated {len(values)} force configurations")
         if atom_order == "grouped":
@@ -169,7 +133,6 @@ class ForceConstantCalculation:
             metadata={
                 "derivative_backend": "central",
                 "configurations": len(self.plan),
-                "plan_hash": self.plan.hash,
             },
         )
 
@@ -250,7 +213,6 @@ class ForceConstantCalculation:
         forces = self.evaluate(calculator, progress=progress)
         return self.reap(
             forces,
-            plan_hash=self.plan.hash,
             acoustic_sum_rule=acoustic_sum_rule,
             rotational_sum_rule=rotational_sum_rule,
         )
@@ -319,7 +281,6 @@ class ForceConstantCalculation:
             metadata={
                 "derivative_backend": "extrapolate",
                 "configurations": total,
-                "plan_hash": backend.plan_hash(plans),
                 "extrapolation_grid_angstrom": backend.grid.tolist(),
                 "extrapolation_degree": degree,
                 "extrapolation_maximum_correction": metrics.maximum_correction,
@@ -359,14 +320,24 @@ class ForceConstantCalculation:
         reporting_interval = max(1, ceil(total / 10))
         for configuration_id, atoms in enumerate(plan):
             atoms.calc = calculator
-            forces[configuration_id] = atoms.get_forces()
+            values = np.asarray(atoms.get_forces(), dtype=float)
+            expected = (len(self.supercell), 3)
+            if values.shape != expected:
+                raise ValueError(
+                    f"calculator forces for configuration {configuration_id} must have "
+                    f"shape {expected}, got {values.shape}"
+                )
+            if not np.isfinite(values).all():
+                raise ValueError(
+                    f"calculator forces for configuration {configuration_id} "
+                    "contain NaN or infinite values"
+                )
+            forces[configuration_id] = values
             completed = completed_offset + configuration_id + 1
             if progress is not None:
                 progress(completed, total)
             elif self.verbose and (
-                completed == 1
-                or completed == total
-                or completed % reporting_interval == 0
+                completed == 1 or completed == total or completed % reporting_interval == 0
             ):
                 percentage = 100.0 * completed / total
                 self._report(f"- Forces: {completed}/{total} ({percentage:.0f}%)")

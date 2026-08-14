@@ -48,10 +48,12 @@ def test_asr_reports_phonopy_style_maximum_drift():
 
     reconstruct_compact(space, index, derivatives, enforce_asr=True, report=messages.append)
 
-    assert len(messages) == 1
+    assert len(messages) == 2
     assert messages[0].startswith("- Max drift of fc3: ")
     assert " -> " in messages[0]
     assert messages[0].endswith(" eV/angstrom^3")
+    assert messages[1].startswith("- ASR parameter correction: maximum=")
+    assert "relative L2=" in messages[1]
 
 
 def test_harmonic_translational_and_rotational_rules_are_projected_together():

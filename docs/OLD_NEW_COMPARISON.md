@@ -12,7 +12,7 @@ guide; current usage belongs in the root README and the external-workflow guide.
 | Interface | Order-specific CLI and files | Python API with ASE objects |
 | Orders | Separate FC3 and FC4 paths | One `order >= 2` pipeline |
 | Force source | Integrated workflow assumptions | User calculator or external forces |
-| Identity | Implicit filename/position conventions | IDs, plan hash, order metadata |
+| Identity | Implicit filename/position conventions | IDs and order metadata |
 | Storage | Mostly dense, order-specific | Sparse clusters and lazy materialization |
 | ASR | Relative compensation; incorrect FC4 sum | Strict parameter-space constraint |
 | Acceleration | CPU-centric dense transforms | JAX CPU/GPU tensor kernels and sparse solvers |

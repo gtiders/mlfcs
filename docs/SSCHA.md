@@ -95,7 +95,11 @@ free energy.
   distribution non-canonical.
 
 `SSCHAIteration.ensemble` records q-point, mode, imaginary-mode, exclusion, and clipping counts.
-`fitting_relative_force_error` records the native fitter's training error.
+`fitting_relative_force_error` records the native fitter's training error and
+`relative_force_constant_change` records the update relative to the FC2 that generated the current
+canonical ensemble. The initialization round has no relative FC2 change. These scalar diagnostics
+keep the public iteration object compact; the internal sampling Hamiltonian is not duplicated in
+the public API.
 
 ## Results and output
 
@@ -117,7 +121,9 @@ shared phonopy-compatible MLFCS writers without importing phonopy.
 ## Free energy
 
 The same commensurate q-point eigensolutions provide the quantum harmonic free energy per primitive
-cell. With snapshot energies, the reported estimator is
+cell. The free energy of an iteration belongs to the trial FC2 that generated its snapshots, while
+the iteration's `force_constants` are the newly fitted FC2 for the next update. With snapshot
+energies, the reported estimator is
 
 ```text
 F = F_harm + mean[(E(u) - E(0) - 1/2 u Phi u) / number_of_cells].

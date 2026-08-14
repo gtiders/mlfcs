@@ -1,6 +1,6 @@
 [project]
 name = "mlfcs"
-version = "3.1.0"
+version = "4.0.0a1"
 description = "ASE-first symmetry-reduced force constants from second to arbitrary order"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -36,12 +36,6 @@ Documentation = "https://github.com/gtiders/mlfcs#readme"
 Issues = "https://github.com/gtiders/mlfcs/issues"
 Repository = "https://github.com/gtiders/mlfcs"
 
-[project.optional-dependencies]
-sscha = [
-    "phonopy>=2.43",
-    "symfc>=1.5",
-]
-
 [dependency-groups]
 dev = [
     "hiphive>=1.5",
@@ -52,6 +46,10 @@ dev = [
 reference = [
     "pypolymlp>=0.20.4",
 ]
+
+[[tool.uv.index]]
+url = "https://mirrors.ustc.edu.cn/pypi/web/simple"
+default = true
 
 [build-system]
 requires = ["hatchling"]

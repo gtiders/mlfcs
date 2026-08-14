@@ -62,6 +62,8 @@ def reconstruct_sparse(
             values.append(derivatives[key][orbit.representative[-1], int(components[-1])])
         pivot_values.append(np.asarray(values))
 
+    original_parameters = np.concatenate(pivot_values) if pivot_values else np.empty(0, dtype=float)
+
     if enforce_rotational:
         if supercell is None:
             raise ValueError("supercell is required to enforce rotational sum rules")
@@ -80,13 +82,19 @@ def reconstruct_sparse(
                 f"eV/angstrom^{order}{suffix}"
             )
             before, after = drifts["rotational"]
-            rotational_unit = (
-                "eV/angstrom" if order == 2 else f"eV/angstrom^{order - 1}"
-            )
+            rotational_unit = "eV/angstrom" if order == 2 else f"eV/angstrom^{order - 1}"
             report(
                 f"- Max rotational drift of fc{order}: {before:.10e} -> "
                 f"{after:.10e} {rotational_unit}"
             )
+            if enforce_asr:
+                _report_parameter_correction(
+                    report,
+                    order,
+                    original_parameters,
+                    pivot_values,
+                    label="Joint ASR/rotational",
+                )
     elif enforce_asr:
         pivot_values, initial_drift, final_drift = project_acoustic_sum_rule(
             orbit_space, pivot_values, return_drift=True
@@ -95,6 +103,13 @@ def reconstruct_sparse(
             report(
                 f"- Max drift of fc{order}: {initial_drift:.10e} -> "
                 f"{final_drift:.10e} eV/angstrom^{order}"
+            )
+            _report_parameter_correction(
+                report,
+                order,
+                original_parameters,
+                pivot_values,
+                label="ASR",
             )
     elif report is not None:
         drift = maximum_acoustic_sum_rule_drift(orbit_space, pivot_values)
@@ -115,4 +130,23 @@ def reconstruct_sparse(
         n_supercell=len(index.primitive),
         clusters=np.asarray(clusters, dtype=np.int32).reshape((-1, order)),
         tensors=np.asarray(tensors, dtype=float).reshape((-1,) + (3,) * order),
+    )
+
+
+def _report_parameter_correction(
+    report: Callable[[str], None],
+    order: int,
+    original: np.ndarray,
+    projected: list[np.ndarray],
+    *,
+    label: str,
+) -> None:
+    values = np.concatenate(projected) if projected else np.empty(0, dtype=float)
+    correction = values - original
+    maximum = float(np.max(np.abs(correction))) if len(correction) else 0.0
+    denominator = max(float(np.linalg.norm(original)), np.finfo(float).tiny)
+    relative = float(np.linalg.norm(correction) / denominator)
+    report(
+        f"- {label} parameter correction: maximum={maximum:.10e} "
+        f"eV/angstrom^{order}, relative L2={relative:.10e}"
     )

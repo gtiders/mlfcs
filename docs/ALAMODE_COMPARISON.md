@@ -66,8 +66,10 @@ LSMR converged in 32 iterations with 4.623205% training and 5.080075% validation
 errors. Peak resident memory was approximately 2.78 GiB.
 
 For the same material with all 250 snapshots and a joint FC2+FC3+FC4 model (maximum FC2 range,
-12-bohr FC3 and 8-bohr FC4 cutoffs), the problem contains 90,000 force equations and 7,756
-irreducible parameters. The streamed-Gram CPU backend built its sufficient statistics in 590.00 s
+12-bohr FC3 and 8-bohr FC4 cutoffs, with FC4 body order unrestricted), the problem contains 90,000
+force equations and 7,756 irreducible parameters. Restricting FC4 to at most three distinct atomic
+sites instead gives 7,402 parameters. The streamed-Gram CPU backend for the unrestricted-body
+case built its sufficient statistics in 590.00 s
 and converged after 1,405 projected-CG iterations. The complete run took 719.81 s, peaked at about
 4.87 GiB RSS, reached 5.954683% relative force error, and left a 4.07e-15 joint ASR residual. This
 is an implementation benchmark, not a performance comparison with ALAMODE.

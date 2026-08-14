@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from hashlib import sha256
 
 import numpy as np
 from ase import Atoms
@@ -54,15 +53,6 @@ class ExtrapolationBackend:
             build_displacement_plan(supercell, orbit_space, displacement=float(step))
             for step in self.grid
         )
-
-    def plan_hash(self, plans: tuple[DisplacementPlan, ...]) -> str:
-        digest = sha256()
-        digest.update(b"mlfcs-extrapolate-v1")
-        digest.update(np.ascontiguousarray(self.grid).tobytes())
-        digest.update(np.int64(self.degree).tobytes())
-        for plan in plans:
-            digest.update(plan.hash.encode())
-        return digest.hexdigest()
 
     def extrapolate(
         self,

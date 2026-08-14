@@ -83,9 +83,7 @@ def _read_fc4(
             try:
                 block_number = int(_next_nonempty(handle))
                 if block_number != expected_block:
-                    raise ValueError(
-                        f"expected block {expected_block}, found block {block_number}"
-                    )
+                    raise ValueError(f"expected block {expected_block}, found block {block_number}")
                 translations = np.asarray(
                     [[float(value) for value in _next_nonempty(handle).split()] for _ in range(3)]
                 )
@@ -101,7 +99,9 @@ def _read_fc4(
                     if len(fields) != 5:
                         raise ValueError("each FC4 component needs four directions and one value")
                     directions = tuple(int(value) - 1 for value in fields[:4])
-                    if directions in seen or any(direction not in range(3) for direction in directions):
+                    if directions in seen or any(
+                        direction not in range(3) for direction in directions
+                    ):
                         raise ValueError(f"invalid or duplicate Cartesian component {directions}")
                     seen.add(directions)
                     tensor[directions] = float(fields[4])
@@ -162,9 +162,15 @@ def compare_fc4(
     common_metrics = metrics(common_difference, common_reference)
     union_metrics = metrics(union_difference, union_reference)
     return Comparison(
-        left_raw_blocks, right_raw_blocks, len(lhs), len(rhs), len(common),
-        len(left_only), len(right_only),
-        *common_metrics, *union_metrics,
+        left_raw_blocks,
+        right_raw_blocks,
+        len(lhs),
+        len(rhs),
+        len(common),
+        len(left_only),
+        len(right_only),
+        *common_metrics,
+        *union_metrics,
     )
 
 

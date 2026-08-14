@@ -4,7 +4,7 @@
 
 All notable changes are documented here. Releases follow semantic versioning.
 
-## Unreleased
+## 4.0.0a1 — 2026-08-14
 
 ### Added
 
@@ -13,6 +13,8 @@ All notable changes are documented here. Releases follow semantic versioning.
   per-atom radial displacement clipping; clipping is disabled by default.
 - Analytic harmonic-model tests and an independent development-only phonopy sampling reference.
 - An end-to-end KCl SSCHA reference using phonopy's official pypolymlp potential and fixtures.
+- A paired algorithm note that specifies the finite-difference orbit-completeness and
+  displacement-key compression contract, including its numerical-stability limits.
 
 ### Changed
 
@@ -20,6 +22,17 @@ All notable changes are documented here. Releases follow semantic versioning.
   the shared force-constant I/O layer; phonopy and symfc are no longer runtime dependencies.
 - Canonical iterations derive independent reproducible child seeds. Cartesian initialization no
   longer reports a statistically undefined SSCHA free energy.
+- Orbit discovery now canonicalizes every cutoff-valid seed before representative deduplication,
+  preventing periodic-boundary orbits from being dropped when the anchored candidate set is not
+  closed under canonicalization.
+- Label-symmetric full-rank pivots reuse all force responses from each displaced structure. The
+  corrected K4As4Pt2 maximum-MIC FC3 plan contains 4244 structures instead of the earlier 6636
+  redundant plan; the defective intermediate 4160-structure plan is explicitly rejected.
+
+### Compatibility
+
+- Finite-difference `sow()` plans generated before 4.0 must not be combined with 4.0 `reap()`.
+  Regenerate the complete ordered structure list when the plan count or order changes.
 
 ## 3.1.0 — 2026-08-09
 

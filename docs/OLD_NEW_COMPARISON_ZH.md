@@ -101,7 +101,6 @@ primitive_scaled_position
 
 ```text
 mlfcs_configuration_id
-mlfcs_plan_hash
 mlfcs_atom_order
 mlfcs_displacement
 ```
@@ -248,8 +247,8 @@ ClusterOrbit
 名义符号组合数量 = 2**(order-1)
 ```
 
-随后按对称性和实际位移键去重。所有写出构型均有稳定 ID 和 plan hash，保证
-`reap()` 能验证数据是否来自同一个位移计划。
+随后按对称性和实际位移键去重。所有写出构型均有稳定 ID，`reap()` 可以按 ID
+验证构型是否完整，或直接按严格写出顺序回收。
 
 这使二阶至五阶使用相同的数据流，而不是为每阶复制公式。
 
@@ -464,7 +463,7 @@ ShengBTE 只有三阶和四阶 writer，不限制内部计算阶数；更高阶�
 - 二阶同一计算 API；
 - 任意阶参数化流程；
 - 稀疏任意阶 HDF5；
-- 明确的 plan hash 和构型 ID；
+- 明确的构型 ID；
 - JAX CPU/GPU 选择；
 - 内存估算警告；
 - phonopy 完整 FC2 writer；

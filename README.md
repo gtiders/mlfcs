@@ -85,7 +85,7 @@ enable the optional Born-Huang rotational sum rules; see [Sum rules](docs/SUM_RU
 - ASE `Atoms` and ASE `Calculator` at the public boundary.
 - External, checkpoint-friendly `sow()` / `reap()` workflow.
 - Optional direct-calculator zero-step extrapolation with configurable even-power degree.
-- Stable configuration IDs, plan hashes, and explicit atom-order mappings.
+- Stable configuration IDs and explicit atom-order mappings.
 - Joint periodic-image cluster cutoff geometry.
 - Recursive central-difference stencils.
 - JAX-accelerated high-rank tensor transformations with CPU/GPU selection.
@@ -143,7 +143,7 @@ structure as `POSCAR-xxx` for VASP or in another calculator's input format, afte
 can be submitted by any local scheduler. When the calculations finish, use ASE to read each
 result, extract its forces, restore the sow order (or key the forces by configuration ID), and
 pass only those forces to `reap()`. If this positional order is guaranteed, configuration IDs
-and a plan hash are not required.
+are not required.
 
 For example, a positional VASP workflow is:
 
@@ -196,7 +196,7 @@ For Quantum ESPRESSO, ABINIT, CP2K, or another external program, replace only th
 and `read()` formats and provide that program's required input parameters. The sow/reap contract
 is unchanged. Positional `reap()` needs no metadata when file names and returned forces preserve
 the exact sow order. File formats such as POSCAR do not preserve the Python `atoms.info` metadata,
-so a manifest containing the filename-to-configuration-ID relation and plan hash is recommended
+so a manifest containing the filename-to-configuration-ID relation is recommended
 for out-of-order jobs, restarts, long-term archives, and accidental-dataset detection. The complete
 [`vasp_external_fc3.py`](examples/vasp_external_fc3.py) example implements this optional safety
 layer, force collection, missing-result checks, and final export; see the
@@ -213,7 +213,6 @@ audit metadata:
 
 ```python
 atoms.info["mlfcs_configuration_id"]
-atoms.info["mlfcs_plan_hash"]
 atoms.info["mlfcs_atom_order"]
 atoms.arrays["mlfcs_displacement"]
 ```
@@ -225,7 +224,6 @@ zero-based configuration ID:
 fc3 = calculation.reap(
     forces_by_configuration_id,
     atom_order="grouped",
-    plan_hash=calculation.plan.hash,
 )
 ```
 
@@ -266,8 +264,8 @@ For explicit checkpointing:
 
 ```python
 forces = calculation.evaluate(calculator)
-np.savez_compressed("forces.npz", forces=forces, plan_hash=calculation.plan.hash)
-fc3 = calculation.reap(forces, plan_hash=calculation.plan.hash)
+np.savez_compressed("forces.npz", forces=forces)
+fc3 = calculation.reap(forces)
 ```
 
 Stage reporting is enabled by default for `sow()`, `reap()`, and direct ASE-calculator runs.
@@ -448,6 +446,8 @@ result = sscha.reap(
 Forces are sufficient for FC2 fitting. Energies are required only for the free-energy estimate.
 Completed iterations and sampling diagnostics are stored in `sscha.history`. Phonopy-compatible
 text and HDF5 output use the shared MLFCS writers without requiring phonopy at runtime.
+Canonical iterations also report the relative FC2 update, while the trial sampling Hamiltonian
+remains an internal detail.
 
 This is a stochastic effective-harmonic method, not an explicit FC3 bubble or FC4 loop
 calculation. See the [SSCHA guide](docs/SSCHA.md) for details.
@@ -491,7 +491,7 @@ both atom orderings and tensor representations to the same full-supercell form.
 The test hierarchy and independent reference commands are documented in
 [tests/README.md](tests/README.md).
 
-The current release is `3.1.0`. See [CHANGELOG.md](CHANGELOG.md) for release notes and
+The current development version is `4.0.0a1` (4.0 alpha 1). See [CHANGELOG.md](CHANGELOG.md) for release notes and
 [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow.
 
 ## License

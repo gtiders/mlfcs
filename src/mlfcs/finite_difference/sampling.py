@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from hashlib import sha256
 
 import numpy as np
 from ase import Atoms
@@ -28,21 +27,10 @@ class DisplacementPlan:
     def __len__(self) -> int:
         return len(self.configurations)
 
-    @property
-    def hash(self) -> str:
-        digest = sha256()
-        digest.update(str(self.stencil.derivative_order).encode())
-        digest.update(np.float64(self.stencil.step).tobytes())
-        for configuration in self.configurations:
-            digest.update(repr(configuration.key).encode())
-            digest.update(np.ascontiguousarray(configuration.displacement).tobytes())
-        return digest.hexdigest()
-
     def atoms(self, index: int) -> Atoms:
         atoms = self.supercell.copy()
         atoms.positions += self.configurations[index].displacement
         atoms.info["mlfcs_configuration_id"] = index
-        atoms.info["mlfcs_plan_hash"] = self.hash
         atoms.info["mlfcs_atom_order"] = "internal"
         atoms.arrays["mlfcs_displacement"] = self.configurations[index].displacement.copy()
         return atoms
@@ -56,6 +44,8 @@ class DisplacementPlan:
         expected = (len(self), len(self.supercell), 3)
         if values.shape != expected:
             raise ValueError(f"forces must have shape {expected}, got {values.shape}")
+        if not np.isfinite(values).all():
+            raise ValueError("forces contain NaN or infinite values")
         block = len(self.stencil.signs)
         result: dict[DisplacementKey, np.ndarray] = {}
         for begin in range(0, len(self), block):
