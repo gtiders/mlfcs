@@ -349,6 +349,7 @@ fc3.write("fc3.hdf5", format="phono3py_hdf5")
 fc3.write("fc3.npz", format="numpy")
 fc3.write("FORCE_CONSTANTS_3RD", format="shengbte")
 fc4.write("FORCE_CONSTANTS_4TH", format="shengbte")
+fc234.write("force_constants.xml", format="alamode")
 ```
 
 | 格式 | 阶数 | 表示 |
@@ -359,6 +360,7 @@ fc4.write("FORCE_CONSTANTS_4TH", format="shengbte")
 | `phonopy` | 2 | 完整稠密超胞 FC2 文本 |
 | `phonopy_hdf5` | 2 | phonopy 兼容的完整超胞 `force_constants` HDF5 |
 | `phono3py_hdf5` | 3 | phono3py 兼容的完整超胞 `fc3` HDF5 |
+| `alamode` | 2--4 | 合并 FC2--FC4 的 ALAMODE FCSXML 文档 |
 
 ShengBTE 默认使用保真模式：严格写出重建后稀疏结果携带的对称闭合团簇支撑域。
 如需复现旧 thirdorder 的二次 joint-image 过滤和块顺序，必须显式启用兼容模式：
@@ -374,6 +376,12 @@ fc3.write(
 phonopy 和 phono3py HDF5 使用按原胞原子分组的超胞顺序，并逐个第一原子 slab
 流式写入，因此不会在内存中构造完整 FC3。原生 `hdf5` 仍然是 MLFCS 的紧凑、
 阶数参数化表示。
+
+ALAMODE XML 严格保留 `fc.supercell` 当前的原子顺序。原胞原子身份和晶格平移映射仅取自
+MLFCS 的 `primitive_index` 与 `cell_translation` 元数据；导出阶段不会让 spglib 或
+ALAMODE 重新识别、重排晶胞。传入 `order=2`、`3` 或 `4` 可只写指定阶，省略则把当前
+可用的 FC2--FC4 合并到一个 XML。完整映射与周期像约定见
+[ALAMODE XML 指南](docs/ALAMODE_XML_ZH.md)。
 
 高阶结果推荐使用稀疏 HDF5。显式稠密化超过默认 2 GB 建议预算时会发出警告：
 
@@ -463,7 +471,7 @@ hiphive 和 phono3py 仅作为开发验证依赖。CI 中的 AlN 三阶基准先
 原子顺序和张量表示统一为完整超胞 FC3，再与独立的 phono3py 有限差分结果做数值比较。
 测试层级和各项独立参考测试的运行命令见 [tests/README.md](tests/README.md)。
 
-当前开发预发布版本为 `4.0.0a1`（4.0 alpha 1）。版本变化见 [CHANGELOG_ZH.md](CHANGELOG_ZH.md)，开发流程见
+当前开发预发布版本为 `4.0.0a2`（4.0 alpha 2）。版本变化见 [CHANGELOG_ZH.md](CHANGELOG_ZH.md)，开发流程见
 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 ## 许可证

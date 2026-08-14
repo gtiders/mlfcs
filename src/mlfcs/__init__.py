@@ -16,4 +16,4 @@ __all__ = [
     "configure_jax",
 ]
 
-__version__ = "4.0.0a1"
+__version__ = "4.0.0a2"

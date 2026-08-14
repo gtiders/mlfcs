@@ -1,10 +1,11 @@
 [project]
 name = "mlfcs"
-version = "4.0.0a1"
+version = "4.0.0a2"
 description = "ASE-first symmetry-reduced force constants from second to arbitrary order"
 readme = "README.md"
 requires-python = ">=3.12"
 license = "GPL-3.0-or-later"
+license-files = ["LICENSE", "third_party_licenses/ALM-MIT.txt"]
 authors = [{ name = "Yibo Gao", email = "242211044@csu.edu.cn" }]
 keywords = [
     "anharmonicity",
