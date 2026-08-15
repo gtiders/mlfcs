@@ -343,6 +343,14 @@ fc4.write("FORCE_CONSTANTS_4TH", format="shengbte")
 fc234.write("force_constants.xml", format="alamode")
 ```
 
+原生稀疏 HDF5 可通过对应的公开 API 读取：
+
+```python
+from mlfcs import read_hdf5
+
+fc234 = read_hdf5("fc3.h5")
+```
+
 | 格式 | 阶数 | 表示 |
 |---|---|---|
 | `hdf5` | 任意阶 | 原生 v2 晶格标记稀疏 IFC（`sites`、平移代表与笛卡尔张量） |
