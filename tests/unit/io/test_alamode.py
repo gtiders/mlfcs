@@ -3,9 +3,11 @@ from xml.etree.ElementTree import parse
 import numpy as np
 import pytest
 from ase import Atoms
+from ase.geometry import minkowski_reduce
 from ase.units import Bohr, Rydberg
 
-from mlfcs.core.geometry import make_supercell
+from mlfcs.core.geometry import StructureRelation, make_supercell
+from mlfcs.io.alamode import AlamodeMirrorImageError, write_alamode
 from mlfcs.model import ForceConstants, SparseOrderForceConstants
 
 
@@ -128,3 +130,46 @@ def test_alamode_sparse_entries_follow_reordered_reference_labels(tmp_path):
     entry = parse(output).getroot().find("ForceConstants/HARMONIC/FC2")
     assert entry is not None
     assert entry.attrib["pair1"] == "1 1"
+
+
+def test_alamode_rebases_a_nonreduced_equivalent_supercell_before_27_image_encoding(tmp_path):
+    primitive_cell = np.eye(3) * 4
+    change = np.asarray([[1, 2, 0], [0, 1, 0], [0, 0, 1]])
+    # This pair's true minimum image uses a coefficient outside [-1, 1] in
+    # ``change @ primitive_cell`` but is representable after Minkowski rebasing.
+    position = np.asarray([1.73052316, 2.13823552, 1.69113868])
+    primitive = Atoms("HHe", positions=[[0, 0, 0], position], cell=primitive_cell, pbc=True)
+    reference = Atoms(
+        "HHe",
+        positions=[[0, 0, 0], position],
+        cell=change @ primitive_cell,
+        pbc=True,
+    )
+    relation = StructureRelation.from_atoms(primitive, reference)
+    values = ForceConstants(
+        {},
+        relation.reference,
+        sparse={2: _sparse(2, 2, 2, (0, 1), (0, 0), 1.0)},
+        relation=relation,
+    )
+    with pytest.raises(AlamodeMirrorImageError):
+        write_alamode(tmp_path / "raw.xml", values, orders=(2,))
+
+    output = tmp_path / "rebased.xml"
+    values.write(output, format="alamode")
+    root = parse(output).getroot()
+    lattice = (
+        np.asarray(
+            [
+                [
+                    float(value)
+                    for value in root.find(f"Structure/LatticeVector/a{axis}").text.split()
+                ]
+                for axis in range(1, 4)
+            ]
+        )
+        * Bohr
+    )
+    reduced, _ = minkowski_reduce(reference.cell, pbc=True)
+    np.testing.assert_allclose(lattice, reduced)
+    assert root.findall("ForceConstants/HARMONIC/FC2")

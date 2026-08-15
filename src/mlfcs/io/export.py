@@ -6,6 +6,7 @@ from dataclasses import dataclass
 
 import numpy as np
 from ase import Atoms
+from ase.geometry import minkowski_reduce
 from scipy.optimize import linear_sum_assignment
 
 from mlfcs.core.geometry import StructureRelation
@@ -136,4 +137,24 @@ def build_export_view(
     return ExportView(converted, target)
 
 
-__all__ = ["ExportView", "build_export_view"]
+def alamode_reduced_export_view(force_constants: ForceConstants) -> ExportView:
+    """Express an IFC result in an equivalent reduced supercell basis.
+
+    ALAMODE can encode only the 27 shifts around its supplied supercell.  A
+    non-reduced but physically identical supercell can require a farther
+    coefficient for its actual nearest image.  Rebase only the supercell by
+    ASE's integral Minkowski operation; the primitive, atom positions, and
+    physical translation sublattice remain unchanged.
+    """
+    if not isinstance(force_constants.relation, StructureRelation):
+        raise TypeError("ALAMODE rebasing requires force constants with a StructureRelation")
+    reference = force_constants.relation.reference
+    reduced, _ = minkowski_reduce(reference.cell, pbc=reference.pbc)
+    if np.allclose(reduced, reference.cell, atol=1e-10, rtol=0.0):
+        raise ValueError("ALAMODE 27-image encoding is not improved by supercell reduction")
+    target = reference.copy()
+    target.set_cell(reduced, scale_atoms=False)
+    return build_export_view(force_constants, supercell=target)
+
+
+__all__ = ["ExportView", "alamode_reduced_export_view", "build_export_view"]

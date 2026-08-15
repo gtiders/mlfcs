@@ -265,8 +265,9 @@ reference-frame lattice labels and uses scientific notation for both supported o
 
 The ALAMODE adapter preserves the explicit reference-supercell order and serializes the existing
 `primitive_index`/`cell_translation` mapping rather than rediscovering a primitive cell. Its
-mirror-cell identifiers follow ALAMODE's fixed 27-image convention; export rejects a geometry
-whose true minimum image lies outside that representable set.
+mirror-cell identifiers follow ALAMODE's fixed 27-image convention. Export first tries an
+equivalent Minkowski-reduced supercell basis, then rejects a geometry whose true minimum image
+remains outside that representable set.
 
 ## 6. Comparison with the previous implementation
 

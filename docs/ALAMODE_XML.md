@@ -36,8 +36,10 @@ ALAMODE numbers a fixed list of 27 mirror cells: the central cell followed by al
 `{-1, 0, 1}^3`. Degenerate closest images are emitted separately and the force constant is divided
 by their multiplicity, matching the official Python ALM writer. Repeated occurrences of the same
 atom share one mirror choice. MLFCS additionally verifies the result against ASE's general minimum
-image; if the fixed 27-image representation is insufficient, export fails instead of writing a
-geometrically incorrect file.
+image; if the fixed 27-image representation is insufficient, export first tries an integral
+unimodular Minkowski rebase of the target supercell. This preserves the physical supercell
+lattice, atoms, and IFCs while often making a non-reduced representation encodable by the
+27-image format. Only a geometry that remains unrepresentable after that rebase is rejected.
 
 MLFCS stores order-`n` force constants in eV/angstrom^`n`. FCSXML values are written in
 Ry/bohr^`n` using `value * bohr^n / Ry`. Lattice vectors are written in bohr and fractional
