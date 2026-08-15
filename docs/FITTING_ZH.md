@@ -56,7 +56,6 @@ from mlfcs.fitting import ForceConstantFitter
 fitter = ForceConstantFitter(
     primitive=read("POSCAR"),
     reference=read("reference.xyz"),
-    supercell=(2, 2, 3),
     orders=(2, 3, 4),
     cutoffs={2: None, 3: 12 * 0.529177210903, 4: 8 * 0.529177210903},
     max_body_orders={2: 2, 3: 3, 4: 3},

@@ -172,7 +172,6 @@ def test_reported_omitted_fc1_reproduces_constant_wick_force():
     fitter = ForceConstantFitter(
         primitive,
         reference,
-        supercell=(1, 1, 1),
         orders=(3,),
         cutoffs={3: None},
         verbose=False,
@@ -206,7 +205,6 @@ def test_unconverged_fit_requires_explicit_opt_in_and_exposes_gram_cache(monkeyp
     fitter = ForceConstantFitter(
         primitive,
         reference,
-        supercell=(2, 1, 1),
         orders=(2,),
         cutoffs={2: None},
         verbose=False,
@@ -262,7 +260,6 @@ def test_public_fitter_exposes_scaled_orbit_group_lasso():
     fitter = ForceConstantFitter(
         primitive,
         reference,
-        supercell=(2, 1, 1),
         orders=(2,),
         cutoffs={2: None},
         verbose=False,

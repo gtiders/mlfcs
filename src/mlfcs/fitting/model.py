@@ -89,7 +89,6 @@ class ForceConstantFitter:
         primitive: Atoms,
         reference: Atoms,
         *,
-        supercell: object | None = None,
         orders: tuple[int, ...] = (2, 3),
         cutoffs: dict[int, float | int | None] | None = None,
         max_body_orders: dict[int, int | None] | None = None,
@@ -99,13 +98,6 @@ class ForceConstantFitter:
     ):
         self.jax_device = resolve_jax_device(jax_platform)
         self.geometry = StructureRelation.from_atoms(primitive, reference, tolerance=symprec)
-        if supercell is not None:
-            from mlfcs.core.geometry import normalize_supercell_matrix
-
-            if not np.array_equal(
-                self.geometry.supercell_matrix, normalize_supercell_matrix(supercell)
-            ):
-                raise ValueError("supercell does not match the reference-supercell matrix")
         self.primitive = self.geometry.primitive
         self.reference = self.geometry.reference
         self.supercell = self.geometry.supercell_matrix
