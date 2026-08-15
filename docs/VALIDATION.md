@@ -18,6 +18,14 @@ untruncated default.
 
 The raw comparison disables MLFCS ASR so that constraint projections do not obscure the
 finite-difference comparison. hiphive is used only as an independent representation adapter.
+
+When an ALAMODE `anphon` executable is installed, the optional integration
+test below validates that its real harmonic reader accepts an MLFCS-produced
+FCSXML document. Set `MLFCS_ANPHON` when it is not on `PATH`:
+
+```bash
+MLFCS_ANPHON=/path/to/anphon uv run pytest -q tests/integration/test_alamode_anphon.py
+```
 On 32000 atom triplets, the maximum difference is approximately `0.01692 eV/Angstrom^3`, the RMS
 difference `0.000464 eV/Angstrom^3`, the relative L2 error `2.87e-4`, and the correlation
 `0.9999999615`.
