@@ -108,6 +108,10 @@ def read_hdf5(source: str | Path) -> ForceConstants:
         mapping = handle["reference_mapping"]
         if not np.array_equal(relation.supercell_matrix, mapping["supercell_matrix"]):
             raise ValueError("HDF5 reference mapping does not match its structures")
+        if not np.array_equal(relation.primitive_index, mapping["primitive_index"]):
+            raise ValueError("HDF5 primitive-index mapping does not match its structures")
+        if not np.array_equal(relation.cell_translation, mapping["cell_translation"]):
+            raise ValueError("HDF5 cell-translation mapping does not match its structures")
         sparse: dict[int, SparseOrderForceConstants] = {}
         index = relation.index
         for name, entry in handle["force_constants"].items():
