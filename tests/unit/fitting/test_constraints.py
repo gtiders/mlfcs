@@ -1,12 +1,15 @@
 import numpy as np
+import pytest
 from ase import Atoms
 from ase.build import bulk
 from scipy import sparse
 
 from mlfcs.api import ForceConstantCalculation
 from mlfcs.core.constraints import build_harmonic_rotational_constraints
+from mlfcs.core.orbits import cluster_invariant_dimension
 from mlfcs.fitting.basis import symmetrized_covariance as _symmetrized_covariance
 from mlfcs.fitting.constraints import (
+    _validate_missing_contractions,
     build_joint_constraints,
     build_wick_to_taylor_fc1_transform,
     build_wick_to_taylor_transform,
@@ -14,6 +17,7 @@ from mlfcs.fitting.constraints import (
 )
 from mlfcs.fitting.model import _StreamingGramSystem
 from mlfcs.fitting.solver import ConstraintNullSpace as _ConstraintNullSpace
+from mlfcs.fitting.solver import solve_scaled_group_lasso
 
 
 def test_implicit_null_space_is_idempotent_and_satisfies_constraints():
@@ -48,6 +52,26 @@ def test_projected_gram_cg_matches_explicit_constrained_solution():
     assert result[1] == 0
     assert result[2] < 10
     assert result[4] < 1e-11
+
+
+def test_scaled_group_lasso_selects_orbits_and_preserves_hard_constraint():
+    result = solve_scaled_group_lasso(
+        np.eye(3),
+        np.array([3.0, 3.0, 0.01]),
+        20.0,
+        np.ones(3),
+        sparse.csr_matrix([[1.0, -1.0, 0.0]]),
+        (slice(0, 2), slice(2, 3)),
+        n_equations=10,
+        tolerance=1e-6,
+        max_iterations=500,
+        verbose=False,
+    )
+    parameters, stop_code = result[:2]
+    assert stop_code == 0
+    np.testing.assert_allclose(parameters[0], parameters[1], atol=1e-12)
+    assert abs(parameters[2]) < 1e-6
+    assert result[6] == 1
 
 
 def test_wick_rotational_constraints_equal_taylor_constraints_after_transform():
@@ -156,3 +180,62 @@ def test_explicit_fc1_transform_matches_reported_wick_contraction():
         omitted_taylor_fc1(calculations, parameters, covariance),
         atol=1e-13,
     )
+
+
+def test_missing_symmetry_forbidden_zero_wick_contraction_is_accepted(monkeypatch):
+    monkeypatch.setattr(
+        "mlfcs.fitting.constraints.cluster_invariant_dimension", lambda *args, **kwargs: 0
+    )
+    calculation = type("Calculation", (), {"index": object(), "symmetry": object()})()
+    _validate_missing_contractions(
+        {(0, 0, 0): {4: np.array([[2e-13]])}},
+        {(0, 0, 0): {4: np.array([[3.0]])}},
+        {},
+        calculation,
+        source_order=5,
+        target_order=3,
+    )
+
+
+def test_centrosymmetric_onsite_odd_tensor_has_zero_allowed_dimension():
+    primitive = Atoms("Si", positions=[[0, 0, 0]], cell=np.eye(3) * 4.0, pbc=True)
+    calculation = ForceConstantCalculation(
+        primitive,
+        order=3,
+        supercell=(2, 1, 1),
+        cutoff=4.1,
+        verbose=False,
+    )
+    assert cluster_invariant_dimension((0, 0, 0), calculation.index, calculation.symmetry) == 0
+
+
+def test_missing_symmetry_forbidden_nonzero_wick_contraction_is_an_error(monkeypatch):
+    monkeypatch.setattr(
+        "mlfcs.fitting.constraints.cluster_invariant_dimension", lambda *args, **kwargs: 0
+    )
+    calculation = type("Calculation", (), {"index": object(), "symmetry": object()})()
+    with pytest.raises(RuntimeError, match="symmetry-forbidden"):
+        _validate_missing_contractions(
+            {(0, 0, 0): {4: np.array([[1e-4]])}},
+            {(0, 0, 0): {4: np.array([[1.0]])}},
+            {},
+            calculation,
+            source_order=5,
+            target_order=3,
+        )
+
+
+def test_missing_symmetry_allowed_wick_contraction_is_a_support_error(monkeypatch):
+    monkeypatch.setattr(
+        "mlfcs.fitting.constraints.cluster_invariant_dimension", lambda *args, **kwargs: 2
+    )
+    calculation = type("Calculation", (), {"index": object(), "symmetry": object()})()
+    with pytest.raises(ValueError, match="outside its configured support"):
+        _validate_missing_contractions(
+            {(0, 1, 2): {4: np.array([[0.0]])}},
+            {(0, 1, 2): {4: np.array([[1.0]])}},
+            {},
+            calculation,
+            source_order=5,
+            target_order=3,
+        )

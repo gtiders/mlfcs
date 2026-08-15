@@ -6,6 +6,7 @@ from pathlib import Path
 import h5py
 import numpy as np
 
+from mlfcs.core.geometry import PeriodicIndex
 from mlfcs.model import ForceConstants
 
 
@@ -38,12 +39,11 @@ def write_phonon_hdf5(
     if compact.shape != expected:
         raise ValueError(f"compact FC{order} must have shape {expected}, got {compact.shape}")
 
-    repeats = translations.max(axis=0) + 1
-    atom_by_key = {
-        (int(p), *(int(value) for value in translation)): atom
-        for atom, (p, translation) in enumerate(zip(primitive, translations, strict=True))
-    }
-    grouped = np.lexsort((translations[:, 0], translations[:, 1], translations[:, 2], primitive))
+    matrix = supercell.info.get("mlfcs_supercell_matrix")
+    if matrix is None:
+        raise ValueError("supercell is missing the MLFCS supercell-matrix metadata")
+    index = PeriodicIndex(primitive, translations, np.asarray(matrix, dtype=np.int32))
+    grouped = _phonopy_grouped_permutation(index)
     shape = (n_supercell,) * order + (3,) * order
     chunks = (1,) + shape[1:]
     dataset_name = "force_constants" if order == 2 else "fc3"
@@ -58,10 +58,10 @@ def write_phonon_hdf5(
             compression_opts=4,
         )
         for target_first, source_first in enumerate(grouped):
-            relative = np.mod(translations - translations[source_first], repeats)
+            relative = translations - translations[source_first]
             anchored = np.fromiter(
                 (
-                    atom_by_key[(int(p), *(int(value) for value in translation))]
+                    index.atom(int(p), translation)
                     for p, translation in zip(primitive, relative, strict=True)
                 ),
                 dtype=np.int64,
@@ -74,8 +74,12 @@ def write_phonon_hdf5(
                 slab = compact[int(primitive[source_first])][np.ix_(tails, tails)]
             dataset[target_first] = slab
 
-        n_cells = n_supercell // n_primitive
-        handle.create_dataset("p2s_map", data=np.arange(n_primitive, dtype=np.int64) * n_cells)
+        handle.create_dataset(
+            "p2s_map",
+            data=np.asarray(
+                [np.flatnonzero(primitive[grouped] == site)[0] for site in range(n_primitive)]
+            ),
+        )
         try:
             release = version("mlfcs")
         except PackageNotFoundError:
@@ -83,6 +87,13 @@ def write_phonon_hdf5(
         handle.create_dataset("version", data=np.bytes_(f"mlfcs {release}"))
         if order == 2:
             handle.create_dataset("physical_unit", data=np.asarray([b"eV/angstrom^2"]))
+
+
+def _phonopy_grouped_permutation(index: PeriodicIndex) -> np.ndarray:
+    """Format-local primitive grouping required by phonopy/phono3py files."""
+    return np.concatenate(
+        [np.flatnonzero(index.primitive == site) for site in range(index.n_primitive)]
+    ).astype(np.int32)
 
 
 __all__ = ["write_phonon_hdf5"]

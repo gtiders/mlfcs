@@ -45,7 +45,8 @@ class SSCHA:
         self,
         atoms: Atoms,
         *,
-        supercell: Sequence[int] = (2, 2, 2),
+        supercell: Sequence[int] | np.ndarray | None = None,
+        reference: Atoms | None = None,
         temperature: float = 300.0,
         statistics: Literal["quantum", "classical"] = "quantum",
         snapshots: int | Literal["auto"] = 1000,
@@ -64,9 +65,6 @@ class SSCHA:
     ) -> None:
         if not isinstance(atoms, Atoms):
             raise TypeError("atoms must be an ASE Atoms object")
-        repeats = tuple(int(value) for value in supercell)
-        if len(repeats) != 3 or any(value < 1 for value in repeats):
-            raise ValueError("supercell must contain three positive diagonal repeats")
         if temperature < 0:
             raise ValueError("temperature must be non-negative")
         if snapshots != "auto" and snapshots < 1:
@@ -86,8 +84,19 @@ class SSCHA:
 
         self.primitive = atoms.copy()
         self.primitive.wrap()
-        self.supercell = repeats
-        self._reference, self._index = make_supercell(self.primitive, repeats)
+        if reference is None:
+            matrix = (2, 2, 2) if supercell is None else supercell
+            self._reference, self._index = make_supercell(self.primitive, matrix)
+        else:
+            from mlfcs.core.geometry import StructureRelation, normalize_supercell_matrix
+
+            relation = StructureRelation.from_atoms(self.primitive, reference, tolerance=symprec)
+            if supercell is not None and not np.array_equal(
+                relation.supercell_matrix, normalize_supercell_matrix(supercell)
+            ):
+                raise ValueError("supercell does not match reference")
+            self._reference, self._index = relation.reference, relation.index
+        self.supercell = self._index.supercell_matrix
         self.temperature = float(temperature)
         self.statistics = statistics
         self.snapshots = snapshots
@@ -111,7 +120,6 @@ class SSCHA:
         self._fitter = ForceConstantFitter(
             self.primitive,
             self._reference,
-            supercell=repeats,
             orders=(2,),
             cutoffs={2: None},
             symprec=symprec,
@@ -134,7 +142,7 @@ class SSCHA:
 
     @property
     def force_constants(self) -> NDArray[np.float64] | None:
-        """Return the active FC2 in full internal-supercell atom order."""
+        """Return the active FC2 in full reference-supercell atom order."""
         if self._active_compact is None:
             return None
         return expand_compact_fc2(self._active_compact, self._reference)
@@ -243,7 +251,7 @@ class SSCHA:
         )
         trial_compact = fitted_compact if self._sampling_compact is None else self._sampling_compact
         trial_full = expand_compact_fc2(trial_compact, self._reference)
-        n_cells = int(np.prod(self.supercell))
+        n_cells = self._index.n_cells
         harmonic_each = (
             np.einsum("ijab,mia,mjb->m", trial_full, displacement, displacement, optimize=True) / 2
         ) / n_cells

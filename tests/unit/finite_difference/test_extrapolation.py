@@ -42,7 +42,6 @@ def test_extrapolation_is_available_only_through_direct_calculator_run():
         supercell=(2, 2, 2),
         cutoff=-1,
         displacement=0.02,
-        jax_platform="cpu",
         verbose=False,
     )
     central_count = len(calculation.plan)

@@ -34,7 +34,7 @@ def test_sow_ids_define_positional_reap_order():
     assert [atoms.info["mlfcs_configuration_id"] for atoms in structures] == list(
         range(len(structures))
     )
-    assert all(atoms.info["mlfcs_atom_order"] == "internal" for atoms in structures)
+    assert all(atoms.info["mlfcs_atom_order"] == "reference" for atoms in structures)
 
     forces = np.zeros((len(structures), len(job.supercell), 3))
     positional = job.reap(forces)[3]
@@ -51,12 +51,12 @@ def test_reap_rejects_missing_ids():
         job.reap({0: force})
 
 
-def test_grouped_force_order_and_user_calculator_path():
+def test_reference_force_order_and_user_calculator_path():
     job = calculation()
-    grouped = job.sow(atom_order="grouped")
-    assert all(atoms.info["mlfcs_atom_order"] == "grouped" for atoms in grouped)
-    grouped_forces = np.zeros((len(grouped), len(job.supercell), 3))
-    result = job.reap(grouped_forces, atom_order="grouped")
+    structures = job.sow()
+    assert all(atoms.info["mlfcs_atom_order"] == "reference" for atoms in structures)
+    forces = np.zeros((len(structures), len(job.supercell), 3))
+    result = job.reap(forces)
     np.testing.assert_array_equal(result[3], 0.0)
     evaluated = job.evaluate(ZeroCalculator())
     assert evaluated.shape == (len(job.plan), len(job.supercell), 3)
@@ -86,7 +86,7 @@ def test_stage_reporting_is_enabled_by_default(capsys):
     )
     job.evaluate(ZeroCalculator())
     output = capsys.readouterr().out
-    assert "Creating 2x2x2 supercell" in output
+    assert "Creating reference supercell" in output
     assert "Space group Fd-3m" in output
     assert "cluster equivalence classes" in output
     assert "force calculations required" in output

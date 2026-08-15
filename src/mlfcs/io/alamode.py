@@ -15,9 +15,9 @@ from xml.etree.ElementTree import Element, ElementTree, SubElement, indent
 
 import numpy as np
 from ase import Atoms
-from ase.geometry import find_mic
 from ase.units import Bohr, Rydberg
 
+from mlfcs.core.geometry import PeriodicGeometry, PeriodicIndex
 from mlfcs.model import ForceConstants, SparseOrderForceConstants
 
 _MIRROR_SHIFTS = np.asarray(
@@ -139,7 +139,7 @@ class _AlamodeGeometry:
             np.int32
         )
 
-        _, general_distance = find_mic(delta, cell, pbc=True)
+        _, general_distance = PeriodicGeometry(cell, self.supercell.pbc).mic(delta)
         if not np.isclose(minimum * Bohr, general_distance, atol=1.0e-8, rtol=1.0e-10):
             raise ValueError(
                 "ALAMODE XML's 27-image convention cannot represent the minimum image "
@@ -194,7 +194,7 @@ def _force_constant_entries(
 ) -> dict[tuple[int, ...], float]:
     sparse = force_constants.sparse.get(order)
     if sparse is not None:
-        return _sparse_entries(sparse)
+        return _sparse_entries(sparse, force_constants.supercell)
     values = np.asarray(force_constants.arrays[order])
     expected_atoms = (len(force_constants.supercell.arrays["primitive_index"]),) * (order - 1)
     n_primitive = int(force_constants.supercell.arrays["primitive_index"].max()) + 1
@@ -211,14 +211,32 @@ def _force_constant_entries(
     return entries
 
 
-def _sparse_entries(sparse: SparseOrderForceConstants) -> dict[tuple[int, ...], float]:
+def _sparse_entries(
+    sparse: SparseOrderForceConstants, supercell: Atoms
+) -> dict[tuple[int, ...], float]:
+    """Convert reference-order clusters to ALAMODE's zero-cell atom view."""
+    try:
+        index = PeriodicIndex(
+            np.asarray(supercell.arrays["primitive_index"]),
+            np.asarray(supercell.arrays["cell_translation"]),
+            np.asarray(supercell.info["mlfcs_supercell_matrix"]),
+        )
+    except KeyError as error:
+        raise ValueError("supercell is missing MLFCS periodic mapping metadata") from error
     totals: dict[tuple[int, ...], float] = {}
     counts: dict[tuple[int, ...], int] = {}
     for cluster, tensor in zip(sparse.clusters, sparse.tensors, strict=True):
+        sites = index.primitive[cluster]
+        translations = index.translations[cluster]
+        anchored = [index.representative(int(sites[0]))]
+        anchored.extend(
+            index.atom(int(site), translation - translations[0])
+            for site, translation in zip(sites[1:], translations[1:], strict=True)
+        )
         for directions in product(range(3), repeat=sparse.order):
             flat = tuple(
                 3 * int(atom) + direction
-                for atom, direction in zip(cluster, directions, strict=True)
+                for atom, direction in zip(anchored, directions, strict=True)
             )
             if not _ascending_tail(flat):
                 continue
@@ -240,12 +258,13 @@ def _write_order(
         atoms = tuple(index // 3 for index in flat)
         directions = tuple(index % 3 + 1 for index in flat)
         first = atoms[0]
-        if first >= geometry.n_primitive:
+        first_primitive = int(geometry.primitive_index[first])
+        if first != geometry.central_atom(first_primitive):
             raise ValueError(
-                "the first atom index of compact force constants must belong to the "
+                "the first sparse force-constant atom must be anchored in the "
                 "MLFCS zero-translation primitive cell"
             )
-        first_supercell = geometry.central_atom(first)
+        first_supercell = first
         unique_atoms = tuple(dict.fromkeys(atoms[1:]))
         images_by_atom = {
             atom: geometry.closest_mirror_images(first_supercell, atom) for atom in unique_atoms
@@ -256,7 +275,7 @@ def _write_order(
         image_position = {atom: position for position, atom in enumerate(unique_atoms)}
         scaled = value * conversion / len(combinations)
         for combination in combinations:
-            attributes = {"pair1": f"{first + 1} {directions[0]}"}
+            attributes = {"pair1": f"{first_primitive + 1} {directions[0]}"}
             for axis, (atom, direction) in enumerate(
                 zip(atoms[1:], directions[1:], strict=True), start=2
             ):

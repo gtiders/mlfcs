@@ -13,7 +13,7 @@ class RunConfig:
     """Configuration in ASE units (angstrom and eV)."""
 
     order: int
-    supercell: tuple[int, int, int] = (2, 2, 2)
+    supercell: object = (2, 2, 2)
     cutoff: float | int | None = -5
     max_body_order: int | None = None
     displacement: float = 0.01
@@ -22,8 +22,6 @@ class RunConfig:
     def __post_init__(self) -> None:
         if self.order < 2:
             raise ValueError("order must be at least 2")
-        if any(n < 1 for n in self.supercell):
-            raise ValueError("supercell multipliers must be positive")
         if self.cutoff == 0:
             raise ValueError("cutoff cannot be zero")
         if self.max_body_order is not None and not 1 <= self.max_body_order <= self.order:
@@ -34,13 +32,43 @@ class RunConfig:
 
 @dataclass(slots=True)
 class SparseOrderForceConstants:
-    """Force constants stored only for symmetry-generated cluster images."""
+    """Sparse IFCs with both calculation and physical lattice labels.
+
+    ``clusters`` is a reference-frame index view used by existing numerical
+    kernels. ``sites`` and ``translation_representatives`` are the physical
+    storage identity: ``Phi[k1,...,kn](0,R2,...,Rn)``.
+    """
 
     order: int
     n_primitive: int
     n_supercell: int
     clusters: np.ndarray
     tensors: np.ndarray
+    sites: np.ndarray | None = None
+    translation_representatives: np.ndarray | None = None
+
+    def __post_init__(self) -> None:
+        self.clusters = np.asarray(self.clusters, dtype=np.int32).reshape((-1, self.order))
+        self.tensors = np.asarray(self.tensors, dtype=float).reshape((-1,) + (3,) * self.order)
+        if len(self.clusters) != len(self.tensors):
+            raise ValueError("sparse cluster and tensor counts differ")
+        if (self.sites is None) != (self.translation_representatives is None):
+            raise ValueError("sites and translation_representatives must be supplied together")
+        if self.sites is not None:
+            self.sites = np.asarray(self.sites, dtype=np.int32).reshape((-1, self.order))
+            self.translation_representatives = np.asarray(
+                self.translation_representatives, dtype=np.int32
+            ).reshape((-1, self.order - 1, 3))
+            if len(self.sites) != len(self.clusters) or len(
+                self.translation_representatives
+            ) != len(self.clusters):
+                raise ValueError("lattice-labelled sparse IFC arrays have incompatible lengths")
+            if np.any(self.sites < 0) or np.any(self.sites >= self.n_primitive):
+                raise ValueError("sparse IFC primitive site label is out of range")
+
+    @property
+    def is_lattice_labelled(self) -> bool:
+        return self.sites is not None
 
     @property
     def dense_shape(self) -> tuple[int, ...]:
@@ -87,6 +115,7 @@ class ForceConstants:
     supercell: Atoms
     metadata: dict[str, object] = field(default_factory=dict)
     sparse: dict[int, SparseOrderForceConstants] = field(default_factory=dict)
+    relation: object | None = None
 
     def __getitem__(self, order: int) -> np.ndarray:
         if order not in self.arrays:
@@ -110,7 +139,8 @@ class ForceConstants:
         *,
         format: str,
         order: int | None = None,
-        compatibility: str | None = None,
+        primitive: Atoms | None = None,
+        supercell: Atoms | None = None,
     ) -> None:
         from mlfcs.io import write_force_constants
 
@@ -119,5 +149,6 @@ class ForceConstants:
             target,
             format=format,
             order=order,
-            compatibility=compatibility,
+            primitive=primitive,
+            supercell=supercell,
         )

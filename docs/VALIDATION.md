@@ -34,6 +34,65 @@ A separate FC3 test compares strict MLFCS ASR with phono3py
 `5.53e-14 eV/Angstrom^3`, respectively. The projected tensors have relative L2 difference
 `0.0527%` and correlation `0.9999998627` on their shared support.
 
+## Public hiPhive BaGaGe complex-material benchmark
+
+The optional complex-material benchmark uses hiPhive's public 200-snapshot
+Ba8Ga16Ge30 clathrate dataset: 100 Monte-Carlo-rattled snapshots plus 50 MD-based
+snapshots at each of 300 and 650 K. Both implementations use the published
+two-body FC2+FC3+FC4 model, cutoffs `[5.40, 4.35, 4.35]` Angstrom, the R3
+54-atom cell, and translational ASR. The common physical space has 25,495
+coefficients and the exact ASR null-space has 6,052 fitting coordinates.
+
+On all 200 structures (training fit, rather than the publication's 10-fold
+cross-validation), hiPhive gives a `49.10 meV/Angstrom` force RMSE and MLFCS
+gives `57.60 meV/Angstrom`. The difference is expected: hiPhive fits ordinary
+Taylor features, whereas MLFCS fits covariance-orthogonal Wick features and
+then converts the result to Taylor IFCs. After atom and tensor-axis alignment,
+the FC2/FC3/FC4 relative RMS differences are `1.62%`, `18.63%`, and `47.64%`.
+This is therefore a demanding *method-comparison* result, not an assertion of
+byte- or tensor-level identity. All clusters matched during comparison.
+
+The same 8,192 sampled-feature diagnostic shows why the orthogonal basis is
+useful but not magical: Taylor versus Wick linear/cubic correlations have mean
+`0.06409` versus `0.06280`, RMS `0.08094` versus `0.07867`, and maximum
+`0.68239` versus `0.40341`.
+
+A stricter 2026-08-15 check streams the *complete* ASR-reduced physical design
+for the same FC2+FC3+FC4 model and compares only its FC2--FC4 cross Gram block.
+It therefore includes the actual symmetry basis, two-body support, ASR null
+space, and column normalization used by the solver. Wick reduces the maximum
+pairwise normalized FC2--FC4 correlation from `0.51662` to `0.21352` and its
+RMS from `0.01683` to `0.00768`; the column-normalized joint Gram condition
+number falls from `2.63e6` to `1.37e6`. However, the maximum *subspace* canonical
+correlation changes from `0.94515` to `0.96235`. Thus Wick demonstrably reduces
+direct column-level coupling in this case, but does not guarantee that the two
+whole constrained subspaces become more orthogonal.
+
+Resource measurements were made serially with `/usr/bin/time -v` on the
+development CPU host. MLFCS first builds a 279.4 MiB reduced Gram matrix after
+pre-parameterizing ASR; the successful cache-recovery solve took 64.78 s and
+peaked at 1.46 GiB RSS. Its preceding cold Gram build took 65.96 s and reached
+2.01 GiB before the intentionally too-small 1,000-iteration solver limit was
+raised to 10,000. The completed hiPhive baseline took approximately 13 minutes
+and its observed peak RSS was 6.48 GiB while materializing its explicit design
+matrix. These are host-specific measurements, not universal performance claims.
+
+The Gram recovery cache was measured independently in an empty temporary
+directory: a cold 200-snapshot BaGaGe Gram took `67.99 s`, whereas an immediate
+verified warm hit took `0.0689 s` (about `987x`). The end-to-end command still
+took 115.70 s because symmetry/ASR parameterization and JAX-program preparation
+are intentionally recomputed; the cached Gram itself is not slower in a
+meaningful sense than the earlier 65.96 s cold measurement (about 3% variation).
+
+```bash
+/usr/bin/time -v uv run python reference_tools/benchmark_hiphive_examples.py bagage-hiphive --validation-split 0.0
+/usr/bin/time -v uv run python reference_tools/benchmark_hiphive_examples.py bagage-mlfcs --validation-split 0.0
+uv run python reference_tools/benchmark_hiphive_examples.py bagage-compare
+uv run python reference_tools/benchmark_hiphive_examples.py bagage-wick
+uv run python reference_tools/benchmark_hiphive_examples.py bagage-collinearity
+/usr/bin/time -v uv run python reference_tools/benchmark_hiphive_examples.py bagage-gram-cache
+```
+
 ## Native SSCHA references
 
 Analytic harmonic models independently check classical covariance, quantum zero-point variance,
@@ -60,6 +119,11 @@ commensurate-q versus dense-mesh harmonic-free-energy convention.
 BLAS, OpenMP, and the JAX CPU backend are restricted to one thread in CI to keep memory use
 predictable. Potential fitting is a maintainer regeneration task, not part of ordinary CI.
 See [`tests/README.md`](../tests/README.md) for commands and fixture organization.
+
+The complete local run on 2026-08-15 collected and passed 119 tests in 321.41 s
+with a 2.56 GiB peak RSS; Ruff completed successfully in 0.03 s with a 35.5 MiB
+peak RSS. The serial AlN fixture migration itself took 11.35 s and 375 MiB RSS;
+the resulting FC3 reference tests took 7.34 s and 350 MiB RSS.
 
 ## Provenance and regeneration
 

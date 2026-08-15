@@ -29,6 +29,13 @@ ShengBTE output role and is not included in `ForceConstants`; its maximum compon
 are reported explicitly. Therefore the exported FC2--FCn tensors are the exact Taylor derivatives
 in that order range, but they do not by themselves reproduce a non-zero omitted FC1.
 
+Spatial and body-order supports are checked under every same-parity Wick contraction. A missing
+target cluster is accepted only when its site-symmetry tensor space has zero dimension and the
+fully image-aggregated contraction is zero within a scale-aware numerical tolerance. A non-zero
+contraction into a symmetry-forbidden cluster is treated as a covariance, periodic-image, or
+aggregation error. A symmetry-allowed missing cluster is instead reported as a genuine support
+closure error; MLFCS never silently drops either contribution.
+
 A non-zero reported FC1 is useful diagnostic information, not by itself evidence of an incorrect
 fit. It can arise when the reference structure is not the statistical center or stationary point
 best represented by the sampled data, from residual reference forces, finite-sample noise, an
@@ -92,19 +99,50 @@ particular, MLFCS does not silently remove a rigid translation or a snapshot's n
 maximum center-of-mass displacement, reference force, and snapshot net force are diagnostics so
 that inconsistent input is visible without changing user data.
 
-The fitter has one solver path. It streams each design batch into the sufficient statistics
+The fitter streams each design batch into the sufficient statistics
 `A.T @ A` and `A.T @ F`
 without storing the full snapshot-dependent design matrix. Orbit tensors are grouped automatically
 by their exact image count and independent-parameter dimension; these internal buckets are not API
-settings. On CPU, JAX constructs each design batch and mature OpenBLAS/SciPy routines accumulate
-and solve the Gram system. When a JAX GPU backend is active, design construction and Gram
-accumulation remain on the GPU and only the completed Gram matrix is transferred once.
+settings. Periodic geometry stores only atomic indices: Cartesian component tuples are generated
+inside the JAX kernel rather than pre-expanded for every orbit, image, translation, and tensor
+component. Each kernel returns only its local parameter columns, and large covariance and orbit
+arrays are runtime arguments rather than captured XLA constants.
+
+For unregularized fitting (`damping=0`), hard constraints are parameterized before design accumulation. A
+block-sparse map `Z` is constructed from constraint-connected components by pivoted QR, with
+`theta = Z q`; the fitter accumulates `(A Z).T @ (A Z)` directly. Thus Gram storage and solving
+scale with the constrained degrees of freedom, not the original irreducible parameter count. The
+map itself remains sparse; a dense global null-space matrix is never formed. Nonzero damping keeps
+the implicit physical-coordinate constraint path so its ridge penalty retains its original
+meaning. A `PreparedDesignProgram` packs orbit tiles, uploads static buffers, and caches JIT
+callables once per fit; the same program is reused for training, validation, and diagnostics. On
+CPU, JAX builds physical design tiles and OpenBLAS/SciPy perform sparse reduction and Gram
+accumulation. On a JAX GPU backend, physical design, bounded sparse null-space reduction, and
+Gram accumulation remain device-resident; only final sufficient statistics are transferred back.
 Per-parameter exact column-norm preconditioning is obtained from the Gram diagonal. `batch_size`
 is limited to 1--4 and controls only how many structures contribute to a design batch.
 
-Equality constraints are enforced through an implicit null-space projector based on a
-rank-revealing pseudoinverse of `C @ C.T`; projected conjugate gradient therefore remains in
-`null(C)` instead of
+`fit(..., cache_directory="path")` is a stable public recovery-cache API. MLFCS fingerprints
+the displacement, force, covariance, and parameterization inputs, then stores the completed Gram
+statistics below `path/gram-<fingerprint>/`. A subsequent identical fit reuses those statistics;
+changed inputs always select a different cache entry.
+
+Set `MLFCS_JAX_TRANSFER_GUARD=log` or `disallow` during development to audit unintended implicit
+JAX transfers. The default is inert. When rotational constraints mix orders, order-resolved force
+RMS is evaluated in one shared post-fit feature pass rather than one pass per order.
+
+The default `regularization=None` solves the strictly constrained unregularized Gram problem.
+`regularization="scaled_group_lasso"` reuses the same Gram statistics and applies an ADMM
+concomitant-noise group penalty. One group is one complete symmetry-irreducible cluster orbit, so
+an interaction orbit is retained or suppressed as a unit rather than selecting arbitrary tensor
+components. Group thresholds account for orbit dimension, and the residual noise scale and
+penalty magnitude are estimated during optimization; no user penalty or cross-validation is
+required. ASR and optional rotational identities remain hard equality constraints in both modes.
+
+For the default unregularized solve, equality constraints use the explicit block-sparse
+parameterization above. The orbit-group LASSO path retains an implicit null-space projector based
+on a rank-revealing pseudoinverse of `C @ C.T`, because a general null-space transformation would
+destroy its orbit-local penalty groups. In both cases iteration remains in `null(C)` instead of
 solving an indefinite KKT system and repairing its result afterward. `max_iterations` is a safety
 limit: a zero solver status means the projected-gradient tolerance was reached, while a positive
 status means that limit was reached without convergence. An unconverged solve raises by default

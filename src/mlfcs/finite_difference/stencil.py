@@ -3,11 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from itertools import product
 
-import jax
-import jax.numpy as jnp
 import numpy as np
-
-jax.config.update("jax_enable_x64", True)
 
 
 @dataclass(frozen=True, slots=True)
@@ -48,12 +44,7 @@ class CentralDifferenceStencil:
 
     def contract(self, values: np.ndarray) -> np.ndarray:
         """Contract values whose leading axis follows :attr:`signs`."""
-        values_jax = jnp.asarray(values, dtype=jnp.float64)
-        if values_jax.shape[0] != len(self.weights):
-            raise ValueError(f"expected {len(self.weights)} samples, got {values_jax.shape[0]}")
-        return np.asarray(_contract(values_jax, jnp.asarray(self.weights), self.denominator))
-
-
-@jax.jit
-def _contract(values: jax.Array, weights: jax.Array, denominator: float) -> jax.Array:
-    return jnp.tensordot(weights, values, axes=(0, 0)) / denominator
+        values = np.asarray(values, dtype=float)
+        if values.shape[0] != len(self.weights):
+            raise ValueError(f"expected {len(self.weights)} samples, got {values.shape[0]}")
+        return np.tensordot(self.weights, values, axes=(0, 0)) / self.denominator

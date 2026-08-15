@@ -4,9 +4,15 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
+import numpy as np
 from ase import Atoms
 
-from mlfcs.core.geometry import make_supercell, resolve_cutoff
+from mlfcs.core.geometry import (
+    StructureRelation,
+    make_supercell,
+    normalize_supercell_matrix,
+    resolve_cutoff,
+)
 from mlfcs.core.orbits import OrbitSpace, build_orbit_space
 from mlfcs.core.symmetry import SymmetryOperations
 from mlfcs.model import RunConfig
@@ -20,7 +26,9 @@ class InteractionSpace:
         atoms: Atoms,
         *,
         order: int,
-        supercell: tuple[int, int, int],
+        supercell: object | None = None,
+        reference: Atoms | None = None,
+        supercell_matrix: object | None = None,
         cutoff: float | None,
         max_body_order: int | None = None,
         symprec: float = 1e-5,
@@ -28,18 +36,40 @@ class InteractionSpace:
         report_cutoff: bool = True,
         reporter: Callable[[str], None] | None = None,
     ) -> None:
+        if (
+            supercell is not None
+            and supercell_matrix is not None
+            and not np.array_equal(
+                normalize_supercell_matrix(supercell), normalize_supercell_matrix(supercell_matrix)
+            )
+        ):
+            raise ValueError("supercell and supercell_matrix disagree")
+        matrix_input = supercell_matrix if supercell_matrix is not None else supercell
+        if reference is not None:
+            self.relation = StructureRelation.from_atoms(atoms, reference, tolerance=symprec)
+            if matrix_input is not None and not np.array_equal(
+                self.relation.supercell_matrix, normalize_supercell_matrix(matrix_input)
+            ):
+                raise ValueError("supercell_matrix does not match the reference supercell")
+        else:
+            if matrix_input is None:
+                matrix_input = (2, 2, 2)
+            generated, _ = make_supercell(atoms, matrix_input)
+            self.relation = StructureRelation.from_atoms(atoms, generated, tolerance=symprec)
+        matrix = self.relation.supercell_matrix
         self.config = RunConfig(
             order=order,
-            supercell=supercell,
+            supercell=tuple(tuple(int(value) for value in row) for row in matrix),
             cutoff=cutoff,
             max_body_order=max_body_order,
             displacement=displacement,
             symprec=symprec,
         )
-        self.primitive = atoms.copy()
+        self.primitive = self.relation.primitive
         self._reporter = reporter
-        self._report(f"Creating {supercell[0]}x{supercell[1]}x{supercell[2]} supercell")
-        self.supercell, self.index = make_supercell(self.primitive, supercell)
+        self._report(f"Creating reference supercell with matrix {matrix.tolist()}")
+        self.supercell = self.relation.reference
+        self.index = self.relation.index
         self._report(
             f"- {len(self.primitive)} primitive atoms, {len(self.supercell)} supercell atoms"
         )

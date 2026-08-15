@@ -7,14 +7,13 @@ from pathlib import Path
 from time import perf_counter
 
 import jax
-import jax.numpy as jnp
 import numpy as np
 from ase import Atoms
-from ase.geometry import find_mic
 from scipy import sparse
 from scipy.linalg.blas import dsyrk
 
 from mlfcs.core.constraints import project_parameters
+from mlfcs.core.geometry import StructureRelation
 from mlfcs.core.interactions import InteractionSpace
 from mlfcs.fitting.basis import symmetrized_covariance as _symmetrized_covariance
 from mlfcs.fitting.constraints import (
@@ -22,14 +21,19 @@ from mlfcs.fitting.constraints import (
     build_wick_to_taylor_transform,
     omitted_taylor_fc1,
 )
-from mlfcs.fitting.data import FitDataset, ReferenceSupercell
+from mlfcs.fitting.data import FitDataset
 from mlfcs.fitting.design import ForceDesignOperator as _BatchedForceOperator
+from mlfcs.fitting.design import accumulate_physical_design
 from mlfcs.fitting.design import prepare_design_kernel_groups as _prepare_physical_design_builders
 from mlfcs.fitting.parameterization import expand_sparse as _expand_sparse
 from mlfcs.fitting.parameterization import pack_order as _pack_order
-from mlfcs.fitting.solver import solve_gram_system
+from mlfcs.fitting.solver import (
+    explicit_constraint_null_space,
+    solve_gram_system,
+    solve_scaled_group_lasso,
+)
 from mlfcs.model import ForceConstants
-from mlfcs.runtime import JaxPlatform, configure_jax
+from mlfcs.runtime import JaxPlatform, resolve_jax_device
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,6 +53,16 @@ class FittingDiagnostics:
     maximum_center_of_mass_displacement: float
     omitted_taylor_fc1_maximum: float
     omitted_taylor_fc1_net: float
+    regularization: str = "none"
+    effective_noise_scale: float = 0.0
+    active_orbits: int = 0
+    admm_primal_residual: float = 0.0
+    admm_dual_residual: float = 0.0
+    design_kernel_signatures: int = 0
+    design_tiles: int = 0
+    static_device_bytes: int = 0
+    gram_feature_passes: int = 0
+    prediction_feature_passes: int = 0
 
 
 @dataclass(slots=True)
@@ -60,6 +74,12 @@ class FittingResult:
     diagnostics: FittingDiagnostics
 
 
+@partial(jax.jit, donate_argnums=(0, 1))
+def _update_device_statistics(current_gram, current_rhs, design, force):
+    """Accumulate one device-resident reduced design batch into Gram statistics."""
+    return current_gram + design.T @ design, current_rhs + design.T @ force
+
+
 class ForceConstantFitter:
     """Jointly fit consecutive symmetry-reduced IFC orders from ASE force snapshots."""
 
@@ -68,7 +88,7 @@ class ForceConstantFitter:
         primitive: Atoms,
         reference: Atoms,
         *,
-        supercell: tuple[int, int, int],
+        supercell: object | None = None,
         orders: tuple[int, ...] = (2, 3),
         cutoffs: dict[int, float | int | None] | None = None,
         max_body_orders: dict[int, int | None] | None = None,
@@ -76,13 +96,18 @@ class ForceConstantFitter:
         jax_platform: JaxPlatform = "auto",
         verbose: bool = True,
     ):
-        configure_jax(jax_platform)
-        self.geometry = ReferenceSupercell.from_atoms(primitive, reference, tolerance=symprec)
-        if not np.array_equal(self.geometry.supercell_matrix, np.diag(supercell)):
-            raise ValueError("supercell does not match the reference-supercell matrix")
+        self.jax_device = resolve_jax_device(jax_platform)
+        self.geometry = StructureRelation.from_atoms(primitive, reference, tolerance=symprec)
+        if supercell is not None:
+            from mlfcs.core.geometry import normalize_supercell_matrix
+
+            if not np.array_equal(
+                self.geometry.supercell_matrix, normalize_supercell_matrix(supercell)
+            ):
+                raise ValueError("supercell does not match the reference-supercell matrix")
         self.primitive = self.geometry.primitive
         self.reference = self.geometry.reference
-        self.supercell = supercell
+        self.supercell = self.geometry.supercell_matrix
         self.orders = tuple(sorted(set(orders)))
         if not self.orders or self.orders[0] < 2:
             raise ValueError("orders must contain integers greater than or equal to 2")
@@ -101,7 +126,7 @@ class ForceConstantFitter:
             InteractionSpace(
                 self.primitive,
                 order=order,
-                supercell=supercell,
+                reference=self.reference,
                 cutoff=self.cutoffs.get(order),
                 max_body_order=self.max_body_orders.get(order),
                 symprec=symprec,
@@ -109,7 +134,6 @@ class ForceConstantFitter:
             )
             for order in self.orders
         )
-        self._validate_internal_order()
         offset = 0
         tensors = []
         for calculation in self.calculations:
@@ -139,6 +163,8 @@ class ForceConstantFitter:
         rotational_invariance: int = 0,
         precondition: bool = True,
         allow_unconverged: bool = False,
+        regularization: str | None = None,
+        cache_directory: str | Path | None = None,
     ) -> FittingResult:
         if not 0 <= validation_split < 1:
             raise ValueError("validation_split must be in [0, 1)")
@@ -148,6 +174,11 @@ class ForceConstantFitter:
             raise ValueError("max_iterations must be positive")
         if tolerance <= 0 or damping < 0:
             raise ValueError("tolerance must be positive and damping must be non-negative")
+        normalized_regularization = "none" if regularization is None else regularization.casefold()
+        if normalized_regularization not in {"none", "scaled_group_lasso"}:
+            raise ValueError("regularization must be None or 'scaled_group_lasso'")
+        if normalized_regularization != "none" and damping:
+            raise ValueError("damping and scaled group LASSO cannot be enabled together")
         dataset = FitDataset.from_atoms(self.geometry, structures)
         maximum_reference_force = float(np.max(np.linalg.norm(dataset.reference_forces, axis=1)))
         maximum_snapshot_net_force = float(np.max(np.linalg.norm(dataset.net_forces, axis=1)))
@@ -160,9 +191,11 @@ class ForceConstantFitter:
         self._report(
             f"- Maximum center-of-mass displacement: {maximum_center_of_mass_displacement:.10e} Å"
         )
-        permutation = self.geometry.internal_permutation
-        displacements = dataset.displacements[:, permutation]
-        forces = dataset.forces[:, permutation]
+        # The reference frame is the public atom order.  Reordering here used
+        # to hide a cell-major calculation frame and made fitted IFCs depend
+        # on the incidental order of the input structure.
+        displacements = dataset.displacements
+        forces = dataset.forces
         rng = np.random.default_rng(seed)
         indices = rng.permutation(len(structures))
         n_validation = round(len(indices) * validation_split)
@@ -171,22 +204,6 @@ class ForceConstantFitter:
         if not len(training):
             raise ValueError("validation split leaves no training structures")
         covariance = _symmetrized_covariance(displacements[training], self.calculations[0])
-        operator = _BatchedForceOperator(
-            displacements[training],
-            covariance,
-            self.order_tensors,
-            self.n_parameters,
-            batch_size,
-            reporter=self._report if self.verbose else None,
-        )
-        target = forces[training].reshape(-1)
-        gram_system = _StreamingGramSystem.from_operator(operator, target)
-        if precondition:
-            parameter_scale = gram_system.exact_column_scale()
-            self._report_parameter_scale(parameter_scale)
-        else:
-            parameter_scale = np.ones(self.n_parameters)
-            self._report("- Parameter preconditioning disabled")
         constraints = build_joint_constraints(
             self.calculations,
             acoustic=acoustic_sum_rule,
@@ -198,24 +215,111 @@ class ForceConstantFitter:
             f"({constraints.translational_rows} ASR, "
             f"{constraints.rotational_rows} rotational before compression)"
         )
-        self._report("Solving the force-only least-squares problem with streamed Gram")
-        self._report(f"- Equations: {len(target)}, unknowns: {self.n_parameters}")
-        scaled_constraints = constraints.matrix @ sparse.diags(parameter_scale)
-        solve_constraints = _normalize_constraint_rows(scaled_constraints)
-        solution = gram_system.solve(
-            parameter_scale,
-            solve_constraints,
-            tolerance=tolerance,
-            max_iterations=max_iterations,
-            damping=damping,
-            verbose=self.verbose,
+        parameter_map = None
+        if normalized_regularization == "none" and damping == 0.0 and constraints.matrix.shape[0]:
+            parameter_map = explicit_constraint_null_space(
+                constraints.matrix,
+                tolerance=1e-11,
+                reporter=self._report if self.verbose else None,
+            )
+        operator = _BatchedForceOperator(
+            displacements[training],
+            covariance,
+            self.order_tensors,
+            self.n_parameters,
+            batch_size,
+            parameter_map=parameter_map,
+            reporter=self._report if self.verbose else None,
+            device=self.jax_device,
         )
-        scaled_parameters, stop_code, iterations, residual_norm, normal_residual = solution
+        target = forces[training].reshape(-1)
+        gram_system = _StreamingGramSystem.from_operator(
+            operator,
+            target,
+            cache_directory=cache_directory,
+        )
+        if precondition:
+            parameter_scale = gram_system.exact_column_scale()
+            if parameter_map is None:
+                self._report_parameter_scale(parameter_scale)
+            else:
+                active_scale = parameter_scale[parameter_scale > 0]
+                self._report("Column-norm preconditioning in constrained coordinates")
+                if len(active_scale):
+                    self._report(
+                        f"- Inverse column scale: {np.min(active_scale):.6e} to "
+                        f"{np.max(active_scale):.6e}"
+                    )
+                else:
+                    self._report("- Inverse column scale: no active columns")
+        else:
+            parameter_scale = np.ones(gram_system.gram.shape[0])
+            self._report("- Parameter preconditioning disabled")
+        if normalized_regularization == "none":
+            self._report("Solving the force-only least-squares problem with streamed Gram")
+        else:
+            self._report("Solving the force-only problem with constrained scaled orbit-group LASSO")
+        self._report(f"- Equations: {len(target)}, unknowns: {gram_system.gram.shape[0]}")
+        solve_constraint_matrix = (
+            sparse.csr_matrix((0, gram_system.gram.shape[0]))
+            if parameter_map is not None
+            else constraints.matrix
+        )
+        scaled_constraints = solve_constraint_matrix @ sparse.diags(parameter_scale)
+        solve_constraints = _normalize_constraint_rows(scaled_constraints)
+        effective_noise_scale = 0.0
+        active_orbits = sum(
+            len(calculation.orbit_space.orbits) for calculation in self.calculations
+        )
+        admm_primal = 0.0
+        admm_dual = 0.0
+        if normalized_regularization == "none":
+            solution = gram_system.solve(
+                parameter_scale,
+                solve_constraints,
+                tolerance=tolerance,
+                max_iterations=max_iterations,
+                damping=damping,
+                verbose=self.verbose,
+            )
+            scaled_parameters, stop_code, iterations, residual_norm, normal_residual = solution
+        else:
+            groups = _orbit_parameter_groups(self.calculations)
+            solution = solve_scaled_group_lasso(
+                gram_system.gram,
+                gram_system.rhs,
+                gram_system.target_norm,
+                parameter_scale,
+                solve_constraints,
+                groups,
+                n_equations=len(target),
+                tolerance=tolerance,
+                max_iterations=max_iterations,
+                verbose=self.verbose,
+                reporter=self._report if self.verbose else None,
+            )
+            (
+                scaled_parameters,
+                stop_code,
+                iterations,
+                residual_norm,
+                normal_residual,
+                effective_noise_scale,
+                active_orbits,
+                _cg_iterations,
+                admm_primal,
+                admm_dual,
+            ) = solution
         if stop_code != 0 and not allow_unconverged:
+            residual_label = (
+                "ADMM residual"
+                if normalized_regularization == "scaled_group_lasso"
+                else "projected normal residual"
+            )
             raise RuntimeError(
                 "force-constant fitting did not converge: "
                 f"stop_code={stop_code}, iterations={iterations}, "
-                f"projected normal residual={normal_residual:.6e}; "
+                f"{residual_label}={normal_residual:.6e}; "
                 "set allow_unconverged=True only to inspect the incomplete solution"
             )
         if solve_constraints.shape[0]:
@@ -228,16 +332,17 @@ class ForceConstantFitter:
                 np.asarray(scaled_parameters),
                 tolerance=projection_tolerance,
             )
-        parameters_numpy = np.asarray(scaled_parameters) * parameter_scale
+        reduced_parameters = np.asarray(scaled_parameters) * parameter_scale
+        parameters_numpy = (
+            np.asarray(parameter_map @ reduced_parameters)
+            if parameter_map is not None
+            else reduced_parameters
+        )
         constraint_residual = self._constraint_drift(parameters_numpy, constraints)
-        training_metrics = gram_system.force_metrics(parameters_numpy, target)
+        training_metrics = gram_system.force_metrics(reduced_parameters, target)
         if n_validation:
-            validation_operator = _BatchedForceOperator(
+            validation_operator = operator.with_displacements(
                 displacements[validation],
-                covariance,
-                self.order_tensors,
-                self.n_parameters,
-                batch_size,
                 reporter=self._report if self.verbose else None,
             )
             validation_metrics = _force_metrics(
@@ -249,9 +354,21 @@ class ForceConstantFitter:
             sum(orbit.dimension for orbit in calculation.orbit_space.orbits)
             for calculation in self.calculations
         ]
-        order_force_rms = gram_system.order_force_rms(
-            parameters_numpy, self.orders, counts, len(target)
-        )
+        if parameter_map is None:
+            order_force_rms = gram_system.order_force_rms(
+                parameters_numpy, self.orders, counts, len(target)
+            )
+        else:
+            order_force_rms = _order_force_rms_from_reduced_gram(
+                gram_system,
+                reduced_parameters,
+                parameter_map,
+                operator,
+                parameters_numpy,
+                self.orders,
+                counts,
+                len(target),
+            )
         self._report("Force fitting summary")
         self._report(f"- Training relative error: {100 * training_metrics[1]:.6f} %")
         self._report(f"- Validation relative error: {100 * validation_metrics[1]:.6f} %")
@@ -259,6 +376,12 @@ class ForceConstantFitter:
         self._report(f"- Validation force RMSE: {validation_metrics[0]:.10e} eV/Å")
         for order, rms in order_force_rms.items():
             self._report(f"- FC{order} force contribution RMS: {rms:.10e} eV/Å")
+        self._report(
+            "- JAX execution guard: 1 prepared program, "
+            f"{len(operator.program.groups)} signatures, {operator.program.tile_count} tiles, "
+            f"Gram passes={operator.program.gram_feature_passes}, "
+            f"prediction passes={operator.program.prediction_feature_passes}"
+        )
         self._report(f"- Solver iterations={iterations}, stop_code={stop_code}")
         if stop_code != 0:
             self._report("- WARNING: returning an explicitly allowed unconverged solution")
@@ -281,7 +404,12 @@ class ForceConstantFitter:
             self.canonical_supercell.copy(),
             metadata={
                 "method": "joint_force_fit",
-                "solver": "gram",
+                "solver": (
+                    "gram"
+                    if normalized_regularization == "none"
+                    else "gram_scaled_group_lasso_admm"
+                ),
+                "regularization": normalized_regularization,
                 "fitting_basis": "wick",
                 "force_constants_basis": "taylor",
                 "cutoff_angstrom": self.calculations[-1].cutoff,
@@ -294,6 +422,7 @@ class ForceConstantFitter:
                 "jax_platform": self.jax_platform,
             },
             sparse=sparse_values,
+            relation=self.geometry,
         )
         diagnostics = FittingDiagnostics(
             int(iterations),
@@ -311,6 +440,16 @@ class ForceConstantFitter:
             maximum_center_of_mass_displacement,
             fc1_maximum,
             fc1_net,
+            normalized_regularization,
+            effective_noise_scale,
+            active_orbits,
+            admm_primal,
+            admm_dual,
+            len(operator.program.groups),
+            operator.program.tile_count,
+            operator.program.static_device_bytes,
+            operator.program.gram_feature_passes,
+            operator.program.prediction_feature_passes,
         )
         result = FittingResult(
             force_constants,
@@ -345,16 +484,20 @@ class ForceConstantFitter:
                 )
             offset += count
 
-    def _validate_internal_order(self):
-        internal = self.reference[self.geometry.internal_permutation]
-        canonical = self.calculations[0].supercell
-        _, lengths = find_mic(internal.positions - canonical.positions, canonical.cell, pbc=True)
-        if not np.array_equal(internal.numbers, canonical.numbers) or np.max(lengths) > 1e-4:
-            raise ValueError("reference atom mapping does not match MLFCS internal geometry")
-
     def _report(self, message):
         if self.verbose:
             print(message, flush=True)
+
+
+def _orbit_parameter_groups(calculations):
+    """Return contiguous slices, one per symmetry-irreducible cluster orbit."""
+    groups = []
+    offset = 0
+    for calculation in calculations:
+        for orbit in calculation.orbit_space.orbits:
+            groups.append(slice(offset, offset + orbit.dimension))
+            offset += orbit.dimension
+    return tuple(groups)
 
 
 class _StreamingGramSystem:
@@ -368,12 +511,16 @@ class _StreamingGramSystem:
         self.cache_directory = cache_directory
 
     @classmethod
-    def from_operator(cls, operator, target):
+    def from_operator(cls, operator, target, *, cache_directory: str | Path | None = None):
         started = perf_counter()
-        gram_nbytes = operator.n_parameters**2 * np.dtype(np.float64).itemsize
+        gram_nbytes = operator.fit_n_parameters**2 * np.dtype(np.float64).itemsize
         use_recovery_cache = gram_nbytes >= 64 * 1024**2
-        cache_directory = None
-        if use_recovery_cache:
+        if cache_directory is not None:
+            cache_directory = (
+                Path(cache_directory).expanduser().resolve()
+                / f"gram-{_gram_recovery_key(operator, target)}"
+            )
+        elif use_recovery_cache:
             cache_key = _gram_recovery_key(operator, target)
             cache_directory = Path.cwd() / ".mlfcs-cache" / f"gram-{cache_key}"
         if cache_directory is not None and (cache_directory / "complete").exists():
@@ -382,63 +529,95 @@ class _StreamingGramSystem:
             target_norm = float(np.load(cache_directory / "target_norm.npy"))
             if operator.reporter is not None:
                 operator.reporter(
-                    f"Recovered completed streamed Gram system from internal cache "
+                    f"Recovered completed streamed Gram system from cache "
                     f"({perf_counter() - started:.2f} s)"
                 )
             return cls(gram, rhs, target_norm, operator.reporter, cache_directory)
-        use_gpu = jax.default_backend() == "gpu"
-        if use_gpu:
-            gram = jnp.zeros((operator.n_parameters, operator.n_parameters), dtype=jnp.float64)
-            rhs = jnp.zeros(operator.n_parameters, dtype=jnp.float64)
+        use_device_gram = operator.device_gram
+        if use_device_gram:
+            gram = jax.device_put(
+                np.zeros((operator.fit_n_parameters, operator.fit_n_parameters), dtype=float),
+                operator.program.device,
+            )
+            rhs = jax.device_put(
+                np.zeros(operator.fit_n_parameters, dtype=float), operator.program.device
+            )
         else:
-            gram = np.zeros((operator.n_parameters, operator.n_parameters), dtype=float, order="F")
-            rhs = np.zeros(operator.n_parameters, dtype=float)
+            gram = np.zeros(
+                (operator.fit_n_parameters, operator.fit_n_parameters), dtype=float, order="F"
+            )
+            rhs = np.zeros(operator.fit_n_parameters, dtype=float)
         target_shaped = np.asarray(target).reshape(operator.force_shape)
         builders, effective_batch_size = _prepare_physical_design_builders(operator)
         rows_per_structure = int(np.prod(operator.force_shape[1:]))
+        operator.program.gram_feature_passes += 1
         if operator.reporter is not None:
             tile_counts = [group.tile_count for group in builders]
             operator.reporter(
-                f"Accumulating streamed Gram system: {operator.n_parameters} x "
-                f"{operator.n_parameters} ({gram.nbytes / 1024**2:.1f} MiB), "
+                f"Accumulating streamed Gram system: {operator.fit_n_parameters} x "
+                f"{operator.fit_n_parameters} ({gram.nbytes / 1024**2:.1f} MiB), "
                 f"effective_batch_size={effective_batch_size}, "
-                f"backend={'JAX GPU' if use_gpu else 'SciPy/OpenBLAS CPU'}"
+                f"backend={'JAX device' if use_device_gram else 'SciPy/OpenBLAS CPU'}"
             )
             operator.reporter(
                 f"- Physical design kernel groups: {len(builders)}, "
                 f"{sum(tile_counts)} bounded tiles"
             )
 
-        @partial(jax.jit, donate_argnums=(0, 1))
-        def update_device_statistics(current_gram, current_rhs, design, force):
-            return current_gram + design.T @ design, current_rhs + design.T @ force
-
         for begin in range(0, len(operator.displacements), effective_batch_size):
             end = min(begin + effective_batch_size, len(operator.displacements))
             force_rows = (end - begin) * rows_per_structure
-            if use_gpu:
-                design = jnp.zeros((force_rows, operator.n_parameters), dtype=jnp.float64)
+            if use_device_gram:
+                design = jax.device_put(
+                    np.zeros((force_rows, operator.n_parameters), dtype=float),
+                    operator.program.device,
+                )
             else:
                 design = np.zeros((force_rows, operator.n_parameters), dtype=float)
-            displacement_batch = jnp.asarray(operator.displacements[begin:end])
+            displacement_batch = jax.device_put(
+                operator.displacements[begin:end], operator.program.device
+            )
             for group in builders:
                 order_started = perf_counter()
-                contribution = group.kernel(
-                    displacement_batch, *map(jnp.asarray, group.arguments)
-                ).reshape(force_rows, operator.n_parameters)
-                if use_gpu:
-                    design = design + contribution
+                columns = group.columns
+                contributions = group.kernel(
+                    displacement_batch,
+                    operator.covariance,
+                    *group.device_arguments,
+                )
+                # A physical tile contains only its local parameter columns.
+                # Scatter after device execution so XLA never lowers one full
+                # parameter-wide output for each kernel group.
+                if use_device_gram:
+                    design = accumulate_physical_design(design, contributions, group.device_columns)
                 else:
-                    design += np.asarray(contribution)
+                    for contribution, tile_columns in zip(
+                        np.asarray(contributions), columns, strict=True
+                    ):
+                        contribution = contribution.reshape(force_rows, -1)
+                        design[:, tile_columns] += contribution
                 if operator.reporter is not None and begin == 0:
-                    contribution.block_until_ready()
+                    contributions.block_until_ready()
                     operator.reporter(
                         f"- Compiled FC{group.order} physical design kernel in "
                         f"{perf_counter() - order_started:.2f} s"
                     )
+            if operator.parameter_map is not None:
+                if use_device_gram:
+                    # The sparse map is uploaded once in bounded COO chunks.
+                    # This keeps physical design, reduction, and Gram updates
+                    # on the device instead of round-tripping through SciPy.
+                    design = operator.device_reduction(force_rows).apply(design)
+                else:
+                    design = np.asarray(operator.parameter_map.T @ design.T).T
             force = target_shaped[begin:end].reshape(-1)
-            if use_gpu:
-                gram, rhs = update_device_statistics(gram, rhs, design, jnp.asarray(force))
+            if use_device_gram:
+                gram, rhs = _update_device_statistics(
+                    gram,
+                    rhs,
+                    design,
+                    jax.device_put(force, operator.program.device),
+                )
             else:
                 gram = dsyrk(
                     1.0,
@@ -453,15 +632,15 @@ class _StreamingGramSystem:
             if operator.reporter is not None and (
                 begin == 0 or end == len(operator.displacements) or end % 20 == 0
             ):
-                if use_gpu:
+                if use_device_gram:
                     gram.block_until_ready()
                 operator.reporter(
                     f"- Gram structures: {end}/{len(operator.displacements)}, "
                     f"elapsed={perf_counter() - started:.2f} s"
                 )
-        if use_gpu:
-            gram = np.asarray(gram)
-            rhs = np.asarray(rhs)
+        if use_device_gram:
+            gram = np.asarray(jax.device_get(gram))
+            rhs = np.asarray(jax.device_get(rhs))
         else:
             upper = np.triu(np.asarray(gram))
             gram = upper + np.triu(upper, 1).T
@@ -525,9 +704,12 @@ class _StreamingGramSystem:
 
 def _gram_recovery_key(operator, target):
     """Fingerprint every numerical input needed to safely reuse a failed run."""
-    digest = sha256(b"mlfcs-streaming-gram-v2-physical-buckets")
+    digest = sha256(b"mlfcs-streaming-gram-v3-compact-coordinates-null-space")
     arrays = [operator.displacements, np.asarray(operator.covariance), np.asarray(target)]
-    for tensor in operator.parameterizations:
+    if operator.parameter_map is not None:
+        parameter_map = sparse.csc_matrix(operator.parameter_map)
+        arrays.extend([parameter_map.data, parameter_map.indices, parameter_map.indptr])
+    for tensor in operator.program.parameterizations:
         arrays.extend(
             [
                 tensor.parameter_indices,
@@ -553,6 +735,47 @@ def _force_metrics(predicted, reference):
     denominator = float(np.linalg.norm(reference))
     relative = float(np.linalg.norm(residual) / denominator) if denominator else float("inf")
     return rmse, relative
+
+
+def _order_force_rms_from_reduced_gram(
+    gram_system,
+    reduced_parameters,
+    parameter_map,
+    operator,
+    physical_parameters,
+    orders,
+    counts,
+    n_equations,
+):
+    """Evaluate order contributions cheaply unless constraints mix IFC orders."""
+    mapping = sparse.csc_matrix(parameter_map)
+    boundaries = np.cumsum([0, *counts])
+    column_orders = []
+    mixed = False
+    for column in range(mapping.shape[1]):
+        rows = mapping.indices[mapping.indptr[column] : mapping.indptr[column + 1]]
+        owners = np.searchsorted(boundaries[1:], rows, side="right")
+        if len(np.unique(owners)) != 1:
+            mixed = True
+            break
+        column_orders.append(int(owners[0]))
+    if not mixed:
+        result = {}
+        column_orders = np.asarray(column_orders)
+        for owner, order in enumerate(orders):
+            selected = np.flatnonzero(column_orders == owner)
+            values = reduced_parameters[selected]
+            block = gram_system.gram[np.ix_(selected, selected)]
+            result[order] = float(np.sqrt(max(float(values @ block @ values), 0.0) / n_equations))
+        return result
+
+    # Adjacent-order rotational identities genuinely couple orders.  In that
+    # less common case, evaluate every physical order in one shared feature
+    # pass instead of regenerating the same Wick features once per order.
+    predicted = operator.matvec_by_order(physical_parameters)
+    return {
+        order: float(np.linalg.norm(predicted[order]) / np.sqrt(n_equations)) for order in orders
+    }
 
 
 def _normalize_constraint_rows(constraints):

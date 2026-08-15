@@ -67,3 +67,18 @@ def test_imaginary_mode_policy_is_explicit():
     )
     assert excluded.diagnostics.imaginary_modes == 3
     assert excluded.diagnostics.sampled_modes == 0
+
+
+def test_sampling_supports_nondiagonal_reordered_reference_supercells():
+    primitive = Atoms("Al", positions=[[0, 0, 0]], cell=np.eye(3) * 4, pbc=True)
+    supercell, _ = make_supercell(primitive, [[2, 1, 0], [0, 1, 0], [0, 0, 1]])
+    supercell = supercell[[1, 0]]
+    compact = np.zeros((1, 2, 3, 3))
+    compact[0, :, :, :] = np.eye(3) / 2
+    ensemble = HarmonicEnsemble(
+        primitive, supercell, compact, temperature=300, statistics="classical"
+    )
+
+    samples = ensemble.sample(3, random_seed=4)
+    assert samples.shape == (3, 2, 3)
+    assert len(ensemble.qpoints) == 2

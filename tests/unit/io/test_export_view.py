@@ -1,0 +1,69 @@
+import numpy as np
+import pytest
+from ase import Atoms
+
+from mlfcs.api import ForceConstantCalculation
+from mlfcs.io.export import build_export_view
+from mlfcs.io.hdf5 import read_hdf5
+
+
+def _result():
+    primitive = Atoms("Si", positions=[[0, 0, 0]], cell=np.eye(3) * 4, pbc=True)
+    reference = primitive.repeat((2, 1, 1))[[1, 0]]
+    calculation = ForceConstantCalculation(primitive, reference=reference, order=2, cutoff=3.0)
+    return calculation.reap(np.zeros((len(calculation.plan), len(reference), 3)))
+
+
+def test_export_view_relabels_an_equivalent_reordered_reference(tmp_path):
+    result = _result()
+    target = result.supercell[[1, 0]]
+    view = build_export_view(result, supercell=target)
+
+    np.testing.assert_array_equal(view.force_constants.supercell.numbers, target.numbers)
+    assert view.relation is not None
+    assert view.force_constants.sparse[2].clusters.shape == result.sparse[2].clusters.shape
+    output = tmp_path / "relabelled.h5"
+    result.write(output, format="hdf5", supercell=target)
+    restored = read_hdf5(output)
+    np.testing.assert_array_equal(restored.supercell.numbers, target.numbers)
+    result.write(tmp_path / "FORCE_CONSTANTS", format="phonopy", supercell=target)
+    assert (tmp_path / "FORCE_CONSTANTS").is_file()
+    result.write(tmp_path / "phonopy.hdf5", format="phonopy_hdf5", supercell=target)
+    assert (tmp_path / "phonopy.hdf5").is_file()
+
+
+def test_export_view_rejects_changed_supercell_translation_lattice_without_writing(tmp_path):
+    result = _result()
+    # Same volume, but 1x2x1 is a different translation sublattice from 2x1x1.
+    invalid = result.relation.primitive.repeat((1, 2, 1))
+    with pytest.raises(ValueError, match="same lattice|translation sublattice"):
+        result.write(tmp_path / "must-not-exist.h5", format="hdf5", supercell=invalid)
+    assert not (tmp_path / "must-not-exist.h5").exists()
+
+
+def test_export_view_accepts_unimodular_primitive_basis_change():
+    result = _result()
+    source = result.relation.primitive
+    change = np.asarray([[1, 1, 0], [0, 1, 0], [0, 0, 1]])
+    target_primitive = source.copy()
+    target_primitive.set_cell(change @ source.cell, scale_atoms=False)
+
+    view = build_export_view(result, primitive=target_primitive)
+    assert view.relation is not None
+    np.testing.assert_array_equal(view.relation.primitive.cell, target_primitive.cell)
+
+
+def test_export_view_rejects_cartesian_rotation():
+    primitive = Atoms(
+        "NaCl", scaled_positions=[[0, 0, 0], [0.25, 0.25, 0.25]], cell=np.eye(3) * 4, pbc=True
+    )
+    reference = primitive.repeat((2, 1, 1))
+    calculation = ForceConstantCalculation(primitive, reference=reference, order=2, cutoff=3.0)
+    result = calculation.reap(np.zeros((len(calculation.plan), len(reference), 3)))
+    rotation = np.asarray([[0, -1, 0], [1, 0, 0], [0, 0, 1]])
+    rotated = primitive.copy()
+    rotated.set_cell(rotation @ primitive.cell, scale_atoms=False)
+    rotated.positions = primitive.positions @ rotation.T
+
+    with pytest.raises(ValueError, match="cannot be mapped|equivalent representation"):
+        build_export_view(result, primitive=rotated)

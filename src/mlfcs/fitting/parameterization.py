@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from mlfcs.model import SparseOrderForceConstants
+from mlfcs.core.expansion import expand_orbit_parameters
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,7 +35,6 @@ def pack_order(calculation, offset):
     n_orbits = len(orbits)
     max_images = max(len(orbit.images) for orbit in orbits)
     max_dimension = max(orbit.dimension for orbit in orbits)
-    components = np.asarray(tuple(np.ndindex((3,) * order)), dtype=np.int32)
     parameter_indices = np.zeros((n_orbits, max_dimension), dtype=np.int32)
     parameter_mask = np.zeros_like(parameter_indices, dtype=bool)
     representatives = np.zeros((n_orbits, 3**order, max_dimension))
@@ -46,7 +45,6 @@ def pack_order(calculation, offset):
             n_orbits,
             max_images,
             len(calculation.index.translations) // calculation.index.n_primitive,
-            3**order,
             order,
         ),
         dtype=np.int32,
@@ -71,9 +69,7 @@ def pack_order(calculation, offset):
                 atoms = [
                     calculation.index.translate_atom(atom, translation) for atom in image.cluster
                 ]
-                coordinates[orbit_index, image_index, translation_index] = (
-                    np.asarray(atoms)[None, :] * 3 + components
-                )
+                coordinates[orbit_index, image_index, translation_index] = atoms
         image_mask[orbit_index, :images] = True
         offset += dimension
     return (
@@ -117,24 +113,13 @@ def expand_sparse(parameters, calculations, n_primitive, n_supercell):
     result = {}
     offset = 0
     for calculation in calculations:
-        clusters = []
-        tensors = []
-        for orbit in calculation.orbit_space.orbits:
-            values = parameters[offset : offset + orbit.dimension]
-            offset += orbit.dimension
-            representative = orbit.basis @ np.linalg.solve(orbit.basis[orbit.pivots], values)
-            for image in orbit.images:
-                clusters.append(image.cluster)
-                tensor = representative.reshape((3,) * calculation.config.order)
-                for axis in range(calculation.config.order):
-                    tensor = np.tensordot(image.action.rotation, tensor, axes=((1,), (axis,)))
-                    tensor = np.moveaxis(tensor, 0, axis)
-                tensors.append(np.transpose(tensor, image.action.permutation))
-        result[calculation.config.order] = SparseOrderForceConstants(
-            calculation.config.order,
-            n_primitive,
-            n_supercell,
-            np.asarray(clusters, dtype=np.int32),
-            np.asarray(tensors),
+        count = sum(orbit.dimension for orbit in calculation.orbit_space.orbits)
+        result[calculation.config.order] = expand_orbit_parameters(
+            calculation.orbit_space,
+            parameters[offset : offset + count],
+            n_primitive=n_primitive,
+            n_supercell=n_supercell,
+            index=calculation.index,
         )
+        offset += count
     return result

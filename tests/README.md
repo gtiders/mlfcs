@@ -28,9 +28,12 @@ MLFCS SSCHA workflow and checks FC2 and free-energy scales against phonopy's tes
 The analytic q-space test in the parent directory independently compares sampling frequencies
 and covariance with phonopy.
 
-`reference/shengbte/Si_FC3/` freezes the 3x3x3, `cutoff=-6` VASP sow order and reconstructs
-ShengBTE FC3 from 168 external force calculations. The external comparison explicitly uses
-`compatibility="thirdorder"`; default faithful support is tested separately.
+`reference/pheasy/` documents independent force-fitting comparisons using the public Pheasy Si
+FC2/FC3 fixture and its explicit SrTiO3 FC2--FC6 example. Large fits are maintainer benchmarks,
+not ordinary CI jobs.
+
+`reference/shengbte/Si_FC3/` freezes the 3x3x3, `cutoff=-6` VASP sow order and checks the
+reference-order finite-difference contract for 168 external calculations.
 
 ## Naming and execution
 

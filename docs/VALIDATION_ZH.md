@@ -69,6 +69,50 @@ hiphive 仅属于开发依赖和独立验证工具，不参与 MLFCS 的计算�
 `0.000851 eV/Å³`，相对二范数误差约为 `0.0527%`，相关系数约为
 `0.9999998627`。全超胞覆盖消除了此前由双方约束空间支持集不同造成的大部分投影差异。
 
+## hiPhive BaGaGe 复杂材料公开基准
+
+可选的复杂材料基准使用 hiPhive 公开的 Ba8Ga16Ge30 笼状化合物 200 快照数据：100 个
+Monte-Carlo rattle 快照，以及 300 K 与 650 K 各 50 个 MD 快照。两条路径严格采用论文中
+的双体 FC2+FC3+FC4 模型、`[5.40, 4.35, 4.35] Å` 截断、R3 的 54 原子晶胞和平移 ASR。
+共同物理参数空间为 25,495 维，精确 ASR 零空间为 6,052 个拟合坐标。
+
+在全部 200 个结构上拟合（这里是训练拟合，而不是论文的 10 折交叉验证）时，hiPhive 的力
+RMSE 为 `49.10 meV/Å`，MLFCS 为 `57.60 meV/Å`。这不是错误：hiPhive 拟合普通 Taylor
+特征，MLFCS 拟合按协方差正交化的 Wick 特征后再转换为 Taylor IFC。显式对齐原子和张量轴
+后，FC2/FC3/FC4 的相对 RMS 差分别为 `1.62%`、`18.63%`、`47.64%`，且所有簇均成功匹配。
+因此该结果是严格的**方法对照**，不能表述为字节或张量逐项相等。
+
+同一数据上的 8,192 个随机特征还说明 Wick 的作用是缓解而非消除污染：Taylor/Wick 的
+线性-三次特征相关均值为 `0.06409/0.06280`，RMS 为 `0.08094/0.07867`，最大值从
+`0.68239` 降至 `0.40341`。
+
+2026-08-15 还完成了更严格的检查：对同一个 FC2+FC3+FC4 模型流式累加**完整**的 ASR
+约化物理设计，只比较 FC2--FC4 交叉 Gram 块。它包含求解器实际使用的对称性基、双体支撑、
+ASR 零空间及列归一化。Wick 将最大逐列归一化相关从 `0.51662` 降至 `0.21352`，RMS 从
+`0.01683` 降至 `0.00768`；归一化联合 Gram 条件数从 `2.63e6` 降至 `1.37e6`。但最大
+**子空间** canonical correlation 从 `0.94515` 变为 `0.96235`。因此可确认 Wick 在此例中
+降低了直接的列级 FC2--FC4 耦合，却不能保证两个完整约束子空间必然更正交。
+
+资源数据均在开发机上用 `/usr/bin/time -v` 串行采集。MLFCS 在 Gram 前进行 ASR 零空间
+参数化，约化 Gram 仅 279.4 MiB；成功的缓存恢复求解为 64.78 s、峰值 RSS 1.46 GiB。此前
+冷启动的 Gram 构造为 65.96 s，并在默认 1,000 次迭代上限不足时达到 2.01 GiB；上限提高到
+10,000 后严格收敛。hiPhive 基线在显式物化设计矩阵时观测到约 13 分钟墙钟和 6.48 GiB
+峰值 RSS。它们是本机测量，不应当作为跨机器的绝对性能承诺。复现时应严格逐进程运行：
+
+Gram 恢复缓存也在空临时目录中独立测量：200 快照 BaGaGe 的冷 Gram 为 `67.99 s`，紧接着
+验证过的热缓存命中为 `0.0689 s`，约 `987x`。端到端命令仍需 115.70 s，因为每次都会重新
+构建对称性/ASR 参数化和 JAX 静态程序；与此前 65.96 s 的冷 Gram 相比，67.99 s 约 3% 的
+差异属于测量波动或缓存写入开销，不表示缓存使核心 Gram 变慢。
+
+```bash
+/usr/bin/time -v uv run python reference_tools/benchmark_hiphive_examples.py bagage-hiphive --validation-split 0.0
+/usr/bin/time -v uv run python reference_tools/benchmark_hiphive_examples.py bagage-mlfcs --validation-split 0.0
+uv run python reference_tools/benchmark_hiphive_examples.py bagage-compare
+uv run python reference_tools/benchmark_hiphive_examples.py bagage-wick
+uv run python reference_tools/benchmark_hiphive_examples.py bagage-collinearity
+/usr/bin/time -v uv run python reference_tools/benchmark_hiphive_examples.py bagage-gram-cache
+```
+
 ## 原生 SSCHA 参考
 
 解析谐振模型分别检查经典协方差、量子零点位移、虚频策略、可选位移裁剪以及
@@ -94,6 +138,10 @@ GitHub Actions 分为三个相互独立的任务：
 
 BLAS、OpenMP 和 JAX CPU 后端均限制为单线程，避免小型 CI 任务因嵌套并行产生不稳定
 内存峰值。官方 AlN 势函数的重新训练是维护者基准，不属于每次 push 的 CI。
+
+2026-08-15 的完整本地运行共收集并通过 119 项测试，墙钟 321.41 s、峰值 RSS 2.56 GiB；
+Ruff 成功通过，耗时 0.03 s、峰值 RSS 35.5 MiB。AlN FC3 夹具迁移本身为 11.35 s、375 MiB，
+迁移后的 AlN FC3 参考测试为 7.34 s、350 MiB。
 
 完整目录约定和执行命令见 `tests/README.md`。
 

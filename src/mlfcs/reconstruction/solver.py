@@ -5,7 +5,8 @@ from collections.abc import Callable
 import numpy as np
 from ase import Atoms
 
-from mlfcs.core.geometry import SupercellIndex
+from mlfcs.core.expansion import expand_orbit_parameters
+from mlfcs.core.geometry import PeriodicIndex
 from mlfcs.core.orbits import OrbitSpace
 from mlfcs.finite_difference.sampling import DisplacementKey
 from mlfcs.model import SparseOrderForceConstants
@@ -18,7 +19,7 @@ from mlfcs.reconstruction.asr import (
 
 def reconstruct_compact(
     orbit_space: OrbitSpace,
-    index: SupercellIndex,
+    index: PeriodicIndex,
     derivatives: dict[DisplacementKey, np.ndarray],
     *,
     enforce_asr: bool = True,
@@ -41,7 +42,7 @@ def reconstruct_compact(
 
 def reconstruct_sparse(
     orbit_space: OrbitSpace,
-    index: SupercellIndex,
+    index: PeriodicIndex,
     derivatives: dict[DisplacementKey, np.ndarray],
     *,
     enforce_asr: bool = True,
@@ -114,22 +115,12 @@ def reconstruct_sparse(
     elif report is not None:
         drift = maximum_acoustic_sum_rule_drift(orbit_space, pivot_values)
         report(f"- Max drift of fc{order}: {drift:.10e} eV/angstrom^{order} (ASR disabled)")
-    clusters: list[tuple[int, ...]] = []
-    tensors: list[np.ndarray] = []
-    for orbit, values in zip(orbit_space.orbits, pivot_values, strict=True):
-        pivot_basis = orbit.basis[orbit.pivots]
-        coefficients = np.linalg.solve(pivot_basis, values)
-        representative = orbit.basis @ coefficients
-        for image in orbit.images:
-            tensor = image.action.apply_flat(representative).reshape((3,) * order)
-            clusters.append(image.cluster)
-            tensors.append(tensor)
-    return SparseOrderForceConstants(
-        order=order,
+    return expand_orbit_parameters(
+        orbit_space,
+        np.concatenate(pivot_values) if pivot_values else np.empty(0, dtype=float),
         n_primitive=index.n_primitive,
         n_supercell=len(index.primitive),
-        clusters=np.asarray(clusters, dtype=np.int32).reshape((-1, order)),
-        tensors=np.asarray(tensors, dtype=float).reshape((-1,) + (3,) * order),
+        index=index,
     )
 
 

@@ -13,7 +13,6 @@ from mlfcs.finite_difference.extrapolation import ExtrapolationBackend
 from mlfcs.finite_difference.sampling import DisplacementPlan, build_displacement_plan
 from mlfcs.model import ForceConstants
 from mlfcs.reconstruction.solver import reconstruct_sparse
-from mlfcs.runtime import JaxPlatform, configure_jax
 
 Progress = Callable[[int, int], None]
 ForceInput = np.ndarray | Sequence[np.ndarray] | Mapping[int, np.ndarray]
@@ -27,23 +26,24 @@ class ForceConstantCalculation:
         atoms: Atoms,
         *,
         order: int,
-        supercell: tuple[int, int, int] = (2, 2, 2),
+        supercell: object | None = None,
+        reference: Atoms | None = None,
+        supercell_matrix: object | None = None,
         cutoff: float | None = -5,
         max_body_order: int | None = None,
         displacement: float = 0.01,
         symprec: float = 1e-5,
-        jax_platform: JaxPlatform = "auto",
         report_cutoff: bool = True,
         verbose: bool = True,
     ):
-        configure_jax(jax_platform)
-        self.jax_platform = jax_platform
         self.verbose = bool(verbose)
         self._report(f"Preparing order-{order} force-constant calculation")
         self.interaction_space = InteractionSpace(
             atoms,
             order=order,
             supercell=supercell,
+            reference=reference,
+            supercell_matrix=supercell_matrix,
             cutoff=cutoff,
             max_body_order=max_body_order,
             symprec=symprec,
@@ -78,31 +78,20 @@ class ForceConstantCalculation:
             self._report(f"- {len(self._plan)} force calculations required")
         return self._plan
 
-    def sow(self, *, atom_order: str = "internal") -> list[Atoms]:
+    def sow(self) -> list[Atoms]:
         """Return displaced structures in the exact positional reap order.
 
         Configuration ``i`` must be returned to positional :meth:`reap` at
         index ``i``. Each structure also carries its zero-based stable ID.
         """
         structures = list(self.plan)
-        self._report(f"Sowing {len(structures)} displaced structures in {atom_order} atom order")
-        if atom_order == "internal":
-            return structures
-        if atom_order == "grouped":
-            grouped: list[Atoms] = []
-            for atoms in structures:
-                reordered = self.index.group_atoms(atoms)
-                reordered.info.update(atoms.info)
-                reordered.info["mlfcs_atom_order"] = "grouped"
-                grouped.append(reordered)
-            return grouped
-        raise ValueError("atom_order must be 'internal' or 'grouped'")
+        self._report(f"Sowing {len(structures)} displaced structures in reference atom order")
+        return structures
 
     def reap(
         self,
         forces: ForceInput,
         *,
-        atom_order: str = "internal",
         acoustic_sum_rule: bool = True,
         rotational_sum_rule: bool = False,
     ) -> ForceConstants:
@@ -120,10 +109,6 @@ class ForceConstantCalculation:
             )
         values = self._normalize_forces(forces)
         self._report(f"- Validated {len(values)} force configurations")
-        if atom_order == "grouped":
-            values = values[:, self.index.internal_from_grouped, :]
-        elif atom_order != "internal":
-            raise ValueError("atom_order must be 'internal' or 'grouped'")
         derivatives = self.plan.contract_forces(values)
         self._report(f"- Contracted {len(derivatives)} finite-difference derivatives")
         return self._reconstruct(
@@ -169,10 +154,10 @@ class ForceConstantCalculation:
                 "spacegroup": self.symmetry.symbol,
                 "acoustic_sum_rule": acoustic_sum_rule,
                 "rotational_sum_rule": rotational_sum_rule,
-                "jax_platform": self.jax_platform,
                 **metadata,
             },
             sparse={self.config.order: sparse},
+            relation=self.interaction_space.relation,
         )
 
     def run(

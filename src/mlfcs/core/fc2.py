@@ -3,11 +3,14 @@ from __future__ import annotations
 import numpy as np
 from ase import Atoms
 
+from mlfcs.core.geometry import PeriodicIndex
+
 
 def expand_compact_fc2(compact: np.ndarray, supercell: Atoms) -> np.ndarray:
-    """Expand translation-reduced FC2 to the internal full-supercell order."""
+    """Expand translation-reduced FC2 to the reference full-supercell order."""
     values = np.asarray(compact, dtype=float)
-    primitive, translations, repeats, atom_by_key = _ordering(supercell)
+    index = _ordering(supercell)
+    primitive, translations = index.primitive, index.translations
     n_supercell = len(supercell)
     n_primitive = int(primitive.max()) + 1
     expected = (n_primitive, n_supercell, 3, 3)
@@ -16,10 +19,10 @@ def expand_compact_fc2(compact: np.ndarray, supercell: Atoms) -> np.ndarray:
 
     full = np.empty((n_supercell, n_supercell, 3, 3), dtype=values.dtype)
     for first in range(n_supercell):
-        relative = np.mod(translations - translations[first], repeats)
+        relative = translations - translations[first]
         second = np.fromiter(
             (
-                atom_by_key[(int(p), *(int(value) for value in translation))]
+                index.atom(int(p), translation)
                 for p, translation in zip(primitive, relative, strict=True)
             ),
             dtype=np.int64,
@@ -30,7 +33,7 @@ def expand_compact_fc2(compact: np.ndarray, supercell: Atoms) -> np.ndarray:
 
 
 def compact_fc2(full: np.ndarray, supercell: Atoms) -> np.ndarray:
-    """Reduce a translation-covariant full FC2 in internal atom order."""
+    """Reduce a translation-covariant full FC2 in reference atom order."""
     values = np.asarray(full, dtype=float)
     n_supercell = len(supercell)
     expected = (n_supercell, n_supercell, 3, 3)
@@ -42,18 +45,16 @@ def compact_fc2(full: np.ndarray, supercell: Atoms) -> np.ndarray:
     return np.asarray(values[representatives]).copy()
 
 
-def _ordering(supercell: Atoms):
+def _ordering(supercell: Atoms) -> PeriodicIndex:
     try:
         primitive = np.asarray(supercell.arrays["primitive_index"], dtype=np.int64)
         translations = np.asarray(supercell.arrays["cell_translation"], dtype=np.int64)
     except KeyError as error:
         raise ValueError("supercell is missing MLFCS atom-order metadata") from error
-    repeats = translations.max(axis=0) + 1
-    atom_by_key = {
-        (int(p), *(int(value) for value in translation)): atom
-        for atom, (p, translation) in enumerate(zip(primitive, translations, strict=True))
-    }
-    return primitive, translations, repeats, atom_by_key
+    matrix = supercell.info.get("mlfcs_supercell_matrix")
+    if matrix is None:
+        raise ValueError("supercell is missing the MLFCS supercell-matrix metadata")
+    return PeriodicIndex(primitive, translations, np.asarray(matrix, dtype=np.int32))
 
 
 __all__ = ["compact_fc2", "expand_compact_fc2"]
