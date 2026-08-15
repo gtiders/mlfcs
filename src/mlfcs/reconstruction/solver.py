@@ -17,29 +17,6 @@ from mlfcs.reconstruction.asr import (
 )
 
 
-def reconstruct_compact(
-    orbit_space: OrbitSpace,
-    index: PeriodicIndex,
-    derivatives: dict[DisplacementKey, np.ndarray],
-    *,
-    enforce_asr: bool = True,
-    enforce_rotational: bool = False,
-    supercell: Atoms | None = None,
-    report: Callable[[str], None] | None = None,
-) -> np.ndarray:
-    """Reconstruct a compact, translation-reduced IFC tensor orbit by orbit."""
-    sparse_result = reconstruct_sparse(
-        orbit_space,
-        index,
-        derivatives,
-        enforce_asr=enforce_asr,
-        enforce_rotational=enforce_rotational,
-        supercell=supercell,
-        report=report,
-    )
-    return sparse_result.to_dense(max_bytes=None)
-
-
 def reconstruct_sparse(
     orbit_space: OrbitSpace,
     index: PeriodicIndex,
