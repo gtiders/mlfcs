@@ -1,4 +1,4 @@
-# MLFCS 3.1 technical overview
+# MLFCS 4.0 technical overview
 
 English | [中文](TECHNICAL_OVERVIEW_ZH.md)
 
@@ -260,8 +260,8 @@ boundary and stream one first-atom slab at a time. This avoids constructing a se
 full-supercell tensor solely for output.
 
 ShengBTE output is cluster-and-translation based rather than a simple global supercell tensor
-order. The writer derives its primitive atom indices and lattice translations from the canonical
-internal geometry and uses scientific notation for both supported orders.
+order. The writer derives its primitive atom indices and lattice translations from the verified
+reference-frame lattice labels and uses scientific notation for both supported orders.
 
 The ALAMODE adapter preserves the explicit reference-supercell order and serializes the existing
 `primitive_index`/`cell_translation` mapping rather than rediscovering a primitive cell. Its
@@ -270,7 +270,7 @@ whose true minimum image lies outside that representable set.
 
 ## 6. Comparison with the previous implementation
 
-| Area | Previous implementation | MLFCS 3.1 |
+| Area | Previous implementation | MLFCS 4.0 |
 |---|---|---|
 | Public interface | Order-specific CLI workflows | Pure Python ASE API |
 | Code organization | Separate third/fourth-order implementations | Shared order-parameterized pipeline |
