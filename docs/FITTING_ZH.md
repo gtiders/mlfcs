@@ -105,7 +105,8 @@ OpenBLAS/SciPy 完成稀疏约化和 Gram 累积。JAX GPU 模式中，物理设
 
 `fit(..., cache_directory="路径")` 是稳定公开的 Gram 恢复缓存 API。MLFCS 对位移、力、
 协方差和参数化输入生成指纹，并在 `路径/gram-<fingerprint>/` 保存完成的 Gram 统计量；
-相同输入会复用统计量，任一输入改变则自动使用不同缓存条目。
+相同输入会复用统计量，任一输入改变则自动使用不同缓存条目。结果的
+`FittingResult.cache_directory` 返回实际使用的条目；未启用缓存时为 `None`。
 
 开发时可设置 `MLFCS_JAX_TRANSFER_GUARD=log` 或 `disallow` 审计意外的隐式 JAX 数据
 传输；默认不启用。旋转约束使各阶混合时，逐阶力 RMS 使用一次共享的拟合后特征遍历，

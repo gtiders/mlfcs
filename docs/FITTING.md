@@ -125,7 +125,8 @@ is limited to 1--4 and controls only how many structures contribute to a design 
 `fit(..., cache_directory="path")` is a stable public recovery-cache API. MLFCS fingerprints
 the displacement, force, covariance, and parameterization inputs, then stores the completed Gram
 statistics below `path/gram-<fingerprint>/`. A subsequent identical fit reuses those statistics;
-changed inputs always select a different cache entry.
+changed inputs always select a different cache entry. The resulting `FittingResult.cache_directory`
+reports the exact entry used (or `None` when caching was inactive).
 
 Set `MLFCS_JAX_TRANSFER_GUARD=log` or `disallow` during development to audit unintended implicit
 JAX transfers. The default is inert. When rotational constraints mix orders, order-resolved force

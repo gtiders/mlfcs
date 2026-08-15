@@ -228,6 +228,7 @@ def test_unconverged_fit_requires_explicit_opt_in_and_exposes_gram_cache(monkeyp
     assert result.diagnostics.stop_code == 7
     cached = tuple((tmp_path / "fit-cache").glob("gram-*/complete"))
     assert len(cached) == 1
+    assert result.cache_directory == cached[0].parent
 
 
 def test_fitter_uses_reordered_reference_without_a_separate_supercell_argument():
