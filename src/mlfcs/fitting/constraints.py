@@ -5,13 +5,13 @@ from itertools import pairwise
 from math import factorial
 
 import numpy as np
-from ase.geometry import find_mic
 from scipy import sparse
 
 from mlfcs.core.constraints import (
     build_harmonic_rotational_constraints,
     build_translational_constraints,
 )
+from mlfcs.core.geometry import PeriodicGeometry
 from mlfcs.core.orbits import cluster_invariant_dimension
 
 
@@ -400,14 +400,11 @@ def _adjacent_rotational_constraints(lower, upper, dimensions, lower_index, tole
 
     # Upper-order moment term, summed over its final atom index.
     positions = upper.supercell.positions
+    geometry = PeriodicGeometry(upper.supercell.cell, upper.supercell.pbc)
     for cluster, columns, local_offset in _image_columns(upper):
         prefix = cluster[:-1]
         origin = positions[prefix[0]]
-        vector, _ = find_mic(
-            positions[cluster[-1]] - origin,
-            upper.supercell.cell,
-            upper.supercell.pbc,
-        )
+        vector, _ = geometry.mic(positions[cluster[-1]] - origin)
         shaped = columns.reshape((3,) * upper_order + (-1,))
         for components in np.ndindex((3,) * lower_order):
             for mu in range(3):
