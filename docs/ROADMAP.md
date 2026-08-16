@@ -25,6 +25,19 @@ focus on two related tasks before further feature work:
    now form the calculation core. Extend the validation matrix with larger skewed cells, boundary
    degeneracies, and additional external readers; ALAMODE's fixed 27-image encoding remains a
    format-level limitation and must keep rejecting non-representable geometry.
+5. **Freeze previously calculated IFC orders during fitting.** Allow a native HDF5 v2 result to
+   provide fixed low-order Taylor IFCs while fitting the remaining consecutive orders, initially
+   through a constructor-level API such as `fixed={2: read_hdf5("fc2.h5")}`. This must be an exact
+   affine constrained fit, not a post-fit overwrite: with Wick-basis fitting, FC4 contracts into
+   Taylor FC2, and rotational identities couple adjacent orders. Build the combined system
+   `E p = b`, obtain `p = p0 + Z q`, subtract the fixed contribution `A p0` from the force target,
+   and solve only for `q`. Before fitting, strictly validate primitive/reference equivalence,
+   lattice-labelled support, cutoff/body-order compatibility, orbit-pivot reconstruction, and the
+   feasibility of requested ASR and rotational constraints; never silently project the supplied
+   fixed IFCs. Return the fixed and fitted orders in one physical `ForceConstants` result, record
+   their provenance, and include the fixed tensors plus affine map in the persistent Gram-cache
+   fingerprint. The first implementation should reject scaled group LASSO with frozen orders
+   until orbit-group regularization is defined correctly in affine coordinates.
 
-No implementation choice for these items is committed yet. Changes will be introduced only with
-focused tests and documented numerical evidence.
+Items without an explicit design above remain open to implementation changes. All changes will be
+introduced only with focused tests and documented numerical evidence.
