@@ -45,11 +45,15 @@ Run only the reference affected by a change locally; CI performs the complete se
 
 ## Test expectations
 
+New or migrated validation content must follow the
+[tests and examples policy](docs/TESTS_AND_EXAMPLES.md). Numerical material comparisons against
+external programs belong in `examples/cases`, not new pytest oracles.
+
 - Unit tests cover deterministic mathematical and I/O behavior.
 - Integration tests use only public APIs.
 - Scientific claims require an independent reference, provenance, units, atom-order mapping,
   tolerances, and a separate CI step.
-- Large reference files must have clear redistribution terms and checksums.
+- Third-party reference files document provenance and redistribution terms in the case README.
 - Tests must not depend on the legacy MLFCS implementation.
 
 ## Pull requests

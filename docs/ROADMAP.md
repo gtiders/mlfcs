@@ -11,33 +11,20 @@ focus on two related tasks before further feature work:
    implementations will use matched supercells, interaction support, body order, conventions,
    and numerical settings. Agreement between two fitted IFC files alone will not be treated as
    physical ground truth.
-2. **High-order irreducible-set scalability.** Diagnose and remove the combinatorial explosion in
-   irreducible-cluster enumeration that currently makes sixth-order calculations impractical.
-   The work will target earlier symmetry pruning, canonical incremental construction, bounded
-   intermediate storage, and reproducible scaling measurements without changing the established
-   FC2--FC4 results.
-3. **Sparse constrained fitting at high order.** The current projected-Gram solver keeps the force
-   design matrix streamed, but its null-space projector forms a dense `C @ C.T`. Add automatic
-   memory estimation and replace that projector for large constraint systems with a tested sparse
-   constrained method, such as a sparse KKT/MINRES or augmented-Lagrangian formulation. The
-   selection must be automatic and must preserve strict ASR and rotational residuals.
-4. **Periodic geometry stress testing.** General MIC and reduced-lattice degenerate-image handling
-   now form the calculation core. Extend the validation matrix with larger skewed cells, boundary
-   degeneracies, and additional external readers; ALAMODE's fixed 27-image encoding remains a
-   format-level limitation and must keep rejecting non-representable geometry.
-5. **Freeze previously calculated IFC orders during fitting.** Allow a native HDF5 v2 result to
-   provide fixed low-order Taylor IFCs while fitting the remaining consecutive orders, initially
-   through a constructor-level API such as `fixed={2: read_hdf5("fc2.h5")}`. This must be an exact
-   affine constrained fit, not a post-fit overwrite: with Wick-basis fitting, FC4 contracts into
-   Taylor FC2, and rotational identities couple adjacent orders. Build the combined system
-   `E p = b`, obtain `p = p0 + Z q`, subtract the fixed contribution `A p0` from the force target,
-   and solve only for `q`. Before fitting, strictly validate primitive/reference equivalence,
-   lattice-labelled support, cutoff/body-order compatibility, orbit-pivot reconstruction, and the
-   feasibility of requested ASR and rotational constraints; never silently project the supplied
-   fixed IFCs. Return the fixed and fitted orders in one physical `ForceConstants` result, record
-   their provenance, and include the fixed tensors plus affine map in the persistent Gram-cache
-   fingerprint. The first implementation should reject scaled group LASSO with frozen orders
-   until orbit-group regularization is defined correctly in affine coordinates.
+2. **Regularized/damped constrained fitting at high order.** The default unregularized
+   `damping=0` path already uses a block-sparse null space, but the implicit projectors used by
+   scaled group LASSO and nonzero damping still form a dense `C @ C.T`. Add automatic memory
+   estimation and replace that projector for large constraint systems with a tested sparse method,
+   such as sparse KKT/MINRES or an augmented-Lagrangian formulation. Selection must be automatic
+   and preserve strict ASR and rotational residuals.
 
 Items without an explicit design above remain open to implementation changes. All changes will be
 introduced only with focused tests and documented numerical evidence.
+
+3. **Rotational constraint conditioning bug.** The current hard FC1-FC2 boundary uses a
+   structure-tolerance-aware numerical rank filter, while hiphive uses a ridge-regularized
+   soft projection. These are different semantics: near-zero singular directions can be
+   promoted to hard constraints or discarded depending on units and scaling. Replace the
+   heuristic threshold with an explicit dimensionless conditioning policy, and provide a
+   separate soft Huang/Born-Huang projection. Validate FC2, FC3, and FC4 against materialized
+   physical IFC identities, including planar graphene and MoS2 cases.

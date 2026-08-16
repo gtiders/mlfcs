@@ -1,10 +1,34 @@
 """ALAMODE FCSXML output with MLFCS-controlled atom mappings.
 
-The XML layout and closest-mirror-image convention are adapted from the
-MIT-licensed ``alm.fcsxml.Fcsxml`` implementation in ttadano/ALM.  Unlike the
-upstream convenience writer, this module does not rediscover a primitive cell
-with spglib: the deterministic ``primitive_index`` and ``cell_translation``
-arrays attached to the MLFCS supercell are the sole mapping authority.
+Third-party provenance
+----------------------
+The XML layout, unit conversion, and 27-image closest-mirror convention are
+adapted from ``alm.fcsxml.Fcsxml`` in ttadano/ALM revision
+``f1d668f210d3e95355643132144f3fd1ec10d4d7``. MLFCS replaces ALM's primitive
+discovery with the deterministic ``primitive_index`` and ``cell_translation``
+arrays attached to its reference supercell.
+
+The MIT License (MIT)
+
+Copyright (c) 2014,2015,2016 Terumasa Tadano
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 """
 
 from __future__ import annotations

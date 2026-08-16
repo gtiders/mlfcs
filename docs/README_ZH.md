@@ -12,10 +12,12 @@ MLFCS 的用户文档均提供英文和中文版本。仓库根目录的
 | 技术架构与算法 | [概览](TECHNICAL_OVERVIEW_ZH.md) | [Overview](TECHNICAL_OVERVIEW.md) |
 | ALAMODE XML 输出与原子映射 | [指南](ALAMODE_XML_ZH.md) | [Guide](ALAMODE_XML.md) |
 | 数值验证与 CI | [数值验证](VALIDATION_ZH.md) | [Validation](VALIDATION.md) |
+| 测试与案例原则 | [设计规范](TESTS_AND_EXAMPLES_ZH.md) | [Design policy](TESTS_AND_EXAMPLES.md) |
 | 平移与旋转求和规则 | [求和规则](SUM_RULES_ZH.md) | [Sum rules](SUM_RULES.md) |
 | 直接 calculator 零步长外推 | [零步长外推](EXTRAPOLATION_ZH.md) | [Extrapolation](EXTRAPOLATION.md) |
 | 4.0 有限差分采样算法变更 | [算法说明](FINITE_DIFFERENCE_SAMPLING_CHANGE_ZH.md) | [Algorithm note](FINITE_DIFFERENCE_SAMPLING_CHANGE.md) |
 | FC2--FCn 联合仅力数据拟合 | [仅力数据拟合](FITTING_ZH.md) | [Fitting](FITTING.md) |
+| Wick 收缩与 Taylor 跨阶污染 | [概念说明](WICK_TAYLOR_CROSS_ORDER_ZH.md) | [Concept note](WICK_TAYLOR_CROSS_ORDER.md) |
 | 与 ALAMODE 的拟合架构比较 | [比较](ALAMODE_COMPARISON_ZH.md) | [Comparison](ALAMODE_COMPARISON.md) |
 | 原生有限温度 SSCHA | [SSCHA](SSCHA_ZH.md) | [SSCHA](SSCHA.md) |
 | 开发路线图 | [路线图](ROADMAP_ZH.md) | [Roadmap](ROADMAP.md) |

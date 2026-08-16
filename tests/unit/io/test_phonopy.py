@@ -25,11 +25,11 @@ def test_phonopy_writer_expands_fc2_and_matches_reference_format(tmp_path):
     assert lines[0] == "   4    4"
     assert len(lines) == 1 + 4 * 4 * 4
 
-    # grouped order is (Na@0, Na@1, Cl@0, Cl@1). For the Na@1,Cl@0
-    # pair the relative image is Cl@1, internal atom index 3.
+    # The file retains the reference order. For the second reference atom as
+    # anchor and the third as tail, translational anchoring selects atom 2.
     block = 1 + (1 * 4 + 2) * 4
     assert lines[block] == "2 3"
-    expected = compact[0, 3]
+    expected = compact[1, 2]
     parsed = np.array(
         [[float(value) for value in lines[block + row + 1].split()] for row in range(3)]
     )

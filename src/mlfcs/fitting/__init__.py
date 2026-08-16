@@ -1,11 +1,11 @@
 """Isolated force-constant fitting from externally sampled ASE structures."""
 
-from mlfcs.fitting.api import (
+from mlfcs.fitting.data import FitDataset
+from mlfcs.fitting.model import (
     FittingDiagnostics,
     FittingResult,
     ForceConstantFitter,
 )
-from mlfcs.fitting.data import FitDataset
 
 __all__ = [
     "FitDataset",

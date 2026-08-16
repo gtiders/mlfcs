@@ -352,6 +352,13 @@ Translational and rotational constraints are projected together. The current sin
 accepts `rotational_sum_rule=True` only for order 2 because rigorous higher-order rotational
 conditions couple adjacent force-constant orders. See [Sum rules](docs/SUM_RULES.md).
 
+Rotational-constraint conditioning is an active limitation. MLFCS currently treats the
+FC1-FC2 boundary as a hard null-space constraint after a structure-tolerance-aware rank
+filter. This is not equivalent to hiphive's ridge-regularized Huang/Born-Huang projection:
+near-zero singular directions can be handled differently by units, scaling, and truncation.
+Do not interpret `rotational_invariance=2` as the combined Huang + Born-Huang correction until
+the conditioning policy and soft projection are finalized; see the development roadmap.
+
 ## Output formats
 
 The output format is always explicit:
@@ -361,7 +368,6 @@ fc2.write("FORCE_CONSTANTS", format="phonopy")
 fc2.write("fc2.hdf5", format="phonopy_hdf5")
 fc3.write("fc3.h5", format="hdf5")
 fc3.write("fc3.hdf5", format="phono3py_hdf5")
-fc3.write("fc3.npz", format="numpy")
 fc3.write("FORCE_CONSTANTS_3RD", format="shengbte")
 fc4.write("FORCE_CONSTANTS_4TH", format="shengbte")
 fc234.write("force_constants.xml", format="alamode")
@@ -378,7 +384,6 @@ fc234 = read_hdf5("fc3.h5")
 | Format | Orders | Representation |
 |---|---|---|
 | `hdf5` | Any | Native v2 lattice-labelled sparse IFCs (`sites`, translation representatives, Cartesian tensors) |
-| `numpy` / `npz` | Any | Materialized NumPy arrays |
 | `shengbte` | 3 and 4 | Symmetry-closed translation-based text blocks |
 | `phonopy` | 2 | Full dense supercell FC2 text |
 | `phonopy_hdf5` | 2 | Phonopy-compatible full-supercell `force_constants` HDF5 |
@@ -388,8 +393,8 @@ fc234 = read_hdf5("fc3.h5")
 ShengBTE output writes the symmetry-closed cluster support carried by the reconstructed sparse
 result and resolves its lattice residues to jointly compatible minimum images.
 
-The phonopy and phono3py HDF5 writers use primitive-atom-grouped supercell order and stream one
-first-atom slab at a time. They therefore do not materialize the full FC3 in memory. The native
+The phonopy and phono3py HDF5 writers preserve the explicit reference-supercell order and stream
+one first-atom slab at a time. They therefore do not materialize the full FC3 in memory. The native
 `hdf5` format is native schema v2: it stores primitive and reference structures, their verified
 mapping, and lattice-labelled sparse IFCs. Older native schemas are intentionally unsupported.
 
@@ -501,4 +506,4 @@ The current development version is `4.0.0a2` (4.0 alpha 2). See [CHANGELOG.md](C
 
 MLFCS is distributed under the [GNU General Public License v3.0 or later](LICENSE). Adapted
 third-party components and redistributed reference data are documented in
-[Third-party provenance](THIRD_PARTY.md).
+Third-party terms for the ALAMODE adapter are retained directly in its source module.

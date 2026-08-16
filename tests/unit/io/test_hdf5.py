@@ -48,7 +48,7 @@ def test_dense_materialization_warns_but_continues():
     assert dense.shape == (1, 1, 3, 3)
 
 
-def test_phonopy_hdf5_is_readable_and_uses_grouped_full_supercell_order(tmp_path):
+def test_phonopy_hdf5_is_readable_and_preserves_reference_order(tmp_path):
     primitive = Atoms(
         "NaCl",
         scaled_positions=[[0, 0, 0], [0.5, 0.5, 0.5]],
@@ -65,9 +65,9 @@ def test_phonopy_hdf5_is_readable_and_uses_grouped_full_supercell_order(tmp_path
 
     assert full.shape == (4, 4, 3, 3)
     assert unit == "eV/angstrom^2"
-    np.testing.assert_allclose(full[1, 2], compact[0, 3], atol=0, rtol=0)
+    np.testing.assert_allclose(full[1, 2], compact[1, 2], atol=0, rtol=0)
     with h5py.File(target) as handle:
-        np.testing.assert_array_equal(handle["p2s_map"], [0, 2])
+        np.testing.assert_array_equal(handle["p2s_map"], [0, 1])
         assert handle["version"][()].decode() == f"mlfcs {version('mlfcs')}"
 
 

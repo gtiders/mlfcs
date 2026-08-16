@@ -6,6 +6,7 @@ from math import factorial
 
 import numpy as np
 from scipy import sparse
+from scipy.linalg import qr
 
 from mlfcs.core.constraints import (
     build_harmonic_rotational_constraints,
@@ -76,23 +77,16 @@ def build_joint_constraints(
         transform = build_wick_to_taylor_transform(calculations, covariance)
         matrix = matrix @ transform
         if harmonic_index is not None:
-            harmonic = build_harmonic_rotational_constraints(
-                calculations[harmonic_index].orbit_space,
-                calculations[harmonic_index].supercell,
-            )
-            left = sum(dimensions[:harmonic_index])
-            right = total - left - dimensions[harmonic_index]
-            harmonic = sparse.hstack(
-                [
-                    sparse.csr_matrix((harmonic.shape[0], left)),
-                    harmonic,
-                    sparse.csr_matrix((harmonic.shape[0], right)),
-                ],
-                format="csr",
-            )
             fc1 = build_wick_to_taylor_fc1_transform(calculations, covariance)
-            lower = (
-                harmonic @ transform + _fc1_rotation_matrix(calculations[0].index.n_primitive) @ fc1
+            lower = _lowest_order_rotational_constraints(
+                calculations,
+                dimensions,
+                harmonic_index,
+                transform,
+                fc1,
+            )
+            lower = _independent_constraint_rows(
+                lower, tolerance=calculations[harmonic_index].config.symprec
             )
             lower_rows = lower.shape[0]
             matrix = sparse.vstack([matrix, lower], format="csr")
@@ -309,7 +303,8 @@ def build_wick_to_taylor_fc1_transform(calculations, covariance) -> sparse.csr_m
                 for direction in range(3):
                     coefficients = coefficient * contracted[direction]
                     nonzero = np.flatnonzero(np.abs(coefficients) > 1e-12)
-                    matrix_rows.extend([int(cluster[0]) * 3 + direction] * len(nonzero))
+                    primitive_site = int(calculation.index.primitive[int(cluster[0])])
+                    matrix_rows.extend([primitive_site * 3 + direction] * len(nonzero))
                     matrix_columns.extend(offset + local_offset + int(value) for value in nonzero)
                     matrix_data.extend(float(coefficients[value]) for value in nonzero)
         offset += dimension
@@ -346,6 +341,49 @@ def _parameter_count(calculation):
     return sum(orbit.dimension for orbit in calculation.orbit_space.orbits)
 
 
+def _lowest_order_rotational_constraints(calculations, dimensions, harmonic_index, transform, fc1):
+    """Apply the common FC1-FC2 rule, with a zero FC1 block when absent."""
+    calculation = calculations[harmonic_index]
+    harmonic = build_harmonic_rotational_constraints(
+        calculation.orbit_space,
+        calculation.supercell,
+        index=calculation.index,
+    )
+    left = sum(dimensions[:harmonic_index])
+    right = sum(dimensions[harmonic_index + 1 :])
+    harmonic = sparse.hstack(
+        [
+            sparse.csr_matrix((harmonic.shape[0], left)),
+            harmonic,
+            sparse.csr_matrix((harmonic.shape[0], right)),
+        ],
+        format="csr",
+    )
+    fc1_rotation = _fc1_rotation_matrix(calculations[0].index.n_primitive)
+    return harmonic @ transform + fc1_rotation @ fc1
+
+
+def _independent_constraint_rows(matrix, tolerance=1e-11):
+    """Keep a numerically independent row basis before row normalization."""
+    matrix = sparse.csr_matrix(matrix)
+    if not matrix.shape[0] or not matrix.nnz:
+        return matrix
+    _q, triangular, permutation = qr(
+        matrix.toarray().T,
+        mode="economic",
+        pivoting=True,
+        check_finite=False,
+    )
+    diagonal = np.abs(np.diag(triangular))
+    threshold = (
+        max(tolerance, tolerance * max(matrix.shape) * float(diagonal.max()))
+        if len(diagonal)
+        else 0.0
+    )
+    rank = int(np.count_nonzero(diagonal > threshold))
+    return matrix[np.sort(permutation[:rank])]
+
+
 def _image_columns(calculation):
     """Yield cluster and its dense Cartesian-component-to-pivot map."""
     offset = 0
@@ -354,6 +392,16 @@ def _image_columns(calculation):
         for image in orbit.images:
             yield image.cluster, image.action.apply_columns(representative), offset
         offset += orbit.dimension
+
+
+def _physical_image_groups(calculation):
+    """Group orbit images exactly as sparse IFC materialization groups them."""
+    groups = {}
+    for cluster, columns, local_offset in _image_columns(calculation):
+        first = int(cluster[0])
+        key = (int(calculation.index.primitive[first]), *map(int, cluster[1:]))
+        groups.setdefault(key, []).append((columns, local_offset))
+    return groups
 
 
 def _adjacent_rotational_constraints(lower, upper, dimensions, lower_index, tolerance=1e-12):
@@ -370,62 +418,66 @@ def _adjacent_rotational_constraints(lower, upper, dimensions, lower_index, tole
         return equations.setdefault(key, len(equations))
 
     # Lower-order Cartesian tensor rotation term.
-    for cluster, columns, local_offset in _image_columns(lower):
-        shaped = columns.reshape((3,) * lower_order + (-1,))
-        for components in np.ndindex((3,) * lower_order):
-            for mu in range(3):
-                for nu in range(mu + 1, 3):
-                    equation = row((cluster, components, mu, nu))
-                    for axis in range(lower_order):
-                        if components[axis] == mu:
-                            changed = (*components[:axis], nu, *components[axis + 1 :])
-                            _add(
-                                entries,
-                                equation,
-                                lower_global + local_offset,
-                                shaped[changed],
-                                1.0,
-                                tolerance,
-                            )
-                        if components[axis] == nu:
-                            changed = (*components[:axis], mu, *components[axis + 1 :])
-                            _add(
-                                entries,
-                                equation,
-                                lower_global + local_offset,
-                                shaped[changed],
-                                -1.0,
-                                tolerance,
-                            )
+    for cluster, images in _physical_image_groups(lower).items():
+        weight = 1.0 / len(images)
+        for columns, local_offset in images:
+            shaped = columns.reshape((3,) * lower_order + (-1,))
+            for components in np.ndindex((3,) * lower_order):
+                for mu in range(3):
+                    for nu in range(mu + 1, 3):
+                        equation = row((cluster, components, mu, nu))
+                        for axis in range(lower_order):
+                            if components[axis] == mu:
+                                changed = (*components[:axis], nu, *components[axis + 1 :])
+                                _add(
+                                    entries,
+                                    equation,
+                                    lower_global + local_offset,
+                                    shaped[changed],
+                                    weight,
+                                    tolerance,
+                                )
+                            if components[axis] == nu:
+                                changed = (*components[:axis], mu, *components[axis + 1 :])
+                                _add(
+                                    entries,
+                                    equation,
+                                    lower_global + local_offset,
+                                    shaped[changed],
+                                    -weight,
+                                    tolerance,
+                                )
 
     # Upper-order moment term, summed over its final atom index.
     positions = upper.supercell.positions
     geometry = PeriodicGeometry(upper.supercell.cell, upper.supercell.pbc)
-    for cluster, columns, local_offset in _image_columns(upper):
+    for cluster, images in _physical_image_groups(upper).items():
         prefix = cluster[:-1]
-        origin = positions[prefix[0]]
+        origin = positions[upper.index.representative(prefix[0])]
         vector, _ = geometry.mic(positions[cluster[-1]] - origin)
-        shaped = columns.reshape((3,) * upper_order + (-1,))
-        for components in np.ndindex((3,) * lower_order):
-            for mu in range(3):
-                for nu in range(mu + 1, 3):
-                    equation = row((prefix, components, mu, nu))
-                    _add(
-                        entries,
-                        equation,
-                        upper_global + local_offset,
-                        shaped[components + (nu,)],
-                        vector[mu],
-                        tolerance,
-                    )
-                    _add(
-                        entries,
-                        equation,
-                        upper_global + local_offset,
-                        shaped[components + (mu,)],
-                        -vector[nu],
-                        tolerance,
-                    )
+        weight = 1.0 / len(images)
+        for columns, local_offset in images:
+            shaped = columns.reshape((3,) * upper_order + (-1,))
+            for components in np.ndindex((3,) * lower_order):
+                for mu in range(3):
+                    for nu in range(mu + 1, 3):
+                        equation = row((prefix, components, mu, nu))
+                        _add(
+                            entries,
+                            equation,
+                            upper_global + local_offset,
+                            shaped[components + (nu,)],
+                            weight * vector[mu],
+                            tolerance,
+                        )
+                        _add(
+                            entries,
+                            equation,
+                            upper_global + local_offset,
+                            shaped[components + (mu,)],
+                            -weight * vector[nu],
+                            tolerance,
+                        )
     return _entries_to_matrix(entries, len(equations), sum(dimensions))
 
 
@@ -434,34 +486,36 @@ def _highest_order_rotational_boundary(calculation, dimensions, tolerance=1e-12)
     global_offset = sum(dimensions[:-1])
     equations = {}
     entries = {}
-    for cluster, columns, local_offset in _image_columns(calculation):
-        shaped = columns.reshape((3,) * order + (-1,))
-        for components in np.ndindex((3,) * order):
-            for mu in range(3):
-                for nu in range(mu + 1, 3):
-                    key = (cluster, components, mu, nu)
-                    equation = equations.setdefault(key, len(equations))
-                    for axis in range(order):
-                        if components[axis] == mu:
-                            changed = (*components[:axis], nu, *components[axis + 1 :])
-                            _add(
-                                entries,
-                                equation,
-                                global_offset + local_offset,
-                                shaped[changed],
-                                1.0,
-                                tolerance,
-                            )
-                        if components[axis] == nu:
-                            changed = (*components[:axis], mu, *components[axis + 1 :])
-                            _add(
-                                entries,
-                                equation,
-                                global_offset + local_offset,
-                                shaped[changed],
-                                -1.0,
-                                tolerance,
-                            )
+    for cluster, images in _physical_image_groups(calculation).items():
+        weight = 1.0 / len(images)
+        for columns, local_offset in images:
+            shaped = columns.reshape((3,) * order + (-1,))
+            for components in np.ndindex((3,) * order):
+                for mu in range(3):
+                    for nu in range(mu + 1, 3):
+                        key = (cluster, components, mu, nu)
+                        equation = equations.setdefault(key, len(equations))
+                        for axis in range(order):
+                            if components[axis] == mu:
+                                changed = (*components[:axis], nu, *components[axis + 1 :])
+                                _add(
+                                    entries,
+                                    equation,
+                                    global_offset + local_offset,
+                                    shaped[changed],
+                                    weight,
+                                    tolerance,
+                                )
+                            if components[axis] == nu:
+                                changed = (*components[:axis], mu, *components[axis + 1 :])
+                                _add(
+                                    entries,
+                                    equation,
+                                    global_offset + local_offset,
+                                    shaped[changed],
+                                    -weight,
+                                    tolerance,
+                                )
     return _entries_to_matrix(entries, len(equations), sum(dimensions))
 
 

@@ -5,7 +5,7 @@ description = "ASE-first symmetry-reduced force constants from second to arbitra
 readme = "README.md"
 requires-python = ">=3.12"
 license = "GPL-3.0-or-later"
-license-files = ["LICENSE", "third_party_licenses/ALM-MIT.txt"]
+license-files = ["LICENSE"]
 authors = [{ name = "Yibo Gao", email = "242211044@csu.edu.cn" }]
 keywords = [
     "anharmonicity",
@@ -24,12 +24,12 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Physics",
 ]
 dependencies = [
-    "ase>=3.29.0",
-    "h5py>=3.14",
-    "jax>=0.11.0",
-    "numpy>=1.26.0,<2.5",
-    "scipy>=1.16",
-    "spglib>=2.6",
+    "ase>=3.23",
+    "h5py>=3.10",
+    "jax>=0.4.31",
+    "numpy>=1.26",
+    "scipy>=1.11",
+    "spglib>=2.5",
 ]
 
 [project.urls]
@@ -40,9 +40,9 @@ Repository = "https://github.com/gtiders/mlfcs"
 [dependency-groups]
 dev = [
     "hiphive>=1.5",
-    "phono3py>=3.18",
-    "pytest>=8.4",
-    "ruff>=0.12",
+    "phono3py>=3.0",
+    "pytest>=8",
+    "ruff>=0.9",
 ]
 reference = [
     "pypolymlp>=0.20.4",

@@ -45,7 +45,7 @@ MLFCS 中 `n` 阶力常数单位为 eV/angstrom^`n`。FCSXML 使用
 
 XML 布局和镜像展开改编自 `ttadano/ALM` 仓库
 `f1d668f210d3e95355643132144f3fd1ec10d4d7` 版本中采用 MIT 许可证的
-`alm.fcsxml.Fcsxml` writer，详见[第三方来源说明](../THIRD_PARTY_ZH.md)。语义测试覆盖
+`alm.fcsxml.Fcsxml` writer；完整来源和许可条款嵌入在 `src/mlfcs/io/alamode.py` 顶部。语义测试覆盖
 多组分原子顺序、平移映射、镜像简并、重复原子、单位换算和 FC2--FC4 区段。
 
 ALAMODE 的另一个 Python XML reader 会自行调用 spglib；它在某些晶体中可能选择平移过

@@ -2,6 +2,9 @@
 
 [English](README.md)
 
+新增测试必须遵循[测试与案例设计原则](../docs/TESTS_AND_EXAMPLES_ZH.md)。
+当前 `reference/` 是待逐项迁移的历史过渡层，不作为新外部软件数值对比的目标目录。
+
 测试只验证当前公开行为、数学约束和独立科学参考，不依赖旧版 MLFCS。
 
 ## 层级

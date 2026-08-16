@@ -49,6 +49,7 @@ def reconstruct_sparse(
             orbit_space,
             pivot_values,
             supercell=supercell,
+            index=index,
             acoustic=enforce_asr,
             rotational=True,
         )

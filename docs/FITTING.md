@@ -45,6 +45,17 @@ vanish. MLFCS therefore reports both the largest atomic component and the net va
 silently constrain FC1 to zero. Imposing a zero Taylor FC1 would define a different constrained
 regression problem and may be added only as an explicit option after separate validation.
 
+Stationarity must be assessed from the reported Taylor FC1 after the Wick-to-Taylor conversion,
+not directly from the solver's internal first-order Wick coefficient. Higher odd Wick orders
+contract into Taylor FC1, so these quantities generally differ. At fixed lattice vectors, images
+of each primitive site may be aggregated and an indicative local Newton correction
+`Delta u = -Phi2^+ Phi1` may be estimated after removing the three rigid-translation zero modes.
+This displacement is a reference-stationarity and data-quality diagnostic, and is credible as a
+local suggestion only when it is much smaller than the sampled displacement range. It must not
+relax equivalent supercell images independently, cannot determine lattice constants or cell
+shape, and does not replace a first-principles relaxation with stress; moving the reference
+normally requires new forces and a new fit.
+
 Translational constraints commute with the covariance contractions and therefore remain valid
 under this conversion. Rotational constraints couple adjacent Taylor orders and cannot be applied
 directly to Wick coefficients. When `rotational_invariance=2` or `3`, MLFCS constructs the Taylor
