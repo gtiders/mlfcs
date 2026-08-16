@@ -54,7 +54,7 @@ def test_writer_serializes_sparse_support_without_geometry_filtering(tmp_path):
     write_shengbte(output, values, supercell)
 
     lines = output.read_text().splitlines()
-    assert lines[0] == "    1"
+    assert lines[0] == "    2"
     assert " 1  1  1     7.0000000000e+00" in lines
 
 
@@ -105,9 +105,36 @@ def test_sparse_writer_uses_general_lattice_labels_for_reordered_nondiagonal_cel
     write_shengbte(output, sparse, supercell)
 
     lines = output.read_text().splitlines()
-    assert lines[0] == "    1"
+    assert lines[0] == "    2"
     assert lines[5] == "     1      1      1"
     assert "5.0000000000e+00" in lines[3]
+
+
+@pytest.mark.parametrize("order", [3, 4])
+def test_writer_resolves_quotient_labels_to_nearest_shengbte_images(tmp_path, order):
+    primitive = Atoms("Si", positions=[[0, 0, 0]], cell=np.eye(3) * 5, pbc=True)
+    supercell, index = make_supercell(primitive, (4, 1, 1))
+    anchor = index.atom(0, [0, 0, 0])
+    tail = index.atom(0, [3, 0, 0])
+    sparse = SparseOrderForceConstants(
+        order,
+        1,
+        4,
+        np.asarray([[anchor, *([tail] * (order - 1))]]),
+        np.ones((1,) + (3,) * order),
+    )
+    output = tmp_path / f"FORCE_CONSTANTS_{order}TH"
+
+    write_shengbte(output, sparse, supercell)
+
+    lines = output.read_text().splitlines()
+    assert lines[0] == "    1"
+    for line in lines[3 : 3 + order - 1]:
+        assert line.split() == [
+            "-5.0000000000e+00",
+            "0.0000000000e+00",
+            "0.0000000000e+00",
+        ]
 
 
 def test_writer_rejects_orders_outside_shengbte_contract(tmp_path):

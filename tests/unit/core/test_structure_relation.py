@@ -135,3 +135,16 @@ def test_periodic_geometry_uses_general_mic_and_returns_degenerate_images():
     images, shifts = cubic.closest_images(np.asarray([1.0, 0.0, 0.0]))
     assert len(images) == 2
     np.testing.assert_array_equal(np.sort(shifts[:, 0]), [-1, 0])
+
+
+def test_periodic_geometry_resolves_only_jointly_compatible_cluster_images():
+    geometry = PeriodicGeometry(np.diag([4.0, 1.0, 1.0]))
+    shifts = geometry.joint_closest_image_shifts(np.asarray([[1.0, 0, 0], [2.0, 0, 0]]))
+
+    np.testing.assert_array_equal(shifts, np.asarray([[[0, 0, 0], [0, 0, 0]]]))
+
+    impossible = PeriodicGeometry(np.diag([3.0, 1.0, 1.0]))
+    shifts = impossible.joint_closest_image_shifts(
+        np.asarray([[1.0, 0, 0], [2.0, 0, 0]])
+    )
+    assert shifts.shape == (0, 2, 3)
