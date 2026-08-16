@@ -32,9 +32,6 @@ and covariance with phonopy.
 FC2/FC3 fixture and its explicit SrTiO3 FC2--FC6 example. Large fits are maintainer benchmarks,
 not ordinary CI jobs.
 
-`reference/shengbte/Si_FC3/` freezes the 3x3x3, `cutoff=-6` VASP sow order and checks the
-reference-order finite-difference contract for 168 external calculations.
-
 ## Naming and execution
 
 Chemical formulas retain standard capitalization (`AlN`, `Si`, `NaCl`). Project and algorithm
@@ -48,7 +45,6 @@ uv run pytest tests/reference/phono3py/AlN_FC3
 uv run pytest tests/reference/phonopy/AlN_FC2
 uv run pytest tests/reference/phono3py/K4As4Pt2_FC23
 uv run pytest tests/reference/sscha
-uv run pytest tests/reference/shengbte/Si_FC3
 ```
 
 Fixture generation is a maintainer operation documented in [`reference_tools/`](../reference_tools/README.md);

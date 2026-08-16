@@ -29,11 +29,6 @@ MLFCS 是一个从二阶到任意阶重建对称性约化力常数的开源 Pyth
 
 ## 领域定位
 
-MLFCS 的技术起点是对 GPL 许可的 thirdorder 软件算法与工作流的参考和借鉴。具体包括
-有限位移 FC3 的对称性约化、周期镜像约定和有序 `sow`/`reap` 流程。本文明确保留这一
-来源关系，不把 FC3 方法表述成完全独立产生。MLFCS 在此基础上新增设计了阶数参数化的
-ASE/JAX 架构、稀疏表示、受约束求和规则求解器，以及覆盖二阶至任意阶的可互操作 API。
-
 phonopy/phono3py 提供成熟的谐性和三阶有限位移流程，ALAMODE 支持基于位移和回归的
 非谐晶格动力学，hiphive 在对称团簇空间拟合力常数模型，ShengBTE 与 FourPhonon 使用
 三阶和四阶相互作用计算输运。MLFCS 与这些软件互补，其明确定位是：从任意 ASE 力源
@@ -93,8 +88,7 @@ MLFCS 面向已经拥有力生成器、但需要从位移结构可靠得到可�
 ## 致谢
 
 作者感谢中南大学物理学院提供机构支持，感谢所在课题组提供计算资源和一个用于软件验证
-的测试数据集。作者特别感谢 thirdorder 的作者，其算法和工作流为 MLFCS 的开发提供了
-重要参考，并感谢 ASE、JAX、NumPy、SciPy、spglib、phonopy、phono3py、hiphive、
+的测试数据集，并感谢 ASE、JAX、NumPy、SciPy、spglib、phonopy、phono3py、hiphive、
 ALAMODE、ShengBTE 和 FourPhonon 的开发维护者。本工作未获得外部经费资助，任何赞助方
 均未参与软件设计、验证、论文撰写或投稿决定。作者声明不存在利益冲突。文献条目见英文稿
 及 [`paper.bib`](paper.bib)。

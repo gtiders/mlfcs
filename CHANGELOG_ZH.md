@@ -75,7 +75,7 @@
 - JAX 高阶张量操作的 CPU/GPU 选择；
 - 任意阶通用稀疏 HDF5；
 - phonopy FC2、phono3py FC3 HDF5 以及 ShengBTE FC3/FC4 输出；
-- 默认保真的 ShengBTE 周期几何和显式 thirdorder 兼容模式；
+- 使用显式周期几何的 ShengBTE FC3/FC4 导出；
 - 可选的 phonopy/symfc 随机有效谐波模块；
 - phonopy、phono3py、hiphive 转换、ShengBTE 与解析 Morse FC4 科学参考；
 - Python 3.12/3.13 串行科学 CI。
@@ -89,6 +89,5 @@
 
 ### 兼容性
 
-- thirdorder 的 sow 顺序和 ShengBTE 布局必须显式请求；
 - 旧脚本需要迁移到 `ForceConstantCalculation`、`sow()`、`reap()` 或 `run()`；
 - `v3.0.0` 之前的标签属于旧实现或开发快照，仅为追溯保留，不属于 3.0 API 契约。

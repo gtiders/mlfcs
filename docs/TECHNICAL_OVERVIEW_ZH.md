@@ -65,7 +65,7 @@ JAX 只用于联合拟合中的稠密 Wick 力特征核；团簇枚举、张量�
 
 `format` 显式选择输出：任意阶可用 `hdf5`/`numpy`，二阶可用 phonopy 文本或 HDF5，
 三阶可用 phono3py HDF5，三阶和四阶可用 ShengBTE。ShengBTE 写出与重建结果共享的
-对称闭合周期支撑域，不提供旧 thirdorder 的周期像筛选或区块顺序兼容模式。
+对称闭合周期支撑域，并在格式边界解析联合相容的最近周期像。
 
 `alamode` 可在同一个 FCSXML 中写出 FC2--FC4。适配器保留 reference 超胞顺序，并直接序列化
 已有的 `primitive_index`/`cell_translation` 映射，而不重新识别原胞。周期镜像编号遵循

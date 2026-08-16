@@ -28,9 +28,6 @@
 - `test_provenance.py` 校验二阶派生夹具的 SHA-256；
 - 二阶与三阶基准共用同一训练数据和 pypolymlp 势函数，但拥有独立参考夹具。
 
-`reference/shengbte/Si_FC3/` 冻结 3x3x3、`cutoff=-6` 的外部 VASP sow 顺序，
-并检查 168 份外部计算使用 reference 原子顺序的有限差分契约。
-
 `reference/sscha/KCl_phonopy/` 将 phonopy 官方 KCl pypolymlp 势函数接入原生 MLFCS
 SSCHA 流程，并使用 phonopy 官方测试的 FC2 和自由能范围验证数值尺度。其上层
 的解析 q 空间测试则独立对比 MLFCS 与 phonopy 的频率和采样协方差。
@@ -55,7 +52,6 @@ uv run pytest tests/reference/phono3py/AlN_FC3/test_raw.py
 uv run pytest tests/reference/phono3py/AlN_FC3/test_asr.py
 uv run pytest tests/reference/phonopy/AlN_FC2
 uv run pytest tests/reference/sscha
-uv run pytest tests/reference/shengbte/Si_FC3/test_sow_contract.py
 ```
 
 参考基准必须串行运行。生成势函数和派生参考数据属于维护者操作，不进入普通 CI。

@@ -92,9 +92,9 @@ uv run python examples/vasp_external_fc3.py reap \
 ```
 
 Strict translational ASR is enabled by default. Pass `--no-asr` to retain the raw finite-
-difference result. ShengBTE serializes the reconstructed sparse physical support directly;
-there is no legacy thirdorder compatibility mode. Alternative FC3 outputs include generic sparse
-`hdf5`, `numpy`, and full `phono3py_hdf5`.
+difference result. ShengBTE serializes the reconstructed sparse physical support directly and
+resolves its periodic translations at the format boundary. Alternative FC3 outputs include
+generic sparse `hdf5`, `numpy`, and full `phono3py_hdf5`.
 
 ## Recovery and audit rules
 
