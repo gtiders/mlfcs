@@ -52,7 +52,7 @@ user-provided forces
 sparse symmetry reconstruction and optional sum-rule projection
         │
         ▼
-ForceConstants → HDF5 / NumPy / ShengBTE / phonopy
+ForceConstants → HDF5 / ShengBTE / phonopy-compatible formats
 ```
 
 Space-group symmetry, force-constant index permutations, and stabilizer constraints reduce each

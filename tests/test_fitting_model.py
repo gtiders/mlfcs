@@ -25,7 +25,7 @@ from mlfcs.fitting.model import (
 from mlfcs.fitting.parameterization import OrderParameterization as _OrderTensor
 from mlfcs.fitting.parameterization import expand_sparse as _expand_sparse
 from mlfcs.fitting.solver import explicit_constraint_null_space
-from mlfcs.model import ForceConstants, SparseOrderForceConstants
+from mlfcs.ifc.model import ForceConstants, SparseOrderForceConstants
 
 
 def test_streaming_gram_zero_target_has_finite_zero_relative_error():

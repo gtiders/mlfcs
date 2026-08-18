@@ -5,11 +5,11 @@
 ## 范围与架构
 
 MLFCS 基础流程以 ASE 为公共边界，根据用户提供的力重建力常数，不内置势函数，也不
-依赖 phonopy 或 symfc。`ForceConstantCalculation` 用同一套 `order` 参数化算法处理
+不要求安装 phonopy 或 symfc。`ForceConstantCalculation` 用同一套 `order` 参数化算法处理
 二阶及更高阶；`structure` 负责结构关系和周期几何，`clusters` 负责团簇与轨道，
 `constraints` 负责 ASR 和物理二阶约束，`ifc` 负责力常数数据模型，`io` 负责格式适配。
 原生 `mlfcs.sscha` 直接使用
-compact FC2 的相容 q 点采样和同一套 Gram 拟合参数化，不依赖 phonopy 或 symfc。
+compact FC2 的相容 q 点采样和同一套 Gram 拟合参数化，不要求这些外部工具。
 
 ## 超胞、截断与顺序
 
@@ -42,8 +42,7 @@ ASE Calculator 直接运行时，可选外推后端围绕设定位移构造多�
 ## ASR 与数值方法
 
 本次模块整理的硬性要求是保持当前数值实现：不改变算法、默认值、约束方程、稀疏
-标签、HDF5 schema 或 writer 语义。旧的 `mlfcs.model`、`mlfcs.core.geometry`、
-`mlfcs.core.orbits` 和 `mlfcs.harmonic_constraints` 仅作为兼容导入层；新代码使用
+标签、HDF5 schema 或 writer 语义。旧的兼容转发模块已经删除；新代码使用
 `mlfcs.public` 或职责对应的子包。所有用户入口在定义处直接声明完整签名，拟合和 SSCHA
 按需加载，不会因为导入有限差分或 IO 而初始化 JAX。
 

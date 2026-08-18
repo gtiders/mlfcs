@@ -4,7 +4,7 @@ from ase import Atoms
 from scipy import sparse
 
 from mlfcs.api import ForceConstantCalculation
-from mlfcs.core.orbits import cluster_invariant_dimension
+from mlfcs.clusters.orbits import cluster_invariant_dimension
 from mlfcs.fitting.constraints import (
     _validate_missing_contractions,
     append_zero_taylor_order_constraints,

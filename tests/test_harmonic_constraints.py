@@ -2,7 +2,7 @@ import numpy as np
 from ase import Atoms
 
 from mlfcs import ForceConstantCalculation
-from mlfcs.model import ForceConstants, SparseOrderForceConstants
+from mlfcs.ifc.model import ForceConstants, SparseOrderForceConstants
 
 
 def test_strict_harmonic_projection_uses_tied_images_and_keeps_higher_orders():
