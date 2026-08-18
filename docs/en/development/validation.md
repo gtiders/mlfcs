@@ -8,7 +8,7 @@ The analytic Morse FC4 test is an internal independent-energy check. It verifies
 order and FC4 values without relying on another force-constant implementation.
 
 Material comparisons formerly kept under `tests/reference/` now belong to the corresponding
-`examples/cases/<Material>/` README. They retain third-party outputs and provenance as human-
+`examples/<Material>/` README. They retain third-party outputs and provenance as human-
 reviewed evidence rather than automatic truth arrays. A comparison must state primitive and
 supercell conventions, atom order, units, cutoff, periodic-image convention, and constraints
 before reporting IFC, phonon, or transport differences.

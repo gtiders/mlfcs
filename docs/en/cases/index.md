@@ -7,11 +7,11 @@ commands, input provenance, expected outputs, and third-party reference data.
 
 ## Material cases
 
-- [Si](https://github.com/gtiders/mlfcs/tree/main/examples/cases/Si/README.md): finite-difference and force-only fitting workflows.
-- [K4As4Pt2](https://github.com/gtiders/mlfcs/tree/main/examples/cases/K4As4Pt2/fitting/README.md): FC2--FC4 fitting and loop-SCPH.
-- [Ba8Ga16Ge30](https://github.com/gtiders/mlfcs/tree/main/examples/cases/Ba8Ga16Ge30/fitting/README.md): public hiPhive training data.
-- [KCl](https://github.com/gtiders/mlfcs/tree/main/examples/cases/KCl/sscha/README.md): native SSCHA reference.
-- [MoS2 and graphene](https://github.com/gtiders/mlfcs/tree/main/examples/cases/rotational_sum_rules/MoS2_monolayer/README.md):
+- [Si](https://github.com/gtiders/mlfcs/tree/main/examples/finite-difference/Si/README.md): finite-difference and force-only fitting workflows.
+- [K4As4Pt2](https://github.com/gtiders/mlfcs/tree/main/examples/fitting/K4As4Pt2/README.md): FC2--FC4 fitting and loop-SCPH.
+- [Ba8Ga16Ge30](https://github.com/gtiders/mlfcs/tree/main/examples/fitting/Ba8Ga16Ge30/README.md): public hiPhive training data.
+- [KCl](https://github.com/gtiders/mlfcs/tree/main/examples/sscha/KCl/README.md): native SSCHA reference.
+- [MoS2 and graphene](https://github.com/gtiders/mlfcs/tree/main/examples/fitting/MoS2_monolayer/README.md):
   second-order rotational constraints.
 
 These scripts demonstrate public MLFCS APIs. Run them from the repository root with `uv run`.

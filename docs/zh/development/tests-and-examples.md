@@ -5,7 +5,7 @@ MLFCS 有两个彼此独立的本地验证入口：
 | 位置 | 责任 | CI |
 |---|---|---|
 | `tests/` | 确定性的单元测试和公共 API 回归 | 不在 CI 运行 |
-| `examples/cases/` | 材料工作流和第三方参考证据 | 不在 CI 运行 |
+| `examples/` | 材料工作流和第三方参考证据 | 不在 CI 运行 |
 
 ## 测试
 
@@ -26,7 +26,7 @@ uv run ruff format --check src tests examples
 顶层 `examples/*.py` 演示单个公共 API 任务。材料数据统一位于：
 
 ```text
-examples/cases/<Material>/<case>/
+examples/<Material>/<case>/
   README.md
   structures/
   fitting/
