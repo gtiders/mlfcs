@@ -85,7 +85,9 @@ class SSCHA:
         self.primitive.wrap()
         if reference is None:
             matrix = (2, 2, 2) if supercell is None else supercell
-            self._reference, self._index = make_supercell(self.primitive, matrix)
+            self._reference, self._index = make_supercell(
+                self.primitive, matrix, symprec=symprec
+            )
         else:
             from mlfcs.core.geometry import StructureRelation, normalize_supercell_matrix
 

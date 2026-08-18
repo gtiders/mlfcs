@@ -54,7 +54,7 @@ class InteractionSpace:
         else:
             if matrix_input is None:
                 matrix_input = (2, 2, 2)
-            generated, _ = make_supercell(atoms, matrix_input)
+            generated, _ = make_supercell(atoms, matrix_input, symprec=symprec)
             self.relation = StructureRelation.from_atoms(atoms, generated, tolerance=symprec)
         matrix = self.relation.supercell_matrix
         self.config = RunConfig(

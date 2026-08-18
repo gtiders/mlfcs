@@ -83,7 +83,8 @@ class SparseOrderForceConstants:
         """Return the symmetry-closed atomic-cluster support."""
         result = np.zeros(self.dense_shape[: self.order], dtype=bool)
         if len(self.clusters):
-            result[tuple(self.clusters.T)] = True
+            anchors = self.clusters[:, 0] if self.sites is None else self.sites[:, 0]
+            result[(anchors, *self.clusters[:, 1:].T)] = True
         return result
 
     def to_dense(
@@ -103,10 +104,12 @@ class SparseOrderForceConstants:
             )
         result = np.zeros(self.dense_shape, dtype=self.tensors.dtype)
         counts = np.zeros(self.dense_shape[: self.order], dtype=np.int16)
-        for cluster, tensor in zip(self.clusters, self.tensors, strict=True):
+        for row, (cluster, tensor) in enumerate(zip(self.clusters, self.tensors, strict=True)):
             key = tuple(int(atom) for atom in cluster)
             if primitive_index is not None:
                 key = (int(primitive_index[key[0]]), *key[1:])
+            elif self.sites is not None:
+                key = (int(self.sites[row, 0]), *key[1:])
             result[key] += tensor
             counts[key] += 1
         nonzero = counts > 0

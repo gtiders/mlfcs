@@ -31,7 +31,7 @@ def test_alamode_xml_preserves_mlfcs_atom_order_and_translation_map(tmp_path):
         pbc=True,
     )
     supercell, _ = make_supercell(primitive, (2, 1, 1))
-    fc2 = _sparse(2, 2, 4, (0, 2), (0, 0), 2.5)
+    fc2 = _sparse(2, 2, 4, (0, 1), (0, 0), 2.5)
     force_constants = ForceConstants({}, supercell, sparse={2: fc2})
 
     output = tmp_path / "force_constants.xml"
@@ -39,20 +39,20 @@ def test_alamode_xml_preserves_mlfcs_atom_order_and_translation_map(tmp_path):
     root = parse(output).getroot()
 
     positions = root.findall("Structure/Position/pos")
-    assert [node.get("element") for node in positions] == ["Na", "Cl", "Na", "Cl"]
+    assert [node.get("element") for node in positions] == ["Na", "Na", "Cl", "Cl"]
     mappings = root.findall("Symmetry/Translations/map")
     assert [(node.get("tran"), node.get("atom"), node.text) for node in mappings] == [
         ("1", "1", "1"),
-        ("1", "2", "2"),
-        ("2", "1", "3"),
+        ("1", "2", "3"),
+        ("2", "1", "2"),
         ("2", "2", "4"),
     ]
 
-    # Atom 3 lies at half the supercell length from atom 1. ALAMODE represents
+    # Atom 2 lies at half the supercell length from atom 1. ALAMODE represents
     # the two closest mirror images separately and divides the value between them.
     entries = root.findall("ForceConstants/HARMONIC/FC2")
     assert len(entries) == 2
-    assert {entry.get("pair2") for entry in entries} == {"3 1 1", "3 1 6"}
+    assert {entry.get("pair2") for entry in entries} == {"2 1 1", "2 1 6"}
     recovered = sum(float(entry.text) for entry in entries) * Rydberg / Bohr**2
     assert np.isclose(recovered, 2.5, atol=1e-13, rtol=1e-13)
 

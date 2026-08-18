@@ -25,11 +25,12 @@ def test_phonopy_writer_expands_fc2_and_matches_reference_format(tmp_path):
     assert lines[0] == "   4    4"
     assert len(lines) == 1 + 4 * 4 * 4
 
-    # The file retains the reference order. For the second reference atom as
-    # anchor and the third as tail, translational anchoring selects atom 2.
+    # The file retains phonopy's primitive-site-major reference order. For
+    # the second reference atom as anchor and the third as tail, translational
+    # anchoring selects primitive site 0 and reference atom 4.
     block = 1 + (1 * 4 + 2) * 4
     assert lines[block] == "2 3"
-    expected = compact[1, 2]
+    expected = compact[0, 3]
     parsed = np.array(
         [[float(value) for value in lines[block + row + 1].split()] for row in range(3)]
     )

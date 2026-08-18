@@ -40,4 +40,5 @@ def test_reconstructs_every_orbit_from_independent_components(order):
 
     compact = reconstruct_sparse(space, index, derivatives, enforce_asr=False).to_dense()
     for cluster, tensor in expected.items():
-        np.testing.assert_allclose(compact[cluster], tensor, atol=1e-9)
+        dense_key = (index.primitive[cluster[0]], *cluster[1:])
+        np.testing.assert_allclose(compact[dense_key], tensor, atol=1e-9)
