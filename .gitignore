@@ -7,6 +7,14 @@ wheels/
 *.egg-info
 .mlfcs-cache/
 
+# Generated outputs of material examples; figures and reference evidence remain tracked.
+/examples/**/results/
+/examples/**/reference/baselines/
+/examples-next/**/results/
+/examples-next/**/reference/baselines/
+/examples/**/transport/**/input/*.h5
+/examples-next/**/transport/**/input/*.h5
+
 # Virtual environments
 .venv
 site/
