@@ -1,7 +1,7 @@
 import numpy as np
 from ase.build import bulk
 
-from mlfcs.structure.geometry import (
+from mlfcs.core.geometry import (
     _unique_distances,
     make_supercell,
     neighbor_shell_limit,

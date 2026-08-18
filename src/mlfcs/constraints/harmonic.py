@@ -13,8 +13,8 @@ from dataclasses import dataclass
 import numpy as np
 from scipy import sparse
 
+from mlfcs.core.geometry import PeriodicGeometry
 from mlfcs.ifc.model import ForceConstants, SparseOrderForceConstants
-from mlfcs.structure.geometry import PeriodicGeometry
 
 
 @dataclass(frozen=True, slots=True)

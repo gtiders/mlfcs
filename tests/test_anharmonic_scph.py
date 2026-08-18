@@ -5,9 +5,9 @@ import pytest
 from ase import Atoms
 
 from mlfcs.anharmonic.scph import LoopSCPH, harmonic_frequencies
+from mlfcs.core.geometry import StructureRelation
 from mlfcs.ifc.model import ForceConstants, SparseOrderForceConstants
 from mlfcs.io.hdf5 import read_hdf5
-from mlfcs.structure.geometry import StructureRelation
 
 
 def _force_constants(*, cell=4.0):

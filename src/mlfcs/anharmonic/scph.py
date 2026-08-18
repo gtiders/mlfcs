@@ -18,8 +18,8 @@ from mlfcs.anharmonic.common.thermodynamics import (
     mode_sigma,
     regular_qpoints,
 )
+from mlfcs.core.geometry import PeriodicGeometry
 from mlfcs.ifc.model import ForceConstants, SparseOrderForceConstants
-from mlfcs.structure.geometry import PeriodicGeometry
 
 _HBAR_ASE = HBAR_ASE
 _OMEGA_TO_THZ = OMEGA_TO_THZ

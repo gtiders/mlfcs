@@ -9,7 +9,7 @@ from phono3py.file_IO import read_fc3_from_hdf5
 from phonopy.file_IO import read_force_constants_hdf5
 
 from mlfcs import ForceConstantCalculation, ForceConstants, SparseOrderForceConstants
-from mlfcs.structure.geometry import make_supercell
+from mlfcs.core.geometry import make_supercell
 
 
 def test_reap_keeps_sparse_clusters_and_hdf5_writes_them(tmp_path):

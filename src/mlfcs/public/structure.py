@@ -1,6 +1,6 @@
 """Public structure and supercell construction API."""
 
-from mlfcs.structure.geometry import (
+from mlfcs.core.geometry import (
     PeriodicIndex,
     StructureRelation,
     align_structures,

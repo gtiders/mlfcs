@@ -6,7 +6,7 @@ from dataclasses import dataclass
 import numpy as np
 from ase import Atoms
 
-from mlfcs.structure.geometry import StructureRelation
+from mlfcs.core.geometry import StructureRelation
 
 
 @dataclass(frozen=True, slots=True)

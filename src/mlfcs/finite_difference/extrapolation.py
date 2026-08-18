@@ -5,7 +5,7 @@ from dataclasses import dataclass
 import numpy as np
 from ase import Atoms
 
-from mlfcs.clusters.orbits import OrbitSpace
+from mlfcs.core.orbits import OrbitSpace
 from mlfcs.finite_difference.sampling import (
     DisplacementKey,
     DisplacementPlan,

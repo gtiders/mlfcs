@@ -13,9 +13,9 @@ API 参考从公共 Python 模块的 docstring 自动生成。教程和工作流
 
 ::: mlfcs.ifc.model.ForceConstants
 
-::: mlfcs.structure.geometry.StructureRelation
+::: mlfcs.core.geometry.StructureRelation
 
-::: mlfcs.structure.geometry.PeriodicGeometry
+::: mlfcs.core.geometry.PeriodicGeometry
 
 ## 拟合、SSCHA 与 SCPH 工作流
 

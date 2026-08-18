@@ -1,8 +1,8 @@
 import numpy as np
 from ase.build import bulk
 
+from mlfcs.core.geometry import make_supercell
 from mlfcs.core.symmetry import SymmetryOperations
-from mlfcs.structure.geometry import make_supercell
 
 
 def test_every_symmetry_operation_is_an_atom_permutation():
