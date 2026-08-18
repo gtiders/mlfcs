@@ -383,10 +383,10 @@ dense = fc5.materialize(5, max_bytes=None)  # 显式关闭警告预算
 
 ## 原生 SSCHA
 
-独立的 `mlfcs.sscha` 模块根据热位移上的原子力拟合温度相关有效 FC2：
+独立的 `mlfcs.anharmonic.sscha` 模块根据热位移上的原子力拟合温度相关有效 FC2：
 
 ```python
-from mlfcs.sscha import SSCHA
+from mlfcs.anharmonic.sscha import SSCHA
 
 sscha = SSCHA(
     atoms,

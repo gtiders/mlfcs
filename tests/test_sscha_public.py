@@ -7,7 +7,7 @@ import pytest
 from ase import Atoms
 from ase.calculators.calculator import Calculator, all_changes
 
-from mlfcs.sscha import SSCHA
+from mlfcs.anharmonic.sscha import SSCHA
 from mlfcs.structure.geometry import make_supercell
 
 

@@ -12,10 +12,10 @@ from ase import Atoms
 from ase.calculators.calculator import Calculator
 from numpy.typing import ArrayLike, NDArray
 
-from mlfcs.core.fc2 import compact_fc2, expand_compact_fc2
+from mlfcs.anharmonic.common.ensemble import EnsembleDiagnostics, HarmonicEnsemble
+from mlfcs.anharmonic.common.fc2 import compact_fc2, expand_compact_fc2
 from mlfcs.fitting import ForceConstantFitter
 from mlfcs.ifc.model import ForceConstants
-from mlfcs.sscha.ensemble import EnsembleDiagnostics, HarmonicEnsemble
 from mlfcs.structure.geometry import make_supercell
 
 Progress = Callable[[int, int], None]

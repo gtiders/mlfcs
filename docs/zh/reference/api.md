@@ -17,12 +17,12 @@ API 参考从公共 Python 模块的 docstring 自动生成。教程和工作流
 
 ::: mlfcs.structure.geometry.PeriodicGeometry
 
-## 拟合与非谐工作流
+## 拟合、SSCHA 与 SCPH 工作流
 
 ::: mlfcs.public.fitting
     options:
       members: false
 
-::: mlfcs.public.anharmonic
+::: mlfcs.public.scph
 
-::: mlfcs.sscha.core.SSCHA
+::: mlfcs.anharmonic.sscha.SSCHA

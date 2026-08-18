@@ -6,7 +6,7 @@ IO helpers does not initialize JAX or the SSCHA machinery.
 
 from importlib import import_module
 
-from mlfcs.anharmonic import LoopSCPH, LoopSCPHResult, harmonic_frequencies
+from mlfcs.anharmonic.scph import LoopSCPH, LoopSCPHResult, harmonic_frequencies
 from mlfcs.public.constraints import (
     HarmonicConstraintDiagnostics,
     HarmonicConstraintResult,
@@ -52,5 +52,5 @@ def __getattr__(name: str):
     if name in {"FitDataset", "FittingDiagnostics", "FittingResult", "ForceConstantFitter"}:
         return getattr(import_module("mlfcs.public.fitting"), name)
     if name in {"EnsembleDiagnostics", "HarmonicEnsemble", "SSCHA", "SSCHAIteration"}:
-        return getattr(import_module("mlfcs.sscha"), name)
+        return getattr(import_module("mlfcs.anharmonic.sscha"), name)
     raise AttributeError(name)

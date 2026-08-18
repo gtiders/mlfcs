@@ -2,7 +2,7 @@
 
 [中文]
 
-`mlfcs.sscha` iteratively fits an effective FC2 from ASE force snapshots and samples the next
+`mlfcs.anharmonic.sscha` iteratively fits an effective FC2 from ASE force snapshots and samples the next
 harmonic canonical ensemble. It uses the native MLFCS symmetry-reduced Gram fitter and a compact
 q-space sampler.
 
@@ -37,7 +37,7 @@ Set `statistics="classical"` for `kB T / omega_s**2`.
 
 ```python
 from ase.io import read
-from mlfcs.sscha import SSCHA
+from mlfcs.anharmonic.sscha import SSCHA
 
 sscha = SSCHA(
     read("POSCAR"),

@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 from ase import Atoms, units
 
-from mlfcs.sscha.ensemble import HarmonicEnsemble
+from mlfcs.anharmonic.common.ensemble import HarmonicEnsemble
 from mlfcs.structure.geometry import make_supercell
 
 

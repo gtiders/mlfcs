@@ -15,12 +15,12 @@ are the normative usage guide; generated signatures document accepted arguments 
 
 ::: mlfcs.structure.geometry.PeriodicGeometry
 
-## Fitting and anharmonic workflows
+## Fitting, SSCHA, and SCPH workflows
 
 ::: mlfcs.public.fitting
     options:
       members: false
 
-::: mlfcs.public.anharmonic
+::: mlfcs.public.scph
 
-::: mlfcs.sscha.core.SSCHA
+::: mlfcs.anharmonic.sscha.SSCHA

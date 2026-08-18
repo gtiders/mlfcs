@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 from ase import Atoms
 
-from mlfcs.anharmonic import LoopSCPH, harmonic_frequencies
+from mlfcs.anharmonic.scph import LoopSCPH, harmonic_frequencies
 from mlfcs.ifc.model import ForceConstants, SparseOrderForceConstants
 from mlfcs.io.hdf5 import read_hdf5
 from mlfcs.structure.geometry import StructureRelation

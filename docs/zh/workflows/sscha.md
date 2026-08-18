@@ -2,7 +2,7 @@
 
 [English]
 
-`mlfcs.sscha` 使用 ASE 力快照迭代拟合有效 FC2，并由当前谐波哈密顿量采样下一轮正则
+`mlfcs.anharmonic.sscha` 使用 ASE 力快照迭代拟合有效 FC2，并由当前谐波哈密顿量采样下一轮正则
 系综。它采用 MLFCS 自身的对称性约化 Gram 拟合器和 compact q 空间采样器。
 
 ## 方法
@@ -34,7 +34,7 @@ variance(q_s) = hbar / (2 omega_s) coth[hbar omega_s / (2 kB T)]
 
 ```python
 from ase.io import read
-from mlfcs.sscha import SSCHA
+from mlfcs.anharmonic.sscha import SSCHA
 
 sscha = SSCHA(
     read("POSCAR"),

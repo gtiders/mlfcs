@@ -62,7 +62,9 @@ def test_low_level_packages_do_not_depend_on_workflow_or_writer_modules():
     ):
         imports = _imports(module)
         assert not any(
-            value.startswith(("mlfcs.io", "mlfcs.fitting", "mlfcs.anharmonic", "mlfcs.sscha"))
+            value.startswith(
+                ("mlfcs.io", "mlfcs.fitting", "mlfcs.anharmonic.scph", "mlfcs.anharmonic.sscha")
+            )
             for value in imports
         ), module
 
@@ -70,13 +72,15 @@ def test_low_level_packages_do_not_depend_on_workflow_or_writer_modules():
     # data model otherwise has no workflow dependency.
     ifc_imports = _imports("ifc.model")
     assert not any(
-        value.startswith(("mlfcs.fitting", "mlfcs.anharmonic", "mlfcs.sscha"))
+        value.startswith(("mlfcs.fitting", "mlfcs.anharmonic.scph", "mlfcs.anharmonic.sscha"))
         for value in ifc_imports
     )
 
     for module in ("io.alamode", "io.hdf5", "io.phonon_hdf5", "io.phonopy", "io.shengbte"):
         imports = _imports(module)
         assert not any(
-            value.startswith(("mlfcs.api", "mlfcs.fitting", "mlfcs.sscha", "mlfcs.anharmonic"))
+            value.startswith(
+                ("mlfcs.api", "mlfcs.fitting", "mlfcs.anharmonic.sscha", "mlfcs.anharmonic.scph")
+            )
             for value in imports
         ), module
