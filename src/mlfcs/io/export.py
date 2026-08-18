@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from hashlib import sha256
+from time import perf_counter
 
 import numpy as np
 from ase import Atoms
@@ -19,6 +21,39 @@ class ExportView:
 
     force_constants: ForceConstants
     relation: StructureRelation | None
+
+
+def _atoms_fingerprint(atoms: Atoms | None) -> str | None:
+    if atoms is None:
+        return None
+    digest = sha256()
+    for values in (
+        np.asarray(atoms.numbers, dtype=np.int64),
+        np.asarray(atoms.cell, dtype=np.float64),
+        np.asarray(atoms.positions, dtype=np.float64),
+        np.asarray(atoms.pbc, dtype=np.uint8),
+    ):
+        digest.update(np.ascontiguousarray(values).tobytes())
+    return digest.hexdigest()
+
+
+def _export_cache_key(force_constants: ForceConstants, primitive, supercell) -> tuple[object, ...]:
+    sparse_identity = tuple(
+        (
+            int(order),
+            id(values.clusters),
+            id(values.tensors),
+            id(values.sites),
+            id(values.translation_representatives),
+        )
+        for order, values in sorted(force_constants.sparse.items())
+    )
+    return (
+        id(force_constants.relation),
+        _atoms_fingerprint(primitive),
+        _atoms_fingerprint(supercell),
+        sparse_identity,
+    )
 
 
 def _unimodular_change(target: np.ndarray, source: np.ndarray, *, name: str) -> np.ndarray:
@@ -75,10 +110,23 @@ def build_export_view(
     unimodular basis changes, and the target supercell must retain the exact
     source translation sublattice.
     """
+    cache_key = _export_cache_key(force_constants, primitive, supercell)
+    cached = force_constants._export_view_cache.get(cache_key)
+    if cached is not None:
+        print("MLFCS export view: cache hit; reusing existing view", flush=True)
+        return cached
+    print("MLFCS export view: cache miss; constructing new view", flush=True)
+    construction_started = perf_counter()
     if not isinstance(force_constants.relation, StructureRelation):
         if primitive is not None or supercell is not None:
             raise ValueError("target export requires force constants with a StructureRelation")
-        return ExportView(force_constants, None)
+        view = ExportView(force_constants, None)
+        force_constants._export_view_cache[cache_key] = view
+        print(
+            f"MLFCS export view: constructed in {perf_counter() - construction_started:.6f} s",
+            flush=True,
+        )
+        return view
     source = force_constants.relation
     target_primitive = source.primitive if primitive is None else primitive
     target_supercell = source.reference if supercell is None else supercell
@@ -134,7 +182,13 @@ def build_export_view(
     converted = ForceConstants(
         {}, target.reference.copy(), dict(force_constants.metadata), sparse, target
     )
-    return ExportView(converted, target)
+    view = ExportView(converted, target)
+    force_constants._export_view_cache[cache_key] = view
+    print(
+        f"MLFCS export view: constructed in {perf_counter() - construction_started:.6f} s",
+        flush=True,
+    )
+    return view
 
 
 def alamode_reduced_export_view(force_constants: ForceConstants) -> ExportView:

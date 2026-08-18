@@ -1,1 +1,0 @@
-"""Force-constant reconstruction tests."""

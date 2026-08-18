@@ -93,7 +93,6 @@ class ForceConstantCalculation:
         forces: ForceInput,
         *,
         acoustic_sum_rule: bool = True,
-        rotational_sum_rule: bool = False,
     ) -> ForceConstants:
         """Reconstruct force constants from forces supplied by the user.
 
@@ -102,11 +101,6 @@ class ForceConstantCalculation:
         insertion order.
         """
         self._report(f"Reaping forces for order-{self.config.order} force constants")
-        if rotational_sum_rule and self.config.order != 2:
-            raise ValueError(
-                "rotational_sum_rule is currently available only for order=2; "
-                "higher-order rotational conditions couple adjacent force-constant orders"
-            )
         values = self._normalize_forces(forces)
         self._report(f"- Validated {len(values)} force configurations")
         derivatives = self.plan.contract_forces(values)
@@ -114,7 +108,6 @@ class ForceConstantCalculation:
         return self._reconstruct(
             derivatives,
             acoustic_sum_rule=acoustic_sum_rule,
-            rotational_sum_rule=rotational_sum_rule,
             metadata={
                 "derivative_backend": "central",
                 "configurations": len(self.plan),
@@ -126,21 +119,17 @@ class ForceConstantCalculation:
         derivatives,
         *,
         acoustic_sum_rule: bool,
-        rotational_sum_rule: bool,
         metadata: dict[str, object],
     ) -> ForceConstants:
         self._report(
             "Reconstructing symmetry-expanded force constants "
-            f"(ASR {'enabled' if acoustic_sum_rule else 'disabled'}, "
-            f"rotational sum rule {'enabled' if rotational_sum_rule else 'disabled'})"
+            f"(ASR {'enabled' if acoustic_sum_rule else 'disabled'})"
         )
         sparse = reconstruct_sparse(
             self.orbit_space,
             self.index,
             derivatives,
             enforce_asr=acoustic_sum_rule,
-            enforce_rotational=rotational_sum_rule,
-            supercell=self.supercell,
             report=self._report,
         )
         self._report(f"- Reconstructed {len(sparse.clusters)} sparse cluster tensors")
@@ -153,7 +142,6 @@ class ForceConstantCalculation:
                 "displacement_angstrom": self.config.displacement,
                 "spacegroup": self.symmetry.symbol,
                 "acoustic_sum_rule": acoustic_sum_rule,
-                "rotational_sum_rule": rotational_sum_rule,
                 **metadata,
             },
             sparse={self.config.order: sparse},
@@ -166,7 +154,6 @@ class ForceConstantCalculation:
         *,
         progress: Progress | None = None,
         acoustic_sum_rule: bool = True,
-        rotational_sum_rule: bool = False,
         derivative_backend: Literal["central", "extrapolate"] = "central",
         extrapolation_spacing: float | None = None,
         extrapolation_side_steps: int = 1,
@@ -185,7 +172,6 @@ class ForceConstantCalculation:
                 degree=extrapolation_degree,
                 progress=progress,
                 acoustic_sum_rule=acoustic_sum_rule,
-                rotational_sum_rule=rotational_sum_rule,
             )
         if derivative_backend != "central":
             raise ValueError("derivative_backend must be 'central' or 'extrapolate'")
@@ -199,7 +185,6 @@ class ForceConstantCalculation:
         return self.reap(
             forces,
             acoustic_sum_rule=acoustic_sum_rule,
-            rotational_sum_rule=rotational_sum_rule,
         )
 
     def _run_extrapolation(
@@ -211,15 +196,9 @@ class ForceConstantCalculation:
         degree: int,
         progress: Progress | None,
         acoustic_sum_rule: bool,
-        rotational_sum_rule: bool,
     ) -> ForceConstants:
         if not isinstance(calculator, Calculator):
             raise TypeError("calculator must be an ASE Calculator")
-        if rotational_sum_rule and self.config.order != 2:
-            raise ValueError(
-                "rotational_sum_rule is currently available only for order=2; "
-                "higher-order rotational conditions couple adjacent force-constant orders"
-            )
         backend = ExtrapolationBackend(
             self.config.displacement,
             spacing,
@@ -262,7 +241,6 @@ class ForceConstantCalculation:
         return self._reconstruct(
             derivatives,
             acoustic_sum_rule=acoustic_sum_rule,
-            rotational_sum_rule=rotational_sum_rule,
             metadata={
                 "derivative_backend": "extrapolate",
                 "configurations": total,

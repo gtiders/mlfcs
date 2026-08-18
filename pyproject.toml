@@ -39,13 +39,12 @@ Repository = "https://github.com/gtiders/mlfcs"
 
 [dependency-groups]
 dev = [
-    "hiphive>=1.5",
-    "phono3py>=3.0",
     "pytest>=8",
     "ruff>=0.9",
 ]
-reference = [
-    "pypolymlp>=0.20.4",
+docs = [
+    "mkdocs-material>=9.5",
+    "mkdocstrings[python]>=0.27",
 ]
 
 [[tool.uv.index]]
@@ -62,10 +61,6 @@ packages = ["src/mlfcs"]
 [tool.pytest.ini_options]
 addopts = "-q"
 testpaths = ["tests"]
-markers = [
-    "integration: public API integration tests",
-    "reference: independent external scientific reference tests",
-]
 
 [tool.ruff]
 line-length = 100

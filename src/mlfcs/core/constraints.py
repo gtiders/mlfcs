@@ -1,13 +1,11 @@
-"""Shared equality-constraint construction, diagnostics, and projection."""
+"""Shared translational equality constraints and their projection."""
 
 from __future__ import annotations
 
 import numpy as np
-from ase import Atoms
 from scipy import sparse
 from scipy.sparse.linalg import lsmr
 
-from mlfcs.core.geometry import PeriodicGeometry, PeriodicIndex
 from mlfcs.core.orbits import OrbitSpace
 
 
@@ -38,111 +36,6 @@ def build_translational_constraints(
     return sparse.coo_matrix(
         (data, (rows, columns)),
         shape=(len(equations), int(offsets[-1])),
-    ).tocsr()
-
-
-def build_harmonic_rotational_constraints(
-    orbit_space: OrbitSpace,
-    supercell: Atoms,
-    *,
-    index: PeriodicIndex | None = None,
-    tolerance: float = 1e-12,
-) -> sparse.csr_matrix:
-    """Build the FC1=0 Born--Huang rotational boundary for harmonic IFCs.
-
-    This is the lowest member of the adjacent-order rotational hierarchy.  At
-    a mechanical-equilibrium reference structure FC1 vanishes, leaving the
-    condition that a rigid infinitesimal rotation produces no harmonic force.
-    Relative MIC vectors make the equations independent of coordinate origin.
-    """
-    if orbit_space.order != 2:
-        raise ValueError("the FC1=0 rotational boundary requires order-2 force constants")
-    if index is not None:
-        return _build_materialized_harmonic_rotational_constraints(
-            orbit_space, supercell, index, tolerance=tolerance
-        )
-    dimensions = [orbit.dimension for orbit in orbit_space.orbits]
-    offsets = np.cumsum([0, *dimensions])
-    rows: list[int] = []
-    columns: list[int] = []
-    data: list[float] = []
-    axes = np.eye(3)
-    geometry = PeriodicGeometry(supercell.cell, supercell.pbc)
-
-    for orbit_index, orbit in enumerate(orbit_space.orbits):
-        representative_from_pivots = orbit.basis @ np.linalg.inv(orbit.basis[orbit.pivots])
-        for image in orbit.images:
-            first, second = image.cluster
-            vector, _ = geometry.mic(supercell.positions[second] - supercell.positions[first])
-            rigid_displacements = np.cross(axes, vector)
-            image_from_pivots = image.action.apply_columns(representative_from_pivots)
-            for force_direction in range(3):
-                block = image_from_pivots.reshape(3, 3, -1)[force_direction]
-                for rotation_axis in range(3):
-                    equation = (int(first) * 3 + force_direction) * 3 + rotation_axis
-                    coefficients = rigid_displacements[rotation_axis] @ block
-                    nonzero = np.flatnonzero(np.abs(coefficients) > tolerance)
-                    rows.extend([equation] * len(nonzero))
-                    columns.extend(int(offsets[orbit_index] + value) for value in nonzero)
-                    data.extend(float(coefficients[value]) for value in nonzero)
-
-    n_anchors = 1 + max(
-        (int(image.cluster[0]) for orbit in orbit_space.orbits for image in orbit.images),
-        default=-1,
-    )
-    return sparse.coo_matrix(
-        (data, (rows, columns)),
-        shape=(9 * n_anchors, int(offsets[-1])),
-    ).tocsr()
-
-
-def _build_materialized_harmonic_rotational_constraints(
-    orbit_space: OrbitSpace,
-    supercell: Atoms,
-    index: PeriodicIndex,
-    *,
-    tolerance: float,
-) -> sparse.csr_matrix:
-    """Build moments from the same averaged physical keys as sparse IFC output."""
-    dimensions = [orbit.dimension for orbit in orbit_space.orbits]
-    offsets = np.cumsum([0, *dimensions])
-    images: dict[tuple[int, int], list[tuple[np.ndarray, int]]] = {}
-    for orbit_index, orbit in enumerate(orbit_space.orbits):
-        representative = orbit.basis @ np.linalg.inv(orbit.basis[orbit.pivots])
-        for image in orbit.images:
-            first, second = (int(value) for value in image.cluster)
-            key = (int(index.primitive[first]), second)
-            images.setdefault(key, []).append(
-                (image.action.apply_columns(representative), int(offsets[orbit_index]))
-            )
-
-    n_parameters = int(offsets[-1])
-    positions = supercell.positions
-    geometry = PeriodicGeometry(supercell.cell, supercell.pbc)
-    axes = np.eye(3)
-    rows: list[int] = []
-    columns: list[int] = []
-    data: list[float] = []
-    for (site, second), values in images.items():
-        tensor_columns = np.zeros((9, n_parameters), dtype=float)
-        for local_columns, offset in values:
-            width = local_columns.shape[1]
-            tensor_columns[:, offset : offset + width] += local_columns
-        tensor_columns = tensor_columns.reshape(3, 3, n_parameters) / len(values)
-        first = index.representative(site)
-        vector, _ = geometry.mic(positions[second] - positions[first])
-        rigid_displacements = np.cross(axes, vector)
-        for force_direction in range(3):
-            for rotation_axis in range(3):
-                coefficients = rigid_displacements[rotation_axis] @ tensor_columns[force_direction]
-                nonzero = np.flatnonzero(np.abs(coefficients) > tolerance)
-                equation = (site * 3 + force_direction) * 3 + rotation_axis
-                rows.extend([equation] * len(nonzero))
-                columns.extend(int(value) for value in nonzero)
-                data.extend(float(coefficients[value]) for value in nonzero)
-    return sparse.coo_matrix(
-        (data, (rows, columns)),
-        shape=(9 * index.n_primitive, n_parameters),
     ).tocsr()
 
 
@@ -185,7 +78,6 @@ def maximum_constraint_residual(
 
 
 __all__ = [
-    "build_harmonic_rotational_constraints",
     "build_translational_constraints",
     "maximum_constraint_residual",
     "project_parameters",

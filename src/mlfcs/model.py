@@ -123,6 +123,9 @@ class ForceConstants:
     metadata: dict[str, object] = field(default_factory=dict)
     sparse: dict[int, SparseOrderForceConstants] = field(default_factory=dict)
     relation: object | None = None
+    _export_view_cache: dict[tuple[object, ...], object] = field(
+        default_factory=dict, init=False, repr=False, compare=False
+    )
 
     @property
     def orders(self) -> tuple[int, ...]:
@@ -132,9 +135,9 @@ class ForceConstants:
         if order in self.arrays:
             return self.arrays[order]
         primitive_index = self.supercell.arrays.get("primitive_index")
-        values = self.sparse[order].to_dense(
-            max_bytes=max_bytes, primitive_index=primitive_index
-        )
+        if primitive_index is None and self.relation is not None:
+            primitive_index = self.relation.primitive_index
+        values = self.sparse[order].to_dense(max_bytes=max_bytes, primitive_index=primitive_index)
         self.arrays[order] = values
         return values
 
@@ -156,4 +159,27 @@ class ForceConstants:
             order=order,
             primitive=primitive,
             supercell=supercell,
+        )
+
+    def enforce_harmonic_constraints(
+        self,
+        *,
+        born_huang: bool = False,
+        huang: bool = False,
+        strength: float = 1.0,
+        tolerance: float = 1e-8,
+    ):
+        """Return an FC2-only Born--Huang/Huang constrained result.
+
+        This is an explicit postprocessing operation.  It leaves every order
+        other than FC2 unchanged, including FC3 and FC4 from a Wick fit.
+        """
+        from mlfcs.harmonic_constraints import enforce_harmonic_constraints
+
+        return enforce_harmonic_constraints(
+            self,
+            born_huang=born_huang,
+            huang=huang,
+            strength=strength,
+            tolerance=tolerance,
         )

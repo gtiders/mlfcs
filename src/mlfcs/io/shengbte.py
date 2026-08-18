@@ -70,7 +70,9 @@ def _format_sparse_force_constants(
     physical: dict[tuple[int, ...], tuple[np.ndarray, np.ndarray, np.ndarray]] = {}
     for site_labels, translations, tensor in zip(sites, relative, fc.tensors, strict=True):
         translations = np.atleast_2d(translations)
-        basis_vectors = (basis_scaled[site_labels[1:]] - basis_scaled[site_labels[0]]) @ primitive_cell
+        basis_vectors = (
+            basis_scaled[site_labels[1:]] - basis_scaled[site_labels[0]]
+        ) @ primitive_cell
         vectors = basis_vectors + translations @ primitive_cell
         for shifts in geometry.joint_closest_image_shifts(vectors):
             resolved = translations + shifts @ index.supercell_matrix
@@ -94,9 +96,7 @@ def _format_sparse_force_constants(
         ]
         for directions in product(range(3), repeat=fc.order):
             direction_text = " ".join(f"{direction + 1:>2d}" for direction in directions)
-            value = zero_small_scalar(
-                tensor[directions], tolerance=_TEXT_ZERO_TOLERANCE
-            )
+            value = zero_small_scalar(tensor[directions], tolerance=_TEXT_ZERO_TOLERANCE)
             lines.append(f"{direction_text} {value:>20.10e}")
         blocks.append("\n".join(lines) + "\n")
     return f"{len(blocks):>5}\n" + "".join(blocks)
