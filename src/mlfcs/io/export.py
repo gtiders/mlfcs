@@ -11,8 +11,8 @@ from ase import Atoms
 from ase.geometry import minkowski_reduce
 from scipy.optimize import linear_sum_assignment
 
-from mlfcs.core.geometry import StructureRelation
-from mlfcs.model import ForceConstants, SparseOrderForceConstants
+from mlfcs.ifc.model import ForceConstants, SparseOrderForceConstants
+from mlfcs.structure.geometry import StructureRelation
 
 
 @dataclass(frozen=True, slots=True)

@@ -13,10 +13,10 @@ from ase.calculators.calculator import Calculator
 from numpy.typing import ArrayLike, NDArray
 
 from mlfcs.core.fc2 import compact_fc2, expand_compact_fc2
-from mlfcs.core.geometry import make_supercell
 from mlfcs.fitting import ForceConstantFitter
-from mlfcs.model import ForceConstants
+from mlfcs.ifc.model import ForceConstants
 from mlfcs.sscha.ensemble import EnsembleDiagnostics, HarmonicEnsemble
+from mlfcs.structure.geometry import make_supercell
 
 Progress = Callable[[int, int], None]
 ForceInput = NDArray[np.floating] | Sequence[ArrayLike] | Mapping[int, ArrayLike]
@@ -87,7 +87,7 @@ class SSCHA:
             matrix = (2, 2, 2) if supercell is None else supercell
             self._reference, self._index = make_supercell(self.primitive, matrix)
         else:
-            from mlfcs.core.geometry import StructureRelation, normalize_supercell_matrix
+            from mlfcs.structure.geometry import StructureRelation, normalize_supercell_matrix
 
             relation = StructureRelation.from_atoms(self.primitive, reference, tolerance=symprec)
             if supercell is not None and not np.array_equal(

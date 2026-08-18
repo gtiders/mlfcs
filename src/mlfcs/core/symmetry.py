@@ -6,7 +6,7 @@ import numpy as np
 import spglib
 from ase import Atoms
 
-from mlfcs.core.geometry import PeriodicGeometry
+from mlfcs.structure.geometry import PeriodicGeometry
 
 
 @dataclass(frozen=True, slots=True)

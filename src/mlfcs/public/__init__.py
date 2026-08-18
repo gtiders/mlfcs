@@ -1,18 +1,20 @@
-"""ASE-first anharmonic force-constant tools."""
+"""Stable, user-facing MLFCS entry points.
+
+Workflow-heavy modules are loaded lazily so importing finite-difference and
+IO helpers does not initialize JAX or the SSCHA machinery.
+"""
 
 from importlib import import_module
 
 from mlfcs.anharmonic import LoopSCPH, LoopSCPHResult, harmonic_frequencies
-from mlfcs.api import Calculation, ForceConstantCalculation
-from mlfcs.constraints.harmonic import (
+from mlfcs.public.constraints import (
     HarmonicConstraintDiagnostics,
     HarmonicConstraintResult,
     enforce_harmonic_constraints,
 )
-from mlfcs.finite_difference.stencil import CentralDifferenceStencil
-from mlfcs.ifc.model import ForceConstants, SparseOrderForceConstants
+from mlfcs.public.finite_difference import Calculation, ForceConstantCalculation
 from mlfcs.public.io import read_hdf5, write_force_constants
-from mlfcs.structure.geometry import (
+from mlfcs.public.structure import (
     PeriodicIndex,
     StructureRelation,
     align_structures,
@@ -22,14 +24,12 @@ from mlfcs.structure.geometry import (
 __all__ = [
     "SSCHA",
     "Calculation",
-    "CentralDifferenceStencil",
     "EnsembleDiagnostics",
     "FitDataset",
     "FittingDiagnostics",
     "FittingResult",
     "ForceConstantCalculation",
     "ForceConstantFitter",
-    "ForceConstants",
     "HarmonicConstraintDiagnostics",
     "HarmonicConstraintResult",
     "HarmonicEnsemble",
@@ -37,7 +37,6 @@ __all__ = [
     "LoopSCPHResult",
     "PeriodicIndex",
     "SSCHAIteration",
-    "SparseOrderForceConstants",
     "StructureRelation",
     "align_structures",
     "build_supercell",
@@ -47,13 +46,11 @@ __all__ = [
     "write_force_constants",
 ]
 
-__version__ = "4.0.0a2"
-
 
 def __getattr__(name: str):
     """Load fitting and SSCHA APIs only when explicitly requested."""
     if name in {"FitDataset", "FittingDiagnostics", "FittingResult", "ForceConstantFitter"}:
-        return getattr(import_module("mlfcs.fitting"), name)
+        return getattr(import_module("mlfcs.public.fitting"), name)
     if name in {"EnsembleDiagnostics", "HarmonicEnsemble", "SSCHA", "SSCHAIteration"}:
         return getattr(import_module("mlfcs.sscha"), name)
     raise AttributeError(name)

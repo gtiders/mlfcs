@@ -10,8 +10,8 @@ from math import factorial
 import numpy as np
 
 from mlfcs.fitting.constraints import _image_columns
+from mlfcs.ifc.model import ForceConstants, SparseOrderForceConstants
 from mlfcs.io.export import build_export_view
-from mlfcs.model import ForceConstants, SparseOrderForceConstants
 
 
 @dataclass(frozen=True, slots=True)

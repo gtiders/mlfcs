@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from mlfcs.core.expansion import expand_orbit_parameters
+from mlfcs.ifc.expansion import expand_orbit_parameters
 
 
 @dataclass(frozen=True, slots=True)

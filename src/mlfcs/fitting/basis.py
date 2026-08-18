@@ -8,7 +8,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from mlfcs.model import SparseOrderForceConstants
+from mlfcs.ifc.model import SparseOrderForceConstants
 
 jax.config.update("jax_enable_x64", True)
 

@@ -13,8 +13,7 @@ from ase import Atoms
 from scipy import sparse
 from scipy.linalg.blas import dsyrk
 
-from mlfcs.core.constraints import project_parameters
-from mlfcs.core.geometry import StructureRelation
+from mlfcs.constraints.translational import project_parameters
 from mlfcs.core.interactions import InteractionSpace
 from mlfcs.fitting.basis import symmetrized_covariance as _symmetrized_covariance
 from mlfcs.fitting.constraints import (
@@ -39,8 +38,9 @@ from mlfcs.fitting.solver import (
     solve_gram_system,
     solve_scaled_group_lasso,
 )
-from mlfcs.model import ForceConstants
+from mlfcs.ifc.model import ForceConstants
 from mlfcs.runtime import JaxPlatform, resolve_jax_device
+from mlfcs.structure.geometry import StructureRelation
 
 
 @dataclass(frozen=True, slots=True)

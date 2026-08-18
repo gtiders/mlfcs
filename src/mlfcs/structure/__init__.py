@@ -1,4 +1,4 @@
-"""Core structure, periodic geometry, symmetry, and interaction primitives."""
+"""Structure relations, general supercells, and periodic geometry."""
 
 from mlfcs.structure.geometry import (
     PeriodicGeometry,
@@ -6,7 +6,11 @@ from mlfcs.structure.geometry import (
     StructureRelation,
     align_structures,
     build_supercell,
+    make_supercell,
+    neighbor_shell_cutoff,
+    neighbor_shell_limit,
     normalize_supercell_matrix,
+    resolve_cutoff,
 )
 
 __all__ = [
@@ -15,5 +19,9 @@ __all__ = [
     "StructureRelation",
     "align_structures",
     "build_supercell",
+    "make_supercell",
+    "neighbor_shell_cutoff",
+    "neighbor_shell_limit",
     "normalize_supercell_matrix",
+    "resolve_cutoff",
 ]
