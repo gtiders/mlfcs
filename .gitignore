@@ -7,10 +7,23 @@ wheels/
 *.egg-info
 .mlfcs-cache/
 
-# Generated outputs of material examples; figures and reference evidence remain tracked.
-/examples/**/results/
+# Generated force-constant and cache artifacts are reproducible and stay local.
+# MD trajectories are intentionally trackable as reusable example data.
+/examples/**/results/cache/
+/examples-next/**/results/cache/
+/examples/**/cache/
+/examples-next/**/cache/
+/examples/**/FORCE_CONSTANTS*
+/examples-next/**/FORCE_CONSTANTS*
+/examples/**/fc[234]*.h5
+/examples-next/**/fc[234]*.h5
+/examples/**/mlfcs*.h5
+/examples-next/**/mlfcs*.h5
+/examples/**/*.npy
+/examples-next/**/*.npy
+/examples/**/*.npz
+/examples-next/**/*.npz
 /examples/**/reference/baselines/
-/examples-next/**/results/
 /examples-next/**/reference/baselines/
 /examples/**/transport/**/input/*.h5
 /examples-next/**/transport/**/input/*.h5
