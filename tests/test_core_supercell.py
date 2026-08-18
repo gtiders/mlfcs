@@ -42,11 +42,11 @@ def test_thirdorder_ordering_preserves_the_former_cell_major_order():
         cell=np.eye(3) * 4,
         pbc=True,
     )
-    supercell, index = make_supercell(primitive, (2, 1, 1), ordering="thirdorder")
+    supercell = build_supercell(primitive, (2, 1, 1), ordering="thirdorder")
 
-    np.testing.assert_array_equal(index.primitive, [0, 1, 0, 1])
+    np.testing.assert_array_equal(supercell.arrays["primitive_index"], [0, 1, 0, 1])
     np.testing.assert_array_equal(
-        index.translations,
+        supercell.arrays["cell_translation"],
         [[0, 0, 0], [0, 0, 0], [1, 0, 0], [1, 0, 0]],
     )
     np.testing.assert_allclose(supercell.positions[:2], primitive.positions)
