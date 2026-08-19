@@ -1,7 +1,7 @@
 import numpy as np
 from ase.build import bulk
+from supercell_helpers import make_supercell
 
-from mlfcs.core.geometry import make_supercell
 from mlfcs.core.symmetry import SymmetryOperations
 
 

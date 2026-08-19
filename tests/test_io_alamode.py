@@ -5,8 +5,9 @@ import pytest
 from ase import Atoms
 from ase.geometry import minkowski_reduce
 from ase.units import Bohr, Rydberg
+from supercell_helpers import make_supercell
 
-from mlfcs.core.geometry import StructureRelation, make_supercell
+from mlfcs.core.geometry import StructureRelation
 from mlfcs.ifc.model import ForceConstants, SparseOrderForceConstants
 from mlfcs.io.alamode import AlamodeMirrorImageError, write_alamode
 

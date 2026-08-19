@@ -13,8 +13,8 @@ FC2 calculations. The main public workflow remains a Python API:
 ```python
 calculation = ForceConstantCalculation(
     atoms,
+    reference=reference_supercell,
     order=4,
-    supercell=(2, 2, 2),
     cutoff=-3,
 )
 

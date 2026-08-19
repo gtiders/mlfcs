@@ -3,8 +3,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 from ase import Atoms
+from supercell_helpers import make_supercell
 
-from mlfcs.core.geometry import make_supercell
 from mlfcs.ifc.model import ForceConstants
 from mlfcs.io.phonopy import write_phonopy
 

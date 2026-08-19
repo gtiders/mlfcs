@@ -41,7 +41,7 @@ from mlfcs.anharmonic.sscha import SSCHA
 
 sscha = SSCHA(
     read("POSCAR"),
-    supercell=(3, 3, 3),
+    reference=read("reference-supercell.vasp"),
     temperature=300.0,
     statistics="quantum",
     snapshots=1000,

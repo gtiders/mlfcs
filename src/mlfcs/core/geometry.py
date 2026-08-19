@@ -10,7 +10,6 @@ from __future__ import annotations
 from collections import deque
 from dataclasses import dataclass, field
 from itertools import product
-from typing import Literal
 
 import numpy as np
 from ase import Atoms
@@ -410,181 +409,6 @@ def align_structures(
     return aligned, maximum
 
 
-SupercellOrdering = Literal["phonopy", "phonopy_snf", "thirdorder"]
-
-
-def _phonopy_surrounding_frame(matrix: np.ndarray) -> np.ndarray:
-    """Return phonopy old-style's surrounding diagonal multiplicities."""
-    corners = np.asarray(
-        (
-            (0, 0, 0),
-            matrix[:, 0],
-            matrix[:, 1],
-            matrix[:, 2],
-            matrix[:, 1] + matrix[:, 2],
-            matrix[:, 2] + matrix[:, 0],
-            matrix[:, 0] + matrix[:, 1],
-            matrix[:, 0] + matrix[:, 1] + matrix[:, 2],
-        ),
-        dtype=np.int64,
-    )
-    return np.max(corners, axis=0) - np.min(corners, axis=0)
-
-
-def _phonopy_old_style_candidate(
-    primitive: Atoms, matrix: np.ndarray, *, symprec: float
-) -> Atoms:
-    """Build phonopy old-style ordered atoms in MLFCS's lattice convention.
-
-    Phonopy's old-style constructor interprets its matrix transposed relative
-    to MLFCS's row-cell convention. Feeding it ``matrix.T`` therefore keeps
-    MLFCS's ``matrix @ cell`` lattice while reproducing the atom scan order.
-    """
-    determinant = round(float(np.linalg.det(matrix)))
-    if determinant <= 0:
-        raise ValueError(
-            "ordering='phonopy' requires a supercell matrix with positive determinant; "
-            "use ordering='thirdorder' for the legacy general-integer construction"
-        )
-
-    phonopy_matrix = matrix.T
-    multiplicities = _phonopy_surrounding_frame(phonopy_matrix)
-    if np.any(multiplicities <= 0):
-        raise ValueError("phonopy surrounding frame has a zero multiplicity")
-    simple_matrix = np.diag(multiplicities)
-    simple_cell = simple_matrix @ np.asarray(primitive.cell)
-    trim_frame = phonopy_matrix / multiplicities[:, None]
-    target_cell = trim_frame.T @ simple_cell
-
-    # This is phonopy's meshgrid order: the first lattice axis runs fastest,
-    # and each primitive site owns one contiguous block of lattice images.
-    b, c, a = np.meshgrid(
-        range(int(multiplicities[1])),
-        range(int(multiplicities[2])),
-        range(int(multiplicities[0])),
-    )
-    lattice_points = np.c_[a.ravel(), b.ravel(), c.ravel()]
-    images_per_site = len(lattice_points)
-    scaled_positions = primitive.get_scaled_positions(wrap=True)
-    simple_scaled_positions = (
-        np.tile(lattice_points, (len(primitive), 1))
-        + np.repeat(scaled_positions, images_per_site, axis=0)
-    ) @ np.linalg.inv(simple_matrix).T
-    target_scaled_positions = simple_scaled_positions @ np.linalg.inv(trim_frame).T
-    target_scaled_positions -= np.floor(target_scaled_positions)
-    numbers = np.repeat(primitive.numbers, images_per_site)
-
-    selected: list[int] = []
-    for atom, position in enumerate(target_scaled_positions):
-        if selected:
-            difference = target_scaled_positions[np.asarray(selected)] - position
-            difference -= np.rint(difference)
-            distances = np.linalg.norm(difference @ target_cell, axis=1)
-            matching = (distances < symprec) & (numbers[np.asarray(selected)] == numbers[atom])
-            if np.any(matching):
-                continue
-        selected.append(atom)
-    selected_array = np.asarray(selected, dtype=np.intp)
-    expected = determinant * len(primitive)
-    if len(selected_array) != expected:
-        raise RuntimeError(
-            "phonopy-style supercell construction retained "
-            f"{len(selected_array)} atoms, expected {expected}"
-        )
-
-    supercell = Atoms(
-        numbers=numbers[selected_array],
-        scaled_positions=target_scaled_positions[selected_array],
-        cell=target_cell,
-        pbc=True,
-        info=primitive.info.copy(),
-    )
-    for name, values in primitive.arrays.items():
-        if name in {"numbers", "positions"}:
-            continue
-        supercell.set_array(name, np.repeat(values, images_per_site, axis=0)[selected_array])
-    return supercell
-
-
-def _thirdorder_candidate(primitive: Atoms, matrix: np.ndarray) -> Atoms:
-    """Build the former MLFCS cell-major supercell ordering."""
-    translations = _coset_translations(matrix)
-    positions = np.concatenate(
-        [primitive.positions + shift @ primitive.cell for shift in translations]
-    )
-    supercell = Atoms(
-        numbers=np.tile(primitive.numbers, len(translations)),
-        positions=positions,
-        cell=matrix @ primitive.cell,
-        pbc=True,
-        info=primitive.info.copy(),
-    )
-    for name, values in primitive.arrays.items():
-        if name in {"numbers", "positions"}:
-            continue
-        supercell.set_array(name, np.tile(values, (len(translations),) + (1,) * (values.ndim - 1)))
-    return supercell
-
-
-def _make_supercell(
-    atoms: Atoms,
-    supercell_matrix: object,
-    *,
-    ordering: SupercellOrdering = "phonopy",
-    symprec: float = 1e-5,
-) -> tuple[Atoms, PeriodicIndex]:
-    """Build a general integer supercell with a selected reference ordering."""
-    if not np.all(atoms.pbc):
-        raise ValueError("force constants require periodic boundary conditions")
-    if ordering not in {"phonopy", "phonopy_snf", "thirdorder"}:
-        raise ValueError(
-            "ordering must be 'phonopy', 'phonopy_snf', or 'thirdorder'"
-        )
-    if ordering == "phonopy_snf":
-        raise NotImplementedError(
-            "ordering='phonopy_snf' is reserved for phonopy SNF compatibility and is not implemented"
-        )
-    if symprec <= 0:
-        raise ValueError("symprec must be positive")
-    primitive = atoms.copy()
-    primitive.wrap()
-    matrix = normalize_supercell_matrix(supercell_matrix)
-    candidate = (
-        _phonopy_old_style_candidate(primitive, matrix, symprec=symprec)
-        if ordering == "phonopy"
-        else _thirdorder_candidate(primitive, matrix)
-    )
-    relation = StructureRelation.from_atoms(primitive, candidate, tolerance=symprec)
-    return relation.reference, relation.index
-
-
-def make_supercell(
-    atoms: Atoms,
-    supercell_matrix: object,
-    *,
-    symprec: float = 1e-5,
-) -> tuple[Atoms, PeriodicIndex]:
-    """Build the default phonopy-ordered supercell for internal callers."""
-    return _make_supercell(atoms, supercell_matrix, ordering="phonopy", symprec=symprec)
-
-
-def build_supercell(
-    atoms: Atoms,
-    supercell_matrix: object,
-    *,
-    ordering: SupercellOrdering = "phonopy",
-    symprec: float = 1e-5,
-) -> Atoms:
-    """Build an ASE supercell with phonopy or legacy thirdorder ordering.
-
-    ``ordering='phonopy'`` is the default and reproduces phonopy's old-style
-    atom order while retaining MLFCS's matrix convention. ``'thirdorder'``
-    selects MLFCS's former cell-major order. ``'phonopy_snf'`` is reserved
-    for a future phonopy SNF-compatible implementation.
-    """
-    return _make_supercell(atoms, supercell_matrix, ordering=ordering, symprec=symprec)[0]
-
-
 def neighbor_shell_cutoff(
     supercell: Atoms, index: PeriodicIndex, shell: int, *, report: bool = True
 ) -> float:
@@ -670,8 +494,6 @@ __all__ = [
     "StructureRelation",
     "_unique_distances",
     "align_structures",
-    "build_supercell",
-    "make_supercell",
     "neighbor_shell_cutoff",
     "neighbor_shell_limit",
     "normalize_supercell_matrix",

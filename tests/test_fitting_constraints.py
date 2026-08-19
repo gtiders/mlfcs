@@ -2,6 +2,7 @@ import numpy as np
 import pytest
 from ase import Atoms
 from scipy import sparse
+from supercell_helpers import make_supercell
 
 from mlfcs.api import ForceConstantCalculation
 from mlfcs.core.orbits import cluster_invariant_dimension
@@ -47,9 +48,10 @@ def test_scaled_group_lasso_selects_orbits_and_preserves_hard_constraint():
 
 def test_explicit_fc1_transform_matches_reported_wick_contraction():
     primitive = Atoms("Si", positions=[[0, 0, 0]], cell=np.eye(3) * 4.0, pbc=True)
+    reference = make_supercell(primitive, (2, 1, 1))[0]
     calculations = tuple(
         ForceConstantCalculation(
-            primitive, order=order, supercell=(2, 1, 1), cutoff=4.1, verbose=False
+            primitive, order=order, reference=reference, cutoff=4.1, verbose=False
         )
         for order in (2, 3)
     )
@@ -73,9 +75,10 @@ def test_fc1_transform_maps_supercell_anchor_to_primitive_site():
         cell=np.array([[0, 2, 2], [2, 0, 2], [2, 2, 0]]),
         pbc=True,
     )
+    reference = make_supercell(primitive, (2, 2, 2))[0]
     calculations = tuple(
         ForceConstantCalculation(
-            primitive, order=order, supercell=(2, 2, 2), cutoff=-1, verbose=False
+            primitive, order=order, reference=reference, cutoff=-1, verbose=False
         )
         for order in (2, 3)
     )
@@ -86,9 +89,10 @@ def test_fc1_transform_maps_supercell_anchor_to_primitive_site():
 
 def test_frozen_fc2_constraint_cancels_fc4_to_fc2_taylor_contraction():
     primitive = Atoms("Si", positions=[[0, 0, 0]], cell=np.eye(3) * 4.0, pbc=True)
+    reference = make_supercell(primitive, (2, 1, 1))[0]
     calculations = tuple(
         ForceConstantCalculation(
-            primitive, order=order, supercell=(2, 1, 1), cutoff=4.1, verbose=False
+            primitive, order=order, reference=reference, cutoff=4.1, verbose=False
         )
         for order in (2, 3, 4)
     )
@@ -123,8 +127,9 @@ def test_missing_symmetry_forbidden_zero_wick_contraction_is_accepted(monkeypatc
 
 def test_centrosymmetric_onsite_odd_tensor_has_zero_allowed_dimension():
     primitive = Atoms("Si", positions=[[0, 0, 0]], cell=np.eye(3) * 4.0, pbc=True)
+    reference = make_supercell(primitive, (2, 1, 1))[0]
     calculation = ForceConstantCalculation(
-        primitive, order=3, supercell=(2, 1, 1), cutoff=4.1, verbose=False
+        primitive, order=3, reference=reference, cutoff=4.1, verbose=False
     )
     assert cluster_invariant_dimension((0, 0, 0), calculation.index, calculation.symmetry) == 0
 

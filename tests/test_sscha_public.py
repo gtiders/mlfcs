@@ -6,9 +6,9 @@ import numpy as np
 import pytest
 from ase import Atoms
 from ase.calculators.calculator import Calculator, all_changes
+from supercell_helpers import make_supercell
 
 from mlfcs.anharmonic.sscha import SSCHA
-from mlfcs.core.geometry import make_supercell
 
 
 class TranslationalHarmonic(Calculator):
@@ -35,9 +35,10 @@ def primitive() -> Atoms:
 
 
 def test_sscha_external_sow_reap():
+    primitive_atoms = primitive()
     sscha = SSCHA(
-        primitive(),
-        supercell=(2, 2, 2),
+        primitive_atoms,
+        reference=make_supercell(primitive_atoms, (2, 2, 2))[0],
         snapshots=16,
         max_iterations=0,
         random_seed=7,
@@ -71,9 +72,10 @@ def test_sscha_direct_run_and_average(tmp_path):
     fc = np.zeros((n_atoms, n_atoms, 3, 3))
     for axis in range(3):
         fc[:, :, axis, axis] = spring * (np.eye(n_atoms) - np.ones((n_atoms, n_atoms)) / n_atoms)
+    primitive_atoms = primitive()
     sscha = SSCHA(
-        primitive(),
-        supercell=(2, 2, 2),
+        primitive_atoms,
+        reference=make_supercell(primitive_atoms, (2, 2, 2))[0],
         snapshots=16,
         max_iterations=1,
         random_seed=11,
@@ -96,7 +98,13 @@ def test_sscha_direct_run_and_average(tmp_path):
 
 
 def test_sscha_validates_external_order():
-    sscha = SSCHA(primitive(), supercell=(2, 2, 2), snapshots=2, max_iterations=0)
+    primitive_atoms = primitive()
+    sscha = SSCHA(
+        primitive_atoms,
+        reference=make_supercell(primitive_atoms, (2, 2, 2))[0],
+        snapshots=2,
+        max_iterations=0,
+    )
     sscha.sow()
     with pytest.raises(ValueError, match="IDs"):
         sscha.reap({0: np.zeros((8, 3))})
@@ -119,9 +127,10 @@ def test_sscha_canonical_iterations_use_independent_reproducible_seeds():
         fc[:, :, axis, axis] = 2.0 * (np.eye(n_atoms) - np.ones((n_atoms, n_atoms)) / n_atoms)
 
     def snapshots(iteration: int):
+        primitive_atoms = primitive()
         sscha = SSCHA(
-            primitive(),
-            supercell=(2, 2, 2),
+            primitive_atoms,
+            reference=make_supercell(primitive_atoms, (2, 2, 2))[0],
             snapshots=4,
             max_iterations=2,
             random_seed=42,

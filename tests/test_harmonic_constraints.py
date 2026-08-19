@@ -1,5 +1,6 @@
 import numpy as np
 from ase import Atoms
+from supercell_helpers import make_supercell
 
 from mlfcs import ForceConstantCalculation
 from mlfcs.ifc.model import ForceConstants, SparseOrderForceConstants
@@ -8,7 +9,7 @@ from mlfcs.ifc.model import ForceConstants, SparseOrderForceConstants
 def test_strict_harmonic_projection_uses_tied_images_and_keeps_higher_orders():
     primitive = Atoms("Si", positions=[[0, 0, 0]], cell=np.eye(3) * 3.0, pbc=True)
     calculation = ForceConstantCalculation(
-        primitive, order=2, supercell=(2, 1, 1), cutoff=None, verbose=False
+        primitive, order=2, reference=make_supercell(primitive, (2, 1, 1))[0], cutoff=None, verbose=False
     )
     fc2 = SparseOrderForceConstants(
         2,
@@ -56,7 +57,7 @@ def test_strict_harmonic_projection_uses_tied_images_and_keeps_higher_orders():
 def test_strength_zero_only_enforces_asr():
     primitive = Atoms("Si", positions=[[0, 0, 0]], cell=np.eye(3) * 3.0, pbc=True)
     calculation = ForceConstantCalculation(
-        primitive, order=2, supercell=(2, 1, 1), cutoff=None, verbose=False
+        primitive, order=2, reference=make_supercell(primitive, (2, 1, 1))[0], cutoff=None, verbose=False
     )
     fc2 = SparseOrderForceConstants(
         2,

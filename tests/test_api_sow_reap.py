@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 from ase.build import bulk
 from ase.calculators.calculator import Calculator, all_changes
+from supercell_helpers import make_supercell
 
 from mlfcs import ForceConstantCalculation
 from mlfcs.runtime import configure_jax
@@ -18,10 +19,11 @@ class ZeroCalculator(Calculator):
 
 
 def calculation():
+    primitive = bulk("Si", "diamond", a=5.43)
     return ForceConstantCalculation(
-        bulk("Si", "diamond", a=5.43),
+        primitive,
         order=3,
-        supercell=(2, 2, 2),
+        reference=make_supercell(primitive, (2, 2, 2))[0],
         cutoff=-1,
     )
 
@@ -63,10 +65,11 @@ def test_reference_force_order_and_user_calculator_path():
 
 
 def test_second_order_uses_the_same_pipeline():
+    primitive = bulk("Si", "diamond", a=5.43)
     job = ForceConstantCalculation(
-        bulk("Si", "diamond", a=5.43),
+        primitive,
         order=2,
-        supercell=(2, 2, 2),
+        reference=make_supercell(primitive, (2, 2, 2))[0],
         cutoff=-1,
     )
     forces = np.zeros((len(job.plan), len(job.supercell), 3))
@@ -76,10 +79,11 @@ def test_second_order_uses_the_same_pipeline():
 
 
 def test_stage_reporting_is_enabled_by_default(capsys):
+    primitive = bulk("Si", "diamond", a=5.43)
     job = ForceConstantCalculation(
-        bulk("Si", "diamond", a=5.43),
+        primitive,
         order=2,
-        supercell=(2, 2, 2),
+        reference=make_supercell(primitive, (2, 2, 2))[0],
         cutoff=-1,
     )
     job.evaluate(ZeroCalculator())
@@ -93,10 +97,11 @@ def test_stage_reporting_is_enabled_by_default(capsys):
 
 
 def test_stage_reporting_can_be_disabled_completely(capsys):
+    primitive = bulk("Si", "diamond", a=5.43)
     job = ForceConstantCalculation(
-        bulk("Si", "diamond", a=5.43),
+        primitive,
         order=2,
-        supercell=(2, 2, 2),
+        reference=make_supercell(primitive, (2, 2, 2))[0],
         cutoff=-1,
         verbose=False,
     )

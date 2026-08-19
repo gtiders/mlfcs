@@ -7,16 +7,17 @@ from ase import Atoms
 from ase.build import bulk
 from phono3py.file_IO import read_fc3_from_hdf5
 from phonopy.file_IO import read_force_constants_hdf5
+from supercell_helpers import make_supercell
 
 from mlfcs import ForceConstantCalculation, ForceConstants, SparseOrderForceConstants
-from mlfcs.core.geometry import make_supercell
 
 
 def test_reap_keeps_sparse_clusters_and_hdf5_writes_them(tmp_path):
+    primitive = bulk("Si", "diamond", a=5.43)
     calculation = ForceConstantCalculation(
-        bulk("Si", "diamond", a=5.43),
+        primitive,
         order=3,
-        supercell=(2, 2, 2),
+        reference=make_supercell(primitive, (2, 2, 2))[0],
         cutoff=-1,
     )
     forces = np.zeros((len(calculation.plan), len(calculation.supercell), 3))

@@ -14,7 +14,6 @@ from numpy.typing import ArrayLike, NDArray
 
 from mlfcs.anharmonic.common.ensemble import EnsembleDiagnostics, HarmonicEnsemble
 from mlfcs.anharmonic.common.fc2 import compact_fc2, expand_compact_fc2
-from mlfcs.core.geometry import make_supercell
 from mlfcs.fitting import ForceConstantFitter
 from mlfcs.ifc.model import ForceConstants
 
@@ -45,8 +44,7 @@ class SSCHA:
         self,
         atoms: Atoms,
         *,
-        supercell: Sequence[int] | np.ndarray | None = None,
-        reference: Atoms | None = None,
+        reference: Atoms,
         temperature: float = 300.0,
         statistics: Literal["quantum", "classical"] = "quantum",
         snapshots: int | Literal["auto"] = 1000,
@@ -83,20 +81,10 @@ class SSCHA:
 
         self.primitive = atoms.copy()
         self.primitive.wrap()
-        if reference is None:
-            matrix = (2, 2, 2) if supercell is None else supercell
-            self._reference, self._index = make_supercell(
-                self.primitive, matrix, symprec=symprec
-            )
-        else:
-            from mlfcs.core.geometry import StructureRelation, normalize_supercell_matrix
+        from mlfcs.core.geometry import StructureRelation
 
-            relation = StructureRelation.from_atoms(self.primitive, reference, tolerance=symprec)
-            if supercell is not None and not np.array_equal(
-                relation.supercell_matrix, normalize_supercell_matrix(supercell)
-            ):
-                raise ValueError("supercell does not match reference")
-            self._reference, self._index = relation.reference, relation.index
+        relation = StructureRelation.from_atoms(self.primitive, reference, tolerance=symprec)
+        self._reference, self._index = relation.reference, relation.index
         self.supercell = self._index.supercell_matrix
         self.temperature = float(temperature)
         self.statistics = statistics

@@ -1,7 +1,7 @@
 import numpy as np
 from ase import Atoms
+from supercell_helpers import make_supercell
 
-from mlfcs.core.geometry import make_supercell
 from mlfcs.core.orbits import (
     _canonical_cluster,
     _compatible_sorted_tails,

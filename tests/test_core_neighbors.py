@@ -1,12 +1,8 @@
 import numpy as np
 from ase.build import bulk
+from supercell_helpers import make_supercell
 
-from mlfcs.core.geometry import (
-    _unique_distances,
-    make_supercell,
-    neighbor_shell_limit,
-    resolve_cutoff,
-)
+from mlfcs.core.geometry import _unique_distances, neighbor_shell_limit, resolve_cutoff
 
 
 def test_shells_merge_numerically_split_distances():

@@ -1,14 +1,15 @@
 # Finite differences
 
-`ForceConstantCalculation` accepts an explicit primitive and either a supercell matrix or a
-reference supercell. `sow()` returns structures in reference order; `reap()` requires forces in
+`ForceConstantCalculation` accepts an explicit primitive and reference supercell. Use
+`mlfcs.tools.build_supercell` before constructing the calculation when a matrix-based structure
+must be prepared. `sow()` returns structures in reference order; `reap()` requires forces in
 that same order (or a configuration-ID mapping).
 
 ```python
 calculation = ForceConstantCalculation(
     primitive,
+    reference=reference_supercell,
     order=3,
-    supercell_matrix=(2, 2, 3),
     cutoff=-4,
     displacement=0.01,
 )
