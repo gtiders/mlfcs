@@ -7,6 +7,7 @@ existing IO backends; it is not a frequency-dependent bubble self-energy.
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -18,7 +19,6 @@ from mlfcs.anharmonic.common.thermodynamics import (
     mode_sigma,
     regular_qpoints,
 )
-from mlfcs.core.geometry import PeriodicGeometry
 from mlfcs.ifc.model import ForceConstants, SparseOrderForceConstants
 
 _HBAR_ASE = HBAR_ASE
@@ -64,15 +64,17 @@ class LoopSCPH:
         *,
         fc2: ForceConstants,
         fc4: ForceConstants,
-        temperature: float,
+        temperature: float | range,
         interpolation_mesh: tuple[int, int, int],
         scph_mesh: tuple[int, int, int],
         statistics: str = "quantum",
         mixing: float = 0.1,
         tolerance: float = 1e-10,
         max_iterations: int = 100,
-        frequency_cutoff_thz: float = 0.01,
+        frequency_cutoff_thz: float = 0.0,
         warm_start: ForceConstants | None = None,
+        verbose: bool = True,
+        qpoint_workers: int = 1,
     ) -> None:
         if not isinstance(fc2, ForceConstants) or not isinstance(fc4, ForceConstants):
             raise TypeError("fc2 and fc4 must be ForceConstants objects")
@@ -80,7 +82,12 @@ class LoopSCPH:
             raise ValueError("fc2 does not contain order-2 force constants")
         if 4 not in fc4.orders:
             raise ValueError("fc4 does not contain order-4 force constants")
-        if temperature < 0:
+        if isinstance(temperature, range):
+            if temperature.step <= 0 or not temperature:
+                raise ValueError("temperature range must be non-empty and increasing")
+            if temperature.start < 0:
+                raise ValueError("temperature must be non-negative")
+        elif temperature < 0:
             raise ValueError("temperature must be non-negative")
         if statistics not in {"quantum", "classical"}:
             raise ValueError("statistics must be 'quantum' or 'classical'")
@@ -90,7 +97,7 @@ class LoopSCPH:
             raise ValueError("tolerance must be positive and max_iterations >= 1")
         self.fc2 = fc2
         self.fc4 = fc4
-        self.temperature = float(temperature)
+        self.temperature = temperature if isinstance(temperature, range) else float(temperature)
         self.interpolation_mesh = _mesh(interpolation_mesh, "interpolation_mesh")
         self.scph_mesh = _mesh(scph_mesh, "scph_mesh")
         if any(s % i for s, i in zip(self.scph_mesh, self.interpolation_mesh, strict=True)):
@@ -100,6 +107,12 @@ class LoopSCPH:
         self.tolerance = float(tolerance)
         self.max_iterations = int(max_iterations)
         self.frequency_cutoff_thz = float(frequency_cutoff_thz)
+        self.verbose = bool(verbose)
+        if qpoint_workers < 1:
+            raise ValueError("qpoint_workers must be positive")
+        self.qpoint_workers = int(qpoint_workers)
+        if self.frequency_cutoff_thz < 0:
+            raise ValueError("frequency_cutoff_thz must be non-negative")
         _validate_relation(fc2, fc4)
         if warm_start is not None:
             if not isinstance(warm_start, ForceConstants) or 2 not in warm_start.orders:
@@ -110,7 +123,13 @@ class LoopSCPH:
         if self._primitive is None:
             raise ValueError("fc2 must contain an explicit StructureRelation")
 
-    def run(self) -> LoopSCPHResult:
+    def run(self) -> LoopSCPHResult | tuple[LoopSCPHResult, ...]:
+        """Run one temperature or a temperature-continuation range."""
+        if isinstance(self.temperature, range):
+            return self.run_temperature_series(self.temperature)
+        return self._run_single()
+
+    def _run_single(self) -> LoopSCPHResult:
         base = self._copy_order(self.fc2, 2)
         bare = _compact_fc2(base)
         current = bare.copy() if self.warm_start is None else _compact_fc2(self.warm_start)
@@ -118,24 +137,43 @@ class LoopSCPH:
         previous_frequencies = self._frequencies(current, self.interpolation_mesh)[1]
         converged = False
         last_correction = np.zeros_like(current)
+        previous_covariance: dict[tuple[int, int, tuple[int, int, int]], np.ndarray] | None = None
         for iteration in range(1, self.max_iterations + 1):
             covariance = self._covariance(current, self.scph_mesh)
+            if previous_covariance is not None:
+                covariance = {
+                    key: self.mixing * value
+                    + (1.0 - self.mixing) * previous_covariance[key]
+                    for key, value in covariance.items()
+                }
             correction = self._loop_correction(covariance)
             target = bare + correction
-            residual = target - current
-            updated = current + self.mixing * residual
+            updated = target
             frequencies = self._frequencies(updated, self.interpolation_mesh)[1]
             frequency_change = float(np.sqrt(np.mean((frequencies - previous_frequencies) ** 2)))
             history.append(LoopSCPHIteration(iteration, frequency_change))
+            if self.verbose:
+                print(
+                    f"SCPH iteration {iteration}: delta_omega={frequency_change:.6e} THz, "
+                    f"frequency_min={np.min(frequencies):.6e} THz, "
+                    f"frequency_max={np.max(frequencies):.6e} THz, "
+                    f"correction_norm={np.linalg.norm(correction):.6e}",
+                    flush=True,
+                )
             current = updated
             last_correction = updated - bare
             previous_frequencies = frequencies
-            if frequency_change < self.tolerance and np.min(frequencies) >= 0.0:
+            previous_covariance = covariance
+            # Convergence is a fixed-point criterion.  An imaginary mode is a
+            # physical diagnostic of the current solution, not an additional
+            # stopping condition.
+            if frequency_change < self.tolerance:
                 converged = True
                 break
 
-        effective = _replace_fc2(base, current)
-        correction_fc = _replace_fc2(base, last_correction)
+        support = _fc2_support(base.sparse[2], self.fc4.sparse[4], base.relation)
+        effective = _replace_fc2(base, current, support=support)
+        correction_fc = _replace_fc2(base, last_correction, support=support)
         qpoints, frequencies = self._frequencies(current, self.interpolation_mesh)
         return LoopSCPHResult(
             self.temperature,
@@ -148,6 +186,43 @@ class LoopSCPH:
             converged,
         )
 
+    def run_temperature_series(
+        self, temperatures: tuple[float, ...] | list[float]
+    ) -> tuple[LoopSCPHResult, ...]:
+        """Run temperatures in ascending order using temperature continuation.
+
+        The converged or last available effective FC2 from each temperature is
+        used as the next temperature's initial dynamical matrix.  The FC2/FC4
+        inputs and all numerical settings remain unchanged between runs.
+        """
+        ordered = tuple(float(value) for value in temperatures)
+        if tuple(sorted(ordered)) != ordered:
+            raise ValueError("temperatures must be provided in ascending order")
+        if any(value < 0 for value in ordered):
+            raise ValueError("temperatures must be non-negative")
+        previous = None
+        results = []
+        for temperature in ordered:
+            calculation = LoopSCPH(
+                fc2=self.fc2,
+                fc4=self.fc4,
+                temperature=temperature,
+                interpolation_mesh=self.interpolation_mesh,
+                scph_mesh=self.scph_mesh,
+                statistics=self.statistics,
+                mixing=self.mixing,
+                tolerance=self.tolerance,
+                max_iterations=self.max_iterations,
+                frequency_cutoff_thz=self.frequency_cutoff_thz,
+                warm_start=previous,
+                verbose=self.verbose,
+                qpoint_workers=self.qpoint_workers,
+            )
+            result = calculation.run()
+            results.append(result)
+            previous = result.effective_force_constants
+        return tuple(results)
+
     def _covariance(
         self, compact: np.ndarray, mesh: tuple[int, int, int]
     ) -> dict[tuple[int, int, tuple[int, int, int]], np.ndarray]:
@@ -159,8 +234,12 @@ class LoopSCPH:
         n = np.prod(mesh)
         covariance: dict[tuple[int, int, tuple[int, int, int]], np.ndarray] = {}
         needed = _needed_covariances(self.fc4.sparse[4])
-        for q in regular_qpoints(mesh):
-            dynamical = _dynamical(terms, masses, q)
+        qpoints = tuple(regular_qpoints(mesh))
+
+        def covariance_at_q(q_chunk):
+            result = {}
+            q_chunk = np.asarray(q_chunk, dtype=float)
+            dynamical = _dynamical_batch(terms, masses, q_chunk)
             values, vectors = np.linalg.eigh(dynamical)
             sigma2 = (
                 mode_sigma(
@@ -171,15 +250,25 @@ class LoopSCPH:
                 )
                 ** 2
             )
-            weighted = (vectors * sigma2[None, :]) @ vectors.conj().T
+            weighted = (vectors * sigma2[..., None, :]) @ vectors.conj().swapaxes(-1, -2)
             for a, b, r in needed:
-                block = weighted[3 * a : 3 * a + 3, 3 * b : 3 * b + 3] / np.sqrt(
+                block = weighted[:, 3 * a : 3 * a + 3, 3 * b : 3 * b + 3] / np.sqrt(
                     masses[a] * masses[b]
                 )
                 displacement = primitive_positions[a] - primitive_positions[b] + np.asarray(r)
-                phase = np.exp(2j * np.pi * np.dot(q, displacement))
-                key = (a, b, r)
-                covariance[key] = covariance.get(key, 0.0) + block * phase / n
+                phase = np.exp(2j * np.pi * (q_chunk @ displacement))
+                result[(a, b, r)] = np.sum(block * phase[:, None, None], axis=0)
+            return result
+
+        chunks = tuple(np.array_split(np.asarray(qpoints), min(self.qpoint_workers, len(qpoints))))
+        if self.qpoint_workers == 1 or len(chunks) == 1:
+            parts = (covariance_at_q(chunk) for chunk in chunks)
+        else:
+            with ThreadPoolExecutor(max_workers=self.qpoint_workers) as pool:
+                parts = pool.map(covariance_at_q, chunks)
+        for part in parts:
+            for key, value in part.items():
+                covariance[key] = covariance.get(key, 0.0) + value / n
         return covariance
 
     def _loop_correction(
@@ -287,26 +376,95 @@ def _compact_fc2(fc: ForceConstants) -> np.ndarray:
     return result
 
 
-def _replace_fc2(base: ForceConstants, compact: np.ndarray) -> ForceConstants:
+def _replace_fc2(
+    base: ForceConstants,
+    compact: np.ndarray,
+    *,
+    support: set[tuple[int, int, tuple[int, int, int]]] | None = None,
+) -> ForceConstants:
     sparse_base = base.sparse[2]
-    primitive_index = np.asarray(base.relation.primitive_index, dtype=np.int64)
+    relation = base.relation
+    if relation is None:
+        raise ValueError("FC2 replacement requires an explicit StructureRelation")
+    index = relation.index
+    primitive_index = np.asarray(relation.primitive_index, dtype=np.int64)
+    rows: list[tuple[int, int]] = [tuple(map(int, cluster)) for cluster in sparse_base.clusters]
+    row_keys = {
+        (int(primitive_index[cluster[0]]), int(cluster[1]), tuple(map(int, translation)))
+        for cluster, translation in zip(
+            sparse_base.clusters,
+            sparse_base.translation_representatives[:, 0, :],
+            strict=True,
+        )
+    }
+    if support is not None:
+        for site, other, translation in sorted(support):
+            key = (site, other, translation)
+            if key in row_keys:
+                continue
+            anchor = index.representative(site)
+            atom = index.atom(other, translation)
+            rows.append((anchor, atom))
+            row_keys.add(key)
+    clusters = np.asarray(rows, dtype=np.int32).reshape((-1, 2))
     tensors = np.asarray(
-        [compact[int(primitive_index[c[0]]), int(c[1])] for c in sparse_base.clusters],
-        dtype=float,
+        [compact[int(primitive_index[c[0]]), int(c[1])] for c in clusters], dtype=float
+    )
+    sites = index.primitive[clusters]
+    translations = np.asarray(
+        [
+            [index.canonical_translation(index.translations[c[1]] - index.translations[c[0]])]
+            for c in clusters
+        ],
+        dtype=np.int32,
     )
     sparse = SparseOrderForceConstants(
         2,
         sparse_base.n_primitive,
         sparse_base.n_supercell,
-        sparse_base.clusters.copy(),
+        clusters,
         tensors,
-        sparse_base.sites.copy() if sparse_base.sites is not None else None,
-        sparse_base.translation_representatives.copy()
-        if sparse_base.translation_representatives is not None
-        else None,
+        sites,
+        translations,
     )
     reference = base.relation.reference if base.relation is not None else base.supercell
     return ForceConstants({}, reference.copy(), dict(base.metadata), {2: sparse}, base.relation)
+
+
+def _fc2_support(
+    fc2: SparseOrderForceConstants,
+    fc4: SparseOrderForceConstants,
+    relation,
+) -> set[tuple[int, int, tuple[int, int, int]]]:
+    """Return all pair labels required by the bare and loop FC2 supports."""
+    if fc2.sites is None or fc2.translation_representatives is None:
+        raise ValueError("SCPH requires lattice-labelled FC2")
+    if fc4.sites is None or fc4.translation_representatives is None:
+        raise ValueError("SCPH requires lattice-labelled FC4")
+    result = {
+        (
+            int(sites[0]),
+            int(sites[1]),
+            tuple(map(int, translations[0])),
+        )
+        for sites, translations in zip(
+            fc2.sites, fc2.translation_representatives, strict=True
+        )
+    }
+    result.update(
+        (
+            int(sites[0]),
+            int(sites[1]),
+            tuple(map(int, translations[0])),
+        )
+        for sites, translations in zip(
+            fc4.sites, fc4.translation_representatives, strict=True
+        )
+    )
+    for site, other, translation in result:
+        relation.index.atom(site, (0, 0, 0))
+        relation.index.atom(other, translation)
+    return result
 
 
 def _lattice_fc2(
@@ -326,22 +484,33 @@ def _lattice_fc2(
 
 
 def _fourier_terms(compact: np.ndarray, relation):
-    """Build Wigner--Seitz Fourier terms with equal degenerate-image weights."""
+    """Build Fourier terms from the exact reference lattice labels.
+
+    The SCPH mesh need not be commensurate with the force-constant reference
+    supercell.  Replacing a labelled translation by a nearest image of that
+    supercell therefore changes the phase at a general q point.  Use the
+    primitive-site positions and integer translation labels recovered by the
+    structure relation instead.
+    """
     index = relation.index
-    geometry = PeriodicGeometry(relation.reference.cell, relation.reference.pbc)
-    inverse_primitive = np.linalg.inv(np.asarray(relation.primitive.cell))
+    primitive = relation.primitive
+    inverse_primitive = np.linalg.inv(np.asarray(primitive.cell))
     terms = []
     for first in range(index.n_primitive):
         anchor = index.representative(first)
         for atom in range(len(relation.reference)):
-            images, _ = geometry.closest_images(
-                relation.reference.positions[atom] - relation.reference.positions[anchor]
+            site = int(index.primitive[atom])
+            translation = index.translations[atom] - index.translations[anchor]
+            vector = (
+                primitive.positions[site]
+                - primitive.positions[first]
+                + translation @ np.asarray(primitive.cell)
             )
             terms.append(
                 (
                     first,
-                    int(index.primitive[atom]),
-                    images @ inverse_primitive,
+                    site,
+                    np.asarray(vector) @ inverse_primitive,
                     compact[first, atom],
                 )
             )
@@ -352,11 +521,24 @@ def _dynamical(terms, masses: np.ndarray, q: np.ndarray) -> np.ndarray:
     n = len(masses)
     matrix = np.zeros((3 * n, 3 * n), dtype=complex)
     for a, b, images, tensor in terms:
-        phase = np.mean(np.exp(2j * np.pi * (images @ q)))
+        phase = np.exp(2j * np.pi * float(images @ q))
         matrix[3 * a : 3 * a + 3, 3 * b : 3 * b + 3] += (
             tensor * phase / np.sqrt(masses[a] * masses[b])
         )
     return (matrix + matrix.conj().T) / 2
+
+
+def _dynamical_batch(terms, masses: np.ndarray, qpoints: np.ndarray) -> np.ndarray:
+    """Build all q-point dynamical matrices in one bounded batch."""
+    qpoints = np.asarray(qpoints, dtype=float).reshape((-1, 3))
+    n = len(masses)
+    matrix = np.zeros((len(qpoints), 3 * n, 3 * n), dtype=complex)
+    for first, second, images, tensor in terms:
+        phase = np.exp(2j * np.pi * (qpoints @ images))
+        matrix[:, 3 * first : 3 * first + 3, 3 * second : 3 * second + 3] += (
+            phase[:, None, None] * tensor / np.sqrt(masses[first] * masses[second])
+        )
+    return (matrix + matrix.conj().swapaxes(-1, -2)) / 2
 
 
 def _compact_to_lattice(
@@ -379,7 +561,7 @@ def _needed_covariances(
             (
                 int(sites[2]),
                 int(sites[3]),
-                tuple((np.asarray(translations[1]) - np.asarray(translations[2])).tolist()),
+            tuple((np.asarray(translations[1]) - np.asarray(translations[2])).tolist()),
             )
         )
     return result
