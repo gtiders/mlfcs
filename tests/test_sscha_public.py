@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import ClassVar
+from xml.etree.ElementTree import parse
 
 import numpy as np
 import pytest
@@ -9,6 +10,8 @@ from ase.calculators.calculator import Calculator, all_changes
 from supercell_helpers import make_supercell
 
 from mlfcs.anharmonic.sscha import SSCHA
+from mlfcs.anharmonic.common.fc2 import compact_fc2
+from mlfcs.public.io import read_hdf5
 
 
 class TranslationalHarmonic(Calculator):
@@ -66,9 +69,16 @@ def test_sscha_direct_run_and_linear_mixing(tmp_path):
         item.relative_force_constant_change == pytest.approx(item.raw_relative_force_constant_change)
         for item in direct.history
     )
+    assert direct.force_constants is not None
+    assert direct.force_constants.orders == (2,)
     target = tmp_path / "fc2.hdf5"
-    direct.write(target)
-    assert target.is_file()
+    direct.force_constants.write(target, format="hdf5")
+    assert read_hdf5(target).orders == (2,)
+    xml_target = tmp_path / "fc2.xml"
+    direct.force_constants.write(xml_target, format="alamode")
+    xml = parse(xml_target).getroot()
+    assert xml.find(".//HARMONIC") is not None
+    assert xml.find(".//ANHARM3") is None
 
     raw = SSCHA(
         primitive_atoms,
@@ -89,9 +99,12 @@ def test_sscha_direct_run_and_linear_mixing(tmp_path):
         mixing=0.25,
     )
     mixed.step(calc, calculate_free_energy=False)
+    assert raw.force_constants is not None
+    assert mixed.force_constants is not None
+    initial_compact = compact_fc2(fc, raw.supercell_atoms)
     np.testing.assert_allclose(
-        mixed.force_constants,
-        0.75 * fc + 0.25 * raw.force_constants,
+        mixed.force_constants.materialize(2),
+        0.75 * initial_compact + 0.25 * raw.force_constants.materialize(2),
     )
     assert mixed.history[0].relative_force_constant_change == pytest.approx(
         0.25 * mixed.history[0].raw_relative_force_constant_change

@@ -21,7 +21,7 @@ from mlfcs.anharmonic.common.thermodynamics import (
     quotient_qpoints,
 )
 from mlfcs.anharmonic.common.schedule import TemperatureSeriesResult, normalize_temperature_schedule
-from mlfcs.ifc.model import ForceConstants, SparseOrderForceConstants
+from mlfcs.ifc.model import ForceConstants, SparseOrderForceConstants, replace_compact_fc2
 
 _HBAR_ASE = HBAR_ASE
 _OMEGA_TO_THZ = OMEGA_TO_THZ
@@ -31,6 +31,7 @@ _OMEGA_TO_THZ = OMEGA_TO_THZ
 class LoopSCPHIteration:
     index: int
     frequency_change_thz: float
+    correction_norm: float
 
 
 @dataclass(slots=True)
@@ -38,9 +39,7 @@ class LoopSCPHResult:
     temperature: float
     qpoints: np.ndarray
     frequencies: np.ndarray
-    base_force_constants: ForceConstants
-    loop_correction: ForceConstants
-    effective_force_constants: ForceConstants
+    force_constants: ForceConstants
     history: tuple[LoopSCPHIteration, ...]
     converged: bool
 
@@ -50,7 +49,7 @@ class LoopSCPHResult:
 
     def write(self, target: str | Path, *, format: str, order: int = 2) -> None:
         """Write the temperature-dependent effective FC2 through normal IO."""
-        self.effective_force_constants.write(target, format=format, order=order)
+        self.force_constants.write(target, format=format, order=order)
 
 
 class LoopSCPH:
@@ -130,7 +129,7 @@ class LoopSCPH:
             result = self._run_single(temperature, previous)
             results.append(result)
             if self.continuation:
-                previous = result.effective_force_constants
+                previous = result.force_constants
             else:
                 previous = self.warm_start
         return TemperatureSeriesResult(self.temperatures, tuple(results), self.continuation)
@@ -144,7 +143,6 @@ class LoopSCPH:
         history: list[LoopSCPHIteration] = []
         previous_frequencies = self._frequencies(current, self.interpolation_multiplier)[1]
         converged = False
-        last_correction = np.zeros_like(current)
         previous_covariance: dict[tuple[int, int, tuple[int, int, int]], np.ndarray] | None = None
         for iteration in range(1, self.max_iterations + 1):
             covariance = self._covariance(current, self.scph_multiplier, temperature)
@@ -159,7 +157,7 @@ class LoopSCPH:
             updated = target
             frequencies = self._frequencies(updated, self.interpolation_multiplier)[1]
             frequency_change = float(np.sqrt(np.mean((frequencies - previous_frequencies) ** 2)))
-            history.append(LoopSCPHIteration(iteration, frequency_change))
+            history.append(LoopSCPHIteration(iteration, frequency_change, float(np.linalg.norm(correction))))
             if self.verbose:
                 print(
                     f"SCPH iteration {iteration}: delta_omega={frequency_change:.6e} THz, "
@@ -169,7 +167,6 @@ class LoopSCPH:
                     flush=True,
                 )
             current = updated
-            last_correction = updated - bare
             previous_frequencies = frequencies
             previous_covariance = covariance
             # Convergence is a fixed-point criterion.  An imaginary mode is a
@@ -180,15 +177,12 @@ class LoopSCPH:
                 break
 
         support = _fc2_support(base.sparse[2], self.fc4.sparse[4], base.relation)
-        effective = _replace_fc2(base, current, support=support)
-        correction_fc = _replace_fc2(base, last_correction, support=support)
+        effective = replace_compact_fc2(base, current, support=support)
         qpoints, frequencies = self._frequencies(current, self.interpolation_multiplier)
         return LoopSCPHResult(
             temperature,
             qpoints,
             frequencies,
-            base,
-            correction_fc,
             effective,
             tuple(history),
             converged,
@@ -349,61 +343,6 @@ def _compact_fc2(fc: ForceConstants) -> np.ndarray:
     mask = counts > 0
     result[mask] /= counts[mask, None, None]
     return result
-
-
-def _replace_fc2(
-    base: ForceConstants,
-    compact: np.ndarray,
-    *,
-    support: set[tuple[int, int, tuple[int, int, int]]] | None = None,
-) -> ForceConstants:
-    sparse_base = base.sparse[2]
-    relation = base.relation
-    if relation is None:
-        raise ValueError("FC2 replacement requires an explicit StructureRelation")
-    index = relation.index
-    primitive_index = np.asarray(relation.primitive_index, dtype=np.int64)
-    rows: list[tuple[int, int]] = [tuple(map(int, cluster)) for cluster in sparse_base.clusters]
-    row_keys = {
-        (int(primitive_index[cluster[0]]), int(cluster[1]), tuple(map(int, translation)))
-        for cluster, translation in zip(
-            sparse_base.clusters,
-            sparse_base.translation_representatives[:, 0, :],
-            strict=True,
-        )
-    }
-    if support is not None:
-        for site, other, translation in sorted(support):
-            key = (site, other, translation)
-            if key in row_keys:
-                continue
-            anchor = index.representative(site)
-            atom = index.atom(other, translation)
-            rows.append((anchor, atom))
-            row_keys.add(key)
-    clusters = np.asarray(rows, dtype=np.int32).reshape((-1, 2))
-    tensors = np.asarray(
-        [compact[int(primitive_index[c[0]]), int(c[1])] for c in clusters], dtype=float
-    )
-    sites = index.primitive[clusters]
-    translations = np.asarray(
-        [
-            [index.canonical_translation(index.translations[c[1]] - index.translations[c[0]])]
-            for c in clusters
-        ],
-        dtype=np.int32,
-    )
-    sparse = SparseOrderForceConstants(
-        2,
-        sparse_base.n_primitive,
-        sparse_base.n_supercell,
-        clusters,
-        tensors,
-        sites,
-        translations,
-    )
-    reference = base.relation.reference if base.relation is not None else base.supercell
-    return ForceConstants({}, reference.copy(), dict(base.metadata), {2: sparse}, base.relation)
 
 
 def _fc2_support(

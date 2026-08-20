@@ -38,6 +38,7 @@ __all__ = [
     "LoopSCPHResult",
     "PeriodicIndex",
     "SSCHAIteration",
+    "SSCHAResult",
     "SparseOrderForceConstants",
     "StructureRelation",
     "TemperatureSeriesResult",
@@ -56,6 +57,6 @@ def __getattr__(name: str):
     """Load fitting and SSCHA APIs only when explicitly requested."""
     if name in {"FitDataset", "FittingDiagnostics", "FittingResult", "ForceConstantFitter"}:
         return getattr(import_module("mlfcs.fitting"), name)
-    if name in {"EnsembleDiagnostics", "HarmonicEnsemble", "SSCHA", "SSCHAIteration"}:
+    if name in {"EnsembleDiagnostics", "HarmonicEnsemble", "SSCHA", "SSCHAIteration", "SSCHAResult"}:
         return getattr(import_module("mlfcs.anharmonic.sscha"), name)
     raise AttributeError(name)

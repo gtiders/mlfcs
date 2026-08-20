@@ -188,4 +188,74 @@ class ForceConstants:
         )
 
 
-__all__ = ["ForceConstants", "RunConfig", "SparseOrderForceConstants"]
+def replace_compact_fc2(
+    base: ForceConstants,
+    compact: np.ndarray,
+    *,
+    support: set[tuple[int, int, tuple[int, int, int]]] | None = None,
+    metadata: dict[str, object] | None = None,
+) -> ForceConstants:
+    """Return a standard sparse FC2 object with ``compact`` values.
+
+    ``base`` supplies the structure relation and lattice-labelled FC2 support.
+    The optional support can extend that support with translation-labelled pairs
+    required by a physical correction.  The returned object intentionally
+    contains only FC2: a self-consistent effective harmonic result must not
+    silently carry the input FC3 or FC4 terms.
+    """
+    if base.relation is None or 2 not in base.sparse:
+        raise ValueError("FC2 replacement requires lattice-labelled sparse FC2 and StructureRelation")
+    sparse_base = base.sparse[2]
+    if sparse_base.sites is None or sparse_base.translation_representatives is None:
+        raise ValueError("FC2 replacement requires lattice-labelled sparse FC2")
+    relation = base.relation
+    index = relation.index
+    values = np.asarray(compact, dtype=float)
+    expected = (sparse_base.n_primitive, sparse_base.n_supercell, 3, 3)
+    if values.shape != expected:
+        raise ValueError(f"compact FC2 must have shape {expected}, got {values.shape}")
+
+    rows: list[tuple[int, int]] = [tuple(map(int, cluster)) for cluster in sparse_base.clusters]
+    row_keys = {
+        (int(sites[0]), int(sites[1]), tuple(map(int, translations[0])))
+        for sites, translations in zip(
+            sparse_base.sites, sparse_base.translation_representatives, strict=True
+        )
+    }
+    if support is not None:
+        for site, other, translation in sorted(support):
+            key = (site, other, translation)
+            if key in row_keys:
+                continue
+            rows.append((index.representative(site), index.atom(other, translation)))
+            row_keys.add(key)
+
+    clusters = np.asarray(rows, dtype=np.int32).reshape((-1, 2))
+    primitive_index = np.asarray(relation.primitive_index, dtype=np.int64)
+    tensors = np.asarray(
+        [values[int(primitive_index[first]), int(second)] for first, second in clusters], dtype=float
+    )
+    sites = index.primitive[clusters]
+    translations = np.asarray(
+        [
+            [index.canonical_translation(index.translations[second] - index.translations[first])]
+            for first, second in clusters
+        ],
+        dtype=np.int32,
+    )
+    sparse = SparseOrderForceConstants(
+        2,
+        sparse_base.n_primitive,
+        sparse_base.n_supercell,
+        clusters,
+        tensors,
+        sites,
+        translations,
+    )
+    result_metadata = dict(base.metadata)
+    if metadata is not None:
+        result_metadata.update(metadata)
+    return ForceConstants({}, relation.reference.copy(), result_metadata, {2: sparse}, relation)
+
+
+__all__ = ["ForceConstants", "RunConfig", "SparseOrderForceConstants", "replace_compact_fc2"]

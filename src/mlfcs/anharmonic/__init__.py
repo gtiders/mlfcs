@@ -7,7 +7,13 @@ from mlfcs.anharmonic.scph import LoopSCPH, LoopSCPHResult, harmonic_frequencies
 from mlfcs.anharmonic.common.schedule import TemperatureSeriesResult
 
 if TYPE_CHECKING:
-    from mlfcs.anharmonic.sscha import SSCHA, EnsembleDiagnostics, HarmonicEnsemble, SSCHAIteration
+    from mlfcs.anharmonic.sscha import (
+        SSCHA,
+        EnsembleDiagnostics,
+        HarmonicEnsemble,
+        SSCHAIteration,
+        SSCHAResult,
+    )
 
 __all__ = [
     "SSCHA",
@@ -16,6 +22,7 @@ __all__ = [
     "LoopSCPH",
     "LoopSCPHResult",
     "SSCHAIteration",
+    "SSCHAResult",
     "TemperatureSeriesResult",
     "harmonic_frequencies",
 ]
@@ -23,6 +30,6 @@ __all__ = [
 
 def __getattr__(name: str):
     """Load SSCHA only when its public symbols are requested."""
-    if name in {"EnsembleDiagnostics", "HarmonicEnsemble", "SSCHA", "SSCHAIteration"}:
+    if name in {"EnsembleDiagnostics", "HarmonicEnsemble", "SSCHA", "SSCHAIteration", "SSCHAResult"}:
         return getattr(import_module("mlfcs.anharmonic.sscha"), name)
     raise AttributeError(name)

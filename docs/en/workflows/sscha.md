@@ -39,7 +39,7 @@ Set `statistics="classical"` for `kB T / omega_s**2`.
 from ase.io import read
 from mlfcs.anharmonic.sscha import SSCHA
 
-sscha = SSCHA(
+calculation = SSCHA(
     read("POSCAR"),
     reference=read("reference-supercell.vasp"),
     temperature=300.0,
@@ -54,7 +54,7 @@ sscha = SSCHA(
     mixing=1.0,             # direct fixed-point update
     log_level=1,
 )
-sscha.run(make_my_ase_calculator())
+result = calculation.run(make_my_ase_calculator())
 ```
 
 `run()` evaluates one structure at a time. Use `calculate_free_energy=False` when energies and the
@@ -98,16 +98,15 @@ make the fixed-point path oscillate; it does not alter the fitted IFC for the cu
 ## Results and output
 
 ```python
-previous = sscha.force_constants
-iteration = sscha.step(calculator)
-
-sscha.write("FORCE_CONSTANTS", format="text")
-sscha.write("fc2-300K.hdf5", format="hdf5")
+result.force_constants.write("mlfcs.h5", format="hdf5")
+result.force_constants.write("FORCE_CONSTANTS_2ND", format="phonopy", order=2)
+result.force_constants.write("force_constants.xml", format="alamode", order=2)
 ```
 
-`force_constants` uses full MLFCS internal supercell order. The active translation-reduced array is
-available as `compact_force_constants`. History stores diagnostics only. Text and HDF5 output use the
-shared phonopy-compatible MLFCS writers without importing phonopy.
+`result.force_constants` is a standard, lattice-labelled `ForceConstants` object containing only
+the self-consistent effective FC2. It has the same structure relation and sparse export capabilities
+as finite-difference and fitting results. History stores diagnostics only; compact arrays are obtained
+explicitly with `result.force_constants.materialize(2)` when needed.
 
 ## Free energy
 

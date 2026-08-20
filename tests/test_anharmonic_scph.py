@@ -56,7 +56,7 @@ def test_loop_scph_accepts_independent_fc2_and_fc4_and_writes_effective_fc2(tmp_
         max_iterations=2,
     ).run()
     base = fc2.materialize(2)
-    effective = result.effective_force_constants.materialize(2)
+    effective = result.force_constants.materialize(2)
     assert np.all(np.diag(effective[0, 0]) > np.diag(base[0, 0]))
     target = tmp_path / "effective.h5"
     result.write(target, format="hdf5")
@@ -78,8 +78,8 @@ def test_loop_correction_has_quartic_one_half_factor():
     ).run()
     mass = fc2.relation.primitive.get_masses()[0]
     sigma2 = mode_sigma(np.ones(3) / mass, temperature=300, statistics="quantum") ** 2 / mass
-    correction = result.loop_correction.materialize(2)[0, 0]
-    np.testing.assert_allclose(correction, np.diag(0.5 * sigma2), rtol=1e-12, atol=1e-12)
+    expected = np.linalg.norm(np.diag(0.5 * sigma2))
+    assert result.history[0].correction_norm == pytest.approx(expected, rel=1e-12, abs=1e-12)
 
 
 def test_loop_scph_qpoint_workers_preserve_covariance():
@@ -122,7 +122,7 @@ def test_loop_scph_temperature_series_uses_previous_effective_fc2():
         mixing=1.0,
         max_iterations=1,
         verbose=False,
-        warm_start=series[0].effective_force_constants,
+        warm_start=series[0].force_constants,
     ).run()
     np.testing.assert_allclose(series[1].frequencies, direct.frequencies)
 
@@ -223,8 +223,8 @@ def test_loop_scph_keeps_fc4_induced_pair_support():
     pairs = {
         (int(sites[0]), int(sites[1]), tuple(map(int, translations[0])))
         for sites, translations in zip(
-            result.effective_force_constants.sparse[2].sites,
-            result.effective_force_constants.sparse[2].translation_representatives,
+            result.force_constants.sparse[2].sites,
+            result.force_constants.sparse[2].translation_representatives,
             strict=True,
         )
     }

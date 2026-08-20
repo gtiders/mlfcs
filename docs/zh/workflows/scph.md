@@ -15,6 +15,15 @@ result = LoopSCPH(
 ).run()
 ```
 
+`result.force_constants` 是一个只含 FC2 的标准 `ForceConstants` 对象。因此无需
+SCPH 专用转换，直接使用普通 writer 即可写出：
+
+```python
+result.force_constants.write("scph.h5", format="hdf5")
+result.force_constants.write("FORCE_CONSTANTS_SCPH", format="phonopy")
+result.force_constants.write("force_constants.xml", format="alamode")
+```
+
 q 点网格由 reference 超胞矩阵的整数倍自动生成：
 `interpolation_multiplier` 控制输出频率网格，`scph_multiplier` 控制 loop 协方差积分网格；后者必须是前者的整数倍。
 

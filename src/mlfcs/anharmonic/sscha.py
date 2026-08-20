@@ -10,13 +10,13 @@ from typing import Literal
 import numpy as np
 from ase import Atoms
 from ase.calculators.calculator import Calculator
-from numpy.typing import NDArray
+from numpy.typing import ArrayLike, NDArray
 
 from mlfcs.anharmonic.common.ensemble import EnsembleDiagnostics, HarmonicEnsemble
 from mlfcs.anharmonic.common.fc2 import compact_fc2, expand_compact_fc2
 from mlfcs.anharmonic.common.schedule import TemperatureSeriesResult, normalize_temperature_schedule
 from mlfcs.fitting import ForceConstantFitter
-from mlfcs.ifc.model import ForceConstants
+from mlfcs.ifc.model import ForceConstants, replace_compact_fc2
 
 Progress = Callable[[int, int], None]
 
@@ -35,6 +35,19 @@ class SSCHAIteration:
     fitting_relative_force_error: float
     relative_force_constant_change: float | None
     raw_relative_force_constant_change: float | None
+
+
+@dataclass(frozen=True, slots=True)
+class SSCHAResult:
+    """One temperature's self-consistent effective harmonic IFC result."""
+
+    temperature: float
+    force_constants: ForceConstants
+    history: tuple[SSCHAIteration, ...]
+
+    def write(self, target: str | Path, *, format: str, order: int = 2) -> None:
+        """Write the effective FC2 through the common IFC export API."""
+        self.force_constants.write(target, format=format, order=order)
 
 
 class SSCHA:
@@ -116,6 +129,7 @@ class SSCHA:
             verbose=log_level > 1,
         )
         self._active_compact: NDArray[np.float64] | None = None
+        self._force_constants: ForceConstants | None = None
         if initial_force_constants is not None:
             values = np.asarray(initial_force_constants, dtype=float)
             compact_shape = (len(self.primitive), len(self._reference), 3, 3)
@@ -134,15 +148,9 @@ class SSCHA:
         )
 
     @property
-    def force_constants(self) -> NDArray[np.float64] | None:
-        """Return the active FC2 in full reference-supercell atom order."""
-        if self._active_compact is None:
-            return None
-        return expand_compact_fc2(self._active_compact, self._reference)
-
-    @property
-    def compact_force_constants(self) -> NDArray[np.float64] | None:
-        return None if self._active_compact is None else self._active_compact.copy()
+    def force_constants(self) -> ForceConstants | None:
+        """Return the complete effective FC2 after at least one fitted update."""
+        return self._force_constants
 
     @property
     def supercell_atoms(self) -> Atoms:
@@ -281,6 +289,16 @@ class SSCHA:
             raw_relative_force_constant_change=raw_relative_change,
         )
         self._active_compact = next_compact.copy()
+        self._force_constants = replace_compact_fc2(
+            fit.force_constants,
+            next_compact,
+            metadata={
+                "method": "sscha",
+                "temperature": self.temperature,
+                "statistics": self.statistics,
+                "mixing": self.mixing,
+            },
+        )
         self.history.append(result)
         if self.log_level:
             print(
@@ -337,7 +355,7 @@ class SSCHA:
         *,
         progress: Progress | None = None,
         calculate_free_energy: bool = True,
-    ) -> SSCHA | TemperatureSeriesResult[SSCHA]:
+    ) -> SSCHAResult | TemperatureSeriesResult[SSCHAResult]:
         """Run one temperature or an automatically sorted temperature schedule."""
         if len(self.temperatures) > 1:
             return self._run_temperature_schedule(
@@ -351,7 +369,7 @@ class SSCHA:
                 progress=progress,
                 calculate_free_energy=calculate_free_energy,
             )
-        return self
+        return self._result()
 
     def _run_temperature_schedule(
         self,
@@ -359,9 +377,9 @@ class SSCHA:
         *,
         progress: Progress | None,
         calculate_free_energy: bool,
-    ) -> TemperatureSeriesResult[SSCHA]:
+    ) -> TemperatureSeriesResult[SSCHAResult]:
         previous = self._initial_force_constants
-        results: list[SSCHA] = []
+        results: list[SSCHAResult] = []
         for schedule_index, temperature in enumerate(self.temperatures):
             initial = (
                 previous
@@ -393,27 +411,17 @@ class SSCHA:
                 progress=progress,
                 calculate_free_energy=calculate_free_energy,
             )
-            assert isinstance(result, SSCHA)
+            assert isinstance(result, SSCHAResult)
             results.append(result)
             if self.continuation:
-                previous = result.compact_force_constants
+                previous = result.force_constants.materialize(2, max_bytes=None)
         return TemperatureSeriesResult(self.temperatures, tuple(results), self.continuation)
 
-    def write(self, target: str | Path, *, format: Literal["text", "hdf5"] = "hdf5") -> None:
+    def _result(self) -> SSCHAResult:
         self._require_single_temperature()
-        if self._active_compact is None:
+        if self._force_constants is None:
             raise RuntimeError("no force constants are available")
-        values = ForceConstants(
-            {2: self._active_compact.copy()},
-            self._reference.copy(),
-            metadata={"method": "sscha", "temperature": self.temperature},
-        )
-        if format == "text":
-            values.write(target, format="phonopy", order=2)
-        elif format == "hdf5":
-            values.write(target, format="phonopy_hdf5", order=2)
-        else:
-            raise ValueError("format must be 'text' or 'hdf5'")
+        return SSCHAResult(self.temperature, self._force_constants, tuple(self.history))
 
     def _snapshot_count(self) -> int:
         if self.snapshots != "auto":
@@ -450,7 +458,7 @@ class SSCHA:
     def _require_single_temperature(self) -> None:
         if len(self.temperatures) != 1:
             raise RuntimeError(
-                "sow/reap operations require one temperature; call run(calculator) for a temperature schedule"
+                "step operations require one temperature; call run(calculator) for a temperature schedule"
             )
 
     def _report_ensemble(self, diagnostics: EnsembleDiagnostics) -> None:
@@ -471,4 +479,4 @@ class SSCHA:
                 f"affected snapshots: {diagnostics.affected_snapshots}"
             )
 
-__all__ = ["SSCHA", "SSCHAIteration"]
+__all__ = ["SSCHA", "SSCHAIteration", "SSCHAResult"]

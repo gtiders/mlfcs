@@ -36,7 +36,7 @@ variance(q_s) = hbar / (2 omega_s) coth[hbar omega_s / (2 kB T)]
 from ase.io import read
 from mlfcs.anharmonic.sscha import SSCHA
 
-sscha = SSCHA(
+calculation = SSCHA(
     read("POSCAR"),
     reference=read("reference-supercell.vasp"),
     temperature=300.0,
@@ -51,7 +51,7 @@ sscha = SSCHA(
     mixing=1.0,             # 直接固定点更新
     log_level=1,
 )
-sscha.run(make_my_ase_calculator())
+result = calculation.run(make_my_ase_calculator())
 ```
 
 `run()` 逐个计算构型，避免复制大型计算器。只需要有效 FC2 时可设置
@@ -103,16 +103,14 @@ Phi_next = (1 - mixing) Phi_sampled + mixing Phi_fitted.
 ## 结果与写出
 
 ```python
-previous = sscha.force_constants
-iteration = sscha.step(calculator)
-
-sscha.write("FORCE_CONSTANTS", format="text")
-sscha.write("fc2-300K.hdf5", format="hdf5")
+result.force_constants.write("mlfcs.h5", format="hdf5")
+result.force_constants.write("FORCE_CONSTANTS_2ND", format="phonopy", order=2)
+result.force_constants.write("force_constants.xml", format="alamode", order=2)
 ```
 
-`force_constants` 使用 MLFCS 内部完整超胞原子顺序；平移约化数组可由
-`compact_force_constants` 获取。history 只保存诊断摘要。文本和 HDF5 写出复用项目已有的
-phonopy 兼容 writer，但不会导入 phonopy。
+`result.force_constants` 是标准的 lattice-labelled `ForceConstants`，只包含自洽后的有效
+FC2，并具有和有限差分、拟合结果相同的 structure relation 与通用导出能力。history 只保存
+诊断摘要；需要稠密数组时显式调用 `result.force_constants.materialize(2)`。
 
 ## 自由能
 
