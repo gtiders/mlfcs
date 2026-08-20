@@ -8,7 +8,6 @@ from mlfcs.api import ForceConstantCalculation
 from mlfcs.core.orbits import cluster_invariant_dimension
 from mlfcs.fitting.constraints import (
     _validate_missing_contractions,
-    append_zero_taylor_order_constraints,
     build_joint_constraints,
     build_wick_to_taylor_fc1_transform,
     build_wick_to_taylor_transform,
@@ -85,29 +84,6 @@ def test_fc1_transform_maps_supercell_anchor_to_primitive_site():
     covariance = np.eye(len(calculations[0].supercell) * 3)
     transform = build_wick_to_taylor_fc1_transform(calculations, covariance)
     assert transform.shape[0] == 3 * len(primitive)
-
-
-def test_frozen_fc2_constraint_cancels_fc4_to_fc2_taylor_contraction():
-    primitive = Atoms("Si", positions=[[0, 0, 0]], cell=np.eye(3) * 4.0, pbc=True)
-    reference = make_supercell(primitive, (2, 1, 1))[0]
-    calculations = tuple(
-        ForceConstantCalculation(
-            primitive, order=order, reference=reference, cutoff=4.1, verbose=False
-        )
-        for order in (2, 3, 4)
-    )
-    covariance = np.eye(len(calculations[0].supercell) * 3) * 0.03
-    constraints = append_zero_taylor_order_constraints(
-        build_joint_constraints(calculations, acoustic=False), calculations, covariance, (2,)
-    )
-    null_space = explicit_constraint_null_space(constraints.matrix)
-    transform = build_wick_to_taylor_transform(calculations, covariance)
-    fc2_count = sum(orbit.dimension for orbit in calculations[0].orbit_space.orbits)
-    rng = np.random.default_rng(73)
-    parameters = np.asarray(null_space @ rng.normal(size=null_space.shape[1]))
-
-    np.testing.assert_allclose(transform[:fc2_count] @ parameters, 0.0, atol=1e-12)
-    assert np.linalg.norm(parameters[fc2_count:]) > 0
 
 
 def test_missing_symmetry_forbidden_zero_wick_contraction_is_accepted(monkeypatch):

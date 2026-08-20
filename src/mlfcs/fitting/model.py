@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from functools import partial
 from hashlib import sha256
 from pathlib import Path
@@ -18,7 +17,6 @@ from mlfcs.core.geometry import StructureRelation
 from mlfcs.core.interactions import InteractionSpace
 from mlfcs.fitting.basis import symmetrized_covariance as _symmetrized_covariance
 from mlfcs.fitting.constraints import (
-    append_zero_taylor_order_constraints,
     build_joint_constraints,
     build_wick_to_taylor_transform,
     omitted_taylor_fc1,
@@ -27,11 +25,6 @@ from mlfcs.fitting.data import FitDataset
 from mlfcs.fitting.design import ForceDesignOperator as _BatchedForceOperator
 from mlfcs.fitting.design import accumulate_physical_design
 from mlfcs.fitting.design import prepare_design_kernel_groups as _prepare_physical_design_builders
-from mlfcs.fitting.frozen import (
-    frozen_asr_residual,
-    frozen_forces,
-    prepare_frozen_force_constants,
-)
 from mlfcs.fitting.parameterization import expand_sparse as _expand_sparse
 from mlfcs.fitting.parameterization import pack_order as _pack_order
 from mlfcs.fitting.solver import (
@@ -70,13 +63,6 @@ class FittingDiagnostics:
     static_device_bytes: int = 0
     gram_feature_passes: int = 0
     prediction_feature_passes: int = 0
-    frozen_orders: tuple[int, ...] = ()
-    frozen_force_rms: dict[int, float] = field(default_factory=dict)
-    frozen_reconstruction_maximum: dict[int, float] = field(default_factory=dict)
-    frozen_reconstruction_relative: dict[int, float] = field(default_factory=dict)
-    frozen_missing_support: dict[int, int] = field(default_factory=dict)
-    frozen_asr_residual: dict[int, float] = field(default_factory=dict)
-    maximum_frozen_taylor_residual: float = 0.0
 
 
 @dataclass(slots=True)
@@ -164,14 +150,12 @@ class ForceConstantFitter:
         validation_split: float = 0.1,
         tolerance: float = 1e-8,
         max_iterations: int = 1000,
-        damping: float = 0.0,
         seed: int = 0,
         acoustic_sum_rule: bool = True,
         precondition: bool = True,
         allow_unconverged: bool = False,
         regularization: str | None = None,
         cache_directory: str | Path | None = None,
-        frozen_force_constants: Mapping[int, ForceConstants] | None = None,
     ) -> FittingResult:
         if not 0 <= validation_split < 1:
             raise ValueError("validation_split must be in [0, 1)")
@@ -179,23 +163,11 @@ class ForceConstantFitter:
             raise ValueError("batch_size must be between 1 and 4")
         if max_iterations < 1:
             raise ValueError("max_iterations must be positive")
-        if tolerance <= 0 or damping < 0:
-            raise ValueError("tolerance must be positive and damping must be non-negative")
+        if tolerance <= 0:
+            raise ValueError("tolerance must be positive")
         normalized_regularization = "none" if regularization is None else regularization.casefold()
         if normalized_regularization not in {"none", "scaled_group_lasso"}:
             raise ValueError("regularization must be None or 'scaled_group_lasso'")
-        if normalized_regularization != "none" and damping:
-            raise ValueError("damping and scaled group LASSO cannot be enabled together")
-        if frozen_force_constants and (normalized_regularization != "none" or damping != 0.0):
-            raise ValueError(
-                "frozen force constants currently require regularization=None and damping=0"
-            )
-        frozen = prepare_frozen_force_constants(
-            frozen_force_constants,
-            primitive=self.primitive,
-            reference=self.reference,
-            calculations=self.calculations,
-        )
         dataset = FitDataset.from_atoms(self.geometry, structures)
         maximum_reference_force = float(np.max(np.linalg.norm(dataset.reference_forces, axis=1)))
         maximum_snapshot_net_force = float(np.max(np.linalg.norm(dataset.net_forces, axis=1)))
@@ -213,20 +185,7 @@ class ForceConstantFitter:
         # on the incidental order of the input structure.
         displacements = dataset.displacements
         forces = dataset.forces
-        fixed_forces, frozen_force_rms = frozen_forces(frozen, displacements, self.index)
-        frozen_asr = {
-            order: frozen_asr_residual(values, self.index)
-            for order, values in frozen.sparse.items()
-        }
-        residual_forces = forces - fixed_forces
-        for order in frozen.orders:
-            diagnostic = frozen.diagnostics[order]
-            self._report(
-                f"- Frozen FC{order}: force RMS={frozen_force_rms[order]:.10e} eV/Å, "
-                f"representation residual={diagnostic.reconstruction_relative:.6e}, "
-                f"ASR residual={frozen_asr[order]:.6e}, "
-                f"missing support={diagnostic.missing_support}"
-            )
+        residual_forces = forces
         rng = np.random.default_rng(seed)
         indices = rng.permutation(len(structures))
         n_validation = round(len(indices) * validation_split)
@@ -239,15 +198,12 @@ class ForceConstantFitter:
             self.calculations,
             acoustic=acoustic_sum_rule,
         )
-        constraints = append_zero_taylor_order_constraints(
-            constraints, self.calculations, covariance, frozen.orders
-        )
         self._report(
             f"Constraint system: {constraints.matrix.shape[0]} rows after duplicate removal "
             f"({constraints.translational_rows} ASR before compression)"
         )
         parameter_map = None
-        if normalized_regularization == "none" and damping == 0.0 and constraints.matrix.shape[0]:
+        if normalized_regularization == "none" and constraints.matrix.shape[0]:
             parameter_map = explicit_constraint_null_space(
                 constraints.matrix,
                 tolerance=1e-11,
@@ -310,7 +266,6 @@ class ForceConstantFitter:
                 solve_constraints,
                 tolerance=tolerance,
                 max_iterations=max_iterations,
-                damping=damping,
                 verbose=self.verbose,
             )
             scaled_parameters, stop_code, iterations, residual_norm, normal_residual = solution
@@ -433,21 +388,7 @@ class ForceConstantFitter:
             self.index.n_primitive,
             len(self.canonical_supercell),
         )
-        maximum_frozen_taylor_residual = max(
-            (
-                float(np.max(np.abs(residual_sparse[order].tensors), initial=0.0))
-                for order in frozen.orders
-            ),
-            default=0.0,
-        )
-        invariant_tolerance = max(1e-10, tolerance * 10)
-        if maximum_frozen_taylor_residual > invariant_tolerance:
-            raise RuntimeError(
-                "frozen residual Taylor constraint was not satisfied: "
-                f"maximum={maximum_frozen_taylor_residual:.6e}"
-            )
         sparse_values = dict(residual_sparse)
-        sparse_values.update(frozen.sparse)
         self._report(
             f"- Expanded {sum(len(value.clusters) for value in sparse_values.values())} "
             f"sparse tensors in {perf_counter() - expansion_started:.2f} s"
@@ -473,10 +414,6 @@ class ForceConstantFitter:
                 "acoustic_sum_rule": acoustic_sum_rule,
                 "training_structures": len(structures),
                 "jax_platform": self.jax_platform,
-                "frozen_orders": list(frozen.orders),
-                "frozen_content_hashes": {
-                    str(order): frozen.diagnostics[order].content_hash for order in frozen.orders
-                },
             },
             sparse=sparse_values,
             relation=self.geometry,
@@ -507,13 +444,6 @@ class ForceConstantFitter:
             operator.program.static_device_bytes,
             operator.program.gram_feature_passes,
             operator.program.prediction_feature_passes,
-            frozen.orders,
-            frozen_force_rms,
-            {order: frozen.diagnostics[order].reconstruction_maximum for order in frozen.orders},
-            {order: frozen.diagnostics[order].reconstruction_relative for order in frozen.orders},
-            {order: frozen.diagnostics[order].missing_support for order in frozen.orders},
-            frozen_asr,
-            maximum_frozen_taylor_residual,
         )
         result = FittingResult(
             force_constants,
@@ -752,7 +682,7 @@ class _StreamingGramSystem:
             offset += count
         return result
 
-    def solve(self, scale, constraints, *, tolerance, max_iterations, damping, verbose):
+    def solve(self, scale, constraints, *, tolerance, max_iterations, verbose):
         return solve_gram_system(
             self.gram,
             self.rhs,
@@ -761,7 +691,6 @@ class _StreamingGramSystem:
             constraints,
             tolerance=tolerance,
             max_iterations=max_iterations,
-            damping=damping,
             verbose=verbose,
             reporter=self.reporter,
         )

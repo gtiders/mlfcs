@@ -18,24 +18,6 @@ class JointConstraints:
     translational_rows: int
 
 
-def append_zero_taylor_order_constraints(
-    constraints: JointConstraints, calculations, covariance, orders
-) -> JointConstraints:
-    """Require selected residual Taylor orders to vanish exactly."""
-    orders = set(orders)
-    if not orders:
-        return constraints
-    dimensions = [_parameter_count(calculation) for calculation in calculations]
-    offsets = np.cumsum([0, *dimensions])
-    transform = build_wick_to_taylor_transform(calculations, covariance)
-    rows = []
-    for index, calculation in enumerate(calculations):
-        if calculation.config.order in orders:
-            rows.append(transform[offsets[index] : offsets[index + 1]])
-    matrix = sparse.vstack([constraints.matrix, *rows], format="csr")
-    return JointConstraints(_compress_rows(matrix), constraints.translational_rows)
-
-
 def build_joint_constraints(
     calculations,
     *,

@@ -86,31 +86,9 @@ result.force_constants.write("FORCE_CONSTANTS_3RD", format="shengbte", order=3)
 result.force_constants.write("FORCE_CONSTANTS_4TH", format="shengbte", order=4)
 ```
 
-Low-order Taylor IFCs can be held fixed while fitting only higher-order residuals. Each order may
-come from a different native HDF5 file:
-
-```python
-from mlfcs import read_hdf5
-
-result = fitter.fit(
-    read("train.xyz", index=":"),
-    frozen_force_constants={
-        2: read_hdf5("finite-difference-fc2.h5"),
-        3: read_hdf5("independent-fc3.h5"),
-    },
-    damping=0,
-    regularization=None,
-)
-```
-
-Frozen keys must form a consecutive prefix beginning at FC2, and at least one higher order must
-remain to fit. MLFCS strictly aligns each source structure, evaluates its sparse physical Taylor
-forces, subtracts them from every training and validation target, and merges the original aligned
-tensors back without projection. The residual Wick fit is constrained to produce zero Taylor IFCs
-at frozen orders, including same-parity contractions such as FC4 to FC2. Representability in the
-current cutoff and symmetry parameterization, missing support, and the frozen tensor's ASR residual
-are diagnostics only. ASR constrains the fitted residual and never modifies frozen tensors. This
-first implementation intentionally rejects ridge damping and group-LASSO regularization.
+MLFCS does not freeze externally supplied low-order IFCs during a higher-order fit. All requested
+orders are determined jointly in one Wick parameter space, so same-parity contractions, symmetry,
+and equality constraints remain internally consistent.
 
 `max_body_orders` optionally limits the number of distinct atomic sites in a cluster at each
 order. For example, `(0, 0, 1, 1)` is a two-body fourth-order cluster. Omitting an order or using
@@ -134,13 +112,11 @@ inside the JAX kernel rather than pre-expanded for every orbit, image, translati
 component. Each kernel returns only its local parameter columns, and large covariance and orbit
 arrays are runtime arguments rather than captured XLA constants.
 
-For unregularized fitting (`damping=0`), hard constraints are parameterized before design accumulation. A
+For unregularized fitting, hard constraints are parameterized before design accumulation. A
 block-sparse map `Z` is constructed from constraint-connected components by pivoted QR, with
 `theta = Z q`; the fitter accumulates `(A Z).T @ (A Z)` directly. Thus Gram storage and solving
 scale with the constrained degrees of freedom, not the original irreducible parameter count. The
-map itself remains sparse; a dense global null-space matrix is never formed. Nonzero damping keeps
-the implicit physical-coordinate constraint path so its ridge penalty retains its original
-meaning. A `PreparedDesignProgram` packs orbit tiles, uploads static buffers, and caches JIT
+map itself remains sparse; a dense global null-space matrix is never formed. A `PreparedDesignProgram` packs orbit tiles, uploads static buffers, and caches JIT
 callables once per fit; the same program is reused for training, validation, and diagnostics. On
 CPU, JAX builds physical design tiles and OpenBLAS/SciPy perform sparse reduction and Gram
 accumulation. On a JAX GPU backend, physical design, bounded sparse null-space reduction, and

@@ -1,3 +1,5 @@
+import inspect
+
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -27,6 +29,12 @@ from mlfcs.fitting.parameterization import OrderParameterization as _OrderTensor
 from mlfcs.fitting.parameterization import expand_sparse as _expand_sparse
 from mlfcs.fitting.solver import explicit_constraint_null_space
 from mlfcs.ifc.model import ForceConstants, SparseOrderForceConstants
+
+
+def test_fitter_fit_exposes_only_strict_solver_controls():
+    signature = inspect.signature(ForceConstantFitter.fit)
+    assert "damping" not in signature.parameters
+    assert "frozen_force_constants" not in signature.parameters
 
 
 def test_streaming_gram_zero_target_has_finite_zero_relative_error():
@@ -247,78 +255,6 @@ def test_fitter_uses_reordered_reference_without_a_separate_supercell_argument()
     assert fitter.index.representative(0) == 1
 
 
-def test_fitter_freezes_exact_external_fc2_and_fits_only_residual_orders(tmp_path):
-    from mlfcs.fitting.frozen import frozen_forces, prepare_frozen_force_constants
-    from mlfcs.io.hdf5 import read_hdf5, write_hdf5
-
-    primitive = Atoms(
-        "GaAs", cell=np.eye(3) * 5.6, scaled_positions=[[0, 0, 0], [0.25] * 3], pbc=True
-    )
-    reference = primitive.repeat((2, 1, 1))
-    fitter = ForceConstantFitter(
-        primitive,
-        reference,
-        orders=(2, 3),
-        cutoffs={2: None, 3: None},
-        verbose=False,
-    )
-    count = sum(orbit.dimension for orbit in fitter.calculations[0].orbit_space.orbits)
-    fc2 = _expand_sparse(
-        np.linspace(0.2, 0.2 * count, count), fitter.calculations[:1], 2, len(reference)
-    )[2]
-    frozen_source = ForceConstants({}, reference.copy(), sparse={2: fc2}, relation=fitter.geometry)
-    source_path = tmp_path / "finite-difference-fc2.h5"
-    write_hdf5(source_path, frozen_source)
-    frozen_source = read_hdf5(source_path)
-    prepared = prepare_frozen_force_constants(
-        {2: frozen_source},
-        primitive=fitter.primitive,
-        reference=fitter.reference,
-        calculations=fitter.calculations,
-    )
-    rng = np.random.default_rng(91)
-    displacements = rng.normal(scale=0.02, size=(8, len(reference), 3))
-    forces, _ = frozen_forces(prepared, displacements, fitter.index)
-    structures = []
-    for displacement, force in zip(displacements, forces, strict=True):
-        atoms = reference.copy()
-        atoms.positions += displacement
-        atoms.calc = SinglePointCalculator(atoms, forces=force)
-        structures.append(atoms)
-
-    result = fitter.fit(
-        structures,
-        frozen_force_constants={2: frozen_source},
-        validation_split=0,
-        acoustic_sum_rule=False,
-        tolerance=1e-10,
-    )
-
-    np.testing.assert_array_equal(result.force_constants.sparse[2].clusters, fc2.clusters)
-    np.testing.assert_array_equal(result.force_constants.sparse[2].tensors, fc2.tensors)
-    assert result.diagnostics.frozen_orders == (2,)
-    assert result.diagnostics.maximum_frozen_taylor_residual < 1e-10
-    assert result.diagnostics.training_force_rmse < 1e-12
-
-
-def test_frozen_force_constants_require_a_low_order_prefix_and_strict_solver():
-    primitive = Atoms(
-        "GaAs", cell=np.eye(3) * 5.6, scaled_positions=[[0, 0, 0], [0.25] * 3], pbc=True
-    )
-    reference = primitive.repeat((2, 1, 1))
-    fitter = ForceConstantFitter(
-        primitive, reference, orders=(2, 3), cutoffs={2: None, 3: None}, verbose=False
-    )
-    empty = ForceConstants({}, reference.copy(), relation=fitter.geometry)
-    atoms = reference.copy()
-    atoms.calc = SinglePointCalculator(atoms, forces=np.zeros((len(reference), 3)))
-
-    with pytest.raises(ValueError, match="prefix starting at 2"):
-        fitter.fit([atoms], frozen_force_constants={3: empty}, validation_split=0)
-    with pytest.raises(ValueError, match="regularization=None and damping=0"):
-        fitter.fit([atoms], frozen_force_constants={2: empty}, damping=1e-4, validation_split=0)
-
-
 def test_public_fitter_exposes_scaled_orbit_group_lasso():
     primitive = Atoms("Ar", cell=np.eye(3) * 4, scaled_positions=[[0, 0, 0]], pbc=True)
     reference = primitive.repeat((2, 1, 1))
@@ -375,7 +311,6 @@ def test_streaming_gram_recovers_force_constant_and_force_error():
             sparse.csr_matrix((0, 1)),
             tolerance=1e-12,
             max_iterations=100,
-            damping=0.0,
             verbose=False,
         )[0]
         * scale

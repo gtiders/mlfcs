@@ -265,15 +265,12 @@ def solve_gram_system(
     *,
     tolerance,
     max_iterations,
-    damping,
     verbose,
     reporter=None,
 ):
     """Solve a preconditioned Gram system in the equality-constraint null space."""
     scale = np.asarray(scale)
     normal = gram * scale[:, None] * scale[None, :]
-    if damping:
-        normal.flat[:: len(normal) + 1] += damping**2
     scaled_rhs = scale * rhs
     n_parameters = len(scaled_rhs)
     started = perf_counter()

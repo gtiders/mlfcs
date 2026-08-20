@@ -74,28 +74,8 @@ result.force_constants.write("FORCE_CONSTANTS_3RD", format="shengbte", order=3)
 result.force_constants.write("FORCE_CONSTANTS_4TH", format="shengbte", order=4)
 ```
 
-可以固定低阶 Taylor IFC，只拟合更高阶残余；每一阶可来自不同的原生 HDF5：
-
-```python
-from mlfcs import read_hdf5
-
-result = fitter.fit(
-    read("train.xyz", index=":"),
-    frozen_force_constants={
-        2: read_hdf5("finite-difference-fc2.h5"),
-        3: read_hdf5("independent-fc3.h5"),
-    },
-    damping=0,
-    regularization=None,
-)
-```
-
-冻结键必须是从 FC2 开始的连续低阶前缀，并且至少保留一个更高阶用于拟合。MLFCS 会严格
-对齐每个来源的结构，直接用稀疏物理 Taylor IFC 计算力，从全部训练及验证目标中扣除，最后
-将对齐后的原始张量不经投影地合并回结果。残余 Wick 拟合会约束冻结阶的 Taylor IFC 为零，
-因此也正确处理 FC4 收缩到 FC2 这类同奇偶跨阶项。当前截断和对称参数空间中的可表示性、
-缺失支撑以及冻结张量的 ASR 残差都只报告诊断，不会终止拟合；ASR 只约束拟合残余，绝不
-修改冻结张量。首版有意只支持严格无正则拟合，拒绝 ridge damping 和组 LASSO。
+MLFCS 不支持将外部低阶 IFC 冻结到高阶拟合中。所有阶数必须在同一个 Wick 参数空间中联合
+确定，以保证高阶收缩到低阶的关系、对称性和约束保持一致。
 
 `max_body_orders` 可按阶限制一个团簇中不同原子位置的数量。例如 `(0, 0, 1, 1)` 是二体
 四阶团簇。某阶省略或设为 `None` 时，保留不超过该力常数阶数的全部体数。
@@ -113,10 +93,9 @@ result = fitter.fit(
 每个轨道、对称图像、平移和张量分量预展开。每个核只返回自身的局部参数列；协方差和
 轨道大数组作为运行时参数传入，不再被捕获为 XLA 常量。
 
-无正则拟合（`damping=0`）会在设计累计前参数化硬约束。程序按约束连通分块执行带主元 QR，构造稀疏
+无正则拟合会在设计累计前参数化硬约束。程序按约束连通分块执行带主元 QR，构造稀疏
 映射 `Z` 并令 `theta = Z q`，随后直接累计 `(A Z).T @ (A Z)`。因此 Gram 存储和
 求解规模取决于约束后的自由度，而不是原始不可约参数数目；程序不会构造全局稠密零空间。
-非零 damping 继续使用物理参数坐标中的隐式约束路径，以保持岭惩罚原有的数学含义。
 每次拟合会创建一个 `PreparedDesignProgram`：它只打包一次轨道 tile、上传一次静态缓冲区、
 缓存 JIT callable，训练、验证和诊断均复用同一对象。CPU 模式由 JAX 构建物理设计 tile，
 OpenBLAS/SciPy 完成稀疏约化和 Gram 累积。JAX GPU 模式中，物理设计、有界稀疏零空间
