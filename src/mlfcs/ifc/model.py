@@ -164,7 +164,7 @@ class ForceConstants:
             supercell=supercell,
         )
 
-    def enforce_harmonic_constraints(
+    def enforce_rotational_sum_rules(
         self,
         *,
         born_huang: bool = False,
@@ -172,14 +172,14 @@ class ForceConstants:
         strength: float = 1.0,
         tolerance: float = 1e-8,
     ):
-        """Return an FC2-only Born--Huang/Huang constrained result.
+        """Return an FC2-only Born--Huang/Huang rotationally constrained result.
 
         This is an explicit postprocessing operation.  It leaves every order
         other than FC2 unchanged, including FC3 and FC4 from a Wick fit.
         """
-        from mlfcs.constraints.harmonic import enforce_harmonic_constraints
+        from mlfcs.constraints.rotational_sum_rules import enforce_rotational_sum_rules
 
-        return enforce_harmonic_constraints(
+        return enforce_rotational_sum_rules(
             self,
             born_huang=born_huang,
             huang=huang,

@@ -10,10 +10,13 @@ primitive/reference frame。
 ```python
 result = LoopSCPH(
     fc2=fc2, fc4=fc4, temperature=600,
-    interpolation_mesh=(3, 3, 3), scph_mesh=(6, 6, 6),
+    interpolation_multiplier=1, scph_multiplier=2,
     mixing=0.1, tolerance=1e-10, max_iterations=100,
 ).run()
 ```
+
+q 点网格由 reference 超胞矩阵的整数倍自动生成：
+`interpolation_multiplier` 控制输出频率网格，`scph_multiplier` 控制 loop 协方差积分网格；后者必须是前者的整数倍。
 
 ## 1. 从晶格哈密顿量到 loop 方程
 
@@ -185,8 +188,9 @@ DeltaPhi2 = 0.5 * einsum("abcd,cd->ab", Phi4, C)
 site/平移标签映射回 reference supercell 原子号；它不改变用户 reference 的原子顺序。
 因此，稀疏物理标签、计算用超胞索引和最终导出顺序彼此分离。
 
-协方差的 q 点和为 `1/N_q`，`scph_mesh` 是协方差积分网格，`interpolation_mesh` 仅用于
-频率变化的收敛诊断和结果频率输出。两者可以不同，但当前要求前者各方向是后者的整数倍。
+协方差的 q 点和为 `1/N_q`，`scph_multiplier` 是协方差积分网格相对 reference 超胞的倍数，`interpolation_multiplier` 仅用于
+频率变化的收敛诊断和结果频率输出。两者可以不同，但当前要求 `scph_multiplier` 是
+`interpolation_multiplier` 的整数倍。
 
 ## 6. 自洽迭代
 
@@ -218,8 +222,8 @@ primitive/reference 关系。
 
 ```python
 results = LoopSCPH(
-    fc2=fc2, fc4=fc4, temperature=range(300, 901, 300),
-    interpolation_mesh=(3, 3, 3), scph_mesh=(6, 6, 6),
+    fc2=fc2, fc4=fc4, temperature=[300, 600, 900],
+    interpolation_multiplier=1, scph_multiplier=2,
     max_iterations=100,
     verbose=True,
 ).run()

@@ -9,7 +9,7 @@ from mlfcs.anharmonic.scph import LoopSCPH, _fourier_terms, harmonic_frequencies
 from mlfcs.core.geometry import StructureRelation
 from mlfcs.ifc.model import ForceConstants, SparseOrderForceConstants
 from mlfcs.io.hdf5 import read_hdf5
-from mlfcs.tools import build_supercell
+from mlfcs import build_supercell
 
 
 def _force_constants(*, cell=4.0):
@@ -49,8 +49,8 @@ def test_loop_scph_accepts_independent_fc2_and_fc4_and_writes_effective_fc2(tmp_
         fc2=fc2,
         fc4=fc4,
         temperature=300,
-        interpolation_mesh=(1, 1, 1),
-        scph_mesh=(1, 1, 1),
+        interpolation_multiplier=1,
+        scph_multiplier=1,
         mixing=1.0,
         tolerance=1e-12,
         max_iterations=2,
@@ -70,8 +70,8 @@ def test_loop_correction_has_quartic_one_half_factor():
         fc2=fc2,
         fc4=fc4,
         temperature=300,
-        interpolation_mesh=(1, 1, 1),
-        scph_mesh=(1, 1, 1),
+        interpolation_multiplier=1,
+        scph_multiplier=1,
         mixing=1.0,
         max_iterations=1,
         verbose=False,
@@ -86,12 +86,12 @@ def test_loop_scph_qpoint_workers_preserve_covariance():
     fc2, fc4 = _force_constants()
     serial = LoopSCPH(
         fc2=fc2, fc4=fc4, temperature=300,
-        interpolation_mesh=(1, 1, 1), scph_mesh=(2, 1, 1),
+        interpolation_multiplier=1, scph_multiplier=2,
         mixing=1.0, max_iterations=1, verbose=False, qpoint_workers=1,
     ).run()
     parallel = LoopSCPH(
         fc2=fc2, fc4=fc4, temperature=300,
-        interpolation_mesh=(1, 1, 1), scph_mesh=(2, 1, 1),
+        interpolation_multiplier=1, scph_multiplier=2,
         mixing=1.0, max_iterations=1, verbose=False, qpoint_workers=2,
     ).run()
     np.testing.assert_allclose(
@@ -101,24 +101,24 @@ def test_loop_scph_qpoint_workers_preserve_covariance():
 
 def test_loop_scph_temperature_series_uses_previous_effective_fc2():
     fc2, fc4 = _force_constants()
-    calculation = LoopSCPH(
+    series = LoopSCPH(
         fc2=fc2,
         fc4=fc4,
-        temperature=0.0,
-        interpolation_mesh=(1, 1, 1),
-        scph_mesh=(1, 1, 1),
+        temperature=[300, 0],
+        interpolation_multiplier=1,
+        scph_multiplier=1,
         mixing=1.0,
         max_iterations=1,
         verbose=False,
     )
-    series = calculation.run_temperature_series([0, 300])
+    series = series.run()
     assert tuple(result.temperature for result in series) == (0.0, 300.0)
     direct = LoopSCPH(
         fc2=fc2,
         fc4=fc4,
         temperature=300,
-        interpolation_mesh=(1, 1, 1),
-        scph_mesh=(1, 1, 1),
+        interpolation_multiplier=1,
+        scph_multiplier=1,
         mixing=1.0,
         max_iterations=1,
         verbose=False,
@@ -133,25 +133,25 @@ def test_loop_scph_temperature_range_runs_continuation():
         fc2=fc2,
         fc4=fc4,
         temperature=range(300, 901, 300),
-        interpolation_mesh=(1, 1, 1),
-        scph_mesh=(1, 1, 1),
+        interpolation_multiplier=1,
+        scph_multiplier=1,
         mixing=1.0,
         max_iterations=1,
         verbose=False,
     ).run()
-    assert isinstance(results, tuple)
+    assert results.continuation
     assert tuple(result.temperature for result in results) == (300.0, 600.0, 900.0)
 
 
 def test_loop_scph_uses_alamode_rms_frequency_stopping_metric():
     fc2, fc4 = _force_constants()
-    _, initial = harmonic_frequencies(fc2, (1, 1, 1))
+    _, initial = harmonic_frequencies(fc2, 1)
     result = LoopSCPH(
         fc2=fc2,
         fc4=fc4,
         temperature=300,
-        interpolation_mesh=(1, 1, 1),
-        scph_mesh=(1, 1, 1),
+        interpolation_multiplier=1,
+        scph_multiplier=1,
         mixing=1.0,
         max_iterations=1,
     ).run()
@@ -167,14 +167,14 @@ def test_loop_scph_rejects_incompatible_force_constant_frames():
             fc2=fc2,
             fc4=fc4,
             temperature=300,
-            interpolation_mesh=(1, 1, 1),
-            scph_mesh=(1, 1, 1),
+            interpolation_multiplier=1,
+            scph_multiplier=1,
         )
 
 
 def test_loop_scph_fourier_terms_keep_reference_translations_for_incompatible_mesh():
     primitive = Atoms("H", positions=[[0, 0, 0]], cell=np.eye(3) * 2.0, pbc=True)
-    reference = build_supercell(primitive, np.diag([2, 2, 3]), ordering="phonopy")
+    reference = build_supercell(primitive, np.diag([2, 2, 3]))
     relation = StructureRelation.from_atoms(primitive, reference)
     compact = np.zeros((1, len(reference), 3, 3))
     terms = _fourier_terms(compact, relation)
@@ -215,8 +215,8 @@ def test_loop_scph_keeps_fc4_induced_pair_support():
         fc2=ForceConstants({}, primitive, sparse={2: fc2}, relation=relation),
         fc4=ForceConstants({}, primitive, sparse={4: fc4}, relation=relation),
         temperature=300,
-        interpolation_mesh=(1, 1, 1),
-        scph_mesh=(1, 1, 1),
+        interpolation_multiplier=1,
+        scph_multiplier=1,
         mixing=1.0,
         max_iterations=1,
     ).run()
@@ -239,8 +239,8 @@ def test_loop_scph_convergence_does_not_require_positive_frequencies():
         fc2=fc2,
         fc4=fc4,
         temperature=0.0,
-        interpolation_mesh=(1, 1, 1),
-        scph_mesh=(1, 1, 1),
+        interpolation_multiplier=1,
+        scph_multiplier=1,
         mixing=1.0,
         tolerance=1e-12,
         max_iterations=1,

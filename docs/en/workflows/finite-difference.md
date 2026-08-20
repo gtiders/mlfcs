@@ -1,7 +1,7 @@
 # Finite differences
 
 `ForceConstantCalculation` accepts an explicit primitive and reference supercell. Use
-`mlfcs.tools.build_supercell` before constructing the calculation when a matrix-based structure
+`mlfcs.build_supercell` before constructing the calculation when a matrix-based structure
 must be prepared. `sow()` returns structures in reference order; `reap()` requires forces in
 that same order (or a configuration-ID mapping).
 

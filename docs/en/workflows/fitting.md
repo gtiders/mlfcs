@@ -162,5 +162,5 @@ It is printed as a percentage together with force RMSE in eV/angstrom, validatio
 order-resolved force-contribution RMS, projected normal residual, and constraint drift.
 
 For physical FC2 Born-Huang/Huang correction, call
-`result.force_constants.enforce_harmonic_constraints(...)`. Its strict default is
+`result.force_constants.enforce_rotational_sum_rules(...)`. Its strict default is
 `strength=1.0`; see [sum rules].

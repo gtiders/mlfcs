@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import deque
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -14,6 +15,7 @@ from numpy.typing import ArrayLike, NDArray
 
 from mlfcs.anharmonic.common.ensemble import EnsembleDiagnostics, HarmonicEnsemble
 from mlfcs.anharmonic.common.fc2 import compact_fc2, expand_compact_fc2
+from mlfcs.anharmonic.common.schedule import TemperatureSeriesResult, normalize_temperature_schedule
 from mlfcs.fitting import ForceConstantFitter
 from mlfcs.ifc.model import ForceConstants
 
@@ -27,7 +29,6 @@ class SSCHAIteration:
 
     index: int
     sampling: Literal["cartesian", "canonical"]
-    force_constants: NDArray[np.float64]
     free_energy: float | None
     free_energy_error: float | None
     potential_energy: float | None
@@ -40,12 +41,14 @@ class SSCHAIteration:
 class SSCHA:
     """Iterative effective-harmonic sampling driven by arbitrary ASE forces."""
 
+    _AVERAGE_WINDOW = 5
+
     def __init__(
         self,
         atoms: Atoms,
         *,
         reference: Atoms,
-        temperature: float = 300.0,
+        temperature: float | Sequence[float] = 300.0,
         statistics: Literal["quantum", "classical"] = "quantum",
         snapshots: int | Literal["auto"] = 1000,
         max_iterations: int = 10,
@@ -58,12 +61,12 @@ class SSCHA:
         max_displacement: float | None = None,
         initial_force_constants: ArrayLike | None = None,
         acoustic_sum_rule: bool = True,
+        continuation: bool = True,
         log_level: int = 0,
     ) -> None:
         if not isinstance(atoms, Atoms):
             raise TypeError("atoms must be an ASE Atoms object")
-        if temperature < 0:
-            raise ValueError("temperature must be non-negative")
+        temperatures = normalize_temperature_schedule(temperature)
         if snapshots != "auto" and snapshots < 1:
             raise ValueError("snapshots must be positive or 'auto'")
         if max_iterations < 0:
@@ -86,7 +89,8 @@ class SSCHA:
         relation = StructureRelation.from_atoms(self.primitive, reference, tolerance=symprec)
         self._reference, self._index = relation.reference, relation.index
         self.supercell = self._index.supercell_matrix
-        self.temperature = float(temperature)
+        self.temperatures = temperatures
+        self.temperature = temperatures[0]
         self.statistics = statistics
         self.snapshots = snapshots
         self.max_iterations = max_iterations
@@ -98,8 +102,10 @@ class SSCHA:
         self.imaginary_tolerance = float(imaginary_tolerance)
         self.max_displacement = max_displacement
         self.acoustic_sum_rule = acoustic_sum_rule
+        self.continuation = bool(continuation)
         self.log_level = log_level
         self.history: list[SSCHAIteration] = []
+        self._recent_compact: deque[NDArray[np.float64]] = deque(maxlen=self._AVERAGE_WINDOW)
         self._prepared_index: int | None = None
         self._prepared_structures: list[Atoms] | None = None
         self._sampling_compact: NDArray[np.float64] | None = None
@@ -127,6 +133,9 @@ class SSCHA:
                     "initial_force_constants must have compact shape "
                     f"{compact_shape} or full shape {full_shape}"
                 )
+        self._initial_force_constants = (
+            None if self._active_compact is None else self._active_compact.copy()
+        )
 
     @property
     def force_constants(self) -> NDArray[np.float64] | None:
@@ -149,6 +158,7 @@ class SSCHA:
 
     def sow(self) -> list[Atoms]:
         """Create snapshots for the next iteration in deterministic reap order."""
+        self._require_single_temperature()
         index = self.current_iteration
         if index > self.max_iterations:
             raise StopIteration("all requested SSCHA iterations are complete")
@@ -202,6 +212,7 @@ class SSCHA:
         reference_energy: float | None = None,
     ) -> SSCHAIteration:
         """Fit the next effective FC2 using the native streamed-Gram fitter."""
+        self._require_single_temperature()
         snapshots = self.sow()
         n_snapshots, n_atoms = len(snapshots), len(self._reference)
         force_array = self._ordered(forces, n_snapshots, "forces")
@@ -225,7 +236,6 @@ class SSCHA:
             acoustic_sum_rule=self.acoustic_sum_rule,
         )
         fitted_compact = fit.force_constants.materialize(2, max_bytes=None)
-        fitted_full = expand_compact_fc2(fitted_compact, self._reference)
         relative_change = None
         if self._sampling_compact is not None:
             denominator = np.linalg.norm(self._sampling_compact)
@@ -258,7 +268,6 @@ class SSCHA:
         result = SSCHAIteration(
             index=self.current_iteration,
             sampling="cartesian" if self._sampling_compact is None else "canonical",
-            force_constants=fitted_full,
             free_energy=free_energy,
             free_energy_error=free_energy_error,
             potential_energy=potential_energy,
@@ -268,6 +277,7 @@ class SSCHA:
             relative_force_constant_change=relative_change,
         )
         self._active_compact = fitted_compact.copy()
+        self._recent_compact.append(fitted_compact.copy())
         self.history.append(result)
         self._prepared_index = None
         self._prepared_structures = None
@@ -293,6 +303,7 @@ class SSCHA:
         progress: Progress | None = None,
         calculate_free_energy: bool = True,
     ) -> SSCHAIteration:
+        self._require_single_temperature()
         if not isinstance(calculator, Calculator):
             raise TypeError("calculator must be an ASE Calculator")
         if calculate_free_energy and self._reference_energy is None:
@@ -317,7 +328,14 @@ class SSCHA:
         *,
         progress: Progress | None = None,
         calculate_free_energy: bool = True,
-    ) -> SSCHA:
+    ) -> SSCHA | TemperatureSeriesResult[SSCHA]:
+        """Run one temperature or an automatically sorted temperature schedule."""
+        if len(self.temperatures) > 1:
+            return self._run_temperature_schedule(
+                calculator,
+                progress=progress,
+                calculate_free_energy=calculate_free_energy,
+            )
         while self.current_iteration <= self.max_iterations:
             self.step(
                 calculator,
@@ -326,17 +344,68 @@ class SSCHA:
             )
         return self
 
+    def _run_temperature_schedule(
+        self,
+        calculator: Calculator,
+        *,
+        progress: Progress | None,
+        calculate_free_energy: bool,
+    ) -> TemperatureSeriesResult[SSCHA]:
+        previous = self._initial_force_constants
+        results: list[SSCHA] = []
+        for schedule_index, temperature in enumerate(self.temperatures):
+            initial = (
+                previous
+                if self.continuation or schedule_index == 0
+                else self._initial_force_constants
+            )
+            child = SSCHA(
+                self.primitive,
+                reference=self._reference,
+                temperature=temperature,
+                statistics=self.statistics,
+                snapshots=self.snapshots,
+                max_iterations=self.max_iterations,
+                initial_displacement=self.initial_displacement,
+                random_seed=self._temperature_seed(schedule_index),
+                symprec=self.symprec,
+                cutoff_frequency=self.cutoff_frequency,
+                imaginary_modes=self.imaginary_modes,
+                imaginary_tolerance=self.imaginary_tolerance,
+                max_displacement=self.max_displacement,
+                initial_force_constants=initial,
+                acoustic_sum_rule=self.acoustic_sum_rule,
+                continuation=False,
+                log_level=self.log_level,
+            )
+            result = child.run(
+                calculator,
+                progress=progress,
+                calculate_free_energy=calculate_free_energy,
+            )
+            assert isinstance(result, SSCHA)
+            results.append(result)
+            if self.continuation:
+                previous = result.compact_force_constants
+        return TemperatureSeriesResult(self.temperatures, tuple(results), self.continuation)
+
     def averaged_force_constants(self, last: int) -> NDArray[np.float64]:
-        if last < 1 or not self.history:
-            raise ValueError("last must be positive and at least one iteration must exist")
-        return np.mean([item.force_constants for item in self.history[-last:]], axis=0)
+        self._require_single_temperature()
+        if last < 1 or last > len(self._recent_compact):
+            raise ValueError(
+                f"last must be between 1 and the {len(self._recent_compact)} retained FC2 states"
+            )
+        compact = np.mean(list(self._recent_compact)[-last:], axis=0)
+        return expand_compact_fc2(compact, self._reference)
 
     def use_average(self, last: int) -> NDArray[np.float64]:
+        self._require_single_temperature()
         full = self.averaged_force_constants(last)
         self._active_compact = compact_fc2(full, self._reference)
         return full
 
     def write(self, target: str | Path, *, format: Literal["text", "hdf5"] = "hdf5") -> None:
+        self._require_single_temperature()
         if self._active_compact is None:
             raise RuntimeError("no force constants are available")
         values = ForceConstants(
@@ -376,6 +445,18 @@ class SSCHA:
             return None
         sequence = np.random.SeedSequence([self.random_seed, iteration])
         return int(sequence.generate_state(1, dtype=np.uint32)[0])
+
+    def _temperature_seed(self, schedule_index: int) -> int | None:
+        if self.random_seed is None:
+            return None
+        sequence = np.random.SeedSequence([self.random_seed, schedule_index])
+        return int(sequence.generate_state(1, dtype=np.uint32)[0])
+
+    def _require_single_temperature(self) -> None:
+        if len(self.temperatures) != 1:
+            raise RuntimeError(
+                "sow/reap operations require one temperature; call run(calculator) for a temperature schedule"
+            )
 
     def _report_ensemble(self, diagnostics: EnsembleDiagnostics) -> None:
         print(f"- q points: {diagnostics.qpoints}")

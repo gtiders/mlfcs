@@ -6,7 +6,12 @@ from typing import Literal
 import numpy as np
 from ase import Atoms, units
 
-from mlfcs.anharmonic.common.thermodynamics import HBAR_ASE, OMEGA_TO_THZ, mode_sigma
+from mlfcs.anharmonic.common.thermodynamics import (
+    HBAR_ASE,
+    OMEGA_TO_THZ,
+    mode_sigma,
+    quotient_qpoints,
+)
 from mlfcs.core.geometry import PeriodicIndex
 
 Statistics = Literal["quantum", "classical"]
@@ -101,7 +106,7 @@ class HarmonicEnsemble:
             ],
             dtype=np.int32,
         )
-        self._qpoints = _quotient_qpoints(self._index.supercell_matrix)
+        self._qpoints = quotient_qpoints(self._index.supercell_matrix)
         self._modes = self._prepare_modes()
         self._last_diagnostics: EnsembleDiagnostics | None = None
 
@@ -273,21 +278,6 @@ class HarmonicEnsemble:
 
 def _qpoint_key(values: np.ndarray) -> tuple[int, int, int]:
     return tuple(np.rint(np.mod(values, 1.0) * 10**10).astype(int))
-
-
-def _quotient_qpoints(matrix: np.ndarray) -> np.ndarray:
-    """Characters of Z³ / Z³S in primitive reciprocal coordinates."""
-    determinant = abs(round(float(np.linalg.det(matrix))))
-    inverse = np.linalg.inv(np.asarray(matrix, dtype=float))
-    found: dict[tuple[int, int, int], np.ndarray] = {}
-    for values in np.ndindex((determinant, determinant, determinant)):
-        qpoint = np.mod(inverse @ np.asarray(values, dtype=float), 1.0)
-        found.setdefault(_qpoint_key(qpoint), qpoint)
-        if len(found) == determinant:
-            break
-    if len(found) != determinant:
-        raise RuntimeError("could not enumerate supercell reciprocal characters")
-    return np.asarray(list(found.values()))
 
 
 __all__ = ["EnsembleDiagnostics", "HarmonicEnsemble"]

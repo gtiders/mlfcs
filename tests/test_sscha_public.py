@@ -57,8 +57,8 @@ def test_sscha_external_sow_reap():
 
     assert result.index == 0
     assert result.sampling == "cartesian"
-    assert result.force_constants.shape == (8, 8, 3, 3)
-    assert np.isfinite(result.force_constants).all()
+    assert sscha.force_constants.shape == (8, 8, 3, 3)
+    assert np.isfinite(sscha.force_constants).all()
     assert result.free_energy is None
     assert result.free_energy_error is None
     assert result.potential_energy is not None and np.isfinite(result.potential_energy)
@@ -95,6 +95,30 @@ def test_sscha_direct_run_and_average(tmp_path):
     target = tmp_path / "fc2.hdf5"
     sscha.write(target)
     assert target.is_file()
+
+
+def test_sscha_temperature_schedule_sorts_and_returns_independent_results():
+    primitive_atoms = primitive()
+    reference = make_supercell(primitive_atoms, (2, 2, 2))[0]
+    initial = np.zeros((len(reference), len(reference), 3, 3))
+    for axis in range(3):
+        initial[:, :, axis, axis] = 2.0 * (
+            np.eye(len(reference)) - np.ones((len(reference), len(reference))) / len(reference)
+        )
+    result = SSCHA(
+        primitive_atoms,
+        reference=reference,
+        temperature=[600, 300],
+        snapshots=2,
+        max_iterations=0,
+        initial_force_constants=initial,
+        random_seed=23,
+    ).run(TranslationalHarmonic(reference), calculate_free_energy=False)
+
+    assert result.temperatures == (300.0, 600.0)
+    assert result.continuation
+    assert result.at_temperature(300).temperature == 300.0
+    assert len(result.at_temperature(600).history) == 1
 
 
 def test_sscha_validates_external_order():

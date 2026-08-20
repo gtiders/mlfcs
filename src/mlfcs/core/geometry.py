@@ -16,38 +16,21 @@ from ase import Atoms
 from ase.geometry import find_mic, minkowski_reduce
 from scipy.optimize import linear_sum_assignment
 
-
-def normalize_supercell_matrix(matrix: object) -> np.ndarray:
-    """Return a validated integer 3x3 supercell matrix.
-
-    A length-three input remains a convenient spelling for a diagonal matrix;
-    it is not a separate representation in the core.
-    """
-    values = np.asarray(matrix)
-    if values.shape == (3,):
-        values = np.diag(values)
-    if values.shape != (3, 3):
-        raise ValueError("supercell_matrix must be three repeats or an integer 3x3 matrix")
-    rounded = np.rint(values).astype(np.int64)
-    if not np.allclose(values, rounded, atol=1e-10, rtol=0.0):
-        raise ValueError("supercell_matrix must contain integers")
-    determinant = round(float(np.linalg.det(rounded)))
-    if determinant == 0:
-        raise ValueError("supercell_matrix must be nonsingular")
-    return rounded.astype(np.int32)
+from mlfcs.core.integer_lattice import (
+    determinant_3x3,
+    normalize_supercell_matrix,
+    residue_key,
+)
 
 
 def _translation_label(translation: np.ndarray, matrix: np.ndarray) -> tuple[int, int, int]:
     """Canonical exact label of a primitive-lattice translation modulo ``S``."""
-    determinant = abs(round(float(np.linalg.det(matrix))))
-    adjugate = np.rint(np.linalg.det(matrix) * np.linalg.inv(matrix)).astype(np.int64)
-    residue = np.mod(np.asarray(translation, dtype=np.int64) @ adjugate, determinant)
-    return tuple(int(value) for value in residue)
+    return residue_key(translation, matrix)
 
 
 def _coset_translations(matrix: np.ndarray) -> np.ndarray:
     """Enumerate one deterministic primitive-lattice translation per coset."""
-    count = abs(round(float(np.linalg.det(matrix))))
+    count = abs(determinant_3x3(matrix))
     zero = np.zeros(3, dtype=np.int32)
     found: dict[tuple[int, int, int], np.ndarray] = {_translation_label(zero, matrix): zero}
     pending = deque([zero])
@@ -243,7 +226,7 @@ class PeriodicIndex:
                 raise ValueError("more than one reference atom has the same periodic label")
             atoms[key] = atom
             translations_by_residue.setdefault(residue, translation.copy())
-        expected = self.n_primitive * abs(round(float(np.linalg.det(matrix))))
+        expected = self.n_primitive * abs(determinant_3x3(matrix))
         if len(atoms) != expected:
             raise ValueError("reference does not contain exactly one atom per primitive-site coset")
         object.__setattr__(self, "primitive", primitive)
@@ -258,7 +241,7 @@ class PeriodicIndex:
 
     @property
     def n_cells(self) -> int:
-        return abs(round(float(np.linalg.det(self.supercell_matrix))))
+        return abs(determinant_3x3(self.supercell_matrix))
 
     def residue(self, translation: np.ndarray) -> tuple[int, int, int]:
         return _translation_label(np.asarray(translation, dtype=np.int64), self.supercell_matrix)
@@ -311,7 +294,7 @@ class StructureRelation:
         matrix = normalize_supercell_matrix(transform)
         if not np.allclose(transform, matrix, atol=tolerance, rtol=0.0):
             raise ValueError("reference is not an integer supercell of primitive")
-        if abs(round(float(np.linalg.det(matrix)))) * len(primitive) != len(reference):
+        if abs(determinant_3x3(matrix)) * len(primitive) != len(reference):
             raise ValueError("supercell determinant and atom counts are inconsistent")
         labels = np.empty(len(reference), dtype=np.int32)
         translations = np.empty((len(reference), 3), dtype=np.int32)

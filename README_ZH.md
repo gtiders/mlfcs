@@ -291,14 +291,13 @@ calculation = ForceConstantCalculation(primitive, reference=reference_supercell,
 若需显式构造这个 reference，可使用稳定的公开函数：
 
 ```python
-from mlfcs.tools import build_supercell
+from mlfcs import build_supercell
 
 reference_supercell = build_supercell(primitive, [[2, 1, 0], [0, 2, 0], [0, 0, 1]])
 ```
 
-该函数默认采用 phonopy old-style 的原子排列；MLFCS 的超胞矩阵约定保持不变。需要与旧
-thirdorder 工作流保持 cell-major 排列时，显式传入 `ordering="thirdorder"`。`ordering="phonopy_snf"`
-已保留为未来兼容入口，目前会明确报告未实现。显式提供的 `reference_supercell` 不会被重排。
+该函数固定采用 phonopy old-style 的原子排列；MLFCS 的超胞矩阵约定保持不变。显式提供的
+`reference_supercell` 不会被重排。
 
 phonopy 等格式所需的排序仅在导出边界生成。
 对于独立产生且已重排的快照，可显式调用 `mlfcs.align_structures(reference, atoms)`；它返回
@@ -320,7 +319,7 @@ Born-Huang 与 Huang 条件是独立的 FC2 后处理，有限差分和拟合结
 `strength=1.0` 为严格模式，FC3 及更高阶不会被改动：
 
 ```python
-constrained = result.enforce_harmonic_constraints(
+constrained = result.enforce_rotational_sum_rules(
     born_huang=True,
     huang=True,
 )

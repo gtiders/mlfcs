@@ -6,7 +6,7 @@ MLFCS 提供 Python API，不提供命令行界面。一个计算明确分为构
 from ase.build import bulk
 from ase.calculators.emt import EMT
 from mlfcs import ForceConstantCalculation
-from mlfcs.tools import build_supercell
+from mlfcs import build_supercell
 
 primitive = bulk("Al", "fcc", a=4.05)
 reference_supercell = build_supercell(primitive, (2, 2, 2))

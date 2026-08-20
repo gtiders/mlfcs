@@ -20,8 +20,8 @@ initial Cartesian snapshots → ASE forces → native Gram FC2 fit
 compact-FC2 q-space ensemble → ASE forces → native Gram FC2 fit → repeat
 ```
 
-The sampler Fourier-transforms translation-reduced FC2 at the q points commensurate with the
-diagonal supercell. It diagonalizes `3 * primitive_atoms` matrices rather than one full
+The sampler Fourier-transforms translation-reduced FC2 at reciprocal quotient q points defined by
+the reference-supercell matrix. It diagonalizes `3 * primitive_atoms` matrices rather than one full
 `3 * supercell_atoms` matrix. Conjugate q points are paired explicitly, and the three
 mass-weighted translations are projected out at Gamma.
 
@@ -58,6 +58,11 @@ sscha.run(make_my_ase_calculator())
 
 `run()` evaluates one structure at a time. Use `calculate_free_energy=False` when energies and the
 variational free-energy estimate are not required.
+
+`temperature` may also be a sequence. It is sorted in ascending order and, by default, the final
+FC2 at one temperature initializes the next calculation. Set `continuation=False` for independent
+temperatures. Multi-temperature objects support `run(calculator)` only; interactive `sow()`/`reap()`
+remains intentionally single-temperature.
 
 ## External sow/reap workflow
 
@@ -114,15 +119,16 @@ sscha.write("FORCE_CONSTANTS", format="text")
 sscha.write("fc2-300K.hdf5", format="hdf5")
 ```
 
-`force_constants` and iteration FC2 arrays use full MLFCS internal supercell order. The active
-translation-reduced array is available as `compact_force_constants`. Text and HDF5 output use the
+`force_constants` uses full MLFCS internal supercell order. The active translation-reduced array is
+available as `compact_force_constants`. History stores diagnostics only; the most recent five compact
+FC2 states are retained internally for `averaged_force_constants(last)`. Text and HDF5 output use the
 shared phonopy-compatible MLFCS writers without importing phonopy.
 
 ## Free energy
 
 The same commensurate q-point eigensolutions provide the quantum harmonic free energy per primitive
 cell. The free energy of an iteration belongs to the trial FC2 that generated its snapshots, while
-the iteration's `force_constants` are the newly fitted FC2 for the next update. With snapshot
+the active FC2 is the newly fitted FC2 for the next update. With snapshot
 energies, the reported estimator is
 
 ```text

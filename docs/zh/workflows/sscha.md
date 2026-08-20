@@ -18,7 +18,7 @@
 compact FC2 q 空间系综 → ASE 力 → 原生 Gram FC2 拟合 → 重复
 ```
 
-采样器在与对角超胞相容的 q 点上傅里叶变换平移约化 FC2。程序对角化的是
+采样器在由 reference 超胞矩阵定义的 reciprocal quotient q 点上傅里叶变换平移约化 FC2。程序对角化的是
 `3 × 原胞原子数` 大小的矩阵，而不是一个 `3 × 超胞原子数` 的完整矩阵。共轭 q 点显式
 配对，Gamma 点的三个质量加权平移方向被严格投影掉。
 
@@ -55,6 +55,24 @@ sscha.run(make_my_ase_calculator())
 
 `run()` 逐个计算构型，避免复制大型计算器。只需要有效 FC2 时可设置
 `calculate_free_energy=False`，从而不请求能量。
+
+温度可以是标量或序列。序列会自动按升温顺序执行；默认将前一温度的最终 FC2 作为下一温度
+的初始 FC2。传入 `continuation=False` 可让各温度独立从相同初始模型运行：
+
+```python
+series = SSCHA(
+    read("POSCAR"),
+    reference=read("reference-supercell.vasp"),
+    temperature=[600, 300, 450],
+    snapshots=1000,
+    max_iterations=10,
+).run(make_my_ase_calculator())
+
+fc2_at_450K = series.at_temperature(450).force_constants
+```
+
+多温度对象只支持 `run(calculator)`；逐轮 `sow()`/`reap()` 仅适用于单温度对象，以免混淆
+不同温度的快照与 history。
 
 ## 外部 sow/reap 流程
 
@@ -106,14 +124,15 @@ sscha.write("FORCE_CONSTANTS", format="text")
 sscha.write("fc2-300K.hdf5", format="hdf5")
 ```
 
-`force_constants` 和每轮 FC2 使用 MLFCS 内部完整超胞原子顺序；平移约化数组可由
-`compact_force_constants` 获取。文本和 HDF5 写出复用项目已有的 phonopy 兼容 writer，
+`force_constants` 使用 MLFCS 内部完整超胞原子顺序；平移约化数组可由
+`compact_force_constants` 获取。history 只保存诊断摘要，内部仅保留最近五轮 compact FC2
+供 `averaged_force_constants(last)` 使用。文本和 HDF5 写出复用项目已有的 phonopy 兼容 writer，
 但不会导入 phonopy。
 
 ## 自由能
 
 相容 q 点的同一组本征解用于计算每原胞量子谐波自由能。一轮自由能对应生成该轮快照的
-试探 FC2，而该轮 `force_constants` 是为下一次更新新拟合的 FC2。提供快照能量时：
+试探 FC2，而当前 active FC2 是为下一次更新新拟合的 FC2。提供快照能量时：
 
 ```text
 F = F_harm + mean[(E(u) - E(0) - 1/2 u Phi u) / 超胞原胞数]

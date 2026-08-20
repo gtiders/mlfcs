@@ -1,13 +1,13 @@
 """Public physical FC2 constraint API."""
 
-from mlfcs.constraints.harmonic import (
-    HarmonicConstraintDiagnostics,
-    HarmonicConstraintResult,
-    enforce_harmonic_constraints,
+from mlfcs.constraints.rotational_sum_rules import (
+    RotationalSumRuleDiagnostics,
+    RotationalSumRuleResult,
+    enforce_rotational_sum_rules,
 )
 
 __all__ = [
-    "HarmonicConstraintDiagnostics",
-    "HarmonicConstraintResult",
-    "enforce_harmonic_constraints",
+    "RotationalSumRuleDiagnostics",
+    "RotationalSumRuleResult",
+    "enforce_rotational_sum_rules",
 ]

@@ -12,7 +12,8 @@ from mlfcs.public import (
     ForceConstantFitter,
     LoopSCPH,
     align_structures,
-    enforce_harmonic_constraints,
+    build_supercell,
+    enforce_rotational_sum_rules,
     harmonic_frequencies,
     read_hdf5,
     write_force_constants,
@@ -25,8 +26,9 @@ def test_public_callables_have_explicit_documented_signatures():
         ForceConstantFitter,
         LoopSCPH,
         SSCHA,
+        build_supercell,
         align_structures,
-        enforce_harmonic_constraints,
+        enforce_rotational_sum_rules,
         harmonic_frequencies,
         read_hdf5,
         write_force_constants,
@@ -55,7 +57,7 @@ def test_low_level_packages_do_not_depend_on_workflow_or_writer_modules():
     for module in (
         "core.geometry",
         "core.orbits",
-        "constraints.harmonic",
+        "constraints.rotational_sum_rules",
         "constraints.translational",
     ):
         imports = _imports(module)

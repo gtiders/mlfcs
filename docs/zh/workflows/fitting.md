@@ -136,5 +136,5 @@ OpenBLAS/SciPy 完成稀疏约化和 Gram 累积。JAX GPU 模式中，物理设
 投影法方程残差以及约束 drift。
 
 物理 FC2 的 Born-Huang/Huang 修正使用
-`result.force_constants.enforce_harmonic_constraints(...)`。默认 `strength=1.0` 为严格
+`result.force_constants.enforce_rotational_sum_rules(...)`。默认 `strength=1.0` 为严格
 模式；详见[求和规则]。

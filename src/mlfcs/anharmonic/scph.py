@@ -8,6 +8,7 @@ existing IO backends; it is not a frequency-dependent bubble self-energy.
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -17,8 +18,9 @@ from mlfcs.anharmonic.common.thermodynamics import (
     HBAR_ASE,
     OMEGA_TO_THZ,
     mode_sigma,
-    regular_qpoints,
+    quotient_qpoints,
 )
+from mlfcs.anharmonic.common.schedule import TemperatureSeriesResult, normalize_temperature_schedule
 from mlfcs.ifc.model import ForceConstants, SparseOrderForceConstants
 
 _HBAR_ASE = HBAR_ASE
@@ -64,15 +66,16 @@ class LoopSCPH:
         *,
         fc2: ForceConstants,
         fc4: ForceConstants,
-        temperature: float | range,
-        interpolation_mesh: tuple[int, int, int],
-        scph_mesh: tuple[int, int, int],
+        temperature: float | Sequence[float],
+        interpolation_multiplier: int = 1,
+        scph_multiplier: int = 2,
         statistics: str = "quantum",
         mixing: float = 0.1,
         tolerance: float = 1e-10,
         max_iterations: int = 100,
         frequency_cutoff_thz: float = 0.0,
         warm_start: ForceConstants | None = None,
+        continuation: bool = True,
         verbose: bool = True,
         qpoint_workers: int = 1,
     ) -> None:
@@ -82,13 +85,6 @@ class LoopSCPH:
             raise ValueError("fc2 does not contain order-2 force constants")
         if 4 not in fc4.orders:
             raise ValueError("fc4 does not contain order-4 force constants")
-        if isinstance(temperature, range):
-            if temperature.step <= 0 or not temperature:
-                raise ValueError("temperature range must be non-empty and increasing")
-            if temperature.start < 0:
-                raise ValueError("temperature must be non-negative")
-        elif temperature < 0:
-            raise ValueError("temperature must be non-negative")
         if statistics not in {"quantum", "classical"}:
             raise ValueError("statistics must be 'quantum' or 'classical'")
         if not 0 < mixing <= 1:
@@ -97,11 +93,11 @@ class LoopSCPH:
             raise ValueError("tolerance must be positive and max_iterations >= 1")
         self.fc2 = fc2
         self.fc4 = fc4
-        self.temperature = temperature if isinstance(temperature, range) else float(temperature)
-        self.interpolation_mesh = _mesh(interpolation_mesh, "interpolation_mesh")
-        self.scph_mesh = _mesh(scph_mesh, "scph_mesh")
-        if any(s % i for s, i in zip(self.scph_mesh, self.interpolation_mesh, strict=True)):
-            raise ValueError("each scph_mesh value must be a multiple of interpolation_mesh")
+        self.temperatures = normalize_temperature_schedule(temperature)
+        self.interpolation_multiplier = _multiplier(interpolation_multiplier, "interpolation_multiplier")
+        self.scph_multiplier = _multiplier(scph_multiplier, "scph_multiplier")
+        if self.scph_multiplier % self.interpolation_multiplier:
+            raise ValueError("scph_multiplier must be a multiple of interpolation_multiplier")
         self.statistics = statistics
         self.mixing = float(mixing)
         self.tolerance = float(tolerance)
@@ -119,27 +115,39 @@ class LoopSCPH:
                 raise TypeError("warm_start must be a ForceConstants object containing FC2")
             _validate_relation(fc2, warm_start)
         self.warm_start = warm_start
+        self.continuation = bool(continuation)
         self._primitive = fc2.relation.primitive if fc2.relation is not None else None
         if self._primitive is None:
             raise ValueError("fc2 must contain an explicit StructureRelation")
 
-    def run(self) -> LoopSCPHResult | tuple[LoopSCPHResult, ...]:
-        """Run one temperature or a temperature-continuation range."""
-        if isinstance(self.temperature, range):
-            return self.run_temperature_series(self.temperature)
-        return self._run_single()
+    def run(self) -> LoopSCPHResult | TemperatureSeriesResult[LoopSCPHResult]:
+        """Run one temperature or an ascending temperature schedule."""
+        if len(self.temperatures) == 1:
+            return self._run_single(self.temperatures[0], self.warm_start)
+        previous = self.warm_start
+        results: list[LoopSCPHResult] = []
+        for temperature in self.temperatures:
+            result = self._run_single(temperature, previous)
+            results.append(result)
+            if self.continuation:
+                previous = result.effective_force_constants
+            else:
+                previous = self.warm_start
+        return TemperatureSeriesResult(self.temperatures, tuple(results), self.continuation)
 
-    def _run_single(self) -> LoopSCPHResult:
+    def _run_single(
+        self, temperature: float, warm_start: ForceConstants | None
+    ) -> LoopSCPHResult:
         base = self._copy_order(self.fc2, 2)
         bare = _compact_fc2(base)
-        current = bare.copy() if self.warm_start is None else _compact_fc2(self.warm_start)
+        current = bare.copy() if warm_start is None else _compact_fc2(warm_start)
         history: list[LoopSCPHIteration] = []
-        previous_frequencies = self._frequencies(current, self.interpolation_mesh)[1]
+        previous_frequencies = self._frequencies(current, self.interpolation_multiplier)[1]
         converged = False
         last_correction = np.zeros_like(current)
         previous_covariance: dict[tuple[int, int, tuple[int, int, int]], np.ndarray] | None = None
         for iteration in range(1, self.max_iterations + 1):
-            covariance = self._covariance(current, self.scph_mesh)
+            covariance = self._covariance(current, self.scph_multiplier, temperature)
             if previous_covariance is not None:
                 covariance = {
                     key: self.mixing * value
@@ -149,7 +157,7 @@ class LoopSCPH:
             correction = self._loop_correction(covariance)
             target = bare + correction
             updated = target
-            frequencies = self._frequencies(updated, self.interpolation_mesh)[1]
+            frequencies = self._frequencies(updated, self.interpolation_multiplier)[1]
             frequency_change = float(np.sqrt(np.mean((frequencies - previous_frequencies) ** 2)))
             history.append(LoopSCPHIteration(iteration, frequency_change))
             if self.verbose:
@@ -174,9 +182,9 @@ class LoopSCPH:
         support = _fc2_support(base.sparse[2], self.fc4.sparse[4], base.relation)
         effective = _replace_fc2(base, current, support=support)
         correction_fc = _replace_fc2(base, last_correction, support=support)
-        qpoints, frequencies = self._frequencies(current, self.interpolation_mesh)
+        qpoints, frequencies = self._frequencies(current, self.interpolation_multiplier)
         return LoopSCPHResult(
-            self.temperature,
+            temperature,
             qpoints,
             frequencies,
             base,
@@ -186,56 +194,18 @@ class LoopSCPH:
             converged,
         )
 
-    def run_temperature_series(
-        self, temperatures: tuple[float, ...] | list[float]
-    ) -> tuple[LoopSCPHResult, ...]:
-        """Run temperatures in ascending order using temperature continuation.
-
-        The converged or last available effective FC2 from each temperature is
-        used as the next temperature's initial dynamical matrix.  The FC2/FC4
-        inputs and all numerical settings remain unchanged between runs.
-        """
-        ordered = tuple(float(value) for value in temperatures)
-        if tuple(sorted(ordered)) != ordered:
-            raise ValueError("temperatures must be provided in ascending order")
-        if any(value < 0 for value in ordered):
-            raise ValueError("temperatures must be non-negative")
-        previous = None
-        results = []
-        for temperature in ordered:
-            calculation = LoopSCPH(
-                fc2=self.fc2,
-                fc4=self.fc4,
-                temperature=temperature,
-                interpolation_mesh=self.interpolation_mesh,
-                scph_mesh=self.scph_mesh,
-                statistics=self.statistics,
-                mixing=self.mixing,
-                tolerance=self.tolerance,
-                max_iterations=self.max_iterations,
-                frequency_cutoff_thz=self.frequency_cutoff_thz,
-                warm_start=previous,
-                verbose=self.verbose,
-                qpoint_workers=self.qpoint_workers,
-            )
-            result = calculation.run()
-            results.append(result)
-            previous = result.effective_force_constants
-        return tuple(results)
-
     def _covariance(
-        self, compact: np.ndarray, mesh: tuple[int, int, int]
+        self, compact: np.ndarray, multiplier: int, temperature: float
     ) -> dict[tuple[int, int, tuple[int, int, int]], np.ndarray]:
         relation = self.fc2.relation
         assert relation is not None
         masses = np.asarray(relation.primitive.get_masses(), dtype=float)
         terms = _fourier_terms(compact, relation)
         primitive_positions = relation.primitive.get_scaled_positions(wrap=False)
-        n = np.prod(mesh)
+        qpoints = self._qpoints(multiplier)
+        n = len(qpoints)
         covariance: dict[tuple[int, int, tuple[int, int, int]], np.ndarray] = {}
         needed = _needed_covariances(self.fc4.sparse[4])
-        qpoints = tuple(regular_qpoints(mesh))
-
         def covariance_at_q(q_chunk):
             result = {}
             q_chunk = np.asarray(q_chunk, dtype=float)
@@ -244,7 +214,7 @@ class LoopSCPH:
             sigma2 = (
                 mode_sigma(
                     values,
-                    temperature=self.temperature,
+                    temperature=temperature,
                     statistics=self.statistics,
                     cutoff_frequency_thz=self.frequency_cutoff_thz,
                 )
@@ -294,18 +264,23 @@ class LoopSCPH:
         return result
 
     def _frequencies(
-        self, compact: np.ndarray, mesh: tuple[int, int, int]
+        self, compact: np.ndarray, multiplier: int
     ) -> tuple[np.ndarray, np.ndarray]:
         relation = self.fc2.relation
         assert relation is not None
         masses = np.asarray(relation.primitive.get_masses(), dtype=float)
         terms = _fourier_terms(compact, relation)
         values = []
-        qpoints = list(regular_qpoints(mesh))
+        qpoints = self._qpoints(multiplier)
         for q in qpoints:
             eigenvalues = np.linalg.eigvalsh(_dynamical(terms, masses, q))
             values.append(np.sqrt(np.abs(eigenvalues)) * np.sign(eigenvalues) * _OMEGA_TO_THZ)
         return np.asarray(qpoints), np.asarray(values)
+
+    def _qpoints(self, multiplier: int) -> np.ndarray:
+        relation = self.fc2.relation
+        assert relation is not None
+        return quotient_qpoints(multiplier * relation.supercell_matrix)
 
     @staticmethod
     def _copy_order(source: ForceConstants, order: int) -> ForceConstants:
@@ -320,15 +295,16 @@ class LoopSCPH:
 
 
 def harmonic_frequencies(
-    fc2: ForceConstants, mesh: tuple[int, int, int]
+    fc2: ForceConstants, interpolation_multiplier: int = 1
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Return harmonic frequencies on a regular fractional q-point mesh."""
+    """Return harmonic frequencies on a reference-supercell-derived q grid."""
     if 2 not in fc2.orders or fc2.relation is None:
         raise ValueError("fc2 must contain order-2 force constants and a structure relation")
     compact = _compact_fc2(fc2)
     masses = np.asarray(fc2.relation.primitive.get_masses(), dtype=float)
     terms = _fourier_terms(compact, fc2.relation)
-    qpoints = np.asarray(list(regular_qpoints(_mesh(mesh, "mesh"))))
+    multiplier = _multiplier(interpolation_multiplier, "interpolation_multiplier")
+    qpoints = quotient_qpoints(multiplier * fc2.relation.supercell_matrix)
     frequencies = []
     for q in qpoints:
         values = np.linalg.eigvalsh(_dynamical(terms, masses, q))
@@ -336,11 +312,10 @@ def harmonic_frequencies(
     return qpoints, np.asarray(frequencies)
 
 
-def _mesh(value: tuple[int, int, int], name: str) -> tuple[int, int, int]:
-    result = tuple(int(x) for x in value)
-    if len(result) != 3 or any(x < 1 for x in result):
-        raise ValueError(f"{name} must contain three positive integers")
-    return result
+def _multiplier(value: int, name: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, (int, np.integer)) or value < 1:
+        raise ValueError(f"{name} must be a positive integer")
+    return int(value)
 
 
 def _validate_relation(fc2: ForceConstants, fc4: ForceConstants) -> None:

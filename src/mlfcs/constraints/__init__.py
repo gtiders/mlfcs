@@ -4,10 +4,10 @@ from mlfcs.constraints.asr import (
     maximum_acoustic_sum_rule_drift,
     project_acoustic_sum_rule,
 )
-from mlfcs.constraints.harmonic import (
-    HarmonicConstraintDiagnostics,
-    HarmonicConstraintResult,
-    enforce_harmonic_constraints,
+from mlfcs.constraints.rotational_sum_rules import (
+    RotationalSumRuleDiagnostics,
+    RotationalSumRuleResult,
+    enforce_rotational_sum_rules,
 )
 from mlfcs.constraints.solver import reconstruct_sparse
 from mlfcs.constraints.translational import (
@@ -17,10 +17,10 @@ from mlfcs.constraints.translational import (
 )
 
 __all__ = [
-    "HarmonicConstraintDiagnostics",
-    "HarmonicConstraintResult",
+    "RotationalSumRuleDiagnostics",
+    "RotationalSumRuleResult",
     "build_translational_constraints",
-    "enforce_harmonic_constraints",
+    "enforce_rotational_sum_rules",
     "maximum_acoustic_sum_rule_drift",
     "maximum_constraint_residual",
     "project_acoustic_sum_rule",

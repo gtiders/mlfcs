@@ -44,7 +44,7 @@ def test_strict_harmonic_projection_uses_tied_images_and_keeps_higher_orders():
         sparse={2: fc2, 3: fc3, 4: fc4},
         relation=calculation.interaction_space.relation,
     )
-    constrained = result.enforce_harmonic_constraints(born_huang=True, huang=True)
+    constrained = result.enforce_rotational_sum_rules(born_huang=True, huang=True)
     diagnostics = constrained.diagnostics
     assert diagnostics.strength == 1.0
     assert diagnostics.huang_before is not None and diagnostics.huang_before > 1.0
@@ -71,7 +71,7 @@ def test_strength_zero_only_enforces_asr():
     result = ForceConstants(
         {}, calculation.supercell, sparse={2: fc2}, relation=calculation.interaction_space.relation
     )
-    constrained = result.enforce_harmonic_constraints(huang=True, strength=0.0)
+    constrained = result.enforce_rotational_sum_rules(huang=True, strength=0.0)
     assert constrained.diagnostics.acoustic_after < 1e-10
     assert constrained.diagnostics.huang_after is not None
     assert constrained.diagnostics.huang_after > 1e-3

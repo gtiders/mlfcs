@@ -5,13 +5,15 @@ from mlfcs.core.geometry import (
     PeriodicIndex,
     StructureRelation,
     align_structures,
-    normalize_supercell_matrix,
 )
+from mlfcs.core.integer_lattice import normalize_supercell_matrix
+from mlfcs.core.supercell import build_supercell
 
 __all__ = [
     "PeriodicGeometry",
     "PeriodicIndex",
     "StructureRelation",
     "align_structures",
+    "build_supercell",
     "normalize_supercell_matrix",
 ]

@@ -5,16 +5,42 @@ from __future__ import annotations
 import numpy as np
 from ase import units
 
+from mlfcs.core.integer_lattice import (
+    adjugate_3x3,
+    determinant_3x3,
+    normalize_supercell_matrix,
+    residue_key,
+)
+
 HBAR_ASE = units._hbar * units.J * units.s
 OMEGA_TO_THZ = units.s / (2 * np.pi * 1e12)
 
 
-def regular_qpoints(mesh: tuple[int, int, int]):
-    """Yield fractional q points on a half-open regular mesh."""
-    for i in range(mesh[0]):
-        for j in range(mesh[1]):
-            for k in range(mesh[2]):
-                yield np.array((i / mesh[0], j / mesh[1], k / mesh[2]), dtype=float)
+def quotient_qpoints(integer_matrix: object) -> np.ndarray:
+    """Return reciprocal characters of a general integer supercell matrix.
+
+    For row-vector direct-lattice translations ``R S``, the returned fractional
+    reciprocal points obey ``S q in Z^3``.  The array contains exactly
+    ``abs(det(S))`` points in a deterministic order.
+    """
+    matrix = normalize_supercell_matrix(integer_matrix)
+    determinant = abs(determinant_3x3(matrix))
+    # Keep the historical lexicographic representative order.  The order is
+    # numerically observable for finite seeded SSCHA samples, even though the
+    # q-point set itself is independent of ordering.
+    found: dict[tuple[int, int, int], np.ndarray] = {}
+    for values in np.ndindex((determinant, determinant, determinant)):
+        candidate = np.asarray(values, dtype=np.int32)
+        key = residue_key(candidate, matrix.T)
+        if key not in found:
+            found[key] = candidate
+            if len(found) == determinant:
+                break
+    if len(found) != determinant:  # pragma: no cover - defensive exact-arithmetic guard
+        raise RuntimeError("could not enumerate reciprocal quotient points")
+    representatives = np.asarray(list(found.values()), dtype=np.int64)
+    numerators = representatives @ adjugate_3x3(matrix).T
+    return np.mod(numerators, determinant).astype(float) / determinant
 
 
 def mode_sigma(
@@ -48,4 +74,4 @@ def mode_sigma(
     return np.sqrt(variance)
 
 
-__all__ = ["HBAR_ASE", "OMEGA_TO_THZ", "mode_sigma", "regular_qpoints"]
+__all__ = ["HBAR_ASE", "OMEGA_TO_THZ", "mode_sigma", "quotient_qpoints"]

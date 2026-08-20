@@ -5,8 +5,7 @@ from supercell_helpers import make_supercell
 
 from mlfcs import ForceConstantCalculation
 from mlfcs.anharmonic.sscha import SSCHA
-from mlfcs.core.geometry import StructureRelation
-from mlfcs.tools import build_supercell
+from mlfcs import build_supercell
 
 
 def test_supercell_index_roundtrip():
@@ -37,24 +36,6 @@ def test_diagonal_supercell_defaults_to_phonopy_primitive_site_major_order():
     )
 
 
-def test_thirdorder_ordering_preserves_the_former_cell_major_order():
-    primitive = Atoms(
-        "NaCl",
-        scaled_positions=[[0, 0, 0], [0.5, 0.5, 0.5]],
-        cell=np.eye(3) * 4,
-        pbc=True,
-    )
-    supercell = build_supercell(primitive, (2, 1, 1), ordering="thirdorder")
-    supercell = StructureRelation.from_atoms(primitive, supercell).reference
-
-    np.testing.assert_array_equal(supercell.arrays["primitive_index"], [0, 1, 0, 1])
-    np.testing.assert_array_equal(
-        supercell.arrays["cell_translation"],
-        [[0, 0, 0], [0, 0, 0], [1, 0, 0], [1, 0, 0]],
-    )
-    np.testing.assert_allclose(supercell.positions[:2], primitive.positions)
-
-
 def test_phonopy_ordering_matches_the_old_style_non_diagonal_scan_order():
     primitive = Atoms(
         "NaCl",
@@ -71,13 +52,6 @@ def test_phonopy_ordering_matches_the_old_style_non_diagonal_scan_order():
         index.translations,
         [[0, 0, 0], [1, 0, 0], [0, 0, 0], [1, 0, 0]],
     )
-
-
-def test_phonopy_snf_ordering_is_reserved_but_not_implemented():
-    primitive = Atoms("He", positions=[[0, 0, 0]], cell=np.eye(3) * 3, pbc=True)
-
-    with np.testing.assert_raises_regex(NotImplementedError, "phonopy_snf"):
-        build_supercell(primitive, (2, 1, 1), ordering="phonopy_snf")
 
 
 def test_internal_reference_construction_uses_phonopy_ordering():

@@ -1,7 +1,7 @@
 # 有限差分
 
 `ForceConstantCalculation` 接收显式 primitive 和参考超胞。需要从矩阵准备结构时，先调用
-`mlfcs.tools.build_supercell`。`sow()` 按参考顺序返回结构；`reap()` 要求力保持该顺序，也可以使用
+`mlfcs.build_supercell`。`sow()` 按参考顺序返回结构；`reap()` 要求力保持该顺序，也可以使用
 configuration ID 映射。
 
 ```python

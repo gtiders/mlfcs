@@ -18,8 +18,8 @@ from mlfcs.ifc.model import ForceConstants, SparseOrderForceConstants
 
 
 @dataclass(frozen=True, slots=True)
-class HarmonicConstraintDiagnostics:
-    """Residuals and numerical choices for one FC2 constraint projection."""
+class RotationalSumRuleDiagnostics:
+    """Residuals and numerical choices for one FC2 rotational projection."""
 
     strength: float
     tolerance: float
@@ -36,21 +36,21 @@ class HarmonicConstraintDiagnostics:
 
 
 @dataclass(frozen=True, slots=True)
-class HarmonicConstraintResult:
-    """An independently constrained copy of a :class:`ForceConstants` result."""
+class RotationalSumRuleResult:
+    """A copy of :class:`ForceConstants` corrected by rotational sum rules."""
 
     force_constants: ForceConstants
-    diagnostics: HarmonicConstraintDiagnostics
+    diagnostics: RotationalSumRuleDiagnostics
 
 
-def enforce_harmonic_constraints(
+def enforce_rotational_sum_rules(
     force_constants: ForceConstants,
     *,
     born_huang: bool = False,
     huang: bool = False,
     strength: float = 1.0,
     tolerance: float = 1e-8,
-) -> HarmonicConstraintResult:
+) -> RotationalSumRuleResult:
     """Return an FC2-projected copy with strict ASR and selected conditions.
 
     ``strength=1`` is the default strict projection.  Values in ``[0, 1)``
@@ -71,9 +71,9 @@ def enforce_harmonic_constraints(
     if tolerance <= 0.0:
         raise ValueError("tolerance must be positive")
     if force_constants.relation is None:
-        raise ValueError("harmonic constraints require a verified StructureRelation")
+        raise ValueError("rotational sum rules require a verified StructureRelation")
     if 2 not in force_constants.sparse:
-        raise ValueError("harmonic constraints require lattice-labelled sparse FC2")
+        raise ValueError("rotational sum rules require lattice-labelled sparse FC2")
 
     relation = force_constants.relation
     fc2 = force_constants.sparse[2]
@@ -113,7 +113,7 @@ def enforce_harmonic_constraints(
     hu_after = _maximum_residual(hu, projected) * length_scale**2 if huang else None
     delta = projected - initial
     denominator = max(float(np.linalg.norm(initial)), np.finfo(float).eps)
-    diagnostics = HarmonicConstraintDiagnostics(
+    diagnostics = RotationalSumRuleDiagnostics(
         strength=float(strength),
         tolerance=float(tolerance),
         length_scale=length_scale,
@@ -141,7 +141,7 @@ def enforce_harmonic_constraints(
             "retained_rank": rank,
         },
     }
-    return HarmonicConstraintResult(corrected, diagnostics)
+    return RotationalSumRuleResult(corrected, diagnostics)
 
 
 def _lattice_labels(fc2: SparseOrderForceConstants, relation) -> tuple[np.ndarray, np.ndarray]:
@@ -324,7 +324,7 @@ def _replace_fc2(force_constants, fc2, keys, values, sites, translations) -> For
 
 
 __all__ = [
-    "HarmonicConstraintDiagnostics",
-    "HarmonicConstraintResult",
-    "enforce_harmonic_constraints",
+    "RotationalSumRuleDiagnostics",
+    "RotationalSumRuleResult",
+    "enforce_rotational_sum_rules",
 ]
