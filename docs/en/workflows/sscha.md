@@ -51,6 +51,7 @@ sscha = SSCHA(
     cutoff_frequency=0.01,  # THz
     imaginary_modes="error",
     max_displacement=None,  # canonical sampling is not clipped
+    mixing=1.0,             # direct fixed-point update
     log_level=1,
 )
 sscha.run(make_my_ase_calculator())
@@ -102,9 +103,20 @@ free energy.
 `SSCHAIteration.ensemble` records q-point, mode, imaginary-mode, exclusion, and clipping counts.
 `fitting_relative_force_error` records the native fitter's training error and
 `relative_force_constant_change` records the update relative to the FC2 that generated the current
-canonical ensemble. The initialization round has no relative FC2 change. These scalar diagnostics
+canonical ensemble after linear mixing. `raw_relative_force_constant_change` records the same
+quantity before mixing. The initialization round has no relative FC2 change. These scalar diagnostics
 keep the public iteration object compact; the internal sampling Hamiltonian is not duplicated in
 the public API.
+
+`mixing` controls the self-consistent update, not force-constant regression:
+
+```text
+Phi_next = (1 - mixing) Phi_sampled + mixing Phi_fitted.
+```
+
+The default `mixing=1` exactly reproduces direct replacement. Values below one under-relax the
+sampling Hamiltonian used in the following iteration. This is useful when finite stochastic samples
+make the fixed-point path oscillate; it does not alter the fitted IFC for the current sample.
 
 ## Results and output
 
@@ -112,16 +124,12 @@ the public API.
 previous = sscha.force_constants
 iteration = sscha.step(calculator)
 
-average = sscha.averaged_force_constants(last=5)
-sscha.use_average(last=5)
-
 sscha.write("FORCE_CONSTANTS", format="text")
 sscha.write("fc2-300K.hdf5", format="hdf5")
 ```
 
 `force_constants` uses full MLFCS internal supercell order. The active translation-reduced array is
-available as `compact_force_constants`. History stores diagnostics only; the most recent five compact
-FC2 states are retained internally for `averaged_force_constants(last)`. Text and HDF5 output use the
+available as `compact_force_constants`. History stores diagnostics only. Text and HDF5 output use the
 shared phonopy-compatible MLFCS writers without importing phonopy.
 
 ## Free energy

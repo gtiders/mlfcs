@@ -48,6 +48,7 @@ sscha = SSCHA(
     cutoff_frequency=0.01,  # THz
     imaginary_modes="error",
     max_displacement=None,  # 默认不裁剪正则系综
+    mixing=1.0,             # 直接固定点更新
     log_level=1,
 )
 sscha.run(make_my_ase_calculator())
@@ -108,26 +109,32 @@ result = sscha.reap(
 
 `SSCHAIteration.ensemble` 保存 q 点数、模态数、虚频数、排除数和裁剪统计；
 `fitting_relative_force_error` 保存原生拟合器的训练相对力误差，
-`relative_force_constant_change` 保存相对于本轮采样 FC2 的更新幅度；初始化轮该值为
+`relative_force_constant_change` 保存线性混合后相对于本轮采样 FC2 的更新幅度；
+`raw_relative_force_constant_change` 保存混合前的拟合更新幅度；初始化轮二者均为
 `None`。公共迭代对象只暴露这些标量诊断，不重复公开内部采样哈密顿量。
 
-## 结果、平均与写出
+`mixing` 控制自洽更新，不参与力常数回归：
+
+```text
+Phi_next = (1 - mixing) Phi_sampled + mixing Phi_fitted.
+```
+
+默认 `mixing=1` 与直接替换完全一致。小于 1 时，对下一轮采样使用的哈密顿量做欠松弛；
+它可缓解有限随机样本造成的固定点振荡，但不改变当前快照所拟合出的 IFC。
+
+## 结果与写出
 
 ```python
 previous = sscha.force_constants
 iteration = sscha.step(calculator)
-
-average = sscha.averaged_force_constants(last=5)
-sscha.use_average(last=5)
 
 sscha.write("FORCE_CONSTANTS", format="text")
 sscha.write("fc2-300K.hdf5", format="hdf5")
 ```
 
 `force_constants` 使用 MLFCS 内部完整超胞原子顺序；平移约化数组可由
-`compact_force_constants` 获取。history 只保存诊断摘要，内部仅保留最近五轮 compact FC2
-供 `averaged_force_constants(last)` 使用。文本和 HDF5 写出复用项目已有的 phonopy 兼容 writer，
-但不会导入 phonopy。
+`compact_force_constants` 获取。history 只保存诊断摘要。文本和 HDF5 写出复用项目已有的
+phonopy 兼容 writer，但不会导入 phonopy。
 
 ## 自由能
 

@@ -66,14 +66,14 @@ def test_sscha_external_sow_reap():
     assert result.relative_force_constant_change is None
 
 
-def test_sscha_direct_run_and_average(tmp_path):
+def test_sscha_direct_run_and_linear_mixing(tmp_path):
     n_atoms = 8
     spring = 2.0
     fc = np.zeros((n_atoms, n_atoms, 3, 3))
     for axis in range(3):
         fc[:, :, axis, axis] = spring * (np.eye(n_atoms) - np.ones((n_atoms, n_atoms)) / n_atoms)
     primitive_atoms = primitive()
-    sscha = SSCHA(
+    direct = SSCHA(
         primitive_atoms,
         reference=make_supercell(primitive_atoms, (2, 2, 2))[0],
         snapshots=16,
@@ -81,20 +81,49 @@ def test_sscha_direct_run_and_average(tmp_path):
         random_seed=11,
         initial_force_constants=fc,
     )
-    calc = TranslationalHarmonic(sscha.supercell_atoms, spring=spring)
+    calc = TranslationalHarmonic(direct.supercell_atoms, spring=spring)
 
-    returned = sscha.run(calc, calculate_free_energy=False)
+    returned = direct.run(calc, calculate_free_energy=False)
 
-    assert returned is sscha
-    assert len(sscha.history) == 2
-    assert all(item.sampling == "canonical" for item in sscha.history)
-    assert all(item.fitting_relative_force_error < 1e-7 for item in sscha.history)
-    assert all(item.relative_force_constant_change is not None for item in sscha.history)
-    averaged = sscha.use_average(2)
-    assert averaged.shape == fc.shape
+    assert returned is direct
+    assert len(direct.history) == 2
+    assert all(item.sampling == "canonical" for item in direct.history)
+    assert all(item.fitting_relative_force_error < 1e-7 for item in direct.history)
+    assert all(item.relative_force_constant_change is not None for item in direct.history)
+    assert all(
+        item.relative_force_constant_change == pytest.approx(item.raw_relative_force_constant_change)
+        for item in direct.history
+    )
     target = tmp_path / "fc2.hdf5"
-    sscha.write(target)
+    direct.write(target)
     assert target.is_file()
+
+    raw = SSCHA(
+        primitive_atoms,
+        reference=make_supercell(primitive_atoms, (2, 2, 2))[0],
+        snapshots=16,
+        max_iterations=0,
+        random_seed=11,
+        initial_force_constants=fc,
+    )
+    raw.step(calc, calculate_free_energy=False)
+    mixed = SSCHA(
+        primitive_atoms,
+        reference=make_supercell(primitive_atoms, (2, 2, 2))[0],
+        snapshots=16,
+        max_iterations=0,
+        random_seed=11,
+        initial_force_constants=fc,
+        mixing=0.25,
+    )
+    mixed.step(calc, calculate_free_energy=False)
+    np.testing.assert_allclose(
+        mixed.force_constants,
+        0.75 * fc + 0.25 * raw.force_constants,
+    )
+    assert mixed.history[0].relative_force_constant_change == pytest.approx(
+        0.25 * mixed.history[0].raw_relative_force_constant_change
+    )
 
 
 def test_sscha_temperature_schedule_sorts_and_returns_independent_results():
@@ -132,6 +161,14 @@ def test_sscha_validates_external_order():
     sscha.sow()
     with pytest.raises(ValueError, match="IDs"):
         sscha.reap({0: np.zeros((8, 3))})
+
+
+@pytest.mark.parametrize("mixing", [0.0, -0.1, 1.1])
+def test_sscha_validates_linear_mixing(mixing):
+    primitive_atoms = primitive()
+    reference = make_supercell(primitive_atoms, (2, 2, 2))[0]
+    with pytest.raises(ValueError, match="mixing"):
+        SSCHA(primitive_atoms, reference=reference, snapshots=1, mixing=mixing)
 
 
 def test_sscha_accepts_a_reordered_nondiagonal_reference_frame():

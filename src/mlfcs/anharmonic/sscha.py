@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections import deque
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -36,12 +35,11 @@ class SSCHAIteration:
     ensemble: EnsembleDiagnostics | None
     fitting_relative_force_error: float
     relative_force_constant_change: float | None
+    raw_relative_force_constant_change: float | None
 
 
 class SSCHA:
     """Iterative effective-harmonic sampling driven by arbitrary ASE forces."""
-
-    _AVERAGE_WINDOW = 5
 
     def __init__(
         self,
@@ -61,6 +59,7 @@ class SSCHA:
         max_displacement: float | None = None,
         initial_force_constants: ArrayLike | None = None,
         acoustic_sum_rule: bool = True,
+        mixing: float = 1.0,
         continuation: bool = True,
         log_level: int = 0,
     ) -> None:
@@ -81,6 +80,8 @@ class SSCHA:
             raise ValueError("frequency tolerances must be non-negative")
         if max_displacement is not None and max_displacement <= 0:
             raise ValueError("max_displacement must be positive or None")
+        if not 0 < mixing <= 1:
+            raise ValueError("mixing must be in (0, 1]")
 
         self.primitive = atoms.copy()
         self.primitive.wrap()
@@ -102,10 +103,10 @@ class SSCHA:
         self.imaginary_tolerance = float(imaginary_tolerance)
         self.max_displacement = max_displacement
         self.acoustic_sum_rule = acoustic_sum_rule
+        self.mixing = float(mixing)
         self.continuation = bool(continuation)
         self.log_level = log_level
         self.history: list[SSCHAIteration] = []
-        self._recent_compact: deque[NDArray[np.float64]] = deque(maxlen=self._AVERAGE_WINDOW)
         self._prepared_index: int | None = None
         self._prepared_structures: list[Atoms] | None = None
         self._sampling_compact: NDArray[np.float64] | None = None
@@ -236,11 +237,20 @@ class SSCHA:
             acoustic_sum_rule=self.acoustic_sum_rule,
         )
         fitted_compact = fit.force_constants.materialize(2, max_bytes=None)
+        raw_relative_change = None
         relative_change = None
+        next_compact = fitted_compact
         if self._sampling_compact is not None:
             denominator = np.linalg.norm(self._sampling_compact)
-            relative_change = float(
+            raw_relative_change = float(
                 np.linalg.norm(fitted_compact - self._sampling_compact)
+                / max(float(denominator), np.finfo(float).tiny)
+            )
+            next_compact = (
+                (1.0 - self.mixing) * self._sampling_compact + self.mixing * fitted_compact
+            )
+            relative_change = float(
+                np.linalg.norm(next_compact - self._sampling_compact)
                 / max(float(denominator), np.finfo(float).tiny)
             )
         displacement = np.asarray(
@@ -275,9 +285,9 @@ class SSCHA:
             ensemble=None if self._sampling_ensemble is None else ensemble.diagnostics,
             fitting_relative_force_error=fit.diagnostics.training_relative_force_error,
             relative_force_constant_change=relative_change,
+            raw_relative_force_constant_change=raw_relative_change,
         )
-        self._active_compact = fitted_compact.copy()
-        self._recent_compact.append(fitted_compact.copy())
+        self._active_compact = next_compact.copy()
         self.history.append(result)
         self._prepared_index = None
         self._prepared_structures = None
@@ -289,6 +299,9 @@ class SSCHA:
             )
             if relative_change is not None:
                 print(f"- Relative FC2 change: {relative_change:.6e}")
+                if self.mixing != 1.0:
+                    assert raw_relative_change is not None
+                    print(f"- Raw fitted FC2 change: {raw_relative_change:.6e}")
             if result.free_energy is not None:
                 print(
                     f"- Variational free-energy estimate: {result.free_energy:.10e} "
@@ -375,6 +388,7 @@ class SSCHA:
                 max_displacement=self.max_displacement,
                 initial_force_constants=initial,
                 acoustic_sum_rule=self.acoustic_sum_rule,
+                mixing=self.mixing,
                 continuation=False,
                 log_level=self.log_level,
             )
@@ -388,21 +402,6 @@ class SSCHA:
             if self.continuation:
                 previous = result.compact_force_constants
         return TemperatureSeriesResult(self.temperatures, tuple(results), self.continuation)
-
-    def averaged_force_constants(self, last: int) -> NDArray[np.float64]:
-        self._require_single_temperature()
-        if last < 1 or last > len(self._recent_compact):
-            raise ValueError(
-                f"last must be between 1 and the {len(self._recent_compact)} retained FC2 states"
-            )
-        compact = np.mean(list(self._recent_compact)[-last:], axis=0)
-        return expand_compact_fc2(compact, self._reference)
-
-    def use_average(self, last: int) -> NDArray[np.float64]:
-        self._require_single_temperature()
-        full = self.averaged_force_constants(last)
-        self._active_compact = compact_fc2(full, self._reference)
-        return full
 
     def write(self, target: str | Path, *, format: Literal["text", "hdf5"] = "hdf5") -> None:
         self._require_single_temperature()
