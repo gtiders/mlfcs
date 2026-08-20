@@ -1,5 +1,7 @@
 # Wick 基底与高阶力常数的跨阶拟合
 
+固定温度 MD 如何提供 Wick reference measure，以及如何观测 Gaussian contraction、残余 Gram correlation 和非 Gaussian cumulant，见[固定温度 MD 与 Wick 诊断](固定温度MD与Wick诊断.md)。
+
 ## 1. 为什么需要 Wick 基底
 
 普通 Taylor 拟合直接使用位移单项式作为特征：
