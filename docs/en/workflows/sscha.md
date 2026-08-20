@@ -62,31 +62,8 @@ variational free-energy estimate are not required.
 
 `temperature` may also be a sequence. It is sorted in ascending order and, by default, the final
 FC2 at one temperature initializes the next calculation. Set `continuation=False` for independent
-temperatures. Multi-temperature objects support `run(calculator)` only; interactive `sow()`/`reap()`
-remains intentionally single-temperature.
-
-## External sow/reap workflow
-
-```python
-structures = sscha.sow()
-
-for atoms in structures:
-    dispatch(
-        atoms.info["mlfcs_sscha_iteration"],
-        atoms.info["mlfcs_configuration_id"],
-        atoms,
-    )
-
-result = sscha.reap(
-    forces_by_configuration_id,
-    energies=energies_by_configuration_id,
-    reference_energy=equilibrium_supercell_energy,
-)
-```
-
-Positional force arrays must follow `sow()` order. Mappings must contain every integer ID from zero
-through `snapshots - 1`. Forces are required; energies and the reference energy are used only for
-free energy.
+temperatures. SSCHA evaluates its internally generated ensemble through the supplied ASE calculator;
+it intentionally does not expose finite-difference-style `sow()`/`reap()` interfaces.
 
 ## Stability controls
 

@@ -72,30 +72,8 @@ series = SSCHA(
 fc2_at_450K = series.at_temperature(450).force_constants
 ```
 
-多温度对象只支持 `run(calculator)`；逐轮 `sow()`/`reap()` 仅适用于单温度对象，以免混淆
-不同温度的快照与 history。
-
-## 外部 sow/reap 流程
-
-```python
-structures = sscha.sow()
-
-for atoms in structures:
-    dispatch(
-        atoms.info["mlfcs_sscha_iteration"],
-        atoms.info["mlfcs_configuration_id"],
-        atoms,
-    )
-
-result = sscha.reap(
-    forces_by_configuration_id,
-    energies=energies_by_configuration_id,
-    reference_energy=equilibrium_supercell_energy,
-)
-```
-
-位置数组必须严格遵循 `sow()` 顺序；字典必须完整包含从零到 `snapshots - 1` 的整数 ID。
-力是必要输入，能量与未位移参考能量只用于自由能估计。
+多温度对象同样通过 `run(calculator)` 工作。SSCHA 由给定 ASE calculator 直接计算内部生成的
+系综，刻意不提供有限差分式的 `sow()`/`reap()` 接口，避免快照、温度和更新状态脱节。
 
 ## 稳定性控制
 

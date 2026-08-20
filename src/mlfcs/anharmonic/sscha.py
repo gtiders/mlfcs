@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -10,7 +10,7 @@ from typing import Literal
 import numpy as np
 from ase import Atoms
 from ase.calculators.calculator import Calculator
-from numpy.typing import ArrayLike, NDArray
+from numpy.typing import NDArray
 
 from mlfcs.anharmonic.common.ensemble import EnsembleDiagnostics, HarmonicEnsemble
 from mlfcs.anharmonic.common.fc2 import compact_fc2, expand_compact_fc2
@@ -19,7 +19,6 @@ from mlfcs.fitting import ForceConstantFitter
 from mlfcs.ifc.model import ForceConstants
 
 Progress = Callable[[int, int], None]
-ForceInput = NDArray[np.floating] | Sequence[ArrayLike] | Mapping[int, ArrayLike]
 
 
 @dataclass(frozen=True, slots=True)
@@ -107,10 +106,6 @@ class SSCHA:
         self.continuation = bool(continuation)
         self.log_level = log_level
         self.history: list[SSCHAIteration] = []
-        self._prepared_index: int | None = None
-        self._prepared_structures: list[Atoms] | None = None
-        self._sampling_compact: NDArray[np.float64] | None = None
-        self._sampling_ensemble: HarmonicEnsemble | None = None
         self._reference_energy: float | None = None
         self._fitter = ForceConstantFitter(
             self.primitive,
@@ -157,22 +152,24 @@ class SSCHA:
     def current_iteration(self) -> int:
         return len(self.history)
 
-    def sow(self) -> list[Atoms]:
-        """Create snapshots for the next iteration in deterministic reap order."""
+    def _sample_structures(
+        self,
+    ) -> tuple[
+        list[Atoms],
+        NDArray[np.float64] | None,
+        HarmonicEnsemble | None,
+        Literal["cartesian", "canonical"],
+    ]:
+        """Draw one internal SSCHA ensemble in the reference atom order."""
         self._require_single_temperature()
         index = self.current_iteration
         if index > self.max_iterations:
             raise StopIteration("all requested SSCHA iterations are complete")
-        if self._prepared_index == index:
-            assert self._prepared_structures is not None
-            return [atoms.copy() for atoms in self._prepared_structures]
 
         count = self._snapshot_count()
-        self._sampling_compact = (
-            None if self._active_compact is None else self._active_compact.copy()
-        )
-        self._sampling_ensemble = None
-        if self._sampling_compact is None:
+        sampling_compact = None if self._active_compact is None else self._active_compact.copy()
+        sampling_ensemble = None
+        if sampling_compact is None:
             rng = np.random.default_rng(self.random_seed)
             displacement = rng.normal(
                 scale=self.initial_displacement,
@@ -181,8 +178,8 @@ class SSCHA:
             displacement -= displacement.mean(axis=1, keepdims=True)
             sampling = "cartesian"
         else:
-            self._sampling_ensemble = self._make_ensemble(self._sampling_compact)
-            displacement = self._sampling_ensemble.sample(
+            sampling_ensemble = self._make_ensemble(sampling_compact)
+            displacement = sampling_ensemble.sample(
                 count, random_seed=self._sampling_seed(index)
             )
             sampling = "canonical"
@@ -197,39 +194,35 @@ class SSCHA:
                 mlfcs_sscha_sampling=sampling,
             )
             structures.append(atoms)
-        self._prepared_index = index
-        self._prepared_structures = structures
         if self.log_level:
             print(f"[SSCHA {index}/{self.max_iterations}] {sampling} sampling")
-            if self._sampling_ensemble is not None:
-                self._report_ensemble(self._sampling_ensemble.diagnostics)
-        return [atoms.copy() for atoms in structures]
+            if sampling_ensemble is not None:
+                self._report_ensemble(sampling_ensemble.diagnostics)
+        return structures, sampling_compact, sampling_ensemble, sampling
 
-    def reap(
+    def _fit_sampled_structures(
         self,
-        forces: ForceInput,
-        *,
-        energies: ArrayLike | Mapping[int, float] | None = None,
-        reference_energy: float | None = None,
+        snapshots: list[Atoms],
+        forces: NDArray[np.float64],
+        energies: NDArray[np.float64] | None,
+        sampling_compact: NDArray[np.float64] | None,
+        sampling_ensemble: HarmonicEnsemble | None,
+        sampling: Literal["cartesian", "canonical"],
     ) -> SSCHAIteration:
-        """Fit the next effective FC2 using the native streamed-Gram fitter."""
-        self._require_single_temperature()
-        snapshots = self.sow()
+        """Fit and mix FC2 from one internally sampled ensemble."""
         n_snapshots, n_atoms = len(snapshots), len(self._reference)
-        force_array = self._ordered(forces, n_snapshots, "forces")
-        if force_array.shape != (n_snapshots, n_atoms, 3):
+        if forces.shape != (n_snapshots, n_atoms, 3):
             raise ValueError(
-                f"forces must have shape {(n_snapshots, n_atoms, 3)}, got {force_array.shape}"
+                f"internal forces must have shape {(n_snapshots, n_atoms, 3)}, got {forces.shape}"
             )
-        energy_array = None
-        if energies is not None:
-            energy_array = self._ordered(energies, n_snapshots, "energies").reshape(-1)
-            if energy_array.shape != (n_snapshots,):
-                raise ValueError(f"energies must have shape {(n_snapshots,)}")
-        if reference_energy is not None:
-            self._reference_energy = float(reference_energy)
+        if energies is not None and energies.shape != (n_snapshots,):
+            raise ValueError(f"energies must have shape {(n_snapshots,)}")
 
-        for atoms, values in zip(snapshots, force_array, strict=True):
+        for atoms, values in zip(snapshots, forces, strict=True):
+            # One ASE calculator instance evaluates every snapshot.  Detach it
+            # before fitting: otherwise FitDataset would see its final cached
+            # force array for every structure instead of this snapshot's force.
+            atoms.calc = None
             atoms.new_array("forces", np.asarray(values, dtype=float))
         fit = self._fitter.fit(
             snapshots,
@@ -240,34 +233,34 @@ class SSCHA:
         raw_relative_change = None
         relative_change = None
         next_compact = fitted_compact
-        if self._sampling_compact is not None:
-            denominator = np.linalg.norm(self._sampling_compact)
+        if sampling_compact is not None:
+            denominator = np.linalg.norm(sampling_compact)
             raw_relative_change = float(
-                np.linalg.norm(fitted_compact - self._sampling_compact)
+                np.linalg.norm(fitted_compact - sampling_compact)
                 / max(float(denominator), np.finfo(float).tiny)
             )
             next_compact = (
-                (1.0 - self.mixing) * self._sampling_compact + self.mixing * fitted_compact
+                (1.0 - self.mixing) * sampling_compact + self.mixing * fitted_compact
             )
             relative_change = float(
-                np.linalg.norm(next_compact - self._sampling_compact)
+                np.linalg.norm(next_compact - sampling_compact)
                 / max(float(denominator), np.finfo(float).tiny)
             )
         displacement = np.asarray(
             [atoms.positions - self._reference.positions for atoms in snapshots]
         )
-        trial_compact = fitted_compact if self._sampling_compact is None else self._sampling_compact
+        trial_compact = fitted_compact if sampling_compact is None else sampling_compact
         trial_full = expand_compact_fc2(trial_compact, self._reference)
         n_cells = self._index.n_cells
         harmonic_each = (
             np.einsum("ijab,mia,mjb->m", trial_full, displacement, displacement, optimize=True) / 2
         ) / n_cells
         free_energy = free_energy_error = potential_energy = None
-        ensemble = self._sampling_ensemble or self._make_ensemble(trial_compact)
-        if energy_array is not None and self._reference_energy is not None:
-            potential_each = energy_array - self._reference_energy
+        ensemble = sampling_ensemble or self._make_ensemble(trial_compact)
+        if energies is not None and self._reference_energy is not None:
+            potential_each = energies - self._reference_energy
             potential_energy = float(np.mean(potential_each) / n_cells)
-            if self._sampling_compact is not None:
+            if sampling_compact is not None:
                 correction = potential_each / n_cells - harmonic_each
                 free_energy = float(ensemble.harmonic_free_energy() + np.mean(correction))
                 free_energy_error = (
@@ -277,22 +270,18 @@ class SSCHA:
                 )
         result = SSCHAIteration(
             index=self.current_iteration,
-            sampling="cartesian" if self._sampling_compact is None else "canonical",
+            sampling=sampling,
             free_energy=free_energy,
             free_energy_error=free_energy_error,
             potential_energy=potential_energy,
             harmonic_potential_energy=float(np.mean(harmonic_each)),
-            ensemble=None if self._sampling_ensemble is None else ensemble.diagnostics,
+            ensemble=None if sampling_ensemble is None else ensemble.diagnostics,
             fitting_relative_force_error=fit.diagnostics.training_relative_force_error,
             relative_force_constant_change=relative_change,
             raw_relative_force_constant_change=raw_relative_change,
         )
         self._active_compact = next_compact.copy()
         self.history.append(result)
-        self._prepared_index = None
-        self._prepared_structures = None
-        self._sampling_compact = None
-        self._sampling_ensemble = None
         if self.log_level:
             print(
                 f"- Fitting relative force error: {100 * result.fitting_relative_force_error:.6f} %"
@@ -323,7 +312,7 @@ class SSCHA:
             equilibrium = self.supercell_atoms
             equilibrium.calc = calculator
             self._reference_energy = float(equilibrium.get_potential_energy())
-        structures = self.sow()
+        structures, sampling_compact, sampling_ensemble, sampling = self._sample_structures()
         forces = np.empty((len(structures), len(structures[0]), 3))
         energies = np.empty(len(structures)) if calculate_free_energy else None
         for index, atoms in enumerate(structures):
@@ -333,7 +322,14 @@ class SSCHA:
                 energies[index] = atoms.get_potential_energy()
             if progress is not None:
                 progress(index + 1, len(structures))
-        return self.reap(forces, energies=energies)
+        return self._fit_sampled_structures(
+            structures,
+            forces,
+            energies,
+            sampling_compact,
+            sampling_ensemble,
+            sampling,
+        )
 
     def run(
         self,
@@ -474,19 +470,5 @@ class SSCHA:
                 f"- clipped atoms: {diagnostics.clipped_atoms}, "
                 f"affected snapshots: {diagnostics.affected_snapshots}"
             )
-
-    @staticmethod
-    def _ordered(values, size: int, name: str) -> NDArray[np.float64]:
-        if isinstance(values, Mapping):
-            expected = set(range(size))
-            if set(values) != expected:
-                raise ValueError(f"{name} IDs must be exactly 0..{size - 1}")
-            array = np.asarray([values[index] for index in range(size)], dtype=float)
-        else:
-            array = np.asarray(values, dtype=float)
-        if not np.isfinite(array).all():
-            raise ValueError(f"{name} contain NaN or infinite values")
-        return array
-
 
 __all__ = ["SSCHA", "SSCHAIteration"]

@@ -34,36 +34,9 @@ def primitive() -> Atoms:
     return Atoms("Al", cell=np.eye(3) * 4.0, scaled_positions=[[0, 0, 0]], pbc=True)
 
 
-def test_sscha_external_sow_reap():
-    primitive_atoms = primitive()
-    sscha = SSCHA(
-        primitive_atoms,
-        reference=make_supercell(primitive_atoms, (2, 2, 2))[0],
-        snapshots=16,
-        max_iterations=0,
-        random_seed=7,
-    )
-    structures = sscha.sow()
-    assert [a.info["mlfcs_configuration_id"] for a in structures] == list(range(16))
-    calc = TranslationalHarmonic(sscha.supercell_atoms)
-    forces = {}
-    energies = {}
-    for i, atoms in enumerate(structures):
-        atoms.calc = calc
-        forces[i] = atoms.get_forces()
-        energies[i] = atoms.get_potential_energy()
-
-    result = sscha.reap(forces, energies=energies, reference_energy=0.0)
-
-    assert result.index == 0
-    assert result.sampling == "cartesian"
-    assert sscha.force_constants.shape == (8, 8, 3, 3)
-    assert np.isfinite(sscha.force_constants).all()
-    assert result.free_energy is None
-    assert result.free_energy_error is None
-    assert result.potential_energy is not None and np.isfinite(result.potential_energy)
-    assert result.fitting_relative_force_error < 1e-12
-    assert result.relative_force_constant_change is None
+def test_sscha_has_no_external_sow_reap_api():
+    assert not hasattr(SSCHA, "sow")
+    assert not hasattr(SSCHA, "reap")
 
 
 def test_sscha_direct_run_and_linear_mixing(tmp_path):
@@ -77,16 +50,15 @@ def test_sscha_direct_run_and_linear_mixing(tmp_path):
         primitive_atoms,
         reference=make_supercell(primitive_atoms, (2, 2, 2))[0],
         snapshots=16,
-        max_iterations=1,
+        max_iterations=0,
         random_seed=11,
         initial_force_constants=fc,
     )
     calc = TranslationalHarmonic(direct.supercell_atoms, spring=spring)
 
-    returned = direct.run(calc, calculate_free_energy=False)
+    direct.step(calc, calculate_free_energy=False)
 
-    assert returned is direct
-    assert len(direct.history) == 2
+    assert len(direct.history) == 1
     assert all(item.sampling == "canonical" for item in direct.history)
     assert all(item.fitting_relative_force_error < 1e-7 for item in direct.history)
     assert all(item.relative_force_constant_change is not None for item in direct.history)
@@ -150,19 +122,6 @@ def test_sscha_temperature_schedule_sorts_and_returns_independent_results():
     assert len(result.at_temperature(600).history) == 1
 
 
-def test_sscha_validates_external_order():
-    primitive_atoms = primitive()
-    sscha = SSCHA(
-        primitive_atoms,
-        reference=make_supercell(primitive_atoms, (2, 2, 2))[0],
-        snapshots=2,
-        max_iterations=0,
-    )
-    sscha.sow()
-    with pytest.raises(ValueError, match="IDs"):
-        sscha.reap({0: np.zeros((8, 3))})
-
-
 @pytest.mark.parametrize("mixing", [0.0, -0.1, 1.1])
 def test_sscha_validates_linear_mixing(mixing):
     primitive_atoms = primitive()
@@ -179,28 +138,3 @@ def test_sscha_accepts_a_reordered_nondiagonal_reference_frame():
 
     np.testing.assert_array_equal(sscha.supercell_atoms.numbers, reference.numbers)
     assert sscha._index.representative(0) == 1
-
-
-def test_sscha_canonical_iterations_use_independent_reproducible_seeds():
-    n_atoms = 8
-    fc = np.zeros((n_atoms, n_atoms, 3, 3))
-    for axis in range(3):
-        fc[:, :, axis, axis] = 2.0 * (np.eye(n_atoms) - np.ones((n_atoms, n_atoms)) / n_atoms)
-
-    def snapshots(iteration: int):
-        primitive_atoms = primitive()
-        sscha = SSCHA(
-            primitive_atoms,
-            reference=make_supercell(primitive_atoms, (2, 2, 2))[0],
-            snapshots=4,
-            max_iterations=2,
-            random_seed=42,
-            initial_force_constants=fc,
-        )
-        sscha.history.extend([None] * iteration)
-        return np.asarray([atoms.positions for atoms in sscha.sow()])
-
-    first = snapshots(0)
-    second = snapshots(1)
-    assert not np.allclose(first, second)
-    np.testing.assert_allclose(first, snapshots(0), atol=0, rtol=0)
