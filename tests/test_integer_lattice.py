@@ -58,10 +58,8 @@ def test_residue_keys_have_exactly_determinant_many_representatives():
 )
 def test_row_hnf_is_exact_canonical_and_unimodular(matrix):
     matrix = np.asarray(matrix, dtype=np.int64)
-    hnf, transform = row_hermite_normal_form(matrix)
+    hnf = row_hermite_normal_form(matrix)
 
-    np.testing.assert_array_equal(hnf, transform @ matrix)
-    assert abs(determinant_3x3(transform)) == 1
     assert abs(determinant_3x3(hnf)) == abs(determinant_3x3(matrix))
     assert np.all(np.diag(hnf) > 0)
     assert np.all(np.triu(hnf, 1) == 0)
@@ -101,3 +99,23 @@ def test_hnf_is_invariant_under_unimodular_row_basis_changes():
 
     np.testing.assert_array_equal(left.hnf, right.hnf)
     np.testing.assert_array_equal(left.representatives, right.representatives)
+
+
+def test_hnf_batch_reduction_and_mixed_radix_indices_match_scalar_operations():
+    matrix = np.asarray([[4, 2, -1], [1, 3, 2], [0, 1, 2]], dtype=np.int64)
+    quotient = IntegerLatticeQuotient(matrix)
+    rng = np.random.default_rng(17)
+    translations = rng.integers(-100, 101, size=(4, 7, 3), dtype=np.int64)
+
+    reduced = quotient.reduce_many(translations)
+    indices = quotient.cell_index_many(translations)
+    assert reduced.shape == translations.shape
+    assert indices.shape == translations.shape[:-1]
+    for location in np.ndindex(translations.shape[:-1]):
+        np.testing.assert_array_equal(reduced[location], quotient.reduce(translations[location]))
+        assert int(indices[location]) == quotient.cell_index(translations[location])
+
+    np.testing.assert_array_equal(
+        quotient.cell_index_many(quotient.representatives),
+        np.arange(quotient.size, dtype=np.int64),
+    )

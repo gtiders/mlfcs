@@ -6,10 +6,10 @@ import numpy as np
 from ase import units
 
 from mlfcs.core.integer_lattice import (
+    IntegerLatticeQuotient,
     adjugate_3x3,
     determinant_3x3,
     normalize_supercell_matrix,
-    residue_key,
 )
 
 HBAR_ASE = units._hbar * units.J * units.s
@@ -25,22 +25,14 @@ def quotient_qpoints(integer_matrix: object) -> np.ndarray:
     """
     matrix = normalize_supercell_matrix(integer_matrix)
     determinant = abs(determinant_3x3(matrix))
-    # Keep the historical lexicographic representative order.  The order is
-    # numerically observable for finite seeded SSCHA samples, even though the
-    # q-point set itself is independent of ordering.
-    found: dict[tuple[int, int, int], np.ndarray] = {}
-    for values in np.ndindex((determinant, determinant, determinant)):
-        candidate = np.asarray(values, dtype=np.int32)
-        key = residue_key(candidate, matrix.T)
-        if key not in found:
-            found[key] = candidate
-            if len(found) == determinant:
-                break
-    if len(found) != determinant:  # pragma: no cover - defensive exact-arithmetic guard
-        raise RuntimeError("could not enumerate reciprocal quotient points")
-    representatives = np.asarray(list(found.values()), dtype=np.int64)
+    representatives = IntegerLatticeQuotient(matrix.T).representatives
     numerators = representatives @ adjugate_3x3(matrix).T
-    return np.mod(numerators, determinant).astype(float) / determinant
+    points = np.mod(numerators, determinant).astype(float) / determinant
+    if len(np.unique(np.round(points, decimals=14), axis=0)) != determinant:
+        raise RuntimeError("reciprocal quotient contains duplicate q points")
+    if not np.allclose(points @ matrix.T, np.rint(points @ matrix.T), atol=1e-12, rtol=0.0):
+        raise RuntimeError("reciprocal quotient contains an incompatible q point")
+    return points
 
 
 def mode_sigma(

@@ -17,12 +17,20 @@ def normalize_supercell_matrix(matrix: object) -> np.ndarray:
         values = np.diag(values)
     if values.shape != (3, 3):
         raise ValueError("supercell_matrix must be three repeats or an integer 3x3 matrix")
-    rounded = np.rint(values).astype(np.int64)
-    if not np.allclose(values, rounded, atol=1e-10, rtol=0.0):
-        raise ValueError("supercell_matrix must contain integers")
+    if np.issubdtype(values.dtype, np.integer):
+        integers = [[int(value) for value in row] for row in values]
+    else:
+        rounded = np.rint(values)
+        if not np.allclose(values, rounded, atol=1e-10, rtol=0.0):
+            raise ValueError("supercell_matrix must contain integers")
+        integers = [[int(value) for value in row] for row in rounded]
+    limit = np.iinfo(np.int64)
+    if any(value < limit.min or value > limit.max for row in integers for value in row):
+        raise OverflowError("supercell_matrix does not fit in int64")
+    rounded = np.asarray(integers, dtype=np.int64)
     if determinant_3x3(rounded) == 0:
         raise ValueError("supercell_matrix must be nonsingular")
-    return rounded.astype(np.int32)
+    return rounded
 
 
 def determinant_3x3(matrix: np.ndarray) -> int:
@@ -30,10 +38,8 @@ def determinant_3x3(matrix: np.ndarray) -> int:
     values = np.asarray(matrix, dtype=np.int64)
     if values.shape != (3, 3):
         raise ValueError("matrix must have shape (3, 3)")
-    a, b, c = values[0]
-    d, e, f = values[1]
-    g, h, i = values[2]
-    return int(a * (e * i - f * h) - b * (d * i - f * g) + c * (d * h - e * g))
+    a, b, c, d, e, f, g, h, i = (int(value) for value in values.ravel())
+    return a * (e * i - f * h) - b * (d * i - f * g) + c * (d * h - e * g)
 
 
 def adjugate_3x3(matrix: np.ndarray) -> np.ndarray:
@@ -41,17 +47,16 @@ def adjugate_3x3(matrix: np.ndarray) -> np.ndarray:
     values = np.asarray(matrix, dtype=np.int64)
     if values.shape != (3, 3):
         raise ValueError("matrix must have shape (3, 3)")
-    a, b, c = values[0]
-    d, e, f = values[1]
-    g, h, i = values[2]
-    return np.asarray(
-        (
-            (e * i - f * h, c * h - b * i, b * f - c * e),
-            (f * g - d * i, a * i - c * g, c * d - a * f),
-            (d * h - e * g, b * g - a * h, a * e - b * d),
-        ),
-        dtype=np.int64,
+    a, b, c, d, e, f, g, h, i = (int(value) for value in values.ravel())
+    result = (
+        (e * i - f * h, c * h - b * i, b * f - c * e),
+        (f * g - d * i, a * i - c * g, c * d - a * f),
+        (d * h - e * g, b * g - a * h, a * e - b * d),
     )
+    limit = np.iinfo(np.int64)
+    if any(value < limit.min or value > limit.max for row in result for value in row):
+        raise OverflowError("integer adjugate does not fit in int64")
+    return np.asarray(result, dtype=np.int64)
 
 
 def residue_key(translation: np.ndarray, matrix: np.ndarray) -> tuple[int, int, int]:
@@ -62,7 +67,11 @@ def residue_key(translation: np.ndarray, matrix: np.ndarray) -> tuple[int, int, 
     determinant = abs(determinant_3x3(matrix))
     if determinant == 0:
         raise ValueError("matrix must be nonsingular")
-    residue = np.mod(vector @ adjugate_3x3(matrix), determinant)
+    adjugate = adjugate_3x3(matrix)
+    residue = [
+        sum(int(vector[row]) * int(adjugate[row, column]) for row in range(3)) % determinant
+        for column in range(3)
+    ]
     return tuple(int(value) for value in residue)
 
 
@@ -77,29 +86,29 @@ def same_residue(
     ) == (0, 0, 0)
 
 
-def row_hermite_normal_form(matrix: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-    """Return the canonical lower-triangular row HNF ``H = U @ S``.
+def _sympy_int64_matrix(matrix: Matrix) -> np.ndarray:
+    """Convert a SymPy integer matrix after an explicit int64 bounds check."""
+    limit = np.iinfo(np.int64)
+    values = [[int(value) for value in row] for row in matrix.tolist()]
+    if any(value < limit.min or value > limit.max for row in values for value in row):
+        raise OverflowError("integer normal form does not fit in int64")
+    return np.asarray(values, dtype=np.int64)
+
+
+def row_hermite_normal_form(matrix: np.ndarray) -> np.ndarray:
+    """Return the canonical lower-triangular row HNF.
 
     SymPy defines a canonical column Hermite normal form.  Applying that
     implementation to ``S.T`` and transposing the result gives the row form
-    for the row lattice used by MLFCS translations.  The transformation is
-    recovered exactly and verified to be integer and unimodular.
+    for the row lattice used by MLFCS translations.
     """
     values = normalize_supercell_matrix(matrix).astype(np.int64)
     source = Matrix([[int(value) for value in row] for row in values])
     hnf_sympy = hermite_normal_form(source.T).T
-    transform_sympy = hnf_sympy * source.inv()
-    if any(not value.is_Integer for value in transform_sympy):
-        raise RuntimeError("row HNF transformation is not integral")
-    hnf = np.asarray(hnf_sympy.tolist(), dtype=np.int64)
-    transform = np.asarray(transform_sympy.tolist(), dtype=np.int64)
-    if not np.array_equal(transform @ values, hnf):
-        raise RuntimeError("row HNF transformation does not reproduce the normal form")
-    if abs(determinant_3x3(transform)) != 1:
-        raise RuntimeError("row HNF transformation is not unimodular")
+    hnf = _sympy_int64_matrix(hnf_sympy)
     if np.any(np.diag(hnf) <= 0) or np.any(np.triu(hnf, 1) != 0):
         raise RuntimeError("row HNF does not use the expected lower-triangular convention")
-    return hnf, transform
+    return hnf
 
 
 @dataclass(frozen=True, slots=True)
@@ -114,30 +123,23 @@ class IntegerLatticeQuotient:
 
     matrix: np.ndarray
     hnf: np.ndarray = field(init=False)
-    transformation: np.ndarray = field(init=False)
     representatives: np.ndarray = field(init=False)
-    _cell_by_representative: dict[tuple[int, int, int], int] = field(
-        init=False, repr=False, compare=False
-    )
+    _strides: np.ndarray = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         matrix = normalize_supercell_matrix(self.matrix)
-        hnf, transformation = row_hermite_normal_form(matrix)
+        hnf = row_hermite_normal_form(matrix)
         diagonal = tuple(int(value) for value in np.diag(hnf))
         representatives = np.asarray(tuple(product(*(range(value) for value in diagonal))), dtype=np.int64)
         representatives = representatives.reshape((-1, 3))
         expected = abs(determinant_3x3(matrix))
         if len(representatives) != expected:
             raise RuntimeError("HNF fundamental domain size differs from the supercell determinant")
-        lookup = {
-            tuple(int(value) for value in representative): cell
-            for cell, representative in enumerate(representatives)
-        }
+        strides = np.asarray((diagonal[1] * diagonal[2], diagonal[2], 1), dtype=np.int64)
         object.__setattr__(self, "matrix", matrix)
-        object.__setattr__(self, "hnf", hnf.astype(np.int32))
-        object.__setattr__(self, "transformation", transformation.astype(np.int32))
-        object.__setattr__(self, "representatives", representatives.astype(np.int32))
-        object.__setattr__(self, "_cell_by_representative", lookup)
+        object.__setattr__(self, "hnf", hnf)
+        object.__setattr__(self, "representatives", representatives)
+        object.__setattr__(self, "_strides", strides)
 
     @property
     def size(self) -> int:
@@ -148,28 +150,42 @@ class IntegerLatticeQuotient:
         values = np.asarray(translation)
         if values.shape != (3,) or not np.issubdtype(values.dtype, np.integer):
             raise ValueError("translation must be an integer vector with shape (3,)")
-        remainder = [int(value) for value in values]
-        quotient = [0, 0, 0]
-        hnf = np.asarray(self.hnf, dtype=np.int64)
+        quotient, remainder = self.decompose_many(values.reshape(1, 3))
+        return quotient[0], remainder[0]
+
+    def decompose_many(self, translations: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """Vectorized exact HNF decomposition of integer translations."""
+        values = np.asarray(translations)
+        if values.ndim < 1 or values.shape[-1] != 3 or not np.issubdtype(values.dtype, np.integer):
+            raise ValueError("translations must be an integer array ending in shape (3,)")
+        original_shape = values.shape
+        flattened = values.astype(np.int64, copy=False).reshape(-1, 3)
+        remainder = flattened.copy()
+        quotient = np.zeros_like(remainder)
         for axis in range(2, -1, -1):
-            divisor = int(hnf[axis, axis])
-            coefficient = remainder[axis] // divisor
-            quotient[axis] = coefficient
-            for component in range(3):
-                remainder[component] -= coefficient * int(hnf[axis, component])
-        q = np.asarray(quotient, dtype=np.int64)
-        r = np.asarray(remainder, dtype=np.int64)
-        if not np.array_equal(q @ hnf + r, values.astype(np.int64)):
+            coefficient = np.floor_divide(remainder[:, axis], self.hnf[axis, axis])
+            quotient[:, axis] = coefficient
+            remainder -= coefficient[:, None] * self.hnf[axis]
+        if not np.array_equal(quotient @ self.hnf + remainder, flattened):
             raise RuntimeError("HNF quotient decomposition failed")
-        return q, r
+        return quotient.reshape(original_shape), remainder.reshape(original_shape)
 
     def reduce(self, translation: np.ndarray) -> np.ndarray:
         """Return the canonical HNF fundamental-domain representative."""
-        return self.decompose(translation)[1].astype(np.int32)
+        return self.decompose(translation)[1]
+
+    def reduce_many(self, translations: np.ndarray) -> np.ndarray:
+        """Return canonical representatives for an array of translations."""
+        return self.decompose_many(translations)[1]
 
     def cell_index(self, translation: np.ndarray) -> int:
         """Return the deterministic lexicographic HNF cell index."""
-        return self._cell_by_representative[tuple(int(value) for value in self.reduce(translation))]
+        return int(self.cell_index_many(np.asarray(translation).reshape(1, 3))[0])
+
+    def cell_index_many(self, translations: np.ndarray) -> np.ndarray:
+        """Return mixed-radix HNF cell indices for many translations."""
+        remainders = self.reduce_many(translations)
+        return np.sum(remainders * self._strides, axis=-1, dtype=np.int64)
 
     def equivalent(self, translation_a: np.ndarray, translation_b: np.ndarray) -> bool:
         """Return whether two translations are in the same quotient class."""
