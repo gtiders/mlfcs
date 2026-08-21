@@ -13,8 +13,7 @@ from scipy import sparse
 from scipy.linalg.blas import dsyrk
 
 from mlfcs.constraints.translational import project_parameters
-from mlfcs.core.geometry import StructureRelation
-from mlfcs.core.interactions import InteractionSpace
+from mlfcs.core.interactions import InteractionSpace, ReferenceFrame
 from mlfcs.fitting.basis import symmetrized_covariance as _symmetrized_covariance
 from mlfcs.fitting.constraints import (
     build_joint_constraints,
@@ -97,7 +96,8 @@ class ForceConstantFitter:
         verbose: bool = True,
     ):
         self.jax_device = resolve_jax_device(jax_platform)
-        self.geometry = StructureRelation.from_atoms(primitive, reference, tolerance=symprec)
+        frame = ReferenceFrame.from_atoms(primitive, reference, symprec=symprec)
+        self.geometry = frame.relation
         self.primitive = self.geometry.primitive
         self.reference = self.geometry.reference
         self.supercell = self.geometry.supercell_matrix
@@ -124,10 +124,9 @@ class ForceConstantFitter:
         order_text = "+".join(f"FC{order}" for order in self.orders)
         self._report(f"Preparing independent {order_text} fitting parameterization")
         self.calculations = tuple(
-            InteractionSpace(
-                self.primitive,
+            InteractionSpace.from_frame(
+                frame,
                 order=order,
-                reference=self.reference,
                 cutoff=self.cutoffs.get(order),
                 max_body_order=self.max_body_orders.get(order),
                 symprec=symprec,
@@ -561,6 +560,11 @@ class _StreamingGramSystem:
                 f"- Physical design kernel groups: {len(builders)}, "
                 f"{sum(tile_counts)} bounded tiles"
             )
+        kernel_seconds = 0.0
+        transfer_seconds = 0.0
+        scatter_seconds = 0.0
+        reduction_seconds = 0.0
+        gram_seconds = 0.0
 
         for begin in range(0, len(operator.displacements), effective_batch_size):
             end = min(begin + effective_batch_size, len(operator.displacements))
@@ -589,11 +593,18 @@ class _StreamingGramSystem:
                 if use_device_gram:
                     design = accumulate_physical_design(design, contributions, group.device_columns)
                 else:
+                    contributions.block_until_ready()
+                    kernel_seconds += perf_counter() - order_started
+                    transfer_started = perf_counter()
+                    host_contributions = np.asarray(contributions)
+                    transfer_seconds += perf_counter() - transfer_started
+                    scatter_started = perf_counter()
                     for contribution, tile_columns in zip(
-                        np.asarray(contributions), columns, strict=True
+                        host_contributions, columns, strict=True
                     ):
                         contribution = contribution.reshape(force_rows, -1)
                         design[:, tile_columns] += contribution
+                    scatter_seconds += perf_counter() - scatter_started
                 if operator.reporter is not None and begin == 0:
                     contributions.block_until_ready()
                     operator.reporter(
@@ -601,6 +612,7 @@ class _StreamingGramSystem:
                         f"{perf_counter() - order_started:.2f} s"
                     )
             if operator.parameter_map is not None:
+                reduction_started = perf_counter()
                 if use_device_gram:
                     # The sparse map is uploaded once in bounded COO chunks.
                     # This keeps physical design, reduction, and Gram updates
@@ -608,7 +620,9 @@ class _StreamingGramSystem:
                     design = operator.device_reduction(force_rows).apply(design)
                 else:
                     design = np.asarray(operator.parameter_map.T @ design.T).T
+                reduction_seconds += perf_counter() - reduction_started
             force = target_shaped[begin:end].reshape(-1)
+            gram_started = perf_counter()
             if use_device_gram:
                 gram, rhs = _update_device_statistics(
                     gram,
@@ -627,6 +641,7 @@ class _StreamingGramSystem:
                     overwrite_c=1,
                 )
                 rhs += design.T @ force
+            gram_seconds += perf_counter() - gram_started
             if operator.reporter is not None and (
                 begin == 0 or end == len(operator.displacements) or end % 20 == 0
             ):
@@ -644,6 +659,19 @@ class _StreamingGramSystem:
             gram = upper + np.triu(upper, 1).T
         if operator.reporter is not None:
             operator.reporter(f"- Streamed Gram system ready in {perf_counter() - started:.2f} s")
+            if use_device_gram:
+                operator.reporter(
+                    "- Gram phase timing: device kernel, scatter, reduction, and BLAS "
+                    "execute asynchronously as one device pipeline"
+                )
+            else:
+                operator.reporter(
+                    "- Gram phase timing: "
+                    f"kernel={kernel_seconds:.2f} s, transfer={transfer_seconds:.2f} s, "
+                    f"scatter={scatter_seconds:.2f} s, "
+                    f"constraint reduction={reduction_seconds:.2f} s, "
+                    f"BLAS={gram_seconds:.2f} s"
+                )
         target_norm = float(np.vdot(target, target))
         if cache_directory is not None:
             cache_directory.mkdir(parents=True, exist_ok=True)

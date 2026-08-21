@@ -64,14 +64,11 @@ def symmetrized_covariance(displacements, calculation):
     covariance = covariance.reshape(len(calculation.supercell), 3, len(calculation.supercell), 3)
     result = np.zeros_like(covariance)
     count = 0
-    translations = np.unique(calculation.index.translations, axis=0)
-    for shift in translations:
-        translated = np.asarray(
-            [
-                calculation.index.translate_atom(atom, shift)
-                for atom in range(len(calculation.supercell))
-            ]
-        )
+    translations = calculation.index.cell_representatives
+    translated_atoms = calculation.index.translate_atoms(
+        np.arange(len(calculation.supercell), dtype=np.int32), translations
+    )
+    for translated in translated_atoms:
         translation_inverse = np.argsort(translated)
         translated_covariance = covariance[translation_inverse][:, :, translation_inverse, :]
         for permutation, rotation in zip(

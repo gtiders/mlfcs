@@ -30,9 +30,16 @@ def test_relation_preserves_reference_order_for_a_nondiagonal_supercell():
     np.testing.assert_array_equal(relation.supercell_matrix, matrix)
     assert relation.position_residual < 1e-10
     index = relation.index
+    assert relation.index is index
     for atom in range(len(reference)):
         assert index.translate_atom(atom, [0, 0, 0]) == atom
         assert index.atom(index.primitive[atom], index.translations[atom]) == atom
+    atoms = np.arange(len(reference), dtype=np.int32)
+    shifts = np.asarray([[0, 0, 0], [1, -2, 1], [-3, 0, 2]], dtype=np.int32)
+    translated = index.translate_atoms(atoms, shifts)
+    for shift_index, shift in enumerate(shifts):
+        for atom in atoms:
+            assert translated[shift_index, atom] == index.translate_atom(int(atom), shift)
     assert index.anchor((5, 7))[0] == index.representative(index.primitive[5])
 
 

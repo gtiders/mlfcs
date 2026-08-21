@@ -3,10 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import numpy as np
-import spglib
-from ase import Atoms
 
-from mlfcs.core.geometry import PeriodicGeometry
+from mlfcs.core.integer_lattice import adjugate_3x3, determinant_3x3
 
 
 @dataclass(frozen=True, slots=True)
@@ -18,59 +16,38 @@ class SymmetryOperations:
     symbol: str
 
     @classmethod
-    def from_atoms(
-        cls,
-        primitive: Atoms,
-        supercell: Atoms,
-        *,
-        symprec: float = 1e-5,
-    ) -> SymmetryOperations:
-        cell = (np.asarray(primitive.cell), primitive.get_scaled_positions(), primitive.numbers)
-        dataset = spglib.get_symmetry_dataset(cell, symprec=symprec)
-        if dataset is None:
-            raise ValueError("spglib could not determine the crystal symmetry")
-        rotations = np.asarray(dataset.rotations, dtype=np.int32)
-        translations = np.asarray(dataset.translations, dtype=float)
-        lattice = np.asarray(primitive.cell)
-        inverse = np.linalg.inv(lattice)
-        cartesian = np.asarray([inverse @ rotation.T @ lattice for rotation in rotations])
-        permutations = _map_supercell(
-            primitive,
-            supercell,
+    def from_primitive_operations(cls, operations, index) -> SymmetryOperations:
+        """Realize exact primitive affine symmetry operations on one reference."""
+        matrix = index.supercell_matrix.astype(np.int64)
+        determinant = determinant_3x3(matrix)
+        adjugate = adjugate_3x3(matrix)
+        compatible = []
+        for operation, rotation in enumerate(operations.rotations):
+            numerator = matrix @ rotation.T @ adjugate
+            if np.all(np.mod(numerator, determinant) == 0):
+                compatible.append(operation)
+        selected = np.asarray(compatible, dtype=np.int32)
+        rotations = operations.rotations[selected]
+        translations = operations.translations[selected]
+        cartesian_rotations = operations.cartesian_rotations[selected]
+        site_permutations = operations.site_permutations[selected]
+        site_shifts = operations.site_shifts[selected]
+        atom_sites = index.primitive
+        atom_translations = index.translations.astype(np.int64)
+        sites = site_permutations[:, atom_sites]
+        translated = np.einsum(
+            "aj,okj->oak", atom_translations, rotations, optimize=True
+        )
+        translated += site_shifts[:, atom_sites]
+        permutations = index.atom_many(sites, translated).astype(np.int32)
+        return cls(
             rotations,
             translations,
-            symprec=symprec,
+            cartesian_rotations,
+            permutations,
+            operations.symbol,
         )
-        return cls(rotations, translations, cartesian, permutations, dataset.international.strip())
 
     @property
     def size(self) -> int:
         return len(self.rotations)
-
-
-def _map_supercell(
-    primitive: Atoms,
-    supercell: Atoms,
-    rotations: np.ndarray,
-    translations: np.ndarray,
-    *,
-    symprec: float,
-) -> np.ndarray:
-    primitive_inverse = np.linalg.inv(np.asarray(primitive.cell))
-    target = supercell.get_positions()
-    geometry = PeriodicGeometry(supercell.cell, supercell.pbc)
-    result = np.empty((len(rotations), len(supercell)), dtype=np.int32)
-    for operation, (rotation, translation) in enumerate(zip(rotations, translations, strict=True)):
-        fractional = supercell.positions @ primitive_inverse
-        transformed = (fractional @ rotation.T + translation) @ primitive.cell
-        for atom, position in enumerate(transformed):
-            delta = target - position
-            _, lengths = geometry.mic(delta)
-            same_species = supercell.numbers == supercell.numbers[atom]
-            valid = np.flatnonzero(same_species & (lengths < symprec * 10.0))
-            if len(valid) != 1:
-                raise ValueError(
-                    f"symmetry operation {operation} maps atom {atom} to {len(valid)} atoms"
-                )
-            result[operation, atom] = valid[0]
-    return result

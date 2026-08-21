@@ -213,6 +213,24 @@ def test_fitter_uses_reordered_reference_without_a_separate_supercell_argument()
     assert fitter.index.representative(0) == 1
 
 
+def test_fitter_reuses_one_reference_and_symmetry_frame_across_orders():
+    primitive = Atoms("Ar", cell=np.eye(3) * 4, scaled_positions=[[0, 0, 0]], pbc=True)
+    reference = primitive.repeat((3, 3, 3))
+    fitter = ForceConstantFitter(
+        primitive,
+        reference,
+        orders=(2, 3),
+        cutoffs={2: 4.1, 3: 4.1},
+        verbose=False,
+    )
+
+    first, second = fitter.calculations
+    assert first.relation is second.relation is fitter.geometry
+    assert first.index is second.index is fitter.index
+    assert first.symmetry is second.symmetry
+    assert first.frame.primitive_symmetry is second.frame.primitive_symmetry
+
+
 def test_public_fitter_exposes_scaled_orbit_group_lasso():
     primitive = Atoms("Ar", cell=np.eye(3) * 4, scaled_positions=[[0, 0, 0]], pbc=True)
     reference = primitive.repeat((2, 1, 1))

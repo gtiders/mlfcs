@@ -1,8 +1,15 @@
 import numpy as np
+import pytest
 from ase import Atoms
 
 from mlfcs import ForceConstantCalculation, build_supercell
-from mlfcs.core.real_space import InteractionKey, build_primitive_interaction_space
+from mlfcs.core.geometry import StructureRelation
+from mlfcs.core.real_space import (
+    InteractionAliasingError,
+    InteractionKey,
+    build_primitive_interaction_space,
+    validate_realization_identifiability,
+)
 
 
 def test_primitive_fc2_space_keeps_exact_nearest_neighbor_translations():
@@ -46,3 +53,24 @@ def test_exact_ifcs_realize_into_a_different_supercell_size():
 
     assert len(result.sparse[2].translations) == 7
     assert realized.materialize(2, max_bytes=None).shape == (1, 8, 3, 3)
+
+
+def test_identifiability_accepts_resolved_and_rejects_folded_exact_interactions():
+    primitive = Atoms("Si", scaled_positions=[[0, 0, 0]], cell=np.eye(3) * 4, pbc=True)
+    space = build_primitive_interaction_space(
+        primitive,
+        order=2,
+        cutoff=4.1,
+        max_body_order=None,
+        symprec=1e-5,
+    )
+    resolved = build_supercell(primitive, (3, 3, 3))
+    validate_realization_identifiability(
+        space, StructureRelation.from_atoms(primitive, resolved).index
+    )
+
+    folded = primitive.copy()
+    with pytest.raises(InteractionAliasingError, match="larger single reference"):
+        validate_realization_identifiability(
+            space, StructureRelation.from_atoms(primitive, folded).index
+        )

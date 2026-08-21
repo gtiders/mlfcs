@@ -50,7 +50,7 @@ def pack_order(calculation, offset):
         dtype=np.int32,
     )
     image_mask = np.zeros((n_orbits, max_images), dtype=bool)
-    translations = np.unique(calculation.index.translations, axis=0)
+    translations = calculation.index.cell_representatives
     base = np.arange(3**order).reshape((3,) * order)
     for orbit_index, orbit in enumerate(orbits):
         dimension = orbit.dimension
@@ -65,11 +65,9 @@ def pack_order(calculation, offset):
             permutations[orbit_index, image_index] = base.transpose(
                 image.action.permutation
             ).ravel()
-            for translation_index, translation in enumerate(translations):
-                atoms = [
-                    calculation.index.translate_atom(atom, translation) for atom in image.cluster
-                ]
-                coordinates[orbit_index, image_index, translation_index] = atoms
+            coordinates[orbit_index, image_index] = calculation.index.translate_atoms(
+                np.asarray(image.cluster, dtype=np.int32), translations
+            )
         image_mask[orbit_index, :images] = True
         offset += dimension
     return (

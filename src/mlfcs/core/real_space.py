@@ -171,6 +171,7 @@ def validate_realization_identifiability(
     index,
     *,
     tolerance: float = 1e-10,
+    realized: OrbitSpace | None = None,
 ) -> None:
     """Reject a finite reference that cannot identify primitive parameters.
 
@@ -182,10 +183,17 @@ def validate_realization_identifiability(
         [0, *(orbit.dimension for orbit in space.orbits)], dtype=np.int64
     )
     rows: dict[tuple[tuple[int, ...], int], dict[int, float]] = {}
+    if realized is not None and len(realized.orbits) != len(space.orbits):
+        raise ValueError("realized and primitive orbit spaces are inconsistent")
     for orbit_index, orbit in enumerate(space.orbits):
         offset = int(parameter_offsets[orbit_index])
-        for image in orbit.images:
-            cluster = _realize_key(image.key, index)
+        realized_images = None if realized is None else realized.orbits[orbit_index].images
+        for image_index, image in enumerate(orbit.images):
+            cluster = (
+                _realize_key(image.key, index)
+                if realized_images is None
+                else realized_images[image_index].cluster
+            )
             columns = image.action.apply_columns(orbit.basis)
             for component, values in enumerate(columns):
                 row = rows.setdefault((cluster, component), {})
@@ -208,7 +216,12 @@ def validate_realization_identifiability(
         if left_root != right_root:
             parent[right_root] = left_root
 
+    row_values = []
     for values in rows.values():
+        values = {column: value for column, value in values.items() if abs(value) > tolerance}
+        if not values:
+            continue
+        row_values.append(values)
         columns = tuple(values)
         for column in columns[1:]:
             union(columns[0], column)
@@ -216,17 +229,23 @@ def validate_realization_identifiability(
     for column in range(n_parameters):
         components.setdefault(find(column), []).append(column)
 
-    row_items = tuple(rows.items())
-    for columns in components.values():
-        selected = set(columns)
-        component_rows = [
-            values for _key, values in row_items if selected.intersection(values)
-        ]
-        matrix = np.asarray(
-            [[values.get(column, 0.0) for column in columns] for values in component_rows],
-            dtype=float,
-        )
-        rank = int(np.linalg.matrix_rank(matrix, tol=tolerance))
+    component_rows: dict[int, list[dict[int, float]]] = {}
+    for values in row_values:
+        root = find(next(iter(values)))
+        component_rows.setdefault(root, []).append(values)
+    for root, columns in components.items():
+        local_rows = component_rows.get(root, [])
+        if len(columns) == 1:
+            column = columns[0]
+            if any(abs(values.get(column, 0.0)) > tolerance for values in local_rows):
+                continue
+            rank = 0
+        else:
+            matrix = np.asarray(
+                [[values.get(column, 0.0) for column in columns] for values in local_rows],
+                dtype=float,
+            )
+            rank = int(np.linalg.matrix_rank(matrix, tol=tolerance))
         if rank != len(columns):
             affected = [
                 orbit.representative
@@ -280,6 +299,7 @@ def build_primitive_interaction_space(
     max_body_order: int | None,
     symprec: float,
     tolerance: float = 1e-9,
+    symmetry: PrimitiveSymmetryOperations | None = None,
 ) -> PrimitiveInteractionSpace:
     """Enumerate and symmetry-reduce exact primitive-lattice interactions."""
     if order < 2:
@@ -289,7 +309,8 @@ def build_primitive_interaction_space(
     primitive = primitive.copy()
     primitive.wrap()
     radius = resolve_primitive_cutoff(primitive, cutoff)
-    symmetry = PrimitiveSymmetryOperations.from_atoms(primitive, symprec=symprec)
+    if symmetry is None:
+        symmetry = PrimitiveSymmetryOperations.from_atoms(primitive, symprec=symprec)
     neighbors = _primitive_neighbors(primitive, radius)
     axis_permutations = tuple(permutations(range(order)))
     seen: set[InteractionKey] = set()
