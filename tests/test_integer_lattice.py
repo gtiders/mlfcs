@@ -119,3 +119,19 @@ def test_hnf_batch_reduction_and_mixed_radix_indices_match_scalar_operations():
         quotient.cell_index_many(quotient.representatives),
         np.arange(quotient.size, dtype=np.int64),
     )
+
+
+def test_sheared_supercell_quotient_round_trip_locks_row_vector_convention():
+    matrix = np.asarray([[2, 1, 0], [0, 2, 1], [0, 0, 2]], dtype=np.int64)
+    quotient = IntegerLatticeQuotient(matrix)
+
+    assert quotient.size == abs(determinant_3x3(matrix)) == 8
+    assert len({residue_key(value, matrix) for value in quotient.representatives}) == 8
+    np.testing.assert_array_equal(
+        quotient.cell_index_many(quotient.representatives), np.arange(8, dtype=np.int64)
+    )
+    for translation in product(range(-5, 6), repeat=3):
+        index = quotient.cell_index(translation)
+        representative = quotient.representatives[index]
+        assert same_residue(translation, representative, matrix)
+        np.testing.assert_array_equal(quotient.reduce(translation), representative)

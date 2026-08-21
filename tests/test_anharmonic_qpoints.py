@@ -5,7 +5,7 @@ import pytest
 
 from mlfcs.anharmonic.common.schedule import normalize_temperature_schedule
 from mlfcs.anharmonic.common.thermodynamics import quotient_qpoints
-from mlfcs.core.integer_lattice import determinant_3x3
+from mlfcs.core.integer_lattice import adjugate_3x3, determinant_3x3, residue_key
 
 
 def _point_set(points: np.ndarray) -> set[tuple[float, float, float]]:
@@ -35,6 +35,28 @@ def test_general_reciprocal_quotient_uses_hnf_canonical_order():
         [[0.0, 0.0, 0.0], [0.75, 0.5, 0.0], [0.5, 0.0, 0.0], [0.25, 0.5, 0.0]]
     )
     np.testing.assert_allclose(points, expected, atol=1e-12, rtol=0.0)
+
+
+def test_sheared_reciprocal_quotient_matches_legacy_set_not_legacy_order():
+    matrix = np.asarray([[2, 1, 0], [0, 2, 1], [0, 0, 2]], dtype=np.int64)
+    determinant = abs(determinant_3x3(matrix))
+    current = quotient_qpoints(matrix)
+
+    legacy_representatives = {}
+    for values in np.ndindex((determinant, determinant, determinant)):
+        candidate = np.asarray(values, dtype=np.int64)
+        legacy_representatives.setdefault(residue_key(candidate, matrix.T), candidate)
+        if len(legacy_representatives) == determinant:
+            break
+    legacy_numerators = np.asarray(list(legacy_representatives.values())) @ adjugate_3x3(
+        matrix
+    ).T
+    legacy = np.mod(legacy_numerators, determinant).astype(float) / determinant
+
+    assert len(current) == determinant == 8
+    assert len(_point_set(current)) == determinant
+    assert _point_set(current) == _point_set(legacy)
+    np.testing.assert_allclose(current @ matrix.T, np.rint(current @ matrix.T), atol=1e-12)
 
 
 def test_temperature_schedule_sorts_and_rejects_duplicates():
