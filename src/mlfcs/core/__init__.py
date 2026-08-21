@@ -6,10 +6,11 @@ from mlfcs.core.geometry import (
     StructureRelation,
     align_structures,
 )
-from mlfcs.core.integer_lattice import normalize_supercell_matrix
+from mlfcs.core.integer_lattice import IntegerLatticeQuotient, normalize_supercell_matrix
 from mlfcs.core.supercell import build_supercell
 
 __all__ = [
+    "IntegerLatticeQuotient",
     "PeriodicGeometry",
     "PeriodicIndex",
     "StructureRelation",

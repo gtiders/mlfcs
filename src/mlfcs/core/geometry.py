@@ -7,7 +7,6 @@ in ``Z^3 / Z^3 S`` for a general row-vector supercell matrix ``S``.
 
 from __future__ import annotations
 
-from collections import deque
 from dataclasses import dataclass, field
 from itertools import product
 
@@ -17,6 +16,7 @@ from ase.geometry import find_mic, minkowski_reduce
 from scipy.optimize import linear_sum_assignment
 
 from mlfcs.core.integer_lattice import (
+    IntegerLatticeQuotient,
     determinant_3x3,
     normalize_supercell_matrix,
     residue_key,
@@ -29,28 +29,8 @@ def _translation_label(translation: np.ndarray, matrix: np.ndarray) -> tuple[int
 
 
 def _coset_translations(matrix: np.ndarray) -> np.ndarray:
-    """Enumerate one deterministic primitive-lattice translation per coset."""
-    count = abs(determinant_3x3(matrix))
-    zero = np.zeros(3, dtype=np.int32)
-    found: dict[tuple[int, int, int], np.ndarray] = {_translation_label(zero, matrix): zero}
-    pending = deque([zero])
-    generators = np.eye(3, dtype=np.int32)
-    # The three primitive unit translations generate the finite quotient.
-    # A breadth-first traversal visits every residue exactly once, avoiding
-    # the former cubic bounding box for large determinant supercells.
-    while pending and len(found) < count:
-        current = pending.popleft()
-        for generator in generators:
-            candidate = current + generator
-            residue = _translation_label(candidate, matrix)
-            if residue not in found:
-                found[residue] = candidate
-                pending.append(candidate)
-    if len(found) != count:  # pragma: no cover - defensive guard for malformed arithmetic
-        raise RuntimeError("could not enumerate supercell translation cosets")
-    return np.asarray(
-        sorted(found.values(), key=lambda value: (value[2], value[1], value[0])), dtype=np.int32
-    )
+    """Enumerate the canonical row-HNF fundamental domain."""
+    return IntegerLatticeQuotient(matrix).representatives.copy()
 
 
 @dataclass(frozen=True, slots=True)
@@ -204,11 +184,13 @@ class PeriodicIndex:
     _translations_by_residue: dict[tuple[int, int, int], np.ndarray] = field(
         init=False, repr=False, compare=False
     )
+    _quotient: IntegerLatticeQuotient = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         primitive = np.asarray(self.primitive, dtype=np.int32)
         translations = np.asarray(self.translations, dtype=np.int32)
         matrix = normalize_supercell_matrix(self.supercell_matrix)
+        quotient = IntegerLatticeQuotient(matrix)
         if primitive.ndim != 1 or translations.shape != (len(primitive), 3):
             raise ValueError("primitive labels and translations have incompatible shapes")
         if (
@@ -220,7 +202,7 @@ class PeriodicIndex:
         atoms: dict[tuple[int, tuple[int, int, int]], int] = {}
         translations_by_residue: dict[tuple[int, int, int], np.ndarray] = {}
         for atom, (site, translation) in enumerate(zip(primitive, translations, strict=True)):
-            residue = _translation_label(translation, matrix)
+            residue = tuple(int(value) for value in quotient.reduce(translation))
             key = (int(site), residue)
             if key in atoms:
                 raise ValueError("more than one reference atom has the same periodic label")
@@ -232,6 +214,7 @@ class PeriodicIndex:
         object.__setattr__(self, "primitive", primitive)
         object.__setattr__(self, "translations", translations)
         object.__setattr__(self, "supercell_matrix", matrix)
+        object.__setattr__(self, "_quotient", quotient)
         object.__setattr__(self, "_atoms", atoms)
         object.__setattr__(self, "_translations_by_residue", translations_by_residue)
 
@@ -244,7 +227,7 @@ class PeriodicIndex:
         return abs(determinant_3x3(self.supercell_matrix))
 
     def residue(self, translation: np.ndarray) -> tuple[int, int, int]:
-        return _translation_label(np.asarray(translation, dtype=np.int64), self.supercell_matrix)
+        return tuple(int(value) for value in self._quotient.reduce(np.asarray(translation)))
 
     def canonical_translation(self, translation: np.ndarray) -> np.ndarray:
         """Reference-frame representative of a primitive-lattice translation residue."""
