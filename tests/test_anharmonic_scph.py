@@ -9,7 +9,6 @@ from mlfcs.anharmonic.scph import LoopSCPH, _fourier_terms, harmonic_frequencies
 from mlfcs.core.geometry import StructureRelation
 from mlfcs.ifc.model import ForceConstants, SparseOrderForceConstants
 from mlfcs.io.hdf5 import read_hdf5
-from mlfcs import build_supercell
 
 
 def _force_constants(*, cell=4.0):
@@ -162,7 +161,7 @@ def test_loop_scph_uses_alamode_rms_frequency_stopping_metric():
 def test_loop_scph_rejects_incompatible_force_constant_frames():
     fc2, _ = _force_constants(cell=4.0)
     _, fc4 = _force_constants(cell=5.0)
-    with pytest.raises(ValueError, match="supercell matrices|reference supercells"):
+    with pytest.raises(ValueError, match="primitive structures differ"):
         LoopSCPH(
             fc2=fc2,
             fc4=fc4,
@@ -172,15 +171,11 @@ def test_loop_scph_rejects_incompatible_force_constant_frames():
         )
 
 
-def test_loop_scph_fourier_terms_keep_reference_translations_for_incompatible_mesh():
+def test_loop_scph_fourier_terms_use_exact_primitive_translations():
     primitive = Atoms("H", positions=[[0, 0, 0]], cell=np.eye(3) * 2.0, pbc=True)
-    reference = build_supercell(primitive, np.diag([2, 2, 3]))
-    relation = StructureRelation.from_atoms(primitive, reference)
-    compact = np.zeros((1, len(reference), 3, 3))
-    terms = _fourier_terms(compact, relation)
-    for atom, (_, _, fractional, _) in enumerate(terms):
-        expected = relation.index.translations[atom] - relation.index.translations[0]
-        np.testing.assert_allclose(fractional, expected, atol=1e-12)
+    terms = _fourier_terms({(0, 0, (2, -1, 3)): np.eye(3)}, primitive)
+    assert len(terms) == 1
+    np.testing.assert_array_equal(terms[0][2], [2, -1, 3])
 
 
 def test_loop_scph_keeps_fc4_induced_pair_support():
@@ -224,7 +219,7 @@ def test_loop_scph_keeps_fc4_induced_pair_support():
         (int(sites[0]), int(sites[1]), tuple(map(int, translations[0])))
         for sites, translations in zip(
             result.force_constants.sparse[2].sites,
-            result.force_constants.sparse[2].translation_representatives,
+            result.force_constants.sparse[2].translations,
             strict=True,
         )
     }

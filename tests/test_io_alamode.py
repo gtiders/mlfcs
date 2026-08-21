@@ -163,10 +163,13 @@ def test_alamode_rebases_a_nonreduced_equivalent_supercell_before_27_image_encod
         pbc=True,
     )
     relation = StructureRelation.from_atoms(primitive, reference)
+    sparse = _sparse(2, 2, 2, (0, 1), (0, 0), 1.0)
+    sparse.sites = np.asarray([[0, 1]], dtype=np.int32)
+    sparse.translations = np.asarray([[[0, 0, 0]]], dtype=np.int32)
     values = ForceConstants(
         {},
         relation.reference,
-        sparse={2: _sparse(2, 2, 2, (0, 1), (0, 0), 1.0)},
+        sparse={2: sparse},
         relation=relation,
     )
     with pytest.raises(AlamodeMirrorImageError):

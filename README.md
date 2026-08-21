@@ -123,7 +123,7 @@ the calculator required by your application separately.
 | Order-`n` force constants | eV/Åⁿ |
 | Positive cutoff | Å |
 | Negative integer cutoff | Neighbor shell |
-| `None` cutoff | Maximum radius enumerable by the supercell |
+| `None` cutoff | Unsupported; every order requires an explicit cutoff |
 
 JAX numerical kernels use 64-bit floating point.
 
@@ -266,33 +266,23 @@ fc3 = calculation.reap(forces)
 
 Stage reporting is enabled by default for `sow()`, `reap()`, and direct ASE-calculator runs.
 It reports symmetry, cluster, displacement-plan, ASR, and force-evaluation progress using values
-already computed by the calculation. Pass `verbose=False` to silence all stage and cutoff output.
-`report_cutoff=False` suppresses only the detailed neighbor-shell lines.
+already computed by the calculation. Pass `verbose=False` to silence stage output.
 
 ## Orders and cutoffs
 
 The same constructor is used for all supported orders:
 
 ```python
-fc2_calculation = ForceConstantCalculation(atoms, order=2, cutoff=-6)
-fc4_calculation = ForceConstantCalculation(atoms, order=4, cutoff=-3)
-fc5_calculation = ForceConstantCalculation(atoms, order=5, cutoff=-1)
-full_calculation = ForceConstantCalculation(atoms, order=3, cutoff=None)
+fc2_calculation = ForceConstantCalculation(atoms, reference=reference, order=2, cutoff=-6)
+fc4_calculation = ForceConstantCalculation(atoms, reference=reference, order=4, cutoff=-3)
+fc5_calculation = ForceConstantCalculation(atoms, reference=reference, order=5, cutoff=-1)
 ```
 
-A positive cutoff is a radius in Å. A negative integer selects a one-based neighbor shell. For
-example, `cutoff=-8` selects the eighth shell. `cutoff=None` selects the maximum radius that the
-current finite supercell can enumerate; it does not mean an unbounded interaction range. MLFCS
-reports both the supercell capacity and the selected radius:
-
-```text
-Supercell neighbor limit: maximum shell = 33, maximum cutoff radius = 15.7504983443 Å
-Selected neighbor cutoff: shell = 8, cutoff radius = 7.5419604204 Å
-```
-
-The first line is a capacity diagnostic for the finite supercell. The second line is the cutoff
-actually used. Requests beyond the enumerable capacity are rejected. Use `report_cutoff=False`
-to suppress both lines.
+A positive cutoff is a radius in Å. A negative integer selects a one-based neighbor shell on the
+infinite primitive lattice. For example, `cutoff=-8` selects the eighth shell. Every order requires
+an explicit cutoff; `None` is rejected. The selected exact interactions are then realized in the
+single reference supercell, and construction is rejected if that finite supercell cannot identify
+all independent primitive-space parameters.
 
 Higher orders grow combinatorially through cluster combinations, tensor components,
 permutations, and finite-difference signs. Use small cutoffs first and monitor configuration
@@ -377,20 +367,20 @@ fc234 = read_hdf5("fc3.h5")
 
 | Format | Orders | Representation |
 |---|---|---|
-| `hdf5` | Any | Native v2 lattice-labelled sparse IFCs (`sites`, translation representatives, Cartesian tensors) |
+| `hdf5` | Any | Native v3 exact real-space sparse IFCs (`sites`, integer translations, Cartesian tensors) |
 | `shengbte` | 3 and 4 | Symmetry-closed translation-based text blocks |
 | `phonopy` | 2 | Full dense supercell FC2 text |
 | `phonopy_hdf5` | 2 | Phonopy-compatible full-supercell `force_constants` HDF5 |
 | `phono3py_hdf5` | 3 | Phono3py-compatible full-supercell `fc3` HDF5 |
 | `alamode` | 2--4 | Combined ALAMODE FCSXML document |
 
-ShengBTE output writes the symmetry-closed cluster support carried by the reconstructed sparse
-result and resolves its lattice residues to jointly compatible minimum images.
+ShengBTE output writes exact primitive translations directly; it does not rediscover minimum
+images from a source-supercell residue.
 
 The phonopy and phono3py HDF5 writers preserve the explicit reference-supercell order and stream
 one first-atom slab at a time. They therefore do not materialize the full FC3 in memory. The native
-`hdf5` format is native schema v2: it stores primitive and reference structures, their verified
-mapping, and lattice-labelled sparse IFCs. Older native schemas are intentionally unsupported.
+`hdf5` format is native schema v3: it stores the primitive structure and exact lattice-labelled
+sparse IFCs without a source-supercell mapping. Older native schemas are intentionally unsupported.
 
 ALAMODE XML preserves the exact atom order of `fc.supercell`. Primitive-atom identities and
 translation mappings come exclusively from MLFCS's `primitive_index` and `cell_translation`

@@ -102,6 +102,12 @@ def convert_sparse_wick_reference(force_constants, covariance):
             values.n_supercell,
             values.clusters.copy(),
             values.tensors.copy(),
+            None if values.sites is None else values.sites.copy(),
+            (
+                None
+                if values.translations is None
+                else values.translations.copy()
+            ),
         )
         for order, values in force_constants.items()
     }
@@ -112,6 +118,12 @@ def convert_sparse_wick_reference(force_constants, covariance):
             values.n_supercell,
             values.clusters.copy(),
             values.tensors.copy(),
+            None if values.sites is None else values.sites.copy(),
+            (
+                None
+                if values.translations is None
+                else values.translations.copy()
+            ),
         )
         for order, values in wick_values.items()
     }
@@ -123,19 +135,38 @@ def convert_sparse_wick_reference(force_constants, covariance):
     )
     maximum_order = max(result, default=0)
     for target_order in sorted(result):
-        tensors_by_cluster = {
-            tuple(map(int, cluster)): tensor.copy()
-            for cluster, tensor in zip(
-                result[target_order].clusters, result[target_order].tensors, strict=True
-            )
-        }
+        target = result[target_order]
+        labelled = target.is_lattice_labelled
+        def physical_key(values, row, order):
+            if values.is_lattice_labelled:
+                return (
+                    tuple(map(int, values.sites[row, :order])),
+                    tuple(
+                        tuple(map(int, vector))
+                        for vector in values.translations[row, : order - 1]
+                    ),
+                )
+            return tuple(map(int, values.clusters[row, :order]))
+
+        tensors_by_cluster = {}
+        clusters_by_key = {}
+        for row, (cluster, tensor) in enumerate(
+            zip(target.clusters, target.tensors, strict=True)
+        ):
+            key = physical_key(target, row, target_order)
+            tensors_by_cluster[key] = tensors_by_cluster.get(
+                key, np.zeros((3,) * target_order)
+            ) + tensor
+            clusters_by_key.setdefault(key, np.asarray(cluster, dtype=np.int32))
         for source_order in range(target_order + 2, maximum_order + 1, 2):
             if source_order not in wick_values:
                 continue
             pairs = (source_order - target_order) // 2
             coefficient = (-1.0) ** pairs / (2.0**pairs * factorial(pairs))
             source = wick_values[source_order]
-            for cluster, tensor in zip(source.clusters, source.tensors, strict=True):
+            for row, (cluster, tensor) in enumerate(
+                zip(source.clusters, source.tensors, strict=True)
+            ):
                 contracted = tensor
                 for pair in range(pairs):
                     left = target_order + 2 * pair
@@ -146,21 +177,33 @@ def convert_sparse_wick_reference(force_constants, covariance):
                         covariance[atom_left, :, atom_right, :],
                         optimize=True,
                     )
-                key = tuple(map(int, cluster[:target_order]))
+                key = physical_key(source, row, target_order)
+                clusters_by_key.setdefault(key, np.asarray(cluster[:target_order], dtype=np.int32))
                 tensors_by_cluster[key] = (
                     tensors_by_cluster.get(key, np.zeros((3,) * target_order))
                     + coefficient * contracted
                 )
-        clusters = np.asarray(tuple(tensors_by_cluster), dtype=np.int32).reshape((-1, target_order))
+        keys = tuple(tensors_by_cluster)
+        clusters = np.asarray([clusters_by_key[key] for key in keys], dtype=np.int32).reshape(
+            (-1, target_order)
+        )
         tensors = np.asarray(
-            [tensors_by_cluster[tuple(cluster)] for cluster in clusters], dtype=float
+            [tensors_by_cluster[key] for key in keys], dtype=float
         ).reshape((-1,) + (3,) * target_order)
         original = result[target_order]
+        sites = translations = None
+        if labelled:
+            sites = np.asarray([key[0] for key in keys], dtype=np.int32)
+            translations = np.asarray([key[1] for key in keys], dtype=np.int32).reshape(
+                (-1, target_order - 1, 3)
+            )
         result[target_order] = SparseOrderForceConstants(
             target_order,
             original.n_primitive,
             original.n_supercell,
             clusters,
             tensors,
+            sites,
+            translations,
         )
     return result

@@ -6,6 +6,7 @@ import numpy as np
 
 from mlfcs.core.geometry import PeriodicIndex
 from mlfcs.core.orbits import OrbitSpace
+from mlfcs.core.real_space import PrimitiveInteractionSpace
 from mlfcs.ifc.model import SparseOrderForceConstants
 
 
@@ -59,4 +60,52 @@ def expand_orbit_parameters(
     )
 
 
-__all__ = ["expand_orbit_parameters"]
+def expand_primitive_parameters(
+    interaction_space: PrimitiveInteractionSpace,
+    parameters: np.ndarray,
+    *,
+    index: PeriodicIndex,
+) -> SparseOrderForceConstants:
+    """Expand primitive-orbit parameters with exact lattice translations.
+
+    ``clusters`` remains a finite calculation view during the staged solver
+    migration.  ``sites`` and ``translations`` already carry
+    the canonical exact-R physical identity and are independent of that view.
+    """
+    values = np.asarray(parameters, dtype=float).reshape(-1)
+    expected = sum(orbit.dimension for orbit in interaction_space.orbits)
+    if len(values) != expected:
+        raise ValueError(f"expected {expected} orbit parameters, got {len(values)}")
+    clusters = []
+    sites = []
+    translations = []
+    tensors = []
+    offset = 0
+    shape = (3,) * interaction_space.order
+    for orbit in interaction_space.orbits:
+        pivot_values = values[offset : offset + orbit.dimension]
+        offset += orbit.dimension
+        representative = orbit.basis @ np.linalg.solve(orbit.basis[orbit.pivots], pivot_values)
+        for image in orbit.images:
+            key = image.key
+            cluster = [index.representative(key.sites[0])]
+            cluster.extend(
+                index.atom(site, translation)
+                for site, translation in zip(key.sites[1:], key.translations, strict=True)
+            )
+            clusters.append(cluster)
+            sites.append(key.sites)
+            translations.append(key.translations)
+            tensors.append(image.action.apply_flat(representative).reshape(shape))
+    return SparseOrderForceConstants(
+        interaction_space.order,
+        index.n_primitive,
+        len(index.primitive),
+        np.asarray(clusters, dtype=np.int32),
+        np.asarray(tensors, dtype=float),
+        np.asarray(sites, dtype=np.int32),
+        np.asarray(translations, dtype=np.int32),
+    )
+
+
+__all__ = ["expand_orbit_parameters", "expand_primitive_parameters"]

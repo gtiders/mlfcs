@@ -375,75 +375,6 @@ def align_structures(
     return aligned, maximum
 
 
-def neighbor_shell_cutoff(
-    supercell: Atoms, index: PeriodicIndex, shell: int, *, report: bool = True
-) -> float:
-    if shell < 1:
-        raise ValueError("neighbor shell must be positive")
-    distances = PeriodicGeometry(supercell.cell, supercell.pbc).pair_distances(supercell.positions)
-    maximum_shell, maximum_radius = neighbor_shell_limit(supercell, index, distances=distances)
-    if report:
-        print(
-            f"Supercell neighbor limit: maximum shell = {maximum_shell}, maximum cutoff radius = {maximum_radius:.10f} Å"
-        )
-    if shell > maximum_shell:
-        raise ValueError(
-            f"neighbor shell {shell} exceeds this supercell's enumerable maximum of {maximum_shell} (cutoff radius {maximum_radius:.10f} Å)"
-        )
-    candidates = []
-    for site in range(index.n_primitive):
-        unique = _unique_distances(distances[index.representative(site)])
-        candidates.append(
-            unique[-1] * 1.1 if len(unique) <= shell else (unique[shell - 1] + unique[shell]) / 2.0
-        )
-    selected = float(max(candidates))
-    if report:
-        print(f"Selected neighbor cutoff: shell = {shell}, cutoff radius = {selected:.10f} Å")
-    return selected
-
-
-def neighbor_shell_limit(
-    supercell: Atoms, index: PeriodicIndex, *, distances: np.ndarray | None = None
-) -> tuple[int, float]:
-    if distances is None:
-        distances = PeriodicGeometry(supercell.cell, supercell.pbc).pair_distances(
-            supercell.positions
-        )
-    shells = [
-        _unique_distances(distances[index.representative(site)])
-        for site in range(index.n_primitive)
-    ]
-    maximum_shell = min(map(len, shells))
-    if maximum_shell < 1:
-        raise ValueError("supercell is too small to contain a reliable neighbor shell")
-    boundaries = [
-        values[-1] * 1.1
-        if len(values) <= maximum_shell
-        else (values[maximum_shell - 1] + values[maximum_shell]) / 2.0
-        for values in shells
-    ]
-    return maximum_shell, float(max(boundaries))
-
-
-def resolve_cutoff(
-    supercell: Atoms, index: PeriodicIndex, cutoff: float | None, *, report: bool = True
-) -> float:
-    if cutoff is None:
-        maximum_shell, maximum_radius = neighbor_shell_limit(supercell, index)
-        if report:
-            print(
-                f"Supercell neighbor limit: maximum shell = {maximum_shell}, maximum cutoff radius = {maximum_radius:.10f} Å"
-            )
-            print(f"Selected maximum cutoff radius: {maximum_radius:.10f} Å")
-        return maximum_radius
-    value = float(cutoff)
-    if value < 0 and value.is_integer():
-        return neighbor_shell_cutoff(supercell, index, -int(value), report=report)
-    if value <= 0:
-        raise ValueError("cutoff must be a positive distance or negative integer shell")
-    return value
-
-
 def _unique_distances(values: np.ndarray, *, rtol: float = 1e-5, atol: float = 1e-8) -> list[float]:
     result: list[float] = []
     for value in np.sort(values):
@@ -460,8 +391,5 @@ __all__ = [
     "StructureRelation",
     "_unique_distances",
     "align_structures",
-    "neighbor_shell_cutoff",
-    "neighbor_shell_limit",
     "normalize_supercell_matrix",
-    "resolve_cutoff",
 ]

@@ -27,11 +27,10 @@ class ForceConstantCalculation:
         *,
         order: int,
         reference: Atoms,
-        cutoff: float | None = -5,
+        cutoff: float = -5,
         max_body_order: int | None = None,
         displacement: float = 0.01,
         symprec: float = 1e-5,
-        report_cutoff: bool = True,
         verbose: bool = True,
     ):
         self.verbose = bool(verbose)
@@ -44,7 +43,6 @@ class ForceConstantCalculation:
             max_body_order=max_body_order,
             symprec=symprec,
             displacement=displacement,
-            report_cutoff=report_cutoff,
             reporter=self._report if self.verbose else None,
         )
         self.primitive = self.interaction_space.primitive
@@ -127,6 +125,7 @@ class ForceConstantCalculation:
             derivatives,
             enforce_asr=acoustic_sum_rule,
             report=self._report,
+            primitive_interaction_space=self.interaction_space.primitive_orbit_space,
         )
         self._report(f"- Reconstructed {len(sparse.clusters)} sparse cluster tensors")
         return ForceConstants(

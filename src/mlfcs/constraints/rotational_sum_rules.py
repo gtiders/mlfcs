@@ -13,7 +13,6 @@ from dataclasses import dataclass
 import numpy as np
 from scipy import sparse
 
-from mlfcs.core.geometry import PeriodicGeometry
 from mlfcs.ifc.model import ForceConstants, SparseOrderForceConstants
 
 
@@ -59,10 +58,9 @@ def enforce_rotational_sum_rules(
     cutoff after all pair vectors are normalized by a characteristic nearest
     neighbour distance.
 
-    The conditions are evaluated on all degenerate nearest periodic images.
-    For a tie, Born--Huang uses the equal-weight mean vector and Huang uses
-    the equal-weight mean dyadic.  This is the Wigner--Seitz convention for a
-    compact periodic IFC representation.
+    The conditions are evaluated on exact primitive-lattice pair vectors.
+    No Wigner--Seitz image reconstruction is needed because every sparse FC2
+    entry carries its physical integer translation explicitly.
     """
     if not born_huang and not huang:
         raise ValueError("select born_huang=True and/or huang=True")
@@ -147,23 +145,20 @@ def enforce_rotational_sum_rules(
 def _lattice_labels(fc2: SparseOrderForceConstants, relation) -> tuple[np.ndarray, np.ndarray]:
     if fc2.is_lattice_labelled:
         assert fc2.sites is not None
-        assert fc2.translation_representatives is not None
+        assert fc2.translations is not None
         sites = fc2.sites.copy()
-        translations = fc2.translation_representatives[:, 0, :].copy()
+        translations = fc2.translations[:, 0, :].copy()
     else:
         index = relation.index
         sites = index.primitive[fc2.clusters]
         translations = (
             index.translations[fc2.clusters[:, 1]] - index.translations[fc2.clusters[:, 0]]
         )
-    translations = np.asarray(
-        [relation.index.canonical_translation(value) for value in translations], dtype=np.int32
-    )
     return sites, translations
 
 
 def _physical_fc2_values(fc2, sites, translations, relation):
-    """Aggregate duplicate sparse rows and derive Wigner--Seitz pair moments."""
+    """Aggregate duplicate exact-R sparse rows and derive pair moments."""
     grouped: dict[tuple[int, int, int, int, int], list[int]] = {}
     for row, (site, translation) in enumerate(zip(sites, translations, strict=True)):
         key = (int(site[0]), int(site[1]), *(int(value) for value in translation))
@@ -174,21 +169,21 @@ def _physical_fc2_values(fc2, sites, translations, relation):
     vectors = np.empty((len(keys), 3), dtype=float)
     dyadics = np.empty((len(keys), 3, 3), dtype=float)
     nearest_lengths = np.empty(len(keys), dtype=float)
-    geometry = PeriodicGeometry(relation.reference.cell, relation.reference.pbc)
-    index = relation.index
+    primitive = relation.primitive
+    cell = np.asarray(primitive.cell)
     for location, key in enumerate(keys):
         rows = grouped[key]
         values[location] = np.mean(fc2.tensors[rows], axis=0)
         first, second, *translation = key
-        anchor = index.representative(first)
-        tail = index.atom(second, np.asarray(translation, dtype=np.int32))
-        images, _ = geometry.closest_images(
-            relation.reference.positions[tail] - relation.reference.positions[anchor]
+        vector = (
+            primitive.positions[second]
+            - primitive.positions[first]
+            + np.asarray(translation, dtype=np.int32) @ cell
         )
-        multiplicities[location] = len(images)
-        vectors[location] = np.mean(images, axis=0)
-        dyadics[location] = np.mean(np.einsum("ni,nj->nij", images, images), axis=0)
-        nearest_lengths[location] = float(np.linalg.norm(images[0]))
+        multiplicities[location] = 1.0
+        vectors[location] = vector
+        dyadics[location] = np.outer(vector, vector)
+        nearest_lengths[location] = float(np.linalg.norm(vector))
     return keys, values, multiplicities, vectors, dyadics, nearest_lengths
 
 
@@ -307,10 +302,10 @@ def _replace_fc2(force_constants, fc2, keys, values, sites, translations) -> For
         clusters=fc2.clusters.copy(),
         tensors=tensors,
         sites=None if fc2.sites is None else fc2.sites.copy(),
-        translation_representatives=(
+        translations=(
             None
-            if fc2.translation_representatives is None
-            else fc2.translation_representatives.copy()
+            if fc2.translations is None
+            else fc2.translations.copy()
         ),
     )
     arrays = {order: array.copy() for order, array in force_constants.arrays.items() if order != 2}

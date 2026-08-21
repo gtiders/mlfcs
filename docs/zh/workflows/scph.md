@@ -182,7 +182,7 @@ d_f = (r_site - r_first) @ A^{-1} + R_atom
 
 ```text
 sites = (s1, s2, s3, s4)
-translation_representatives = (R2, R3, R4)
+translations = (R2, R3, R4)
 tensors = Phi4(s1, 0; s2, R2; s3, R3; s4, R4)
 ```
 

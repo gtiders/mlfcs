@@ -10,13 +10,18 @@ from typing import Literal
 import numpy as np
 from ase import Atoms
 from ase.calculators.calculator import Calculator
-from numpy.typing import ArrayLike, NDArray
+from numpy.typing import NDArray
 
 from mlfcs.anharmonic.common.ensemble import EnsembleDiagnostics, HarmonicEnsemble
-from mlfcs.anharmonic.common.fc2 import compact_fc2, expand_compact_fc2
+from mlfcs.anharmonic.common.fc2 import expand_compact_fc2
 from mlfcs.anharmonic.common.schedule import TemperatureSeriesResult, normalize_temperature_schedule
 from mlfcs.fitting import ForceConstantFitter
-from mlfcs.ifc.model import ForceConstants, replace_compact_fc2
+from mlfcs.ifc.model import (
+    ForceConstants,
+    lattice_fc2,
+    lattice_fc2_from_compact,
+    replace_lattice_fc2,
+)
 
 Progress = Callable[[int, int], None]
 
@@ -58,6 +63,7 @@ class SSCHA:
         atoms: Atoms,
         *,
         reference: Atoms,
+        cutoff: float,
         temperature: float | Sequence[float] = 300.0,
         statistics: Literal["quantum", "classical"] = "quantum",
         snapshots: int | Literal["auto"] = 1000,
@@ -69,7 +75,7 @@ class SSCHA:
         imaginary_modes: Literal["error", "absolute", "exclude"] = "error",
         imaginary_tolerance: float = 1e-6,
         max_displacement: float | None = None,
-        initial_force_constants: ArrayLike | None = None,
+        initial_force_constants: ForceConstants | None = None,
         acoustic_sum_rule: bool = True,
         mixing: float = 1.0,
         continuation: bool = True,
@@ -110,6 +116,7 @@ class SSCHA:
         self.initial_displacement = float(initial_displacement)
         self.random_seed = random_seed
         self.symprec = symprec
+        self.cutoff = float(cutoff)
         self.cutoff_frequency = float(cutoff_frequency)
         self.imaginary_modes = imaginary_modes
         self.imaginary_tolerance = float(imaginary_tolerance)
@@ -124,28 +131,21 @@ class SSCHA:
             self.primitive,
             self._reference,
             orders=(2,),
-            cutoffs={2: None},
+            cutoffs={2: self.cutoff},
             symprec=symprec,
             verbose=log_level > 1,
         )
         self._active_compact: NDArray[np.float64] | None = None
         self._force_constants: ForceConstants | None = None
         if initial_force_constants is not None:
-            values = np.asarray(initial_force_constants, dtype=float)
-            compact_shape = (len(self.primitive), len(self._reference), 3, 3)
-            full_shape = (len(self._reference), len(self._reference), 3, 3)
-            if values.shape == compact_shape:
-                self._active_compact = values.copy()
-            elif values.shape == full_shape:
-                self._active_compact = compact_fc2(values, self._reference)
-            else:
-                raise ValueError(
-                    "initial_force_constants must have compact shape "
-                    f"{compact_shape} or full shape {full_shape}"
-                )
-        self._initial_force_constants = (
-            None if self._active_compact is None else self._active_compact.copy()
-        )
+            if not isinstance(initial_force_constants, ForceConstants):
+                raise TypeError("initial_force_constants must be a ForceConstants object")
+            initial = initial_force_constants.realize(self._reference, primitive=self.primitive)
+            if 2 not in initial.orders:
+                raise ValueError("initial_force_constants does not contain FC2")
+            self._force_constants = initial
+            self._active_compact = initial.materialize(2, max_bytes=None).copy()
+        self._initial_force_constants = self._force_constants
 
     @property
     def force_constants(self) -> ForceConstants | None:
@@ -237,19 +237,31 @@ class SSCHA:
             validation_split=0.0,
             acoustic_sum_rule=self.acoustic_sum_rule,
         )
+        fitted_lattice = lattice_fc2(fit.force_constants)
         fitted_compact = fit.force_constants.materialize(2, max_bytes=None)
         raw_relative_change = None
         relative_change = None
-        next_compact = fitted_compact
+        next_lattice = fitted_lattice
         if sampling_compact is not None:
             denominator = np.linalg.norm(sampling_compact)
             raw_relative_change = float(
                 np.linalg.norm(fitted_compact - sampling_compact)
                 / max(float(denominator), np.finfo(float).tiny)
             )
-            next_compact = (
-                (1.0 - self.mixing) * sampling_compact + self.mixing * fitted_compact
+            previous_lattice = (
+                lattice_fc2(self._force_constants)
+                if self._force_constants is not None
+                else lattice_fc2_from_compact(fit.force_constants, sampling_compact)
             )
+            if previous_lattice.keys() != fitted_lattice.keys():
+                raise ValueError("SSCHA FC2 support changed between self-consistent iterations")
+            next_lattice = {
+                key: (1.0 - self.mixing) * previous_lattice[key]
+                + self.mixing * fitted_lattice[key]
+                for key in fitted_lattice
+            }
+            next_force_constants = replace_lattice_fc2(fit.force_constants, next_lattice)
+            next_compact = next_force_constants.materialize(2, max_bytes=None)
             relative_change = float(
                 np.linalg.norm(next_compact - sampling_compact)
                 / max(float(denominator), np.finfo(float).tiny)
@@ -288,10 +300,9 @@ class SSCHA:
             relative_force_constant_change=relative_change,
             raw_relative_force_constant_change=raw_relative_change,
         )
-        self._active_compact = next_compact.copy()
-        self._force_constants = replace_compact_fc2(
+        self._force_constants = replace_lattice_fc2(
             fit.force_constants,
-            next_compact,
+            next_lattice,
             metadata={
                 "method": "sscha",
                 "temperature": self.temperature,
@@ -299,6 +310,7 @@ class SSCHA:
                 "mixing": self.mixing,
             },
         )
+        self._active_compact = self._force_constants.materialize(2, max_bytes=None).copy()
         self.history.append(result)
         if self.log_level:
             print(
@@ -389,6 +401,7 @@ class SSCHA:
             child = SSCHA(
                 self.primitive,
                 reference=self._reference,
+                cutoff=self.cutoff,
                 temperature=temperature,
                 statistics=self.statistics,
                 snapshots=self.snapshots,
@@ -414,7 +427,7 @@ class SSCHA:
             assert isinstance(result, SSCHAResult)
             results.append(result)
             if self.continuation:
-                previous = result.force_constants.materialize(2, max_bytes=None)
+                previous = result.force_constants
         return TemperatureSeriesResult(self.temperatures, tuple(results), self.continuation)
 
     def _result(self) -> SSCHAResult:

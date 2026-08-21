@@ -26,7 +26,11 @@ def test_export_view_relabels_an_equivalent_reordered_reference(tmp_path):
     output = tmp_path / "relabelled.h5"
     result.write(output, format="hdf5", supercell=target)
     restored = read_hdf5(output)
-    np.testing.assert_array_equal(restored.supercell.numbers, target.numbers)
+    np.testing.assert_array_equal(restored.supercell.numbers, result.relation.primitive.numbers)
+    np.testing.assert_allclose(
+        restored.realize(target).materialize(2),
+        view.force_constants.materialize(2),
+    )
     result.write(tmp_path / "FORCE_CONSTANTS", format="phonopy", supercell=target)
     assert (tmp_path / "FORCE_CONSTANTS").is_file()
     result.write(tmp_path / "phonopy.hdf5", format="phonopy_hdf5", supercell=target)
@@ -49,13 +53,19 @@ def test_export_view_reuses_cached_source_and_target_views(capsys):
     assert messages.count("cache hit; reusing existing view") == 2
 
 
-def test_export_view_rejects_changed_supercell_translation_lattice_without_writing(tmp_path):
+def test_export_view_realizes_into_a_different_supercell_translation_lattice(tmp_path):
     result = _result()
-    # Same volume, but 1x2x1 is a different translation sublattice from 2x1x1.
-    invalid = result.relation.primitive.repeat((1, 2, 1))
-    with pytest.raises(ValueError, match="same lattice|translation sublattice"):
-        result.write(tmp_path / "must-not-exist.h5", format="hdf5", supercell=invalid)
-    assert not (tmp_path / "must-not-exist.h5").exists()
+    target = result.relation.primitive.repeat((1, 2, 1))
+    realized = result.realize(target)
+
+    np.testing.assert_array_equal(realized.supercell.cell, target.cell)
+    np.testing.assert_array_equal(realized.sparse[2].sites, result.sparse[2].sites)
+    np.testing.assert_array_equal(
+        realized.sparse[2].translations,
+        result.sparse[2].translations,
+    )
+    result.write(tmp_path / "realized.h5", format="hdf5", supercell=target)
+    assert (tmp_path / "realized.h5").is_file()
 
 
 def test_export_view_accepts_unimodular_primitive_basis_change():
@@ -93,7 +103,7 @@ def test_export_view_roundtrips_when_primitive_basis_and_reference_are_both_repr
     source = result.sparse[2]
     np.testing.assert_array_equal(returned.sites, source.sites)
     np.testing.assert_array_equal(
-        returned.translation_representatives, source.translation_representatives
+        returned.translations, source.translations
     )
     np.testing.assert_allclose(returned.tensors, source.tensors)
 

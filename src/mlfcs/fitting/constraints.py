@@ -9,7 +9,7 @@ from scipy import sparse
 from mlfcs.constraints.translational import (
     build_translational_constraints,
 )
-from mlfcs.core.orbits import cluster_invariant_dimension
+from mlfcs.core.real_space import InteractionKey
 
 
 @dataclass(frozen=True, slots=True)
@@ -33,7 +33,10 @@ def build_joint_constraints(
     translational = []
     if acoustic:
         for index, calculation in enumerate(calculations):
-            local = build_translational_constraints(calculation.orbit_space)
+            primitive_space = getattr(calculation, "primitive_orbit_space", None)
+            if primitive_space is None:
+                primitive_space = calculation.interaction_space.primitive_orbit_space
+            local = build_translational_constraints(primitive_space)
             left = sum(dimensions[:index])
             right = total - left - dimensions[index]
             translational.append(
@@ -78,10 +81,10 @@ def build_wick_to_taylor_transform(calculations, covariance) -> sparse.csr_matri
     for order, (index, calculation) in by_order.items():
         images = {}
         grouped = {}
-        for cluster, columns, local_offset in _image_columns(calculation):
+        for key, _cluster, columns, local_offset in _primitive_image_columns(calculation):
             global_offset = int(offsets[index] + local_offset)
-            images[cluster] = (global_offset, columns)
-            grouped.setdefault(global_offset, []).append((cluster, columns))
+            images[key] = (global_offset, columns)
+            grouped.setdefault(global_offset, []).append((key, columns))
         image_maps[order] = images
         orbit_images[order] = grouped
 
@@ -94,7 +97,7 @@ def build_wick_to_taylor_transform(calculations, covariance) -> sparse.csr_matri
             coefficient = (-1.0) ** pairs / (2.0**pairs * factorial(pairs))
             contracted_by_target: dict[tuple[int, ...], dict[int, np.ndarray]] = {}
             contraction_scales: dict[tuple[int, ...], dict[int, np.ndarray]] = {}
-            for cluster, columns, local_offset in _image_columns(source):
+            for key, cluster, columns, local_offset in _primitive_image_columns(source):
                 contracted = columns.reshape((3,) * source_order + (-1,))
                 for pair in reversed(range(pairs)):
                     left = target_order + 2 * pair
@@ -104,7 +107,7 @@ def build_wick_to_taylor_transform(calculations, covariance) -> sparse.csr_matri
                         covariance[cluster[left], :, cluster[left + 1], :],
                         optimize=True,
                     )
-                target_cluster = cluster[:target_order]
+                target_cluster = InteractionKey.from_labels(key.labels[:target_order])
                 source_offset = int(offsets[source_index] + local_offset)
                 contributions = contracted_by_target.setdefault(target_cluster, {})
                 contribution = contracted.reshape(3**target_order, -1)
@@ -115,11 +118,10 @@ def build_wick_to_taylor_transform(calculations, covariance) -> sparse.csr_matri
                 scales[source_offset] = scales.get(
                     source_offset, np.zeros_like(contribution)
                 ) + np.abs(contribution)
-            _validate_missing_contractions(
+            _validate_missing_exact_contractions(
                 contracted_by_target,
                 contraction_scales,
                 image_maps[target_order],
-                by_order[target_order][1],
                 source_order=source_order,
                 target_order=target_order,
             )
@@ -174,52 +176,36 @@ def build_wick_to_taylor_transform(calculations, covariance) -> sparse.csr_matri
     return transform.tocsr()
 
 
-def _validate_missing_contractions(
+def _validate_missing_exact_contractions(
     contracted_by_target,
     contraction_scales,
     target_images,
-    target_calculation,
     *,
     source_order,
     target_order,
     absolute_tolerance=1e-12,
     relative_tolerance=1e-9,
 ):
-    """Classify missing Wick contractions after all symmetry images are aggregated."""
-    missing = set(contracted_by_target).difference(target_images)
-    for target_cluster in sorted(missing):
-        contributions = contracted_by_target[target_cluster]
+    """Reject exact lower-order interactions omitted by configured support."""
+    for key in sorted(set(contracted_by_target).difference(target_images)):
         magnitude = max(
-            (float(np.max(np.abs(values))) for values in contributions.values()),
+            (float(np.max(np.abs(values))) for values in contracted_by_target[key].values()),
             default=0.0,
         )
         scale = max(
             (
                 float(np.max(values))
-                for values in contraction_scales.get(target_cluster, {}).values()
+                for values in contraction_scales.get(key, {}).values()
             ),
             default=0.0,
         )
         threshold = absolute_tolerance + relative_tolerance * scale
-        dimension = cluster_invariant_dimension(
-            target_cluster,
-            target_calculation.index,
-            target_calculation.symmetry,
-        )
-        if dimension == 0 and magnitude <= threshold:
+        if magnitude <= threshold:
             continue
-        if dimension == 0:
-            raise RuntimeError(
-                f"Wick-to-Taylor FC{source_order}->FC{target_order} contraction "
-                f"creates symmetry-forbidden cluster {target_cluster} with maximum "
-                f"coefficient {magnitude:.6e} above tolerance {threshold:.6e}; "
-                "check covariance symmetrization, periodic representatives, and image "
-                "aggregation"
-            )
         raise ValueError(
-            f"Wick-to-Taylor contraction creates symmetry-allowed FC{target_order} "
-            f"cluster {target_cluster} outside its configured support "
-            f"(allowed dimension={dimension}, maximum coefficient={magnitude:.6e})"
+            f"Wick-to-Taylor FC{source_order}->FC{target_order} contraction creates "
+            f"exact interaction {key} outside the configured FC{target_order} support "
+            f"(maximum coefficient={magnitude:.6e})"
         )
 
 
@@ -246,7 +232,7 @@ def build_wick_to_taylor_fc1_transform(calculations, covariance) -> sparse.csr_m
         if order % 2:
             pairs = (order - 1) // 2
             coefficient = (-1.0) ** pairs / (2.0**pairs * factorial(pairs))
-            for cluster, columns, local_offset in _image_columns(calculation):
+            for key, cluster, columns, local_offset in _primitive_image_columns(calculation):
                 contracted = columns.reshape((3,) * order + (-1,))
                 for pair in reversed(range(pairs)):
                     left = 1 + 2 * pair
@@ -259,7 +245,7 @@ def build_wick_to_taylor_fc1_transform(calculations, covariance) -> sparse.csr_m
                 for direction in range(3):
                     coefficients = coefficient * contracted[direction]
                     nonzero = np.flatnonzero(np.abs(coefficients) > 1e-12)
-                    primitive_site = int(calculation.index.primitive[int(cluster[0])])
+                    primitive_site = int(key.sites[0])
                     matrix_rows.extend([primitive_site * 3 + direction] * len(nonzero))
                     matrix_columns.extend(offset + local_offset + int(value) for value in nonzero)
                     matrix_data.extend(float(coefficients[value]) for value in nonzero)
@@ -274,13 +260,21 @@ def _parameter_count(calculation):
     return sum(orbit.dimension for orbit in calculation.orbit_space.orbits)
 
 
-def _image_columns(calculation):
-    """Yield cluster and its dense Cartesian-component-to-pivot map."""
+def _primitive_image_columns(calculation):
+    """Yield exact key, finite realization, and parameter columns."""
+    space = getattr(calculation, "primitive_orbit_space", None)
+    if space is None:
+        space = calculation.interaction_space.primitive_orbit_space
     offset = 0
-    for orbit in calculation.orbit_space.orbits:
+    for orbit in space.orbits:
         representative = np.linalg.solve(orbit.basis[orbit.pivots].T, orbit.basis.T).T
         for image in orbit.images:
-            yield image.cluster, image.action.apply_columns(representative), offset
+            key = image.key
+            cluster = (calculation.index.representative(key.sites[0]),) + tuple(
+                calculation.index.atom(site, translation)
+                for site, translation in zip(key.sites[1:], key.translations, strict=True)
+            )
+            yield key, cluster, image.action.apply_columns(representative), offset
         offset += orbit.dimension
 
 

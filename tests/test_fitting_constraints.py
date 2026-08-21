@@ -5,16 +5,14 @@ from scipy import sparse
 from supercell_helpers import make_supercell
 
 from mlfcs.api import ForceConstantCalculation
-from mlfcs.core.orbits import cluster_invariant_dimension
+from mlfcs.core.real_space import InteractionKey
 from mlfcs.fitting.constraints import (
-    _validate_missing_contractions,
-    build_joint_constraints,
+    _validate_missing_exact_contractions,
     build_wick_to_taylor_fc1_transform,
-    build_wick_to_taylor_transform,
     omitted_taylor_fc1,
 )
 from mlfcs.fitting.solver import ConstraintNullSpace as _ConstraintNullSpace
-from mlfcs.fitting.solver import explicit_constraint_null_space, solve_scaled_group_lasso
+from mlfcs.fitting.solver import solve_scaled_group_lasso
 
 
 def test_implicit_null_space_is_idempotent_and_satisfies_constraints():
@@ -47,7 +45,7 @@ def test_scaled_group_lasso_selects_orbits_and_preserves_hard_constraint():
 
 def test_explicit_fc1_transform_matches_reported_wick_contraction():
     primitive = Atoms("Si", positions=[[0, 0, 0]], cell=np.eye(3) * 4.0, pbc=True)
-    reference = make_supercell(primitive, (2, 1, 1))[0]
+    reference = make_supercell(primitive, (3, 3, 3))[0]
     calculations = tuple(
         ForceConstantCalculation(
             primitive, order=order, reference=reference, cutoff=4.1, verbose=False
@@ -86,16 +84,12 @@ def test_fc1_transform_maps_supercell_anchor_to_primitive_site():
     assert transform.shape[0] == 3 * len(primitive)
 
 
-def test_missing_symmetry_forbidden_zero_wick_contraction_is_accepted(monkeypatch):
-    monkeypatch.setattr(
-        "mlfcs.fitting.constraints.cluster_invariant_dimension", lambda *args, **kwargs: 0
-    )
-    calculation = type("Calculation", (), {"index": object(), "symmetry": object()})()
-    _validate_missing_contractions(
-        {(0, 0, 0): {4: np.array([[2e-13]])}},
-        {(0, 0, 0): {4: np.array([[3.0]])}},
+def test_missing_negligible_exact_wick_contraction_is_accepted():
+    key = InteractionKey((0, 0, 0), ((0, 0, 0), (0, 0, 0)))
+    _validate_missing_exact_contractions(
+        {key: {4: np.array([[2e-13]])}},
+        {key: {4: np.array([[3.0]])}},
         {},
-        calculation,
         source_order=5,
         target_order=3,
     )
@@ -103,40 +97,21 @@ def test_missing_symmetry_forbidden_zero_wick_contraction_is_accepted(monkeypatc
 
 def test_centrosymmetric_onsite_odd_tensor_has_zero_allowed_dimension():
     primitive = Atoms("Si", positions=[[0, 0, 0]], cell=np.eye(3) * 4.0, pbc=True)
-    reference = make_supercell(primitive, (2, 1, 1))[0]
+    reference = make_supercell(primitive, (3, 3, 3))[0]
     calculation = ForceConstantCalculation(
         primitive, order=3, reference=reference, cutoff=4.1, verbose=False
     )
-    assert cluster_invariant_dimension((0, 0, 0), calculation.index, calculation.symmetry) == 0
+    onsite = InteractionKey((0, 0, 0), ((0, 0, 0), (0, 0, 0)))
+    assert all(orbit.representative != onsite for orbit in calculation.interaction_space.primitive_orbit_space.orbits)
 
 
-def test_missing_symmetry_forbidden_nonzero_wick_contraction_is_an_error(monkeypatch):
-    monkeypatch.setattr(
-        "mlfcs.fitting.constraints.cluster_invariant_dimension", lambda *args, **kwargs: 0
-    )
-    calculation = type("Calculation", (), {"index": object(), "symmetry": object()})()
-    with pytest.raises(RuntimeError, match="symmetry-forbidden"):
-        _validate_missing_contractions(
-            {(0, 0, 0): {4: np.array([[1e-4]])}},
-            {(0, 0, 0): {4: np.array([[1.0]])}},
+def test_missing_nonzero_exact_wick_contraction_is_a_support_error():
+    key = InteractionKey((0, 0, 0), ((0, 0, 0), (0, 0, 0)))
+    with pytest.raises(ValueError, match="outside the configured"):
+        _validate_missing_exact_contractions(
+            {key: {4: np.array([[1e-4]])}},
+            {key: {4: np.array([[1.0]])}},
             {},
-            calculation,
-            source_order=5,
-            target_order=3,
-        )
-
-
-def test_missing_symmetry_allowed_wick_contraction_is_a_support_error(monkeypatch):
-    monkeypatch.setattr(
-        "mlfcs.fitting.constraints.cluster_invariant_dimension", lambda *args, **kwargs: 2
-    )
-    calculation = type("Calculation", (), {"index": object(), "symmetry": object()})()
-    with pytest.raises(ValueError, match="outside its configured support"):
-        _validate_missing_contractions(
-            {(0, 1, 2): {4: np.array([[0.0]])}},
-            {(0, 1, 2): {4: np.array([[1.0]])}},
-            {},
-            calculation,
             source_order=5,
             target_order=3,
         )

@@ -7,21 +7,26 @@ existing IO backends; it is not a frequency-dependent bubble self-energy.
 
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor
 from collections.abc import Sequence
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
 
+from mlfcs.anharmonic.common.schedule import TemperatureSeriesResult, normalize_temperature_schedule
 from mlfcs.anharmonic.common.thermodynamics import (
     HBAR_ASE,
     OMEGA_TO_THZ,
     mode_sigma,
     quotient_qpoints,
 )
-from mlfcs.anharmonic.common.schedule import TemperatureSeriesResult, normalize_temperature_schedule
-from mlfcs.ifc.model import ForceConstants, SparseOrderForceConstants, replace_compact_fc2
+from mlfcs.ifc.model import (
+    ForceConstants,
+    SparseOrderForceConstants,
+    lattice_fc2,
+    replace_lattice_fc2,
+)
 
 _HBAR_ASE = HBAR_ASE
 _OMEGA_TO_THZ = OMEGA_TO_THZ
@@ -138,8 +143,12 @@ class LoopSCPH:
         self, temperature: float, warm_start: ForceConstants | None
     ) -> LoopSCPHResult:
         base = self._copy_order(self.fc2, 2)
-        bare = _compact_fc2(base)
-        current = bare.copy() if warm_start is None else _compact_fc2(warm_start)
+        bare = lattice_fc2(base)
+        current = (
+            {key: value.copy() for key, value in bare.items()}
+            if warm_start is None
+            else lattice_fc2(warm_start)
+        )
         history: list[LoopSCPHIteration] = []
         previous_frequencies = self._frequencies(current, self.interpolation_multiplier)[1]
         converged = False
@@ -153,17 +162,23 @@ class LoopSCPH:
                     for key, value in covariance.items()
                 }
             correction = self._loop_correction(covariance)
-            target = bare + correction
-            updated = target
+            correction_norm = float(
+                np.sqrt(sum(np.vdot(value, value).real for value in correction.values()))
+            )
+            keys = bare.keys() | correction.keys()
+            updated = {
+                key: bare.get(key, 0.0) + correction.get(key, 0.0)
+                for key in keys
+            }
             frequencies = self._frequencies(updated, self.interpolation_multiplier)[1]
             frequency_change = float(np.sqrt(np.mean((frequencies - previous_frequencies) ** 2)))
-            history.append(LoopSCPHIteration(iteration, frequency_change, float(np.linalg.norm(correction))))
+            history.append(LoopSCPHIteration(iteration, frequency_change, correction_norm))
             if self.verbose:
                 print(
                     f"SCPH iteration {iteration}: delta_omega={frequency_change:.6e} THz, "
                     f"frequency_min={np.min(frequencies):.6e} THz, "
                     f"frequency_max={np.max(frequencies):.6e} THz, "
-                    f"correction_norm={np.linalg.norm(correction):.6e}",
+                    f"correction_norm={correction_norm:.6e}",
                     flush=True,
                 )
             current = updated
@@ -176,8 +191,11 @@ class LoopSCPH:
                 converged = True
                 break
 
-        support = _fc2_support(base.sparse[2], self.fc4.sparse[4], base.relation)
-        effective = replace_compact_fc2(base, current, support=support)
+        effective = replace_lattice_fc2(
+            base,
+            current,
+            metadata={"method": "loop_scph", "temperature": temperature},
+        )
         qpoints, frequencies = self._frequencies(current, self.interpolation_multiplier)
         return LoopSCPHResult(
             temperature,
@@ -189,12 +207,15 @@ class LoopSCPH:
         )
 
     def _covariance(
-        self, compact: np.ndarray, multiplier: int, temperature: float
+        self,
+        lattice: dict[tuple[int, int, tuple[int, int, int]], np.ndarray],
+        multiplier: int,
+        temperature: float,
     ) -> dict[tuple[int, int, tuple[int, int, int]], np.ndarray]:
         relation = self.fc2.relation
         assert relation is not None
         masses = np.asarray(relation.primitive.get_masses(), dtype=float)
-        terms = _fourier_terms(compact, relation)
+        terms = _fourier_terms(lattice, relation.primitive)
         primitive_positions = relation.primitive.get_scaled_positions(wrap=False)
         qpoints = self._qpoints(multiplier)
         n = len(qpoints)
@@ -237,13 +258,11 @@ class LoopSCPH:
 
     def _loop_correction(
         self, covariance: dict[tuple[int, int, tuple[int, int, int]], np.ndarray]
-    ) -> np.ndarray:
-        sparse = self.fc2.sparse[2]
-        result = np.zeros((sparse.n_primitive, sparse.n_supercell, 3, 3), dtype=float)
-        index = self.fc2.relation.index
+    ) -> dict[tuple[int, int, tuple[int, int, int]], np.ndarray]:
+        result: dict[tuple[int, int, tuple[int, int, int]], np.ndarray] = {}
         for sites, translations, tensor in zip(
             self.fc4.sparse[4].sites,
-            self.fc4.sparse[4].translation_representatives,
+            self.fc4.sparse[4].translations,
             self.fc4.sparse[4].tensors,
             strict=True,
         ):
@@ -253,17 +272,19 @@ class LoopSCPH:
             if cov is None:
                 continue
             value = 0.5 * np.einsum("abcd,cd->ab", tensor, cov, optimize=True)
-            atom2 = index.atom(s2, r2)
-            result[s1, atom2] += value.real
+            key = (s1, s2, r2)
+            result[key] = result.get(key, 0.0) + value.real
         return result
 
     def _frequencies(
-        self, compact: np.ndarray, multiplier: int
+        self,
+        lattice: dict[tuple[int, int, tuple[int, int, int]], np.ndarray],
+        multiplier: int,
     ) -> tuple[np.ndarray, np.ndarray]:
         relation = self.fc2.relation
         assert relation is not None
         masses = np.asarray(relation.primitive.get_masses(), dtype=float)
-        terms = _fourier_terms(compact, relation)
+        terms = _fourier_terms(lattice, relation.primitive)
         values = []
         qpoints = self._qpoints(multiplier)
         for q in qpoints:
@@ -294,9 +315,9 @@ def harmonic_frequencies(
     """Return harmonic frequencies on a reference-supercell-derived q grid."""
     if 2 not in fc2.orders or fc2.relation is None:
         raise ValueError("fc2 must contain order-2 force constants and a structure relation")
-    compact = _compact_fc2(fc2)
     masses = np.asarray(fc2.relation.primitive.get_masses(), dtype=float)
-    terms = _fourier_terms(compact, fc2.relation)
+    lattice = lattice_fc2(fc2)
+    terms = _fourier_terms(lattice, fc2.relation.primitive)
     multiplier = _multiplier(interpolation_multiplier, "interpolation_multiplier")
     qpoints = quotient_qpoints(multiplier * fc2.relation.supercell_matrix)
     frequencies = []
@@ -316,118 +337,22 @@ def _validate_relation(fc2: ForceConstants, fc4: ForceConstants) -> None:
     r2, r4 = fc2.relation, fc4.relation
     if r2 is None or r4 is None:
         raise ValueError("fc2 and fc4 must contain explicit StructureRelation objects")
-    if not np.array_equal(r2.supercell_matrix, r4.supercell_matrix):
-        raise ValueError("fc2 and fc4 supercell matrices differ")
     if (
-        len(r2.reference) != len(r4.reference)
-        or not np.array_equal(r2.reference.numbers, r4.reference.numbers)
+        len(r2.primitive) != len(r4.primitive)
+        or not np.array_equal(r2.primitive.numbers, r4.primitive.numbers)
         or not np.allclose(r2.primitive.cell, r4.primitive.cell, atol=1e-8, rtol=1e-10)
-        or not np.allclose(r2.reference.cell, r4.reference.cell, atol=1e-8, rtol=1e-10)
-        or not np.allclose(r2.reference.positions, r4.reference.positions, atol=1e-8, rtol=1e-10)
+        or not np.allclose(r2.primitive.positions, r4.primitive.positions, atol=1e-8, rtol=1e-10)
     ):
-        raise ValueError("fc2 and fc4 reference supercells differ")
+        raise ValueError("fc2 and fc4 primitive structures differ")
 
 
-def _compact_fc2(fc: ForceConstants) -> np.ndarray:
-    sparse = fc.sparse[2]
-    if fc.relation is not None:
-        primitive_index = np.asarray(fc.relation.primitive_index, dtype=np.int64)
-    else:
-        primitive_index = np.asarray(fc.supercell.arrays["primitive_index"], dtype=np.int64)
-    result = np.zeros((sparse.n_primitive, sparse.n_supercell, 3, 3), dtype=float)
-    counts = np.zeros((sparse.n_primitive, sparse.n_supercell), dtype=np.int32)
-    for cluster, tensor in zip(sparse.clusters, sparse.tensors, strict=True):
-        key = (int(primitive_index[cluster[0]]), int(cluster[1]))
-        result[key] += tensor
-        counts[key] += 1
-    mask = counts > 0
-    result[mask] /= counts[mask, None, None]
-    return result
-
-
-def _fc2_support(
-    fc2: SparseOrderForceConstants,
-    fc4: SparseOrderForceConstants,
-    relation,
-) -> set[tuple[int, int, tuple[int, int, int]]]:
-    """Return all pair labels required by the bare and loop FC2 supports."""
-    if fc2.sites is None or fc2.translation_representatives is None:
-        raise ValueError("SCPH requires lattice-labelled FC2")
-    if fc4.sites is None or fc4.translation_representatives is None:
-        raise ValueError("SCPH requires lattice-labelled FC4")
-    result = {
-        (
-            int(sites[0]),
-            int(sites[1]),
-            tuple(map(int, translations[0])),
-        )
-        for sites, translations in zip(
-            fc2.sites, fc2.translation_representatives, strict=True
-        )
-    }
-    result.update(
-        (
-            int(sites[0]),
-            int(sites[1]),
-            tuple(map(int, translations[0])),
-        )
-        for sites, translations in zip(
-            fc4.sites, fc4.translation_representatives, strict=True
-        )
-    )
-    for site, other, translation in result:
-        relation.index.atom(site, (0, 0, 0))
-        relation.index.atom(other, translation)
-    return result
-
-
-def _lattice_fc2(
-    sparse: SparseOrderForceConstants,
-) -> dict[tuple[int, int, tuple[int, int, int]], np.ndarray]:
-    result: dict[tuple[int, int, tuple[int, int, int]], np.ndarray] = {}
-    counts: dict[tuple[int, int, tuple[int, int, int]], int] = {}
-    for sites, translations, tensor in zip(
-        sparse.sites, sparse.translation_representatives, sparse.tensors, strict=True
-    ):
-        key = (int(sites[0]), int(sites[1]), tuple(map(int, translations[0])))
-        result[key] = result.get(key, 0.0) + tensor
-        counts[key] = counts.get(key, 0) + 1
-    for key in result:
-        result[key] /= counts[key]
-    return result
-
-
-def _fourier_terms(compact: np.ndarray, relation):
-    """Build Fourier terms from the exact reference lattice labels.
-
-    The SCPH mesh need not be commensurate with the force-constant reference
-    supercell.  Replacing a labelled translation by a nearest image of that
-    supercell therefore changes the phase at a general q point.  Use the
-    primitive-site positions and integer translation labels recovered by the
-    structure relation instead.
-    """
-    index = relation.index
-    primitive = relation.primitive
-    inverse_primitive = np.linalg.inv(np.asarray(primitive.cell))
+def _fourier_terms(lattice, primitive):
+    """Build Fourier terms directly from exact primitive-lattice FC2 labels."""
     terms = []
-    for first in range(index.n_primitive):
-        anchor = index.representative(first)
-        for atom in range(len(relation.reference)):
-            site = int(index.primitive[atom])
-            translation = index.translations[atom] - index.translations[anchor]
-            vector = (
-                primitive.positions[site]
-                - primitive.positions[first]
-                + translation @ np.asarray(primitive.cell)
-            )
-            terms.append(
-                (
-                    first,
-                    site,
-                    np.asarray(vector) @ inverse_primitive,
-                    compact[first, atom],
-                )
-            )
+    scaled = primitive.get_scaled_positions(wrap=False)
+    for (first, site, translation), tensor in lattice.items():
+        vector = scaled[site] - scaled[first] + np.asarray(translation, dtype=float)
+        terms.append((first, site, vector, tensor))
     return terms
 
 
@@ -455,22 +380,11 @@ def _dynamical_batch(terms, masses: np.ndarray, qpoints: np.ndarray) -> np.ndarr
     return (matrix + matrix.conj().swapaxes(-1, -2)) / 2
 
 
-def _compact_to_lattice(
-    compact: np.ndarray, sparse: SparseOrderForceConstants, index
-) -> dict[tuple[int, int, tuple[int, int, int]], np.ndarray]:
-    result = _lattice_fc2(sparse)
-    for sites, translations in zip(sparse.sites, sparse.translation_representatives, strict=True):
-        key = (int(sites[0]), int(sites[1]), tuple(map(int, translations[0])))
-        atom = index.atom(int(sites[1]), tuple(map(int, translations[0])))
-        result[key] = compact[int(sites[0]), atom]
-    return result
-
-
 def _needed_covariances(
     sparse: SparseOrderForceConstants,
 ) -> set[tuple[int, int, tuple[int, int, int]]]:
     result: set[tuple[int, int, tuple[int, int, int]]] = set()
-    for sites, translations in zip(sparse.sites, sparse.translation_representatives, strict=True):
+    for sites, translations in zip(sparse.sites, sparse.translations, strict=True):
         result.add(
             (
                 int(sites[2]),

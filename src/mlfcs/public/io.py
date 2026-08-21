@@ -7,7 +7,7 @@ from mlfcs.io import write_force_constants
 
 
 def read_hdf5(source: str | Path) -> ForceConstants:
-    """Read native MLFCS HDF5 schema v2 force constants.
+    """Read native MLFCS HDF5 schema v3 force constants.
 
     Older native schemas are rejected because their atom-order semantics are
     not recoverable without guessing.

@@ -3,9 +3,8 @@ from ase import Atoms
 from ase.build import bulk
 from supercell_helpers import make_supercell
 
-from mlfcs import ForceConstantCalculation
+from mlfcs import ForceConstantCalculation, build_supercell
 from mlfcs.anharmonic.sscha import SSCHA
-from mlfcs import build_supercell
 
 
 def test_supercell_index_roundtrip():
@@ -65,7 +64,7 @@ def test_internal_reference_construction_uses_phonopy_ordering():
     calculation = ForceConstantCalculation(
         primitive, reference=reference, order=2, cutoff=3.0, verbose=False
     )
-    sscha = SSCHA(primitive, reference=reference, snapshots=1, max_iterations=0)
+    sscha = SSCHA(primitive, reference=reference, cutoff=3.0, snapshots=1, max_iterations=0)
 
     expected = np.asarray([0, 0, 1, 1])
     np.testing.assert_array_equal(calculation.index.primitive, expected)

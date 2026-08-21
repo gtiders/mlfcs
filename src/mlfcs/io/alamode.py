@@ -254,7 +254,6 @@ def _sparse_entries(
     except KeyError as error:
         raise ValueError("supercell is missing MLFCS periodic mapping metadata") from error
     totals: dict[tuple[int, ...], float] = {}
-    counts: dict[tuple[int, ...], int] = {}
     for cluster, tensor in zip(sparse.clusters, sparse.tensors, strict=True):
         sites = index.primitive[cluster]
         translations = index.translations[cluster]
@@ -272,8 +271,7 @@ def _sparse_entries(
                 continue
             value = float(tensor[directions])
             totals[flat] = totals.get(flat, 0.0) + value
-            counts[flat] = counts.get(flat, 0) + 1
-    return {key: value / counts[key] for key, value in totals.items() if value != 0.0}
+    return {key: value for key, value in totals.items() if value != 0.0}
 
 
 def _write_order(

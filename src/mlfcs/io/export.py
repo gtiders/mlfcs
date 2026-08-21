@@ -44,7 +44,7 @@ def _export_cache_key(force_constants: ForceConstants, primitive, supercell) -> 
             id(values.clusters),
             id(values.tensors),
             id(values.sites),
-            id(values.translation_representatives),
+            id(values.translations),
         )
         for order, values in sorted(force_constants.sparse.items())
     )
@@ -106,9 +106,9 @@ def build_export_view(
     """Validate target structures and relabel sparse IFCs into that frame.
 
     No interpolation, averaging, primitive reduction, strain, or Cartesian
-    rotation is accepted.  The only lattice changes allowed are integer
-    unimodular basis changes, and the target supercell must retain the exact
-    source translation sublattice.
+    rotation is accepted.  Primitive basis changes must be integer
+    unimodular.  The target may be any verified integer supercell of that
+    primitive; exact real-space labels are folded only in the target view.
     """
     cache_key = _export_cache_key(force_constants, primitive, supercell)
     cached = force_constants._export_view_cache.get(cache_key)
@@ -133,20 +133,7 @@ def build_export_view(
     primitive_change = _unimodular_change(
         np.asarray(target_primitive.cell), np.asarray(source.primitive.cell), name="primitive"
     )
-    supercell_change = _unimodular_change(
-        np.asarray(target_supercell.cell), np.asarray(source.reference.cell), name="supercell"
-    )
     target = StructureRelation.from_atoms(target_primitive, target_supercell)
-    # Physical supercell lattices must agree after accounting for the target
-    # primitive basis.  This excludes equal-volume but different sublattices.
-    source_lattice_in_target = (
-        supercell_change @ source.supercell_matrix @ np.linalg.inv(primitive_change)
-    )
-    if not np.array_equal(
-        target.supercell_matrix,
-        np.rint(source_lattice_in_target).astype(np.int32),
-    ):
-        raise ValueError("target supercell does not preserve the source translation sublattice")
     site_map, site_shift = _site_mapping(source.primitive, target.primitive)
     source_to_target_translation = np.linalg.inv(primitive_change)
     sparse: dict[int, SparseOrderForceConstants] = {}
@@ -154,9 +141,12 @@ def build_export_view(
         clusters = np.empty_like(values.clusters)
         labelled_sites = np.empty_like(values.clusters)
         labelled_translations = np.empty((len(values.clusters), order - 1, 3), dtype=np.int32)
-        for row, cluster in enumerate(values.clusters):
-            source_sites = source.index.primitive[cluster]
-            source_translations = source.index.translations[cluster]
+        if values.sites is None or values.translations is None:
+            raise ValueError("target realization requires exact lattice-labelled force constants")
+        for row, (source_sites, source_relative) in enumerate(
+            zip(values.sites, values.translations, strict=True)
+        ):
+            source_translations = np.vstack((np.zeros((1, 3), dtype=np.int32), source_relative))
             translated = np.rint(source_translations @ source_to_target_translation).astype(
                 np.int32
             )
@@ -167,7 +157,7 @@ def build_export_view(
                 relative = translated[axis] - translated[0]
                 clusters[row, axis] = target.index.atom(int(site_map[source_sites[axis]]), relative)
                 labelled_sites[row, axis] = site_map[source_sites[axis]]
-                labelled_translations[row, axis - 1] = target.index.canonical_translation(relative)
+                labelled_translations[row, axis - 1] = relative
         sparse[order] = SparseOrderForceConstants(
             order,
             target.index.n_primitive,

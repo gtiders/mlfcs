@@ -4,12 +4,9 @@ from __future__ import annotations
 
 from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
-from typing import Generic, TypeVar
+from itertools import pairwise
 
 import numpy as np
-
-
-ResultT = TypeVar("ResultT")
 
 
 def normalize_temperature_schedule(temperature: float | Sequence[float]) -> tuple[float, ...]:
@@ -25,13 +22,13 @@ def normalize_temperature_schedule(temperature: float | Sequence[float]) -> tupl
     if not np.isfinite(values).all() or any(value < 0.0 for value in values):
         raise ValueError("temperatures must be finite and non-negative")
     ordered = tuple(sorted(values))
-    if any(left == right for left, right in zip(ordered, ordered[1:], strict=False)):
+    if any(left == right for left, right in pairwise(ordered)):
         raise ValueError("temperature sequence must not contain duplicates")
     return ordered
 
 
 @dataclass(frozen=True, slots=True)
-class TemperatureSeriesResult(Generic[ResultT]):
+class TemperatureSeriesResult[ResultT]:
     """Ordered results of an ascending multi-temperature calculation."""
 
     temperatures: tuple[float, ...]

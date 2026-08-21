@@ -8,7 +8,7 @@ from mlfcs.constraints.asr import maximum_acoustic_sum_rule_drift, project_acous
 from mlfcs.core.geometry import PeriodicIndex
 from mlfcs.core.orbits import OrbitSpace
 from mlfcs.finite_difference.sampling import DisplacementKey
-from mlfcs.ifc.expansion import expand_orbit_parameters
+from mlfcs.ifc.expansion import expand_orbit_parameters, expand_primitive_parameters
 from mlfcs.ifc.model import SparseOrderForceConstants
 
 
@@ -19,6 +19,7 @@ def reconstruct_sparse(
     *,
     enforce_asr: bool = True,
     report: Callable[[str], None] | None = None,
+    primitive_interaction_space=None,
 ) -> SparseOrderForceConstants:
     """Reconstruct only symmetry-generated cluster tensors."""
     order = orbit_space.order
@@ -36,8 +37,9 @@ def reconstruct_sparse(
     original_parameters = np.concatenate(pivot_values) if pivot_values else np.empty(0, dtype=float)
 
     if enforce_asr:
+        constraint_space = primitive_interaction_space or orbit_space
         pivot_values, initial_drift, final_drift = project_acoustic_sum_rule(
-            orbit_space, pivot_values, return_drift=True
+            constraint_space, pivot_values, return_drift=True
         )
         if report is not None:
             report(
@@ -52,11 +54,20 @@ def reconstruct_sparse(
                 label="ASR",
             )
     elif report is not None:
-        drift = maximum_acoustic_sum_rule_drift(orbit_space, pivot_values)
+        drift = maximum_acoustic_sum_rule_drift(
+            primitive_interaction_space or orbit_space, pivot_values
+        )
         report(f"- Max drift of fc{order}: {drift:.10e} eV/angstrom^{order} (ASR disabled)")
+    parameters = np.concatenate(pivot_values) if pivot_values else np.empty(0, dtype=float)
+    if primitive_interaction_space is not None:
+        return expand_primitive_parameters(
+            primitive_interaction_space,
+            parameters,
+            index=index,
+        )
     return expand_orbit_parameters(
         orbit_space,
-        np.concatenate(pivot_values) if pivot_values else np.empty(0, dtype=float),
+        parameters,
         n_primitive=index.n_primitive,
         n_supercell=len(index.primitive),
         index=index,

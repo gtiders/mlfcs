@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from mlfcs.ifc.expansion import expand_orbit_parameters
+from mlfcs.ifc.expansion import expand_primitive_parameters
 
 
 @dataclass(frozen=True, slots=True)
@@ -114,11 +114,12 @@ def expand_sparse(parameters, calculations, n_primitive, n_supercell):
     offset = 0
     for calculation in calculations:
         count = sum(orbit.dimension for orbit in calculation.orbit_space.orbits)
-        result[calculation.config.order] = expand_orbit_parameters(
-            calculation.orbit_space,
+        primitive_space = getattr(calculation, "primitive_orbit_space", None)
+        if primitive_space is None:
+            primitive_space = calculation.interaction_space.primitive_orbit_space
+        result[calculation.config.order] = expand_primitive_parameters(
+            primitive_space,
             parameters[offset : offset + count],
-            n_primitive=n_primitive,
-            n_supercell=n_supercell,
             index=calculation.index,
         )
         offset += count

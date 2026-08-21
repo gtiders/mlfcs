@@ -3,8 +3,8 @@
 from importlib import import_module
 from typing import TYPE_CHECKING
 
-from mlfcs.anharmonic.scph import LoopSCPH, LoopSCPHResult, harmonic_frequencies
 from mlfcs.anharmonic.common.schedule import TemperatureSeriesResult
+from mlfcs.anharmonic.scph import LoopSCPH, LoopSCPHResult, harmonic_frequencies
 
 if TYPE_CHECKING:
     from mlfcs.anharmonic.sscha import (

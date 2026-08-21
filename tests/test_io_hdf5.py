@@ -29,10 +29,10 @@ def test_reap_keeps_sparse_clusters_and_hdf5_writes_them(tmp_path):
     result.write(target, format="hdf5")
     with h5py.File(target) as handle:
         group = handle["force_constants/3"]
-        assert handle.attrs["schema_version"] == 2
+        assert handle.attrs["schema_version"] == 3
         assert group.attrs["representation"] == "lattice-labelled-sparse"
         assert group["sites"].shape[1] == 3
-        assert group["translation_representatives"].shape[1:] == (2, 3)
+        assert group["translations"].shape[1:] == (2, 3)
         assert group["tensors"].shape[1:] == (3, 3, 3)
 
 

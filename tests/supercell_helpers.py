@@ -2,8 +2,8 @@
 
 from ase import Atoms
 
-from mlfcs.core.geometry import StructureRelation
 from mlfcs import build_supercell
+from mlfcs.core.geometry import StructureRelation
 
 
 def make_supercell(primitive: Atoms, matrix: object):

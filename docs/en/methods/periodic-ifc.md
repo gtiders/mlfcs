@@ -8,7 +8,7 @@ The native sparse model stores lattice-labelled entries:
 
 ```text
 sites                        (K, order)
-translation_representatives  (K, order - 1, 3)
+translations  (K, order - 1, 3)
 tensors                      (K, 3, ..., 3)
 ```
 

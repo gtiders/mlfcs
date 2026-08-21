@@ -90,7 +90,7 @@ class ForceConstantFitter:
         reference: Atoms,
         *,
         orders: tuple[int, ...] = (2, 3),
-        cutoffs: dict[int, float | int | None] | None = None,
+        cutoffs: dict[int, float | int] | None = None,
         max_body_orders: dict[int, int | None] | None = None,
         symprec: float = 1e-5,
         jax_platform: JaxPlatform = "auto",
@@ -109,6 +109,14 @@ class ForceConstantFitter:
                 "orders must be consecutive so adjacent-order effects are identifiable"
             )
         self.cutoffs = dict(cutoffs or {})
+        missing_cutoffs = tuple(
+            order for order in self.orders if order not in self.cutoffs or self.cutoffs[order] is None
+        )
+        if missing_cutoffs:
+            raise ValueError(
+                "an explicit distance or negative neighbor-shell cutoff is required "
+                f"for every fitted order; missing FC orders: {missing_cutoffs}"
+            )
         self.max_body_orders = dict(max_body_orders or {})
         self.symprec = symprec
         self.jax_platform = jax_platform

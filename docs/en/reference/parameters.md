@@ -7,7 +7,7 @@
 | Order-`n` IFC | eV/Åⁿ |
 | Positive cutoff | Å radius |
 | Negative cutoff | neighbor-shell index |
-| `None` cutoff | maximum radius enumerable by the reference supercell |
+| `None` cutoff | unsupported; every order requires an explicit cutoff |
 | SCPH tolerance | RMS THz frequency change |
 
 JAX kernels use 64-bit floating point. `mixing` is a numerical relaxation coefficient and is not

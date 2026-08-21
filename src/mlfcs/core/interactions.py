@@ -8,9 +8,15 @@ from ase import Atoms
 
 from mlfcs.core.geometry import (
     StructureRelation,
-    resolve_cutoff,
 )
-from mlfcs.core.orbits import OrbitSpace, build_orbit_space
+from mlfcs.core.orbits import OrbitSpace
+from mlfcs.core.real_space import (
+    PrimitiveInteractionSpace,
+    build_primitive_interaction_space,
+    realize_orbit_space,
+    resolve_primitive_cutoff,
+    validate_realization_identifiability,
+)
 from mlfcs.core.symmetry import SymmetryOperations
 from mlfcs.ifc.model import RunConfig
 
@@ -24,11 +30,10 @@ class InteractionSpace:
         *,
         order: int,
         reference: Atoms,
-        cutoff: float | None,
+        cutoff: float,
         max_body_order: int | None = None,
         symprec: float = 1e-5,
         displacement: float = 0.01,
-        report_cutoff: bool = True,
         reporter: Callable[[str], None] | None = None,
     ) -> None:
         self.relation = StructureRelation.from_atoms(atoms, reference, tolerance=symprec)
@@ -50,14 +55,8 @@ class InteractionSpace:
             f"- {len(self.primitive)} primitive atoms, {len(self.supercell)} supercell atoms"
         )
         self._report("Resolving the interaction cutoff")
-        self.cutoff = resolve_cutoff(
-            self.supercell,
-            self.index,
-            cutoff,
-            report=report_cutoff and reporter is not None,
-        )
-        if cutoff is not None and (cutoff >= 0 or not report_cutoff):
-            self._report(f"- Cutoff radius: {self.cutoff:.10f} Å")
+        self.cutoff = resolve_primitive_cutoff(self.primitive, cutoff)
+        self._report(f"- Cutoff radius: {self.cutoff:.10f} Å")
         self._report("Analyzing crystal symmetries")
         self.symmetry = SymmetryOperations.from_atoms(
             self.primitive,
@@ -67,6 +66,19 @@ class InteractionSpace:
         self._report(f"- Space group {self.symmetry.symbol}")
         self._report(f"- {self.symmetry.size} symmetry operations")
         self._orbit_space: OrbitSpace | None = None
+        self._primitive_orbit_space: PrimitiveInteractionSpace | None = None
+
+    @property
+    def primitive_orbit_space(self) -> PrimitiveInteractionSpace:
+        if self._primitive_orbit_space is None:
+            self._primitive_orbit_space = build_primitive_interaction_space(
+                self.primitive,
+                order=self.config.order,
+                cutoff=self.cutoff,
+                max_body_order=self.config.max_body_order,
+                symprec=self.config.symprec,
+            )
+        return self._primitive_orbit_space
 
     @property
     def orbit_space(self) -> OrbitSpace:
@@ -74,14 +86,8 @@ class InteractionSpace:
             self._report(
                 f"Finding symmetry-inequivalent order-{self.config.order} interaction clusters"
             )
-            self._orbit_space = build_orbit_space(
-                self.supercell,
-                self.index,
-                self.symmetry,
-                order=self.config.order,
-                cutoff=self.cutoff,
-                max_body_order=self.config.max_body_order,
-            )
+            self._orbit_space = realize_orbit_space(self.primitive_orbit_space, self.index)
+            validate_realization_identifiability(self.primitive_orbit_space, self.index)
             dimensions = sum(orbit.dimension for orbit in self._orbit_space.orbits)
             self._report(f"- {len(self._orbit_space.orbits)} cluster equivalence classes")
             self._report(f"- {dimensions} independent tensor parameters")

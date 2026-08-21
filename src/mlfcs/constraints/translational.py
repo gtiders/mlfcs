@@ -6,11 +6,9 @@ import numpy as np
 from scipy import sparse
 from scipy.sparse.linalg import lsmr
 
-from mlfcs.core.orbits import OrbitSpace
-
 
 def build_translational_constraints(
-    orbit_space: OrbitSpace,
+    orbit_space,
     *,
     tolerance: float = 1e-12,
 ) -> sparse.csr_matrix:
@@ -27,7 +25,8 @@ def build_translational_constraints(
             image_from_pivots = image.action.apply_columns(representative_from_pivots)
             for component in range(3**orbit_space.order):
                 directions = np.unravel_index(component, (3,) * orbit_space.order)
-                key = image.cluster[:-1] + tuple(int(value) for value in directions)
+                labels = image.key.labels if hasattr(image, "key") else image.cluster
+                key = tuple(labels[:-1]) + tuple(int(value) for value in directions)
                 equation = equations.setdefault(key, len(equations))
                 nonzero = np.flatnonzero(np.abs(image_from_pivots[component]) > tolerance)
                 rows.extend([equation] * len(nonzero))

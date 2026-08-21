@@ -59,7 +59,6 @@ def calculation(displacement: float) -> ForceConstantCalculation:
         reference=make_supercell(primitive, SUPERCELL)[0],
         cutoff=CUTOFF,
         displacement=displacement,
-        report_cutoff=False,
         verbose=False,
     )
 

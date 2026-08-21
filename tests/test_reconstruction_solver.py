@@ -4,24 +4,21 @@ from ase.build import bulk
 from supercell_helpers import make_supercell
 
 from mlfcs.constraints.solver import reconstruct_sparse
-from mlfcs.core.geometry import resolve_cutoff
-from mlfcs.core.orbits import build_orbit_space
-from mlfcs.core.symmetry import SymmetryOperations
+from mlfcs.core.real_space import build_primitive_interaction_space, realize_orbit_space
 
 
 @pytest.mark.parametrize("order", [3, 4])
 def test_reconstructs_every_orbit_from_independent_components(order):
     primitive = bulk("Si", "diamond", a=5.43)
     supercell, index = make_supercell(primitive, (2, 2, 2))
-    symmetry = SymmetryOperations.from_atoms(primitive, supercell)
-    cutoff = resolve_cutoff(supercell, index, -1)
-    space = build_orbit_space(
-        supercell,
-        index,
-        symmetry,
+    primitive_space = build_primitive_interaction_space(
+        primitive,
         order=order,
-        cutoff=cutoff,
+        cutoff=-1,
+        max_body_order=None,
+        symprec=1e-5,
     )
+    space = realize_orbit_space(primitive_space, index)
 
     derivatives = {
         key: np.zeros((len(supercell), 3), dtype=float) for key in space.displacement_keys
@@ -37,9 +34,16 @@ def test_reconstructs_every_orbit_from_independent_components(order):
             )
             derivatives[key][orbit.representative[-1], components[-1]] = representative[pivot]
         for image in orbit.images:
-            expected[image.cluster] = image.action.apply_flat(representative).reshape((3,) * order)
+            tensor = image.action.apply_flat(representative).reshape((3,) * order)
+            expected[image.cluster] = expected.get(image.cluster, 0.0) + tensor
 
-    compact = reconstruct_sparse(space, index, derivatives, enforce_asr=False).to_dense()
+    compact = reconstruct_sparse(
+        space,
+        index,
+        derivatives,
+        enforce_asr=False,
+        primitive_interaction_space=primitive_space,
+    ).to_dense()
     for cluster, tensor in expected.items():
         dense_key = (index.primitive[cluster[0]], *cluster[1:])
         np.testing.assert_allclose(compact[dense_key], tensor, atol=1e-9)

@@ -14,7 +14,7 @@ class RunConfig:
 
     order: int
     supercell: object = (2, 2, 2)
-    cutoff: float | int | None = -5
+    cutoff: float | int = -5
     max_body_order: int | None = None
     displacement: float = 0.01
     symprec: float = 1e-5
@@ -35,7 +35,7 @@ class SparseOrderForceConstants:
     """Sparse IFCs with both calculation and physical lattice labels.
 
     ``clusters`` is a reference-frame index view used by existing numerical
-    kernels. ``sites`` and ``translation_representatives`` are the physical
+    kernels. ``sites`` and ``translations`` are the physical
     storage identity: ``Phi[k1,...,kn](0,R2,...,Rn)``.
     """
 
@@ -45,22 +45,22 @@ class SparseOrderForceConstants:
     clusters: np.ndarray
     tensors: np.ndarray
     sites: np.ndarray | None = None
-    translation_representatives: np.ndarray | None = None
+    translations: np.ndarray | None = None
 
     def __post_init__(self) -> None:
         self.clusters = np.asarray(self.clusters, dtype=np.int32).reshape((-1, self.order))
         self.tensors = np.asarray(self.tensors, dtype=float).reshape((-1,) + (3,) * self.order)
         if len(self.clusters) != len(self.tensors):
             raise ValueError("sparse cluster and tensor counts differ")
-        if (self.sites is None) != (self.translation_representatives is None):
-            raise ValueError("sites and translation_representatives must be supplied together")
+        if (self.sites is None) != (self.translations is None):
+            raise ValueError("sites and translations must be supplied together")
         if self.sites is not None:
             self.sites = np.asarray(self.sites, dtype=np.int32).reshape((-1, self.order))
-            self.translation_representatives = np.asarray(
-                self.translation_representatives, dtype=np.int32
+            self.translations = np.asarray(
+                self.translations, dtype=np.int32
             ).reshape((-1, self.order - 1, 3))
             if len(self.sites) != len(self.clusters) or len(
-                self.translation_representatives
+                self.translations
             ) != len(self.clusters):
                 raise ValueError("lattice-labelled sparse IFC arrays have incompatible lengths")
             if np.any(self.sites < 0) or np.any(self.sites >= self.n_primitive):
@@ -103,7 +103,6 @@ class SparseOrderForceConstants:
                 stacklevel=2,
             )
         result = np.zeros(self.dense_shape, dtype=self.tensors.dtype)
-        counts = np.zeros(self.dense_shape[: self.order], dtype=np.int16)
         for row, (cluster, tensor) in enumerate(zip(self.clusters, self.tensors, strict=True)):
             key = tuple(int(atom) for atom in cluster)
             if primitive_index is not None:
@@ -111,9 +110,6 @@ class SparseOrderForceConstants:
             elif self.sites is not None:
                 key = (int(self.sites[row, 0]), *key[1:])
             result[key] += tensor
-            counts[key] += 1
-        nonzero = counts > 0
-        result[nonzero] /= counts[nonzero].reshape((-1,) + (1,) * self.order)
         return result
 
 
@@ -164,6 +160,22 @@ class ForceConstants:
             supercell=supercell,
         )
 
+    def realize(
+        self,
+        reference: Atoms,
+        *,
+        primitive: Atoms | None = None,
+    ) -> ForceConstants:
+        """Return these exact lattice-labelled IFCs in ``reference``.
+
+        The target may contain a different number of primitive cells.  Exact
+        real-space interactions that fold onto one finite cluster are summed
+        when a dense target view is materialized.
+        """
+        from mlfcs.io.export import build_export_view
+
+        return build_export_view(self, primitive=primitive, supercell=reference).force_constants
+
     def enforce_rotational_sum_rules(
         self,
         *,
@@ -206,7 +218,7 @@ def replace_compact_fc2(
     if base.relation is None or 2 not in base.sparse:
         raise ValueError("FC2 replacement requires lattice-labelled sparse FC2 and StructureRelation")
     sparse_base = base.sparse[2]
-    if sparse_base.sites is None or sparse_base.translation_representatives is None:
+    if sparse_base.sites is None or sparse_base.translations is None:
         raise ValueError("FC2 replacement requires lattice-labelled sparse FC2")
     relation = base.relation
     index = relation.index
@@ -219,7 +231,7 @@ def replace_compact_fc2(
     row_keys = {
         (int(sites[0]), int(sites[1]), tuple(map(int, translations[0])))
         for sites, translations in zip(
-            sparse_base.sites, sparse_base.translation_representatives, strict=True
+            sparse_base.sites, sparse_base.translations, strict=True
         )
     }
     if support is not None:
@@ -258,4 +270,109 @@ def replace_compact_fc2(
     return ForceConstants({}, relation.reference.copy(), result_metadata, {2: sparse}, relation)
 
 
-__all__ = ["ForceConstants", "RunConfig", "SparseOrderForceConstants", "replace_compact_fc2"]
+def lattice_fc2(
+    force_constants: ForceConstants,
+) -> dict[tuple[int, int, tuple[int, int, int]], np.ndarray]:
+    """Return FC2 tensors keyed by primitive sites and exact translation."""
+    if 2 not in force_constants.sparse:
+        raise ValueError("force constants do not contain FC2")
+    sparse = force_constants.sparse[2]
+    if sparse.sites is None or sparse.translations is None:
+        raise ValueError("FC2 must use exact primitive-lattice labels")
+    result: dict[tuple[int, int, tuple[int, int, int]], np.ndarray] = {}
+    for sites, translations, tensor in zip(
+        sparse.sites, sparse.translations, sparse.tensors, strict=True
+    ):
+        key = (int(sites[0]), int(sites[1]), tuple(map(int, translations[0])))
+        result[key] = result.get(key, 0.0) + np.asarray(tensor, dtype=float)
+    return result
+
+
+def replace_lattice_fc2(
+    base: ForceConstants,
+    values: dict[tuple[int, int, tuple[int, int, int]], np.ndarray],
+    *,
+    metadata: dict[str, object] | None = None,
+) -> ForceConstants:
+    """Return an FC2-only result from exact primitive-lattice tensors.
+
+    Finite reference indices are constructed only as a calculation/export
+    view.  Several exact translations may fold to the same finite pair; they
+    remain separate sparse rows and are summed only by materialization.
+    """
+    if base.relation is None:
+        raise ValueError("FC2 replacement requires an explicit structure relation")
+    relation = base.relation
+    index = relation.index
+    keys = sorted(values)
+    sites = np.asarray([[first, second] for first, second, _ in keys], dtype=np.int32)
+    translations = np.asarray([[translation] for _, _, translation in keys], dtype=np.int32)
+    clusters = np.asarray(
+        [
+            [index.representative(first), index.atom(second, translation)]
+            for first, second, translation in keys
+        ],
+        dtype=np.int32,
+    )
+    tensors = np.asarray([values[key] for key in keys], dtype=float).reshape((-1, 3, 3))
+    sparse = SparseOrderForceConstants(
+        2,
+        len(relation.primitive),
+        len(relation.reference),
+        clusters,
+        tensors,
+        sites,
+        translations,
+    )
+    result_metadata = dict(base.metadata)
+    if metadata is not None:
+        result_metadata.update(metadata)
+    return ForceConstants({}, relation.reference.copy(), result_metadata, {2: sparse}, relation)
+
+
+def lattice_fc2_from_compact(
+    base: ForceConstants, compact: np.ndarray
+) -> dict[tuple[int, int, tuple[int, int, int]], np.ndarray]:
+    """Lift a finite compact FC2 only when its exact support is identifiable.
+
+    A compact source cannot distinguish two exact translations that fold onto
+    the same atom pair.  Such an inverse is rejected instead of copying one
+    folded value into several physical interactions.
+    """
+    if base.relation is None or 2 not in base.sparse:
+        raise ValueError("compact FC2 lifting requires exact FC2 support and a relation")
+    sparse = base.sparse[2]
+    if sparse.sites is None or sparse.translations is None:
+        raise ValueError("compact FC2 lifting requires exact primitive-lattice labels")
+    array = np.asarray(compact, dtype=float)
+    expected = (len(base.relation.primitive), len(base.relation.reference), 3, 3)
+    if array.shape != expected:
+        raise ValueError(f"compact FC2 must have shape {expected}, got {array.shape}")
+    folded: dict[tuple[int, int], list[tuple[int, int, tuple[int, int, int]]]] = {}
+    for cluster, sites, translations in zip(
+        sparse.clusters,
+        sparse.sites,
+        sparse.translations,
+        strict=True,
+    ):
+        key = (int(sites[0]), int(sites[1]), tuple(map(int, translations[0])))
+        folded.setdefault((int(sites[0]), int(cluster[1])), []).append(key)
+    collisions = {pair: keys for pair, keys in folded.items() if len(keys) != 1}
+    if collisions:
+        first_pair, keys = next(iter(collisions.items()))
+        raise ValueError(
+            "compact FC2 is not invertible on the exact interaction support: "
+            f"finite pair {first_pair} represents {len(keys)} exact translations"
+        )
+    return {keys[0]: array[pair] for pair, keys in folded.items()}
+
+
+__all__ = [
+    "ForceConstants",
+    "RunConfig",
+    "SparseOrderForceConstants",
+    "lattice_fc2",
+    "lattice_fc2_from_compact",
+    "replace_compact_fc2",
+    "replace_lattice_fc2",
+]

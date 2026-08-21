@@ -69,7 +69,7 @@ fitter = ForceConstantFitter(
     primitive=read("POSCAR"),
     reference=read("reference.xyz"),
     orders=(2, 3, 4),
-    cutoffs={2: None, 3: 12 * 0.529177210903, 4: 8 * 0.529177210903},
+    cutoffs={2: 8.0, 3: 12 * 0.529177210903, 4: 8 * 0.529177210903},
     max_body_orders={2: 2, 3: 3, 4: 3},
 )
 result = fitter.fit(
