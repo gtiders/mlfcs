@@ -20,21 +20,15 @@ def _force_constants(*, cell=4.0):
         quartic[0, axis, axis, axis, axis] = 1.0
     fc2 = SparseOrderForceConstants(
         2,
-        1,
-        1,
-        np.array([[0, 0]]),
-        fc2_tensor,
         np.array([[0, 0]]),
         np.zeros((1, 1, 3), dtype=int),
+        fc2_tensor,
     )
     fc4 = SparseOrderForceConstants(
         4,
-        1,
-        1,
-        np.array([[0, 0, 0, 0]]),
-        quartic,
         np.array([[0, 0, 0, 0]]),
         np.zeros((1, 3, 3), dtype=int),
+        quartic,
     )
     return (
         ForceConstants({}, primitive, sparse={2: fc2}, relation=relation),
@@ -188,23 +182,17 @@ def test_loop_scph_keeps_fc4_induced_pair_support():
     relation = StructureRelation.from_atoms(primitive, primitive)
     fc2 = SparseOrderForceConstants(
         2,
-        2,
-        2,
-        np.array([[0, 0]]),
-        np.eye(3)[None, ...],
         np.array([[0, 0]]),
         np.zeros((1, 1, 3), dtype=int),
+        np.eye(3)[None, ...],
     )
     tensor = np.zeros((1, 3, 3, 3, 3))
     tensor[0, 0, 0, 0, 0] = 1.0
     fc4 = SparseOrderForceConstants(
         4,
-        2,
-        2,
-        np.array([[0, 1, 0, 0]]),
-        tensor,
         np.array([[0, 1, 0, 0]]),
         np.zeros((1, 3, 3), dtype=int),
+        tensor,
     )
     result = LoopSCPH(
         fc2=ForceConstants({}, primitive, sparse={2: fc2}, relation=relation),

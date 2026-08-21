@@ -254,13 +254,13 @@ def _sparse_entries(
     except KeyError as error:
         raise ValueError("supercell is missing MLFCS periodic mapping metadata") from error
     totals: dict[tuple[int, ...], float] = {}
-    for cluster, tensor in zip(sparse.clusters, sparse.tensors, strict=True):
-        sites = index.primitive[cluster]
-        translations = index.translations[cluster]
+    for sites, translations, tensor in zip(
+        sparse.sites, sparse.translations, sparse.tensors, strict=True
+    ):
         anchored = [index.representative(int(sites[0]))]
         anchored.extend(
-            index.atom(int(site), translation - translations[0])
-            for site, translation in zip(sites[1:], translations[1:], strict=True)
+            index.atom(int(site), translation)
+            for site, translation in zip(sites[1:], translations, strict=True)
         )
         for directions in product(range(3), repeat=sparse.order):
             flat = tuple(

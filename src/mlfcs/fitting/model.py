@@ -390,15 +390,10 @@ class ForceConstantFitter:
         expansion_started = perf_counter()
         self._report("Expanding fitted Taylor parameters into sparse physical IFCs")
         taylor_parameters = np.asarray(taylor_transform @ parameters_numpy)
-        residual_sparse = _expand_sparse(
-            taylor_parameters,
-            self.calculations,
-            self.index.n_primitive,
-            len(self.canonical_supercell),
-        )
+        residual_sparse = _expand_sparse(taylor_parameters, self.calculations)
         sparse_values = dict(residual_sparse)
         self._report(
-            f"- Expanded {sum(len(value.clusters) for value in sparse_values.values())} "
+            f"- Expanded {sum(len(value.tensors) for value in sparse_values.values())} "
             f"sparse tensors in {perf_counter() - expansion_started:.2f} s"
         )
         force_constants = ForceConstants(

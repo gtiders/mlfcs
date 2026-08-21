@@ -28,12 +28,7 @@ def write_phonon_hdf5(
     if order not in force_constants.orders:
         raise ValueError(f"order {order} is not present in force constants")
 
-    sparse = force_constants.sparse.get(order)
-    compact = (
-        sparse.to_dense(primitive_index=force_constants.supercell.arrays["primitive_index"])
-        if sparse is not None
-        else np.asarray(force_constants.arrays[order])
-    )
+    compact = force_constants.materialize(order, max_bytes=None)
     supercell = force_constants.supercell
     primitive = np.asarray(supercell.arrays["primitive_index"], dtype=np.int64)
     translations = np.asarray(supercell.arrays["cell_translation"], dtype=np.int64)

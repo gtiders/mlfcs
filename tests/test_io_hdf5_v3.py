@@ -21,8 +21,6 @@ def test_native_hdf5_v3_roundtrip_preserves_exact_lattice_labelled_sparse_ifcs(t
     assert restored.orders == result.orders
     np.testing.assert_array_equal(restored.relation.reference.numbers, primitive.numbers)
     for order in result.orders:
-        assert result.sparse[order].is_lattice_labelled
-        assert restored.sparse[order].is_lattice_labelled
         np.testing.assert_array_equal(restored.sparse[order].sites, result.sparse[order].sites)
         np.testing.assert_array_equal(
             restored.sparse[order].translations,

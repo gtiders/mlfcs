@@ -89,10 +89,10 @@ def test_finite_difference_reap_is_invariant_to_reference_atom_permutation():
     fc_b = shuffled.reap(forces_b, acoustic_sum_rule=False).sparse[2]
 
     order_a = np.lexsort(
-        (*fc_a.translations.reshape(len(fc_a.clusters), -1).T, *fc_a.sites.T)
+        (*fc_a.translations.reshape(len(fc_a.tensors), -1).T, *fc_a.sites.T)
     )
     order_b = np.lexsort(
-        (*fc_b.translations.reshape(len(fc_b.clusters), -1).T, *fc_b.sites.T)
+        (*fc_b.translations.reshape(len(fc_b.tensors), -1).T, *fc_b.sites.T)
     )
     np.testing.assert_array_equal(fc_a.sites[order_a], fc_b.sites[order_b])
     np.testing.assert_array_equal(

@@ -128,10 +128,10 @@ The orbit engine is parameterized by order. It combines:
 - stabilizer constraints;
 - independent tensor bases and pivot components.
 
-Cluster discovery does not traverse the ordered Cartesian product of all neighbor labels. It
-recursively generates nondecreasing neighbor multisets and rejects an incompatible prefix as soon
-as one pair violates the joint periodic cutoff. A cheap anchored, tail-sorted canonical image is
-then evaluated before the complete tensor orbit is constructed. Equal-site Cartesian axes are
+Cluster discovery works on primitive sites plus exact integer translations. It recursively
+generates nondecreasing neighbor multisets and rejects a prefix as soon as one pair violates the
+all-pair cutoff. Space-group operations act affinely on these exact labels, after which every image
+is re-anchored so its first translation is zero. Equal-site Cartesian axes are
 reduced in a label-symmetric basis before stabilizer constraints are accumulated. This preserves
 the FC2--FC4 orbit subspaces while preventing repeated-site FC5/FC6 stabilizers from allocating
 the full square `3**order` action matrix.
@@ -164,8 +164,9 @@ one deterministic displacement plan.
 The reconstructed result is stored as:
 
 ```text
-clusters: (number_of_images, order)
-tensors:  (number_of_images, 3, ..., 3)
+sites:         (number_of_images, order)
+translations:  (number_of_images, order - 1, 3)
+tensors:       (number_of_images, 3, ..., 3)
 ```
 
 It is not stored as the full
@@ -174,7 +175,8 @@ It is not stored as the full
 (n_primitive, n_supercell, ..., n_supercell, 3, ..., 3)
 ```
 
-array. Dense materialization is lazy. When an estimated dense allocation exceeds the configured
+array. These labels do not contain source-reference atom indices. Dense materialization into a
+chosen target supercell is lazy. When an estimated dense allocation exceeds the configured
 budget, MLFCS emits a `RuntimeWarning` but leaves the final decision to the user. Sparse HDF5
 writing never requires this dense allocation.
 

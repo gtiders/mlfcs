@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import h5py
 import numpy as np
@@ -12,10 +11,6 @@ from ase import Atoms
 
 from mlfcs.core.geometry import StructureRelation
 from mlfcs.ifc.model import ForceConstants, SparseOrderForceConstants
-
-if TYPE_CHECKING:
-    from mlfcs.core.geometry import PeriodicIndex
-
 
 SCHEMA_VERSION = 3
 
@@ -44,21 +39,6 @@ def _relation(force_constants: ForceConstants) -> StructureRelation:
     )
 
 
-def _lattice_labels(
-    values: SparseOrderForceConstants, index: PeriodicIndex
-) -> tuple[np.ndarray, np.ndarray]:
-    if values.is_lattice_labelled:
-        assert values.sites is not None
-        assert values.translations is not None
-        return values.sites, values.translations
-    sites = index.primitive[values.clusters]
-    raw = index.translations[values.clusters[:, 1:]] - index.translations[values.clusters[:, :1]]
-    translations = np.asarray(
-        [[index.canonical_translation(vector) for vector in row] for row in raw], dtype=np.int32
-    )
-    return np.asarray(sites, dtype=np.int32), np.asarray(translations, dtype=np.int32)
-
-
 def write_hdf5(target: str | Path, force_constants: ForceConstants) -> None:
     relation = _relation(force_constants)
     with h5py.File(target, "w") as handle:
@@ -71,13 +51,12 @@ def write_hdf5(target: str | Path, force_constants: ForceConstants) -> None:
         group = handle.create_group("force_constants")
         for order, values in sorted(force_constants.sparse.items()):
             entry = group.create_group(str(order))
-            sites, translations = _lattice_labels(values, relation.index)
             entry.attrs["representation"] = "lattice-labelled-sparse"
             entry.attrs["order"] = order
             entry.attrs["unit"] = f"eV/angstrom^{order}"
-            entry.create_dataset("sites", data=sites, compression="gzip")
+            entry.create_dataset("sites", data=values.sites, compression="gzip")
             entry.create_dataset(
-                "translations", data=translations, compression="gzip"
+                "translations", data=values.translations, compression="gzip"
             )
             entry.create_dataset("tensors", data=values.tensors, compression="gzip")
         for key, value in force_constants.metadata.items():
@@ -97,30 +76,12 @@ def read_hdf5(source: str | Path) -> ForceConstants:
         # any verified target supercell after reading.
         relation = StructureRelation.from_atoms(primitive, primitive)
         sparse: dict[int, SparseOrderForceConstants] = {}
-        index = relation.index
         for name, entry in handle["force_constants"].items():
             order = int(name)
             sites = np.asarray(entry["sites"], dtype=np.int32)
             translations = np.asarray(entry["translations"], dtype=np.int32)
             tensors = np.asarray(entry["tensors"], dtype=float)
-            clusters = np.empty_like(sites)
-            clusters[:, 0] = [index.representative(int(site)) for site in sites[:, 0]]
-            for axis in range(1, order):
-                clusters[:, axis] = [
-                    index.atom(int(site), translation)
-                    for site, translation in zip(
-                        sites[:, axis], translations[:, axis - 1], strict=True
-                    )
-                ]
-            sparse[order] = SparseOrderForceConstants(
-                order,
-                index.n_primitive,
-                len(primitive),
-                clusters,
-                tensors,
-                sites,
-                translations,
-            )
+            sparse[order] = SparseOrderForceConstants(order, sites, translations, tensors)
         metadata = {
             key: value.item() if isinstance(value, np.generic) else value
             for key, value in handle.attrs.items()

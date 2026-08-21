@@ -10,6 +10,7 @@ from phonopy.file_IO import read_force_constants_hdf5
 from supercell_helpers import make_supercell
 
 from mlfcs import ForceConstantCalculation, ForceConstants, SparseOrderForceConstants
+from mlfcs.core.geometry import StructureRelation
 
 
 def test_reap_keeps_sparse_clusters_and_hdf5_writes_them(tmp_path):
@@ -37,15 +38,18 @@ def test_reap_keeps_sparse_clusters_and_hdf5_writes_them(tmp_path):
 
 
 def test_dense_materialization_warns_but_continues():
+    primitive = Atoms("H", positions=[[0, 0, 0]], cell=np.eye(3), pbc=True)
+    relation = StructureRelation.from_atoms(primitive, primitive)
     sparse = SparseOrderForceConstants(
         order=2,
-        n_primitive=1,
-        n_supercell=1,
-        clusters=np.empty((0, 2), dtype=np.int32),
+        sites=np.empty((0, 2), dtype=np.int32),
+        translations=np.empty((0, 1, 3), dtype=np.int32),
         tensors=np.empty((0, 3, 3)),
     )
     with pytest.warns(RuntimeWarning, match="materialization will continue"):
-        dense = sparse.to_dense(max_bytes=1)
+        dense = ForceConstants({}, primitive, sparse={2: sparse}, relation=relation).materialize(
+            2, max_bytes=1
+        )
     assert dense.shape == (1, 1, 3, 3)
 
 
@@ -79,12 +83,15 @@ def test_phono3py_hdf5_streams_full_fc3_and_is_readable(tmp_path):
     clusters = np.asarray([[0, first, second] for first in range(2) for second in range(2)])
     sparse = SparseOrderForceConstants(
         order=3,
-        n_primitive=1,
-        n_supercell=2,
-        clusters=clusters,
+        sites=np.zeros((4, 3), dtype=np.int32),
+        translations=np.asarray(
+            [[[first, 0, 0], [second, 0, 0]] for first in range(2) for second in range(2)]
+        ),
         tensors=compact[tuple(clusters.T)],
     )
-    result = ForceConstants({}, supercell, sparse={3: sparse})
+    result = ForceConstants(
+        {}, supercell, sparse={3: sparse}, relation=StructureRelation.from_atoms(primitive, supercell)
+    )
     target = tmp_path / "fc3.hdf5"
 
     result.write(target, format="phono3py_hdf5")

@@ -4,7 +4,9 @@ from ase.build import bulk
 from supercell_helpers import make_supercell
 
 from mlfcs.constraints.solver import reconstruct_sparse
+from mlfcs.core.geometry import StructureRelation
 from mlfcs.core.real_space import build_primitive_interaction_space, realize_orbit_space
+from mlfcs.ifc.model import ForceConstants
 
 
 @pytest.mark.parametrize("order", [3, 4])
@@ -21,12 +23,17 @@ def test_acoustic_sum_rule_projection_is_strict(order):
     space = realize_orbit_space(primitive_space, index)
     rng = np.random.default_rng(4)
     derivatives = {key: rng.normal(size=(len(supercell), 3)) for key in space.displacement_keys}
-    raw = reconstruct_sparse(
+    raw_sparse = reconstruct_sparse(
         space, index, derivatives, enforce_asr=False, primitive_interaction_space=primitive_space
-    ).to_dense()
-    projected = reconstruct_sparse(
+    )
+    projected_sparse = reconstruct_sparse(
         space, index, derivatives, enforce_asr=True, primitive_interaction_space=primitive_space
-    ).to_dense()
+    )
+    relation = StructureRelation.from_atoms(primitive, supercell)
+    raw = ForceConstants({}, supercell, sparse={order: raw_sparse}, relation=relation).materialize(order)
+    projected = ForceConstants(
+        {}, supercell, sparse={order: projected_sparse}, relation=relation
+    ).materialize(order)
     raw_residual = np.linalg.norm(raw.sum(axis=order - 1))
     projected_residual = np.linalg.norm(projected.sum(axis=order - 1))
     assert projected_residual < raw_residual

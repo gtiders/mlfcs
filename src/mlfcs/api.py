@@ -127,7 +127,7 @@ class ForceConstantCalculation:
             report=self._report,
             primitive_interaction_space=self.interaction_space.primitive_orbit_space,
         )
-        self._report(f"- Reconstructed {len(sparse.clusters)} sparse cluster tensors")
+        self._report(f"- Reconstructed {len(sparse.tensors)} sparse cluster tensors")
         return ForceConstants(
             {},
             self.supercell.copy(),

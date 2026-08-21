@@ -22,7 +22,7 @@ def test_export_view_relabels_an_equivalent_reordered_reference(tmp_path):
 
     np.testing.assert_array_equal(view.force_constants.supercell.numbers, target.numbers)
     assert view.relation is not None
-    assert view.force_constants.sparse[2].clusters.shape == result.sparse[2].clusters.shape
+    assert view.force_constants.sparse[2].sites.shape == result.sparse[2].sites.shape
     output = tmp_path / "relabelled.h5"
     result.write(output, format="hdf5", supercell=target)
     restored = read_hdf5(output)

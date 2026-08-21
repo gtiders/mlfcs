@@ -37,13 +37,19 @@ def test_reconstructs_every_orbit_from_independent_components(order):
             tensor = image.action.apply_flat(representative).reshape((3,) * order)
             expected[image.cluster] = expected.get(image.cluster, 0.0) + tensor
 
-    compact = reconstruct_sparse(
+    sparse = reconstruct_sparse(
         space,
         index,
         derivatives,
         enforce_asr=False,
         primitive_interaction_space=primitive_space,
-    ).to_dense()
+    )
+    from mlfcs.core.geometry import StructureRelation
+    from mlfcs.ifc.model import ForceConstants
+
+    compact = ForceConstants(
+        {}, supercell, sparse={order: sparse}, relation=StructureRelation.from_atoms(primitive, supercell)
+    ).materialize(order)
     for cluster, tensor in expected.items():
         dense_key = (index.primitive[cluster[0]], *cluster[1:])
         np.testing.assert_allclose(compact[dense_key], tensor, atol=1e-9)

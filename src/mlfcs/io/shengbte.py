@@ -25,8 +25,6 @@ def write_shengbte(
     Cartesian components. Values use scientific notation at every order.
     """
     order = force_constants.order
-    if force_constants.n_supercell != len(supercell):
-        raise ValueError("sparse force constants and supercell sizes differ")
     if order not in {3, 4}:
         raise ValueError("ShengBTE output supports only third- and fourth-order tensors")
     Path(target).write_text(_format_sparse_force_constants(force_constants, supercell))
@@ -46,13 +44,8 @@ def _format_sparse_force_constants(
     except KeyError as error:
         raise ValueError("supercell is missing MLFCS periodic mapping metadata") from error
     primitive_cell = np.linalg.inv(index.supercell_matrix) @ np.asarray(supercell.cell)
-    if fc.is_lattice_labelled:
-        sites = np.asarray(fc.sites)
-        relative = np.asarray(fc.translations)
-    else:
-        sites = index.primitive[fc.clusters]
-        translations = index.translations[fc.clusters]
-        relative = translations[:, 1:] - translations[:, :1]
+    sites = np.asarray(fc.sites)
+    relative = np.asarray(fc.translations)
     physical: dict[tuple[int, ...], tuple[np.ndarray, np.ndarray, np.ndarray]] = {}
     for site_labels, translations, tensor in zip(sites, relative, fc.tensors, strict=True):
         translations = np.atleast_2d(translations)

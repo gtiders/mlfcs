@@ -10,7 +10,6 @@ from scipy import sparse
 from supercell_helpers import make_supercell
 
 from mlfcs.fitting import ForceConstantFitter
-from mlfcs.fitting.basis import convert_sparse_wick_reference as _wick_to_taylor_sparse
 from mlfcs.fitting.basis import symmetrized_covariance as _symmetrized_covariance
 from mlfcs.fitting.basis import wick as _wick
 from mlfcs.fitting.basis import wick_axis_derivatives as _wick_axis_derivatives
@@ -28,7 +27,6 @@ from mlfcs.fitting.model import (
 from mlfcs.fitting.parameterization import OrderParameterization as _OrderTensor
 from mlfcs.fitting.parameterization import expand_sparse as _expand_sparse
 from mlfcs.fitting.solver import explicit_constraint_null_space
-from mlfcs.ifc.model import SparseOrderForceConstants
 
 
 def test_fitter_fit_exposes_only_strict_solver_controls():
@@ -98,21 +96,6 @@ def test_shared_wick_axis_derivatives_equal_independent_recursions():
         np.testing.assert_allclose(values, expected, rtol=1e-13, atol=1e-13)
 
 
-def test_wick_sparse_coefficients_are_converted_to_taylor_coefficients():
-    fc3 = SparseOrderForceConstants(3, 1, 1, np.zeros((1, 3), dtype=int), np.ones((1, 3, 3, 3)))
-    fc5 = SparseOrderForceConstants(
-        5, 1, 1, np.zeros((1, 5), dtype=int), np.ones((1, 3, 3, 3, 3, 3))
-    )
-    covariance = np.diag([2.0, 3.0, 5.0])
-
-    converted = _wick_to_taylor_sparse({3: fc3, 5: fc5}, covariance)
-
-    # :u^5: = u^5 - 10 sigma u^3 + ..., while the IFC convention
-    # divides the two potential terms by 5! and 3!, giving -sigma/2.
-    np.testing.assert_allclose(converted[3].tensors[0], 1.0 - 0.5 * np.trace(covariance))
-    np.testing.assert_allclose(converted[5].tensors, fc5.tensors)
-
-
 def test_reduced_wick_transform_matches_sparse_tensor_conversion():
     from ase import Atoms
 
@@ -138,38 +121,12 @@ def test_reduced_wick_transform_matches_sparse_tensor_conversion():
     parameters = rng.normal(size=n_parameters)
     displacement = rng.normal(size=(20, len(reference), 3))
     covariance = _symmetrized_covariance(displacement, calculations[0])
-    raw = _expand_sparse(parameters, calculations, 1, 2)
-    expected = _wick_to_taylor_sparse(raw, covariance)
     transform = build_wick_to_taylor_transform(calculations, covariance)
-    actual = _expand_sparse(np.asarray(transform @ parameters), calculations, 1, 2)
+    actual = _expand_sparse(np.asarray(transform @ parameters), calculations)
 
     for order in (2, 3, 4):
-        np.testing.assert_array_equal(actual[order].clusters, expected[order].clusters)
-        assert actual[order].tensors.shape == expected[order].tensors.shape
+        assert actual[order].tensors.shape[1:] == (3,) * order
         assert np.all(np.isfinite(actual[order].tensors))
-
-
-def test_wick_to_taylor_conversion_preserves_polynomial_force():
-    sigma = 0.7
-    phi3 = 2.5
-    phi5 = -1.2
-    tensor3 = np.zeros((1, 3, 3, 3))
-    tensor5 = np.zeros((1, 3, 3, 3, 3, 3))
-    tensor3[(0, 0, 0, 0)] = phi3
-    tensor5[(0, 0, 0, 0, 0, 0)] = phi5
-    fc3 = SparseOrderForceConstants(3, 1, 1, np.zeros((1, 3), dtype=int), tensor3)
-    fc5 = SparseOrderForceConstants(5, 1, 1, np.zeros((1, 5), dtype=int), tensor5)
-    covariance = np.diag([sigma, 0.0, 0.0])
-    converted = _wick_to_taylor_sparse({3: fc3, 5: fc5}, covariance)
-    for displacement in (-1.3, -0.2, 0.8):
-        wick_force = -phi3 * (displacement**2 - sigma) / 2
-        wick_force -= phi5 * (displacement**4 - 6 * sigma * displacement**2 + 3 * sigma**2) / 24
-        # Constants in the force are the derivative of an omitted FC1 term;
-        # compare the displacement-dependent FC3+FC5 part represented by IFCs.
-        taylor_force = -converted[3].tensors[(0, 0, 0, 0)] * displacement**2 / 2
-        taylor_force -= converted[5].tensors[(0, 0, 0, 0, 0, 0)] * displacement**4 / 24
-        wick_force_without_constant = wick_force - (phi3 * sigma / 2 - phi5 * sigma**2 / 8)
-        np.testing.assert_allclose(taylor_force, wick_force_without_constant)
 
 
 def test_reported_omitted_fc1_reproduces_constant_wick_force():

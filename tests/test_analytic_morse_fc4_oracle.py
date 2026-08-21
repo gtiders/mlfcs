@@ -116,7 +116,20 @@ def finite_difference_fc4(displacement: float) -> tuple[np.ndarray, np.ndarray]:
     model = calculation(displacement)
     result = model.run(calculator(), acoustic_sum_rule=False)
     sparse = result.sparse[4]
-    return sparse.tensors, exact_sparse_fc4(model, sparse.clusters)
+    clusters = np.asarray(
+        [
+            [
+                model.index.representative(int(sites[0])),
+                *[
+                    model.index.atom(int(site), translation)
+                    for site, translation in zip(sites[1:], translations, strict=True)
+                ],
+            ]
+            for sites, translations in zip(sparse.sites, sparse.translations, strict=True)
+        ],
+        dtype=np.int32,
+    )
+    return sparse.tensors, exact_sparse_fc4(model, clusters)
 
 
 def error_metrics(actual: np.ndarray, expected: np.ndarray) -> dict[str, float]:

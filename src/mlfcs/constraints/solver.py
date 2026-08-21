@@ -8,7 +8,7 @@ from mlfcs.constraints.asr import maximum_acoustic_sum_rule_drift, project_acous
 from mlfcs.core.geometry import PeriodicIndex
 from mlfcs.core.orbits import OrbitSpace
 from mlfcs.finite_difference.sampling import DisplacementKey
-from mlfcs.ifc.expansion import expand_orbit_parameters, expand_primitive_parameters
+from mlfcs.ifc.expansion import expand_primitive_parameters
 from mlfcs.ifc.model import SparseOrderForceConstants
 
 
@@ -59,19 +59,9 @@ def reconstruct_sparse(
         )
         report(f"- Max drift of fc{order}: {drift:.10e} eV/angstrom^{order} (ASR disabled)")
     parameters = np.concatenate(pivot_values) if pivot_values else np.empty(0, dtype=float)
-    if primitive_interaction_space is not None:
-        return expand_primitive_parameters(
-            primitive_interaction_space,
-            parameters,
-            index=index,
-        )
-    return expand_orbit_parameters(
-        orbit_space,
-        parameters,
-        n_primitive=index.n_primitive,
-        n_supercell=len(index.primitive),
-        index=index,
-    )
+    if primitive_interaction_space is None:
+        raise ValueError("reconstruction requires a primitive exact interaction space")
+    return expand_primitive_parameters(primitive_interaction_space, parameters)
 
 
 def _report_parameter_correction(

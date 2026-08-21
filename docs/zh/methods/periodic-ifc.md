@@ -1,7 +1,8 @@
 # 周期几何与 IFC
 
-共享的 `StructureRelation` 和 `PeriodicIndex` 使用 primitive site 与平移 residue 建立映射，不依赖对角
-`repeats` 或 cell-major 原子顺序。`PeriodicGeometry` 使用一般 MIC、Minkowski 约化搜索和全部等距最近像。
+`StructureRelation` 在 primitive 与一个具体 reference 之间建立映射，不依赖对角 `repeats` 或
+cell-major 原子顺序。其基于 HNF 的商群只负责把 exact 晶格标签 realization 到有限 reference；
+interaction 的发现则直接在无限 primitive 晶格中完成。
 
 原生稀疏模型保存 lattice-labelled 条目：
 
@@ -11,5 +12,6 @@ translations  (K, order - 1, 3)
 tensors                      (K, 3, ..., 3)
 ```
 
-residue 是有限超胞中的物理标签。任意 q 点 Fourier 插值时，SCPH 会解析全部简并 Wigner-Seitz 镜像并
-等权处理相位。writer 不会自行猜测原子顺序或周期几何。
+这里的整数平移是 exact primitive 晶格矢量，不是有限超胞 residue。因此 Fourier 相位可直接使用
+这些平移，同一组 IFC 也可展开到任意经过验证的整数超胞。residue reduction 只发生在有限计算视图
+或输出边界；格式特有的周期镜像规则留在相应 writer 内部。

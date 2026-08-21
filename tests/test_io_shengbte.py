@@ -11,7 +11,8 @@ def test_third_order_direction_and_block_order(tmp_path):
     atoms = Atoms("Si", positions=[[0, 0, 0]], cell=np.eye(3) * 5, pbc=True)
     supercell, _ = make_supercell(atoms, (1, 1, 1))
     values = SparseOrderForceConstants(
-        3, 1, 1, np.asarray([[0, 0, 0]]), np.arange(27, dtype=float).reshape((1, 3, 3, 3))
+        3, np.asarray([[0, 0, 0]]), np.zeros((1, 2, 3), dtype=int),
+        np.arange(27, dtype=float).reshape((1, 3, 3, 3))
     )
     output = tmp_path / "FORCE_CONSTANTS_3RD"
     write_shengbte(output, values, supercell)
@@ -28,9 +29,8 @@ def test_fourth_order_direction_and_block_order(tmp_path):
     supercell, _ = make_supercell(atoms, (1, 1, 1))
     values = SparseOrderForceConstants(
         4,
-        1,
-        1,
         np.asarray([[0, 0, 0, 0]]),
+        np.zeros((1, 3, 3), dtype=int),
         np.arange(81, dtype=float).reshape((1, 3, 3, 3, 3)),
     )
     output = tmp_path / "FORCE_CONSTANTS_4TH"
@@ -50,12 +50,9 @@ def test_writer_serializes_each_exact_sparse_interaction_once(tmp_path):
     tensors[0, 0, 0, 0] = 7.0
     values = SparseOrderForceConstants(
         3,
-        1,
-        2,
-        np.asarray([[0, 1, 1]]),
+        np.asarray([[0, 0, 0]]),
+        np.asarray([[[1, 0, 0], [1, 0, 0]]]),
         tensors,
-        sites=np.asarray([[0, 0, 0]]),
-        translations=np.asarray([[[1, 0, 0], [1, 0, 0]]]),
     )
     output = tmp_path / "FORCE_CONSTANTS_3RD"
 
@@ -73,9 +70,8 @@ def test_force_constants_writes_closed_sparse_support_without_materializing(tmp_
     tensors[0, 0, 0, 0] = 7.0
     sparse = SparseOrderForceConstants(
         order=3,
-        n_primitive=1,
-        n_supercell=2,
-        clusters=np.asarray([[0, 1, 1]]),
+        sites=np.asarray([[0, 0, 0]]),
+        translations=np.asarray([[[1, 0, 0], [1, 0, 0]]]),
         tensors=tensors,
     )
     result = ForceConstants(
@@ -94,26 +90,13 @@ def test_force_constants_writes_closed_sparse_support_without_materializing(tmp_
 
 def test_sparse_writer_uses_general_lattice_labels_for_reordered_nondiagonal_cells(tmp_path):
     primitive = Atoms("Si", positions=[[0, 0, 0]], cell=np.eye(3) * 5, pbc=True)
-    supercell, index = make_supercell(primitive, [[2, 1, 0], [0, 1, 0], [0, 0, 1]])
+    supercell, _ = make_supercell(primitive, [[2, 1, 0], [0, 1, 0], [0, 0, 1]])
     supercell = supercell[[1, 0]]
-    # Rebuild the index in the deliberately shuffled reference order.
-    from mlfcs.core.geometry import PeriodicIndex
-
-    index = PeriodicIndex(
-        supercell.arrays["primitive_index"],
-        supercell.arrays["cell_translation"],
-        supercell.info["mlfcs_supercell_matrix"],
-    )
-    first = index.representative(0)
-    tail = index.atom(0, [1, 0, 0])
     sparse = SparseOrderForceConstants(
         3,
-        1,
-        2,
-        np.asarray([[first, tail, tail]]),
+        np.asarray([[0, 0, 0]]),
+        np.asarray([[[1, 0, 0], [1, 0, 0]]]),
         np.ones((1, 3, 3, 3)),
-        sites=np.asarray([[0, 0, 0]]),
-        translations=np.asarray([[[1, 0, 0], [1, 0, 0]]]),
     )
     output = tmp_path / "FORCE_CONSTANTS_3RD"
     write_shengbte(output, sparse, supercell)
@@ -127,17 +110,12 @@ def test_sparse_writer_uses_general_lattice_labels_for_reordered_nondiagonal_cel
 @pytest.mark.parametrize("order", [3, 4])
 def test_writer_preserves_exact_shengbte_translations(tmp_path, order):
     primitive = Atoms("Si", positions=[[0, 0, 0]], cell=np.eye(3) * 5, pbc=True)
-    supercell, index = make_supercell(primitive, (4, 1, 1))
-    anchor = index.atom(0, [0, 0, 0])
-    tail = index.atom(0, [3, 0, 0])
+    supercell, _ = make_supercell(primitive, (4, 1, 1))
     sparse = SparseOrderForceConstants(
         order,
-        1,
-        4,
-        np.asarray([[anchor, *([tail] * (order - 1))]]),
+        np.zeros((1, order), dtype=np.int32),
+        np.asarray([[[3, 0, 0]] * (order - 1)]),
         np.ones((1,) + (3,) * order),
-        sites=np.zeros((1, order), dtype=np.int32),
-        translations=np.asarray([[[3, 0, 0]] * (order - 1)]),
     )
     output = tmp_path / f"FORCE_CONSTANTS_{order}TH"
 
@@ -157,7 +135,8 @@ def test_writer_rejects_orders_outside_shengbte_contract(tmp_path):
     atoms = Atoms("Si", positions=[[0, 0, 0]], cell=np.eye(3) * 5, pbc=True)
     supercell, _ = make_supercell(atoms, (1, 1, 1))
     values = SparseOrderForceConstants(
-        5, 1, 1, np.zeros((1, 5), dtype=np.int32), np.zeros((1,) + (3,) * 5)
+        5, np.zeros((1, 5), dtype=np.int32), np.zeros((1, 4, 3), dtype=np.int32),
+        np.zeros((1,) + (3,) * 5)
     )
     output = tmp_path / "FORCE_CONSTANTS_5TH"
     with pytest.raises(ValueError, match="third- and fourth-order"):

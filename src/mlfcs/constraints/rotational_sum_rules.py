@@ -143,18 +143,7 @@ def enforce_rotational_sum_rules(
 
 
 def _lattice_labels(fc2: SparseOrderForceConstants, relation) -> tuple[np.ndarray, np.ndarray]:
-    if fc2.is_lattice_labelled:
-        assert fc2.sites is not None
-        assert fc2.translations is not None
-        sites = fc2.sites.copy()
-        translations = fc2.translations[:, 0, :].copy()
-    else:
-        index = relation.index
-        sites = index.primitive[fc2.clusters]
-        translations = (
-            index.translations[fc2.clusters[:, 1]] - index.translations[fc2.clusters[:, 0]]
-        )
-    return sites, translations
+    return fc2.sites.copy(), fc2.translations[:, 0, :].copy()
 
 
 def _physical_fc2_values(fc2, sites, translations, relation):
@@ -296,17 +285,7 @@ def _replace_fc2(force_constants, fc2, keys, values, sites, translations) -> For
         tensors[row] = lookup[key]
     sparse_values = dict(force_constants.sparse)
     sparse_values[2] = SparseOrderForceConstants(
-        order=fc2.order,
-        n_primitive=fc2.n_primitive,
-        n_supercell=fc2.n_supercell,
-        clusters=fc2.clusters.copy(),
-        tensors=tensors,
-        sites=None if fc2.sites is None else fc2.sites.copy(),
-        translations=(
-            None
-            if fc2.translations is None
-            else fc2.translations.copy()
-        ),
+        order=fc2.order, sites=fc2.sites.copy(), translations=fc2.translations.copy(), tensors=tensors
     )
     arrays = {order: array.copy() for order, array in force_constants.arrays.items() if order != 2}
     return ForceConstants(

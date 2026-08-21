@@ -108,7 +108,7 @@ def image_parameter_basis(parameterization):
     return np.take_along_axis(result, component_indices, axis=2)
 
 
-def expand_sparse(parameters, calculations, n_primitive, n_supercell):
+def expand_sparse(parameters, calculations):
     """Expand irreducible parameters into symmetry-related sparse IFC tensors."""
     result = {}
     offset = 0
@@ -120,7 +120,6 @@ def expand_sparse(parameters, calculations, n_primitive, n_supercell):
         result[calculation.config.order] = expand_primitive_parameters(
             primitive_space,
             parameters[offset : offset + count],
-            index=calculation.index,
         )
         offset += count
     return result

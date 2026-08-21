@@ -41,7 +41,6 @@ def _export_cache_key(force_constants: ForceConstants, primitive, supercell) -> 
     sparse_identity = tuple(
         (
             int(order),
-            id(values.clusters),
             id(values.tensors),
             id(values.sites),
             id(values.translations),
@@ -138,11 +137,8 @@ def build_export_view(
     source_to_target_translation = np.linalg.inv(primitive_change)
     sparse: dict[int, SparseOrderForceConstants] = {}
     for order, values in force_constants.sparse.items():
-        clusters = np.empty_like(values.clusters)
-        labelled_sites = np.empty_like(values.clusters)
-        labelled_translations = np.empty((len(values.clusters), order - 1, 3), dtype=np.int32)
-        if values.sites is None or values.translations is None:
-            raise ValueError("target realization requires exact lattice-labelled force constants")
+        labelled_sites = np.empty_like(values.sites)
+        labelled_translations = np.empty_like(values.translations)
         for row, (source_sites, source_relative) in enumerate(
             zip(values.sites, values.translations, strict=True)
         ):
@@ -151,21 +147,16 @@ def build_export_view(
                 np.int32
             )
             translated += site_shift[source_sites]
-            clusters[row, 0] = target.index.representative(int(site_map[source_sites[0]]))
             labelled_sites[row, 0] = site_map[source_sites[0]]
             for axis in range(1, order):
                 relative = translated[axis] - translated[0]
-                clusters[row, axis] = target.index.atom(int(site_map[source_sites[axis]]), relative)
                 labelled_sites[row, axis] = site_map[source_sites[axis]]
                 labelled_translations[row, axis - 1] = relative
         sparse[order] = SparseOrderForceConstants(
             order,
-            target.index.n_primitive,
-            len(target.reference),
-            clusters,
-            values.tensors.copy(),
             labelled_sites,
             labelled_translations,
+            values.tensors.copy(),
         )
     if force_constants.arrays and not force_constants.sparse:
         raise ValueError("target export requires lattice-labelled sparse force constants")

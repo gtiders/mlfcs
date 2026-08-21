@@ -19,7 +19,6 @@ from mlfcs.fitting import ForceConstantFitter
 from mlfcs.ifc.model import (
     ForceConstants,
     lattice_fc2,
-    lattice_fc2_from_compact,
     replace_lattice_fc2,
 )
 
@@ -248,11 +247,9 @@ class SSCHA:
                 np.linalg.norm(fitted_compact - sampling_compact)
                 / max(float(denominator), np.finfo(float).tiny)
             )
-            previous_lattice = (
-                lattice_fc2(self._force_constants)
-                if self._force_constants is not None
-                else lattice_fc2_from_compact(fit.force_constants, sampling_compact)
-            )
+            if self._force_constants is None:
+                raise RuntimeError("mixed SSCHA iteration is missing its previous exact FC2 state")
+            previous_lattice = lattice_fc2(self._force_constants)
             if previous_lattice.keys() != fitted_lattice.keys():
                 raise ValueError("SSCHA FC2 support changed between self-consistent iterations")
             next_lattice = {

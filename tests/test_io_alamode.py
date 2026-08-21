@@ -15,11 +15,14 @@ from mlfcs.io.alamode import AlamodeMirrorImageError, write_alamode
 def _sparse(order, n_primitive, n_supercell, cluster, component, value):
     tensor = np.zeros((3,) * order)
     tensor[component] = value
+    n_cells = n_supercell // n_primitive
+    sites = np.asarray([[atom // n_cells for atom in cluster]], dtype=np.int32)
+    cells = np.asarray([[atom % n_cells, 0, 0] for atom in cluster], dtype=np.int32)
+    translations = (cells[1:] - cells[0]).reshape(1, order - 1, 3)
     return SparseOrderForceConstants(
         order,
-        n_primitive,
-        n_supercell,
-        np.asarray([cluster], dtype=np.int32),
+        sites,
+        translations,
         np.asarray([tensor]),
     )
 

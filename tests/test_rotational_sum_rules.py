@@ -13,30 +13,21 @@ def test_strict_harmonic_projection_uses_tied_images_and_keeps_higher_orders():
     )
     fc2 = SparseOrderForceConstants(
         2,
-        1,
-        2,
-        np.array([[0, 0], [0, 1]], dtype=np.int32),
+        np.array([[0, 0], [0, 0]], dtype=np.int32),
+        np.array([[[0, 0, 0]], [[1, 0, 0]]], dtype=np.int32),
         np.array([np.eye(3), -np.eye(3)]),
-        sites=np.array([[0, 0], [0, 0]], dtype=np.int32),
-        translations=np.array([[[0, 0, 0]], [[1, 0, 0]]], dtype=np.int32),
     )
     fc3 = SparseOrderForceConstants(
         3,
-        1,
-        2,
-        np.array([[0, 1, 1]], dtype=np.int32),
+        np.array([[0, 0, 0]], dtype=np.int32),
+        np.array([[[1, 0, 0], [1, 0, 0]]], dtype=np.int32),
         np.ones((1, 3, 3, 3)),
-        sites=np.array([[0, 0, 0]], dtype=np.int32),
-        translations=np.array([[[1, 0, 0], [1, 0, 0]]], dtype=np.int32),
     )
     fc4 = SparseOrderForceConstants(
         4,
-        1,
-        2,
-        np.array([[0, 1, 1, 1]], dtype=np.int32),
+        np.array([[0, 0, 0, 0]], dtype=np.int32),
+        np.array([[[1, 0, 0], [1, 0, 0], [1, 0, 0]]], dtype=np.int32),
         np.ones((1, 3, 3, 3, 3)),
-        sites=np.array([[0, 0, 0, 0]], dtype=np.int32),
-        translations=np.array([[[1, 0, 0], [1, 0, 0], [1, 0, 0]]], dtype=np.int32),
     )
     result = ForceConstants(
         {},
@@ -61,12 +52,9 @@ def test_strength_zero_only_enforces_asr():
     )
     fc2 = SparseOrderForceConstants(
         2,
-        1,
-        2,
-        np.array([[0, 0], [0, 1]], dtype=np.int32),
+        np.array([[0, 0], [0, 0]], dtype=np.int32),
+        np.array([[[0, 0, 0]], [[1, 0, 0]]], dtype=np.int32),
         np.array([np.eye(3), np.eye(3)]),
-        sites=np.array([[0, 0], [0, 0]], dtype=np.int32),
-        translations=np.array([[[0, 0, 0]], [[1, 0, 0]]], dtype=np.int32),
     )
     result = ForceConstants(
         {}, calculation.supercell, sparse={2: fc2}, relation=calculation.interaction_space.relation

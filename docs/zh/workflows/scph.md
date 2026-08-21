@@ -144,24 +144,16 @@ q 点网格由 reference 超胞矩阵的整数倍自动生成：
  R\sim R+nS,\qquad n\in\mathbb Z^3 .
 \]
 
-因此一个有限超胞只能区分平移的 residue，而不能区分相差一个超胞平移的两个周期像。
-`PeriodicIndex` 使用 `(primitive_site, residue)` 做 O(1) 原子查找；它只负责把物理标签映射
-到 reference 原子号，不按 cell-major 假设重排 reference，也不改变 FC 张量的物理标签。
-
-对每个 primitive site，`StructureRelation` 保留 reference 中实际使用的整数平移代表。
-`_fourier_terms` 先取该 site 的零 residue 代表作为锚点，再计算
+有限超胞 realization 时，`PeriodicIndex` 使用 `(primitive_site, residue)` 做 O(1) 原子查找；
+但 canonical IFC 保存的是 exact primitive translation，而不是 residue。`_fourier_terms` 直接计算
 
 ```text
-R_atom = translation(atom) - translation(anchor)
-d_f = (r_site - r_first) @ A^{-1} + R_atom
+R_exact = translations[row]
+d_f = (r_site - r_first) @ A^{-1} + R_exact
 ```
 
-这一步很重要：原子查找可以使用 residue，但 Fourier 相位不能使用原子编号的商群余数，
-也不能根据 reference 的排列猜测平移。对于与 reference supercell 相容的 q 网格，替换
-`R` 为 `R+nS` 的相位完全相同；对于不相容的任意 q，有限超胞本身无法唯一决定应选哪一个
-周期像，因此 MLFCS 使用 StructureRelation 保存的 reference 平移代表，并在整个 SCPH
-计算中保持一致。这保证了原子重排不会改变结果，但不声称有限超胞能够恢复超胞截断之外的
-真实长程 IFC。
+因此 Fourier 相位不依赖原子编号、reference 排列或商群代表元。训练超胞只决定哪些 exact
+interaction 可被辨识；拟合完成后的 primitive 实空间 IFC 可在任意 q 点使用。
 
 协方差使用同一周期约定。FC4 条目的内部两个腿为 `(s3,R3)` 和 `(s4,R4)` 时，代码只需
 计算相对平移 `R3-R4`：
