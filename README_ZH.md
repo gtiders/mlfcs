@@ -451,7 +451,7 @@ uv build
 ```
 
 本地测试只包含确定性的单元和公共 API 回归。材料比较和第三方输运工作流记录在
-`examples/`，需要时手动运行。CI 只构建双语文档站。测试组织见 [tests/README.md](tests/README.md)。
+`examples/cases/`，需要时手动运行。CI 只构建双语文档站。测试组织见 [tests/README.md](tests/README.md)。
 
 当前开发预发布版本为 `4.0.0a2`（4.0 alpha 2）。版本变化见 [CHANGELOG_ZH.md](CHANGELOG_ZH.md)，开发流程见
 [CONTRIBUTING.md](CONTRIBUTING.md)。

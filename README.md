@@ -481,7 +481,7 @@ uv build
 ```
 
 Local tests are deterministic unit and public-API regressions. Material comparisons and third-party
-transport workflows are documented under `examples/` and are run manually. CI only builds
+transport workflows are documented under `examples/cases/` and are run manually. CI only builds
 the bilingual documentation sites. The test organization is documented in [tests/README.md](tests/README.md).
 
 The current development version is `4.0.0a2` (4.0 alpha 2). See [CHANGELOG.md](CHANGELOG.md) for release notes and

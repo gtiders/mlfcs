@@ -6,11 +6,11 @@
 
 ## 材料案例
 
-- [Si](https://github.com/gtiders/mlfcs/tree/main/examples/finite-difference/Si/README.md)：有限差分和仅力数据拟合。
-- [K4As4Pt2](https://github.com/gtiders/mlfcs/tree/main/examples/fitting/K4As4Pt2/README.md)：FC2--FC4 拟合和 loop-SCPH。
-- [Ba8Ga16Ge30](https://github.com/gtiders/mlfcs/tree/main/examples/fitting/Ba8Ga16Ge30/README.md)：公开 hiPhive 训练数据。
-- [KCl](https://github.com/gtiders/mlfcs/tree/main/examples/sscha/KCl/README.md)：原生 SSCHA 参考。
-- [MoS2 和 graphene](https://github.com/gtiders/mlfcs/tree/main/examples/fitting/MoS2_monolayer/README.md)：二阶旋转约束。
+- [Si](https://github.com/gtiders/mlfcs/tree/main/examples/cases/Si/README.md)：有限差分和仅力数据拟合。
+- [K4As4Pt2](https://github.com/gtiders/mlfcs/tree/main/examples/cases/K4As4Pt2/fitting/README.md)：FC2--FC4 拟合和 loop-SCPH。
+- [Ba8Ga16Ge30](https://github.com/gtiders/mlfcs/tree/main/examples/cases/Ba8Ga16Ge30/fitting/README.md)：公开 hiPhive 训练数据。
+- [KCl](https://github.com/gtiders/mlfcs/tree/main/examples/cases/KCl/sscha/README.md)：原生 SSCHA 参考。
+- [MoS2 和 graphene](https://github.com/gtiders/mlfcs/tree/main/examples/cases/rotational_sum_rules/MoS2_monolayer/README.md)：二阶旋转约束。
 
 本目录脚本演示 MLFCS 公共 API，请在仓库根目录通过 `uv run` 执行。它们只是示例，
 不表示 MLFCS 恢复了命令行接口。

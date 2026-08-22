@@ -5,7 +5,7 @@ MLFCS has two distinct local validation surfaces:
 | Location | Role | CI |
 |---|---|---|
 | `tests/` | Deterministic unit and public API regression tests | Not run in CI |
-| `examples/` | Material workflows and third-party reference evidence | Not run in CI |
+| `examples/cases/` | Material workflows and third-party reference evidence | Not run in CI |
 
 ## Tests
 
@@ -27,7 +27,7 @@ Material comparisons and transport numbers are never ordinary pytest truth array
 Top-level `examples/*.py` files demonstrate one public API task. Material data lives in:
 
 ```text
-examples/<Material>/<case>/
+examples/cases/<Material>/<case>/
   README.md
   structures/
   fitting/

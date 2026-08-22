@@ -5,7 +5,7 @@
 
 解析 Morse FC4 测试使用独立能量表达式，验证有限差分阶数和 FC4 数值，不依赖另一套力常数实现。
 
-过去位于 `tests/reference/` 的材料比较现在归入对应的 `examples/<Material>/` README。第三方输出和
+过去位于 `tests/reference/` 的材料比较现在归入对应的 `examples/cases/<Material>/` README。第三方输出和
 来源作为人工审查的证据保留，不再作为自动真值数组。比较 IFC、声子或输运结果前，README 必须说明
 primitive、supercell、原子顺序、单位、cutoff、周期镜像约定和约束。
 

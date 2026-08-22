@@ -14,7 +14,6 @@ wheels/
 /examples-next/**/reference/baselines/
 /examples/**/transport/**/input/*.h5
 /examples-next/**/transport/**/input/*.h5
-/examples/**/kappa-m*.hdf5
 
 # Virtual environments
 .venv
