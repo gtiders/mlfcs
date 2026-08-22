@@ -28,15 +28,16 @@ def generate(source: Path, target: Path) -> None:
     calculation = ForceConstantCalculation(
         primitive,
         order=ORDER,
-        supercell_matrix=SUPERCELL,
+        supercell=SUPERCELL,
         cutoff=-NEIGHBOR_SHELL,
         displacement=DISPLACEMENT,
+        jax_platform="cpu",
     )
-    structures = calculation.sow()
+    structures = calculation.sow(atom_order="grouped")
     write(target / "POSCAR-unitcell", primitive, format="vasp", direct=True, vasp5=True)
     write(
         target / "SPOSCAR",
-        calculation.supercell,
+        calculation.index.group_atoms(calculation.supercell),
         format="vasp",
         direct=True,
         vasp5=True,
@@ -61,7 +62,7 @@ def generate(source: Path, target: Path) -> None:
         "cutoff": -NEIGHBOR_SHELL,
         "cutoff_angstrom": calculation.cutoff,
         "displacement_angstrom": DISPLACEMENT,
-        "atom_order": "reference",
+        "atom_order": "grouped",
         "configurations": records,
     }
     (target / "sow-plan.json").write_text(
