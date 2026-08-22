@@ -3,8 +3,9 @@ import pytest
 from ase.build import bulk
 from supercell_helpers import make_supercell
 
-from mlfcs.constraints.solver import reconstruct_sparse
-from mlfcs.core.real_space import build_primitive_interaction_space, realize_orbit_space
+from mlfcs.finite_difference.reconstruction import reconstruct_sparse
+from mlfcs.interactions.enumerate import build_primitive_interaction_space
+from mlfcs.interactions.realization import realize_orbit_space
 
 
 @pytest.mark.parametrize("order", [3, 4])
@@ -44,11 +45,14 @@ def test_reconstructs_every_orbit_from_independent_components(order):
         enforce_asr=False,
         primitive_interaction_space=primitive_space,
     )
-    from mlfcs.core.geometry import StructureRelation
-    from mlfcs.ifc.model import ForceConstants
+    from mlfcs.force_constants.data import ForceConstants
+    from mlfcs.structure.relation import StructureRelation
 
     compact = ForceConstants(
-        {}, supercell, sparse={order: sparse}, relation=StructureRelation.from_atoms(primitive, supercell)
+        {},
+        supercell,
+        sparse={order: sparse},
+        relation=StructureRelation.from_atoms(primitive, supercell),
     ).materialize(order)
     for cluster, tensor in expected.items():
         dense_key = (index.primitive[cluster[0]], *cluster[1:])

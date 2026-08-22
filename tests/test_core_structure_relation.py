@@ -4,12 +4,9 @@ from ase import Atoms
 from ase.geometry import find_mic
 from supercell_helpers import make_supercell
 
-from mlfcs.api import ForceConstantCalculation
-from mlfcs.core.geometry import (
-    PeriodicGeometry,
-    StructureRelation,
-    align_structures,
-)
+from mlfcs.finite_difference.calculation import ForceConstantCalculation
+from mlfcs.structure.periodic_geometry import PeriodicGeometry
+from mlfcs.structure.relation import StructureRelation, align_structures
 
 
 def test_relation_preserves_reference_order_for_a_nondiagonal_supercell():
@@ -95,16 +92,10 @@ def test_finite_difference_reap_is_invariant_to_reference_atom_permutation():
     fc_a = canonical.reap(forces_a, acoustic_sum_rule=False).sparse[2]
     fc_b = shuffled.reap(forces_b, acoustic_sum_rule=False).sparse[2]
 
-    order_a = np.lexsort(
-        (*fc_a.translations.reshape(len(fc_a.tensors), -1).T, *fc_a.sites.T)
-    )
-    order_b = np.lexsort(
-        (*fc_b.translations.reshape(len(fc_b.tensors), -1).T, *fc_b.sites.T)
-    )
+    order_a = np.lexsort((*fc_a.translations.reshape(len(fc_a.tensors), -1).T, *fc_a.sites.T))
+    order_b = np.lexsort((*fc_b.translations.reshape(len(fc_b.tensors), -1).T, *fc_b.sites.T))
     np.testing.assert_array_equal(fc_a.sites[order_a], fc_b.sites[order_b])
-    np.testing.assert_array_equal(
-        fc_a.translations[order_a], fc_b.translations[order_b]
-    )
+    np.testing.assert_array_equal(fc_a.translations[order_a], fc_b.translations[order_b])
     np.testing.assert_allclose(fc_a.tensors[order_a], fc_b.tensors[order_b])
 
 

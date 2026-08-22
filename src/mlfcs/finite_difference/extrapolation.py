@@ -5,12 +5,12 @@ from dataclasses import dataclass
 import numpy as np
 from ase import Atoms
 
-from mlfcs.core.orbits import OrbitSpace
 from mlfcs.finite_difference.sampling import (
     DisplacementKey,
     DisplacementPlan,
     build_displacement_plan,
 )
+from mlfcs.interactions.orbits import OrbitSpace
 
 
 @dataclass(frozen=True, slots=True)

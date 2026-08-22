@@ -9,8 +9,8 @@ import h5py
 import numpy as np
 from ase import Atoms
 
-from mlfcs.core.geometry import StructureRelation
-from mlfcs.ifc.model import ForceConstants, SparseOrderForceConstants
+from mlfcs.force_constants.data import ForceConstants, SparseOrderForceConstants
+from mlfcs.structure.relation import StructureRelation
 
 SCHEMA_VERSION = 3
 
@@ -55,9 +55,7 @@ def write_hdf5(target: str | Path, force_constants: ForceConstants) -> None:
             entry.attrs["order"] = order
             entry.attrs["unit"] = f"eV/angstrom^{order}"
             entry.create_dataset("sites", data=values.sites, compression="gzip")
-            entry.create_dataset(
-                "translations", data=values.translations, compression="gzip"
-            )
+            entry.create_dataset("translations", data=values.translations, compression="gzip")
             entry.create_dataset("tensors", data=values.tensors, compression="gzip")
         for key, value in force_constants.metadata.items():
             if isinstance(value, (str, int, float, bool, np.number)):
@@ -67,6 +65,7 @@ def write_hdf5(target: str | Path, force_constants: ForceConstants) -> None:
 
 
 def read_hdf5(source: str | Path) -> ForceConstants:
+    """Read canonical primitive exact-R force constants from native HDF5 v3."""
     with h5py.File(source, "r") as handle:
         if int(handle.attrs.get("schema_version", 0)) != SCHEMA_VERSION:
             raise ValueError("unsupported native MLFCS HDF5 schema; only v3 is supported")

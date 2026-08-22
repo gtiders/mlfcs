@@ -3,8 +3,7 @@ from itertools import product
 import numpy as np
 import pytest
 
-from mlfcs.core.geometry import PeriodicIndex, _coset_translations, _translation_label
-from mlfcs.core.integer_lattice import (
+from mlfcs.structure.integer_lattice import (
     IntegerLatticeQuotient,
     adjugate_3x3,
     determinant_3x3,
@@ -12,6 +11,7 @@ from mlfcs.core.integer_lattice import (
     row_hermite_normal_form,
     same_residue,
 )
+from mlfcs.structure.supercell_mapping import PeriodicIndex
 
 
 def test_integer_adjugate_is_exact_for_nondiagonal_signed_matrix():
@@ -31,11 +31,11 @@ def test_residue_equivalence_is_exact_and_shared_by_core_components():
     assert same_residue(translation, translation + period, matrix)
     assert not same_residue(translation, translation + [1, 0, 0], matrix)
 
-    translations = _coset_translations(matrix)
+    translations = IntegerLatticeQuotient(matrix).representatives
     primitive = np.zeros(len(translations), dtype=np.int32)
     index = PeriodicIndex(primitive, translations, matrix)
     assert index.residue(translation) == index.residue(translation + period)
-    assert _translation_label(translation, matrix) == residue_key(translation, matrix)
+    assert same_residue(index.residue(translation), translation, matrix)
 
 
 def test_residue_keys_have_exactly_determinant_many_representatives():

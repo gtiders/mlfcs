@@ -2,14 +2,18 @@ import numpy as np
 from ase import Atoms
 from supercell_helpers import make_supercell
 
-from mlfcs import ForceConstantCalculation
-from mlfcs.ifc.model import ForceConstants, SparseOrderForceConstants
+from mlfcs import ForceConstantCalculation, enforce_rotational_sum_rules
+from mlfcs.force_constants.data import ForceConstants, SparseOrderForceConstants
 
 
 def test_strict_harmonic_projection_uses_tied_images_and_keeps_higher_orders():
     primitive = Atoms("Si", positions=[[0, 0, 0]], cell=np.eye(3) * 3.0, pbc=True)
     calculation = ForceConstantCalculation(
-        primitive, order=2, reference=make_supercell(primitive, (2, 1, 1))[0], cutoff=3.1, verbose=False
+        primitive,
+        order=2,
+        reference=make_supercell(primitive, (2, 1, 1))[0],
+        cutoff=3.1,
+        verbose=False,
     )
     fc2 = SparseOrderForceConstants(
         2,
@@ -35,7 +39,7 @@ def test_strict_harmonic_projection_uses_tied_images_and_keeps_higher_orders():
         sparse={2: fc2, 3: fc3, 4: fc4},
         relation=calculation.interaction_space.relation,
     )
-    constrained = result.enforce_rotational_sum_rules(born_huang=True, huang=True)
+    constrained = enforce_rotational_sum_rules(result, born_huang=True, huang=True)
     diagnostics = constrained.diagnostics
     assert diagnostics.strength == 1.0
     assert diagnostics.huang_before is not None and diagnostics.huang_before > 1.0
@@ -48,7 +52,11 @@ def test_strict_harmonic_projection_uses_tied_images_and_keeps_higher_orders():
 def test_strength_zero_only_enforces_asr():
     primitive = Atoms("Si", positions=[[0, 0, 0]], cell=np.eye(3) * 3.0, pbc=True)
     calculation = ForceConstantCalculation(
-        primitive, order=2, reference=make_supercell(primitive, (2, 1, 1))[0], cutoff=3.1, verbose=False
+        primitive,
+        order=2,
+        reference=make_supercell(primitive, (2, 1, 1))[0],
+        cutoff=3.1,
+        verbose=False,
     )
     fc2 = SparseOrderForceConstants(
         2,
@@ -59,7 +67,7 @@ def test_strength_zero_only_enforces_asr():
     result = ForceConstants(
         {}, calculation.supercell, sparse={2: fc2}, relation=calculation.interaction_space.relation
     )
-    constrained = result.enforce_rotational_sum_rules(huang=True, strength=0.0)
+    constrained = enforce_rotational_sum_rules(result, huang=True, strength=0.0)
     assert constrained.diagnostics.acoustic_after < 1e-10
     assert constrained.diagnostics.huang_after is not None
     assert constrained.diagnostics.huang_after <= constrained.diagnostics.huang_before

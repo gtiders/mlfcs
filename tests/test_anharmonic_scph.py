@@ -4,11 +4,13 @@ import numpy as np
 import pytest
 from ase import Atoms
 
-from mlfcs.anharmonic.common.thermodynamics import mode_sigma
-from mlfcs.anharmonic.scph import LoopSCPH, _fourier_terms, harmonic_frequencies
-from mlfcs.core.geometry import StructureRelation
-from mlfcs.ifc.model import ForceConstants, SparseOrderForceConstants
+from mlfcs import write_force_constants
+from mlfcs.force_constants.data import ForceConstants, SparseOrderForceConstants
 from mlfcs.io.hdf5 import read_hdf5
+from mlfcs.physics.harmonic import mode_sigma
+from mlfcs.physics.scph.fourier import _fourier_terms, harmonic_frequencies
+from mlfcs.physics.scph.solver import LoopSCPH
+from mlfcs.structure.relation import StructureRelation
 
 
 def _force_constants(*, cell=4.0):
@@ -52,7 +54,7 @@ def test_loop_scph_accepts_independent_fc2_and_fc4_and_writes_effective_fc2(tmp_
     effective = result.force_constants.materialize(2)
     assert np.all(np.diag(effective[0, 0]) > np.diag(base[0, 0]))
     target = tmp_path / "effective.h5"
-    result.write(target, format="hdf5")
+    write_force_constants(result.force_constants, target, format="hdf5")
     assert read_hdf5(target).orders == (2,)
     assert result.history[0].frequency_change_thz >= 0.0
 
@@ -78,18 +80,28 @@ def test_loop_correction_has_quartic_one_half_factor():
 def test_loop_scph_qpoint_workers_preserve_covariance():
     fc2, fc4 = _force_constants()
     serial = LoopSCPH(
-        fc2=fc2, fc4=fc4, temperature=300,
-        interpolation_multiplier=1, scph_multiplier=2,
-        mixing=1.0, max_iterations=1, verbose=False, qpoint_workers=1,
+        fc2=fc2,
+        fc4=fc4,
+        temperature=300,
+        interpolation_multiplier=1,
+        scph_multiplier=2,
+        mixing=1.0,
+        max_iterations=1,
+        verbose=False,
+        qpoint_workers=1,
     ).run()
     parallel = LoopSCPH(
-        fc2=fc2, fc4=fc4, temperature=300,
-        interpolation_multiplier=1, scph_multiplier=2,
-        mixing=1.0, max_iterations=1, verbose=False, qpoint_workers=2,
+        fc2=fc2,
+        fc4=fc4,
+        temperature=300,
+        interpolation_multiplier=1,
+        scph_multiplier=2,
+        mixing=1.0,
+        max_iterations=1,
+        verbose=False,
+        qpoint_workers=2,
     ).run()
-    np.testing.assert_allclose(
-        serial.frequencies, parallel.frequencies, rtol=1e-12, atol=1e-12
-    )
+    np.testing.assert_allclose(serial.frequencies, parallel.frequencies, rtol=1e-12, atol=1e-12)
 
 
 def test_loop_scph_temperature_series_uses_previous_effective_fc2():

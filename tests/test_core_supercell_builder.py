@@ -7,8 +7,8 @@ import numpy as np
 from ase import Atoms
 
 from mlfcs import build_supercell
-from mlfcs.core.integer_lattice import normalize_supercell_matrix
-from mlfcs.core.supercell import _fallback_phonopy_old_style, _from_phonopy
+from mlfcs.structure.integer_lattice import normalize_supercell_matrix
+from mlfcs.structure.supercell import _fallback_phonopy_old_style, _from_phonopy
 
 
 def _primitive() -> Atoms:
@@ -31,14 +31,16 @@ def test_builder_uses_phonopy_order_and_returns_plain_ase_atoms():
 
 
 def test_builder_has_no_calculation_or_workflow_dependency():
-    path = Path(__file__).parents[1] / "src/mlfcs/core/supercell.py"
+    path = Path(__file__).parents[1] / "src/mlfcs/structure/supercell.py"
     tree = ast.parse(path.read_text())
     imports = {
         node.module
         for node in ast.walk(tree)
         if isinstance(node, ast.ImportFrom) and node.module is not None
     }
-    assert not any(value.startswith(("mlfcs.fitting", "mlfcs.io", "mlfcs.anharmonic")) for value in imports)
+    assert not any(
+        value.startswith(("mlfcs.fitting", "mlfcs.io", "mlfcs.physics")) for value in imports
+    )
 
 
 def test_fallback_is_identical_to_phonopy_old_style_for_a_general_matrix():

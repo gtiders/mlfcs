@@ -3,7 +3,8 @@ import pytest
 from ase import Atoms
 from supercell_helpers import make_supercell
 
-from mlfcs.ifc.model import ForceConstants, SparseOrderForceConstants
+from mlfcs import write_force_constants
+from mlfcs.force_constants.data import ForceConstants, SparseOrderForceConstants
 from mlfcs.io.shengbte import write_shengbte
 
 
@@ -11,8 +12,10 @@ def test_third_order_direction_and_block_order(tmp_path):
     atoms = Atoms("Si", positions=[[0, 0, 0]], cell=np.eye(3) * 5, pbc=True)
     supercell, _ = make_supercell(atoms, (1, 1, 1))
     values = SparseOrderForceConstants(
-        3, np.asarray([[0, 0, 0]]), np.zeros((1, 2, 3), dtype=int),
-        np.arange(27, dtype=float).reshape((1, 3, 3, 3))
+        3,
+        np.asarray([[0, 0, 0]]),
+        np.zeros((1, 2, 3), dtype=int),
+        np.arange(27, dtype=float).reshape((1, 3, 3, 3)),
     )
     output = tmp_path / "FORCE_CONSTANTS_3RD"
     write_shengbte(output, values, supercell)
@@ -82,7 +85,7 @@ def test_force_constants_writes_closed_sparse_support_without_materializing(tmp_
     )
 
     faithful = tmp_path / "faithful"
-    result.write(faithful, format="shengbte")
+    write_force_constants(result, faithful, format="shengbte")
     assert 3 not in result.arrays
 
     assert " 1  1  1     7.0000000000e+00" in faithful.read_text().splitlines()
@@ -135,8 +138,10 @@ def test_writer_rejects_orders_outside_shengbte_contract(tmp_path):
     atoms = Atoms("Si", positions=[[0, 0, 0]], cell=np.eye(3) * 5, pbc=True)
     supercell, _ = make_supercell(atoms, (1, 1, 1))
     values = SparseOrderForceConstants(
-        5, np.zeros((1, 5), dtype=np.int32), np.zeros((1, 4, 3), dtype=np.int32),
-        np.zeros((1,) + (3,) * 5)
+        5,
+        np.zeros((1, 5), dtype=np.int32),
+        np.zeros((1, 4, 3), dtype=np.int32),
+        np.zeros((1,) + (3,) * 5),
     )
     output = tmp_path / "FORCE_CONSTANTS_5TH"
     with pytest.raises(ValueError, match="third- and fourth-order"):

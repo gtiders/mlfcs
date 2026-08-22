@@ -4,15 +4,16 @@ from ase import Atoms
 from scipy import sparse
 from supercell_helpers import make_supercell
 
-from mlfcs.api import ForceConstantCalculation
-from mlfcs.core.real_space import InteractionKey
-from mlfcs.fitting.constraints import (
+from mlfcs.basis.wick_taylor import (
+    _target_orbit_intertwiner,
     _validate_missing_exact_contractions,
     build_wick_to_taylor_fc1_transform,
     omitted_taylor_fc1,
 )
-from mlfcs.fitting.solver import ConstraintNullSpace as _ConstraintNullSpace
-from mlfcs.fitting.solver import solve_scaled_group_lasso
+from mlfcs.finite_difference.calculation import ForceConstantCalculation
+from mlfcs.fitting.linear_solvers import ConstraintNullSpace as _ConstraintNullSpace
+from mlfcs.fitting.linear_solvers import solve_scaled_group_lasso
+from mlfcs.interactions.keys import InteractionKey
 
 
 def test_implicit_null_space_is_idempotent_and_satisfies_constraints():
@@ -41,6 +42,29 @@ def test_scaled_group_lasso_selects_orbits_and_preserves_hard_constraint():
     assert stop_code == 0
     np.testing.assert_allclose(parameters[0], parameters[1], atol=1e-12)
     assert abs(parameters[2]) < 1e-6
+
+
+def test_target_orbit_intertwiner_matches_joint_least_squares():
+    rng = np.random.default_rng(9821)
+    keys = (
+        InteractionKey((0, 0), ((0, 0, 0),)),
+        InteractionKey((0, 0), ((1, 0, 0),)),
+        InteractionKey((0, 0), ((0, 1, 0),)),
+    )
+    columns = [rng.normal(size=(9, 4)) for _ in keys]
+    stacked = np.vstack(columns)
+    right_hand_sides = [rng.normal(size=(9, 7)) for _ in keys]
+
+    intertwiner = _target_orbit_intertwiner(13, list(zip(keys, columns, strict=True)))
+    actual = sum(
+        intertwiner.dual_blocks[key] @ values
+        for key, values in zip(keys, right_hand_sides, strict=True)
+    )
+    expected = np.linalg.lstsq(stacked, np.vstack(right_hand_sides), rcond=None)[0]
+
+    assert intertwiner.offset == 13
+    assert intertwiner.dimension == 4
+    np.testing.assert_allclose(actual, expected, rtol=1e-13, atol=1e-13)
 
 
 def test_explicit_fc1_transform_matches_reported_wick_contraction():
@@ -102,7 +126,10 @@ def test_centrosymmetric_onsite_odd_tensor_has_zero_allowed_dimension():
         primitive, order=3, reference=reference, cutoff=4.1, verbose=False
     )
     onsite = InteractionKey((0, 0, 0), ((0, 0, 0), (0, 0, 0)))
-    assert all(orbit.representative != onsite for orbit in calculation.interaction_space.primitive_orbit_space.orbits)
+    assert all(
+        orbit.representative != onsite
+        for orbit in calculation.interaction_space.primitive_orbit_space.orbits
+    )
 
 
 def test_missing_nonzero_exact_wick_contraction_is_a_support_error():

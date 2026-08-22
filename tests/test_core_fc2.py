@@ -2,7 +2,7 @@ import numpy as np
 from ase.build import bulk
 from supercell_helpers import make_supercell
 
-from mlfcs.anharmonic.common.fc2 import compact_fc2, expand_compact_fc2
+from mlfcs.force_constants.dense import compact_fc2, expand_compact_fc2
 
 
 def test_compact_fc2_translation_expansion_roundtrip():

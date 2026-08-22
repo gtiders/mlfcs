@@ -9,8 +9,13 @@ from phono3py.file_IO import read_fc3_from_hdf5
 from phonopy.file_IO import read_force_constants_hdf5
 from supercell_helpers import make_supercell
 
-from mlfcs import ForceConstantCalculation, ForceConstants, SparseOrderForceConstants
-from mlfcs.core.geometry import StructureRelation
+from mlfcs import (
+    ForceConstantCalculation,
+    ForceConstants,
+    SparseOrderForceConstants,
+    write_force_constants,
+)
+from mlfcs.structure.relation import StructureRelation
 
 
 def test_reap_keeps_sparse_clusters_and_hdf5_writes_them(tmp_path):
@@ -27,7 +32,7 @@ def test_reap_keeps_sparse_clusters_and_hdf5_writes_them(tmp_path):
     assert result.orders == (3,)
 
     target = tmp_path / "fc.h5"
-    result.write(target, format="hdf5")
+    write_force_constants(result, target, format="hdf5")
     with h5py.File(target) as handle:
         group = handle["force_constants/3"]
         assert handle.attrs["schema_version"] == 3
@@ -65,7 +70,7 @@ def test_phonopy_hdf5_is_readable_and_preserves_reference_order(tmp_path):
     result = ForceConstants({2: compact}, supercell)
     target = tmp_path / "fc2.hdf5"
 
-    result.write(target, format="phonopy_hdf5")
+    write_force_constants(result, target, format="phonopy_hdf5")
     full, unit = read_force_constants_hdf5(target, return_physical_unit=True)
 
     assert full.shape == (4, 4, 3, 3)
@@ -90,11 +95,14 @@ def test_phono3py_hdf5_streams_full_fc3_and_is_readable(tmp_path):
         tensors=compact[tuple(clusters.T)],
     )
     result = ForceConstants(
-        {}, supercell, sparse={3: sparse}, relation=StructureRelation.from_atoms(primitive, supercell)
+        {},
+        supercell,
+        sparse={3: sparse},
+        relation=StructureRelation.from_atoms(primitive, supercell),
     )
     target = tmp_path / "fc3.hdf5"
 
-    result.write(target, format="phono3py_hdf5")
+    write_force_constants(result, target, format="phono3py_hdf5")
     full = read_fc3_from_hdf5(target)
 
     assert full.shape == (2, 2, 2, 3, 3, 3)
@@ -109,4 +117,4 @@ def test_external_hdf5_rejects_wrong_order(tmp_path):
     supercell, _ = make_supercell(primitive, (1, 1, 1))
     result = ForceConstants({3: np.zeros((1, 1, 1, 3, 3, 3))}, supercell)
     with pytest.raises(ValueError, match="only for order 2"):
-        result.write(tmp_path / "fc2.hdf5", format="phonopy_hdf5")
+        write_force_constants(result, tmp_path / "fc2.hdf5", format="phonopy_hdf5")

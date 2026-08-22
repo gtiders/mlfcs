@@ -3,8 +3,9 @@ import pytest
 from ase import Atoms
 from supercell_helpers import make_supercell
 
-from mlfcs.api import ForceConstantCalculation
-from mlfcs.io.export import build_export_view
+from mlfcs import realize_force_constants, write_force_constants
+from mlfcs.finite_difference.calculation import ForceConstantCalculation
+from mlfcs.force_constants.realization import build_export_view
 from mlfcs.io.hdf5 import read_hdf5
 
 
@@ -24,16 +25,18 @@ def test_export_view_relabels_an_equivalent_reordered_reference(tmp_path):
     assert view.relation is not None
     assert view.force_constants.sparse[2].sites.shape == result.sparse[2].sites.shape
     output = tmp_path / "relabelled.h5"
-    result.write(output, format="hdf5", supercell=target)
+    write_force_constants(result, output, format="hdf5", supercell=target)
     restored = read_hdf5(output)
     np.testing.assert_array_equal(restored.supercell.numbers, result.relation.primitive.numbers)
     np.testing.assert_allclose(
-        restored.realize(target).materialize(2),
+        realize_force_constants(restored, target).materialize(2),
         view.force_constants.materialize(2),
     )
-    result.write(tmp_path / "FORCE_CONSTANTS", format="phonopy", supercell=target)
+    write_force_constants(result, tmp_path / "FORCE_CONSTANTS", format="phonopy", supercell=target)
     assert (tmp_path / "FORCE_CONSTANTS").is_file()
-    result.write(tmp_path / "phonopy.hdf5", format="phonopy_hdf5", supercell=target)
+    write_force_constants(
+        result, tmp_path / "phonopy.hdf5", format="phonopy_hdf5", supercell=target
+    )
     assert (tmp_path / "phonopy.hdf5").is_file()
 
 
@@ -56,7 +59,7 @@ def test_export_view_reuses_cached_source_and_target_views(capsys):
 def test_export_view_realizes_into_a_different_supercell_translation_lattice(tmp_path):
     result = _result()
     target = result.relation.primitive.repeat((1, 2, 1))
-    realized = result.realize(target)
+    realized = realize_force_constants(result, target)
 
     np.testing.assert_array_equal(realized.supercell.cell, target.cell)
     np.testing.assert_array_equal(realized.sparse[2].sites, result.sparse[2].sites)
@@ -64,7 +67,7 @@ def test_export_view_realizes_into_a_different_supercell_translation_lattice(tmp
         realized.sparse[2].translations,
         result.sparse[2].translations,
     )
-    result.write(tmp_path / "realized.h5", format="hdf5", supercell=target)
+    write_force_constants(result, tmp_path / "realized.h5", format="hdf5", supercell=target)
     assert (tmp_path / "realized.h5").is_file()
 
 
@@ -102,9 +105,7 @@ def test_export_view_roundtrips_when_primitive_basis_and_reference_are_both_repr
     ).force_constants.sparse[2]
     source = result.sparse[2]
     np.testing.assert_array_equal(returned.sites, source.sites)
-    np.testing.assert_array_equal(
-        returned.translations, source.translations
-    )
+    np.testing.assert_array_equal(returned.translations, source.translations)
     np.testing.assert_allclose(returned.tensors, source.tensors)
 
 

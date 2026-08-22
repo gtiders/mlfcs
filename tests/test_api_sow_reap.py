@@ -7,7 +7,7 @@ from ase.calculators.calculator import Calculator, all_changes
 from supercell_helpers import make_supercell
 
 from mlfcs import ForceConstantCalculation
-from mlfcs.runtime import configure_jax
+from mlfcs.fitting.runtime import configure_jax
 
 
 class ZeroCalculator(Calculator):

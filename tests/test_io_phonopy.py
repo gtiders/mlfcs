@@ -5,7 +5,8 @@ import pytest
 from ase import Atoms
 from supercell_helpers import make_supercell
 
-from mlfcs.ifc.model import ForceConstants
+from mlfcs import write_force_constants
+from mlfcs.force_constants.data import ForceConstants
 from mlfcs.io.phonopy import write_phonopy
 
 
@@ -42,4 +43,4 @@ def test_force_constants_phonopy_format_requires_order_two(tmp_path):
     supercell, _ = make_supercell(primitive, (1, 1, 1))
     fc = ForceConstants({3: np.zeros((1, 1, 1, 3, 3, 3))}, supercell)
     with pytest.raises(ValueError, match="only for order 2"):
-        fc.write(tmp_path / "FORCE_CONSTANTS_2ND", format="phonopy")
+        write_force_constants(fc, tmp_path / "FORCE_CONSTANTS_2ND", format="phonopy")

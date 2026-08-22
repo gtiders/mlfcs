@@ -39,16 +39,35 @@ from xml.etree.ElementTree import Element, ElementTree, SubElement, indent
 
 import numpy as np
 from ase import Atoms
+from ase.geometry import minkowski_reduce
 from ase.units import Bohr, Rydberg
 
-from mlfcs.core.geometry import PeriodicGeometry, PeriodicIndex
-from mlfcs.ifc.model import ForceConstants, SparseOrderForceConstants
-from mlfcs.io._text import zero_small_scalar
+from mlfcs.force_constants.data import ForceConstants, SparseOrderForceConstants
+from mlfcs.force_constants.realization import ExportView, build_export_view
+from mlfcs.io.text import zero_small_scalar
+from mlfcs.structure.periodic_geometry import PeriodicGeometry
+from mlfcs.structure.relation import StructureRelation
+from mlfcs.structure.supercell_mapping import PeriodicIndex
 
 _MIRROR_SHIFTS = np.asarray(
     [(0, 0, 0), *(shift for shift in product((-1, 0, 1), repeat=3) if shift != (0, 0, 0))],
     dtype=np.int32,
 )
+
+
+def reduced_export_view(force_constants: ForceConstants) -> ExportView:
+    """Rebase an equivalent supercell for ALAMODE's 27-image encoding."""
+    if not isinstance(force_constants.relation, StructureRelation):
+        raise TypeError("ALAMODE rebasing requires force constants with a StructureRelation")
+    reference = force_constants.relation.reference
+    reduced, _ = minkowski_reduce(reference.cell, pbc=reference.pbc)
+    if np.allclose(reduced, reference.cell, atol=1e-10, rtol=0.0):
+        raise ValueError("ALAMODE 27-image encoding is not improved by supercell reduction")
+    target = reference.copy()
+    target.set_cell(reduced, scale_atoms=False)
+    return build_export_view(force_constants, supercell=target)
+
+
 _MIRROR_TOLERANCE_BOHR = 1.0e-3
 _TEXT_ZERO_TOLERANCE = 1.0e-8
 

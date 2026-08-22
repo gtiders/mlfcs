@@ -12,9 +12,9 @@ import jax.numpy as jnp
 import numpy as np
 from scipy import sparse
 
-from mlfcs.fitting.basis import wick_axis_derivatives
+from mlfcs.basis.wick import wick_axis_derivatives
 from mlfcs.fitting.parameterization import OrderParameterization, image_parameter_basis
-from mlfcs.runtime import transfer_guard
+from mlfcs.fitting.runtime import transfer_guard
 
 
 @dataclass(frozen=True, slots=True)

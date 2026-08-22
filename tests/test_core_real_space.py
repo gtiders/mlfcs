@@ -2,16 +2,18 @@ import numpy as np
 import pytest
 from ase import Atoms
 
-from mlfcs import ForceConstantCalculation, build_supercell
-from mlfcs.core.geometry import StructureRelation
-from mlfcs.core.integer_lattice import same_residue
-from mlfcs.core.real_space import (
-    InteractionAliasingError,
-    InteractionKey,
+from mlfcs import ForceConstantCalculation, build_supercell, realize_force_constants
+from mlfcs.force_constants.data import ForceConstants, SparseOrderForceConstants
+from mlfcs.interactions.enumerate import (
     build_primitive_interaction_space,
+)
+from mlfcs.interactions.keys import InteractionKey
+from mlfcs.interactions.realization import (
+    InteractionAliasingError,
     validate_realization_identifiability,
 )
-from mlfcs.ifc.model import ForceConstants, SparseOrderForceConstants
+from mlfcs.structure.integer_lattice import same_residue
+from mlfcs.structure.relation import StructureRelation
 
 
 def test_primitive_fc2_space_keeps_exact_nearest_neighbor_translations():
@@ -37,6 +39,34 @@ def test_primitive_fc2_space_keeps_exact_nearest_neighbor_translations():
     assert images == expected
 
 
+@pytest.mark.parametrize("order", [2, 3, 4])
+def test_primitive_orbit_bases_are_invariant_and_pivot_normalized(order):
+    primitive = Atoms("Si", scaled_positions=[[0, 0, 0]], cell=np.eye(3) * 4, pbc=True)
+    space = build_primitive_interaction_space(
+        primitive,
+        order=order,
+        cutoff=4.1,
+        max_body_order=2,
+        symprec=1e-5,
+    )
+
+    for orbit in space.orbits:
+        np.testing.assert_allclose(
+            orbit.basis[orbit.pivots],
+            np.eye(orbit.dimension),
+            rtol=1e-10,
+            atol=1e-10,
+        )
+        for image in orbit.images:
+            if image.key == orbit.representative:
+                np.testing.assert_allclose(
+                    image.action.apply_columns(orbit.basis),
+                    orbit.basis,
+                    rtol=1e-9,
+                    atol=1e-9,
+                )
+
+
 def test_exact_ifcs_realize_into_a_different_supercell_size():
     primitive = Atoms("Si", scaled_positions=[[0, 0, 0]], cell=np.eye(3) * 4, pbc=True)
     source = build_supercell(primitive, (3, 3, 3))
@@ -51,7 +81,7 @@ def test_exact_ifcs_realize_into_a_different_supercell_size():
         np.zeros((len(calculation.plan), len(source), 3)), acoustic_sum_rule=False
     )
     target = build_supercell(primitive, (2, 2, 2))
-    realized = result.realize(target)
+    realized = realize_force_constants(result, target)
 
     assert len(result.sparse[2].translations) == 7
     assert realized.materialize(2, max_bytes=None).shape == (1, 8, 3, 3)
@@ -103,7 +133,7 @@ def test_exact_fc2_realization_into_sheared_supercell_matches_residue_mapping():
     target = build_supercell(primitive, matrix)
     relation = StructureRelation.from_atoms(primitive, target)
 
-    actual = force_constants.realize(target).materialize(2, max_bytes=None)
+    actual = realize_force_constants(force_constants, target).materialize(2, max_bytes=None)
     expected = np.zeros((1, len(target), 3, 3))
     for translation, tensor in zip(translations, tensors, strict=True):
         matches = [

@@ -9,8 +9,9 @@ from ase import Atoms
 from ase.calculators.calculator import Calculator, all_changes
 from supercell_helpers import make_supercell
 
-from mlfcs.anharmonic.sscha import SSCHA
-from mlfcs.public.io import read_hdf5
+from mlfcs import write_force_constants
+from mlfcs.io.hdf5 import read_hdf5
+from mlfcs.physics.sscha.solver import SSCHA
 
 
 class TranslationalHarmonic(Calculator):
@@ -78,16 +79,17 @@ def test_sscha_direct_run_and_linear_mixing(tmp_path):
     assert all(np.isfinite(item.fitting_relative_force_error) for item in direct.history)
     assert all(item.relative_force_constant_change is not None for item in direct.history)
     assert all(
-        item.relative_force_constant_change == pytest.approx(item.raw_relative_force_constant_change)
+        item.relative_force_constant_change
+        == pytest.approx(item.raw_relative_force_constant_change)
         for item in direct.history
     )
     assert direct.force_constants is not None
     assert direct.force_constants.orders == (2,)
     target = tmp_path / "fc2.hdf5"
-    direct.force_constants.write(target, format="hdf5")
+    write_force_constants(direct.force_constants, target, format="hdf5")
     assert read_hdf5(target).orders == (2,)
     xml_target = tmp_path / "fc2.xml"
-    direct.force_constants.write(xml_target, format="alamode")
+    write_force_constants(direct.force_constants, xml_target, format="alamode")
     xml = parse(xml_target).getroot()
     assert xml.find(".//HARMONIC") is not None
     assert xml.find(".//ANHARM3") is None

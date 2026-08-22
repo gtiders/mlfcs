@@ -6,7 +6,7 @@ import ast
 import inspect
 from pathlib import Path
 
-from mlfcs.public import (
+from mlfcs import (
     SSCHA,
     ForceConstantCalculation,
     ForceConstantFitter,
@@ -55,32 +55,42 @@ def _imports(module: str) -> set[str]:
 
 def test_low_level_packages_do_not_depend_on_workflow_or_writer_modules():
     for module in (
-        "core.geometry",
-        "core.orbits",
-        "constraints.rotational_sum_rules",
+        "structure.periodic_geometry",
+        "structure.supercell_mapping",
+        "interactions.tensors",
+        "interactions.orbits",
+        "constraints.rotational",
         "constraints.translational",
     ):
         imports = _imports(module)
         assert not any(
             value.startswith(
-                ("mlfcs.io", "mlfcs.fitting", "mlfcs.anharmonic.scph", "mlfcs.anharmonic.sscha")
+                (
+                    "mlfcs.io",
+                    "mlfcs.fitting",
+                    "mlfcs.physics.scph.solver",
+                    "mlfcs.physics.sscha.solver",
+                )
             )
             for value in imports
         ), module
 
-    # ForceConstants.write is a retained public compatibility adapter.  The
-    # data model otherwise has no workflow dependency.
-    ifc_imports = _imports("ifc.model")
+    force_constant_imports = _imports("force_constants.data")
     assert not any(
-        value.startswith(("mlfcs.fitting", "mlfcs.anharmonic.scph", "mlfcs.anharmonic.sscha"))
-        for value in ifc_imports
+        value.startswith(("mlfcs.fitting", "mlfcs.physics", "mlfcs.io", "mlfcs.constraints"))
+        for value in force_constant_imports
     )
 
     for module in ("io.alamode", "io.hdf5", "io.phonon_hdf5", "io.phonopy", "io.shengbte"):
         imports = _imports(module)
         assert not any(
             value.startswith(
-                ("mlfcs.api", "mlfcs.fitting", "mlfcs.anharmonic.sscha", "mlfcs.anharmonic.scph")
+                (
+                    "mlfcs.finite_difference.calculation",
+                    "mlfcs.fitting",
+                    "mlfcs.physics.sscha.solver",
+                    "mlfcs.physics.scph.solver",
+                )
             )
             for value in imports
         ), module

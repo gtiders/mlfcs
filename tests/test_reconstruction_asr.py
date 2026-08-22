@@ -3,10 +3,11 @@ import pytest
 from ase.build import bulk
 from supercell_helpers import make_supercell
 
-from mlfcs.constraints.solver import reconstruct_sparse
-from mlfcs.core.geometry import StructureRelation
-from mlfcs.core.real_space import build_primitive_interaction_space, realize_orbit_space
-from mlfcs.ifc.model import ForceConstants
+from mlfcs.finite_difference.reconstruction import reconstruct_sparse
+from mlfcs.force_constants.data import ForceConstants
+from mlfcs.interactions.enumerate import build_primitive_interaction_space
+from mlfcs.interactions.realization import realize_orbit_space
+from mlfcs.structure.relation import StructureRelation
 
 
 @pytest.mark.parametrize("order", [3, 4])
@@ -30,7 +31,9 @@ def test_acoustic_sum_rule_projection_is_strict(order):
         space, index, derivatives, enforce_asr=True, primitive_interaction_space=primitive_space
     )
     relation = StructureRelation.from_atoms(primitive, supercell)
-    raw = ForceConstants({}, supercell, sparse={order: raw_sparse}, relation=relation).materialize(order)
+    raw = ForceConstants({}, supercell, sparse={order: raw_sparse}, relation=relation).materialize(
+        order
+    )
     projected = ForceConstants(
         {}, supercell, sparse={order: projected_sparse}, relation=relation
     ).materialize(order)

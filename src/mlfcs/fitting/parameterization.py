@@ -6,8 +6,6 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from mlfcs.ifc.expansion import expand_primitive_parameters
-
 
 @dataclass(frozen=True, slots=True)
 class OrderParameterization:
@@ -104,20 +102,3 @@ def image_parameter_basis(parameterization):
                 result[orbit, image, :, dimension] = value.reshape(-1)
     component_indices = parameterization.component_permutations[..., None]
     return np.take_along_axis(result, component_indices, axis=2)
-
-
-def expand_sparse(parameters, calculations):
-    """Expand irreducible parameters into symmetry-related sparse IFC tensors."""
-    result = {}
-    offset = 0
-    for calculation in calculations:
-        count = sum(orbit.dimension for orbit in calculation.orbit_space.orbits)
-        primitive_space = getattr(calculation, "primitive_orbit_space", None)
-        if primitive_space is None:
-            primitive_space = calculation.interaction_space.primitive_orbit_space
-        result[calculation.config.order] = expand_primitive_parameters(
-            primitive_space,
-            parameters[offset : offset + count],
-        )
-        offset += count
-    return result

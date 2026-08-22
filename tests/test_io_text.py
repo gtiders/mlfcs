@@ -1,4 +1,4 @@
-from mlfcs.io._text import zero_small_scalar
+from mlfcs.io.text import zero_small_scalar
 
 
 def test_zero_small_scalar_has_an_explicit_strict_text_tolerance():

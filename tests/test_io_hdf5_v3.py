@@ -4,7 +4,8 @@ import pytest
 from ase import Atoms
 
 from mlfcs import read_hdf5 as public_read_hdf5
-from mlfcs.api import ForceConstantCalculation
+from mlfcs import realize_force_constants, write_force_constants
+from mlfcs.finite_difference.calculation import ForceConstantCalculation
 from mlfcs.io.hdf5 import read_hdf5
 
 
@@ -14,7 +15,7 @@ def test_native_hdf5_v3_roundtrip_preserves_exact_lattice_labelled_sparse_ifcs(t
     calculation = ForceConstantCalculation(primitive, reference=reference, order=2, cutoff=3.0)
     result = calculation.reap(np.zeros((len(calculation.plan), len(reference), 3)))
     target = tmp_path / "fc-v3.h5"
-    result.write(target, format="hdf5")
+    write_force_constants(result, target, format="hdf5")
     restored = public_read_hdf5(target)
 
     assert restored.relation is not None
@@ -27,7 +28,7 @@ def test_native_hdf5_v3_roundtrip_preserves_exact_lattice_labelled_sparse_ifcs(t
             result.sparse[order].translations,
         )
         np.testing.assert_allclose(restored.sparse[order].tensors, result.sparse[order].tensors)
-    realized = restored.realize(reference)
+    realized = realize_force_constants(restored, reference)
     np.testing.assert_allclose(realized.materialize(2), result.materialize(2))
 
 
@@ -46,7 +47,7 @@ def test_native_hdf5_contains_no_source_supercell_mapping(tmp_path):
     calculation = ForceConstantCalculation(primitive, reference=reference, order=2, cutoff=3.0)
     result = calculation.reap(np.zeros((len(calculation.plan), len(reference), 3)))
     target = tmp_path / "tampered.hdf5"
-    result.write(target, format="hdf5")
+    write_force_constants(result, target, format="hdf5")
     with h5py.File(target) as handle:
         assert "reference_mapping" not in handle
         assert "reference_supercell" not in handle["structures"]
