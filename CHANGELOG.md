@@ -11,12 +11,6 @@ All notable changes are documented here. Releases follow semantic versioning.
 - ALAMODE FCSXML output for combined FC2--FC4, with exact MLFCS atom-order and primitive-cell
   mapping control and documented upstream ALM writer provenance.
 
-### Fixed
-
-- High-order validation prediction now streams the same bounded physical-design groups used by
-  Gram construction instead of capturing the full interaction parameterization as multi-gigabyte
-  JAX constants during lowering.
-
 ## 4.0.0a1 — 2026-08-14
 
 ### Added

@@ -480,7 +480,7 @@ wheels = [
 
 [[package]]
 name = "mlfcs"
-version = "4.0.0a2"
+version = "4.0.0a1"
 source = { editable = "." }
 dependencies = [
     { name = "ase" },
