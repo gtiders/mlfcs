@@ -13,6 +13,7 @@ from mlfcs.core.geometry import (
     PeriodicIndex,
     StructureRelation,
     align_structures,
+    build_supercell,
 )
 from mlfcs.finite_difference.stencil import CentralDifferenceStencil
 from mlfcs.ifc.model import ForceConstants, SparseOrderForceConstants
@@ -39,13 +40,14 @@ __all__ = [
     "SparseOrderForceConstants",
     "StructureRelation",
     "align_structures",
+    "build_supercell",
     "enforce_harmonic_constraints",
     "harmonic_frequencies",
     "read_hdf5",
     "write_force_constants",
 ]
 
-__version__ = "4.0.0a3"
+__version__ = "4.0.0a2"
 
 
 def __getattr__(name: str):
