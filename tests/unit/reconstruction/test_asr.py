@@ -6,7 +6,7 @@ from mlfcs.core.geometry import make_supercell, resolve_cutoff
 from mlfcs.core.orbits import build_orbit_space
 from mlfcs.core.symmetry import SymmetryOperations
 from mlfcs.reconstruction.asr import project_sum_rules
-from mlfcs.reconstruction.solver import reconstruct_sparse
+from mlfcs.reconstruction.solver import reconstruct_compact
 
 
 @pytest.mark.parametrize("order", [3, 4])
@@ -23,8 +23,8 @@ def test_acoustic_sum_rule_projection_is_strict(order):
     )
     rng = np.random.default_rng(4)
     derivatives = {key: rng.normal(size=(len(supercell), 3)) for key in space.displacement_keys}
-    raw = reconstruct_sparse(space, index, derivatives, enforce_asr=False).to_dense()
-    projected = reconstruct_sparse(space, index, derivatives, enforce_asr=True).to_dense()
+    raw = reconstruct_compact(space, index, derivatives, enforce_asr=False)
+    projected = reconstruct_compact(space, index, derivatives, enforce_asr=True)
     raw_residual = np.linalg.norm(raw.sum(axis=order - 1))
     projected_residual = np.linalg.norm(projected.sum(axis=order - 1))
     assert projected_residual < raw_residual
@@ -46,7 +46,7 @@ def test_asr_reports_phonopy_style_maximum_drift():
     derivatives = {key: rng.normal(size=(len(supercell), 3)) for key in space.displacement_keys}
     messages = []
 
-    reconstruct_sparse(space, index, derivatives, enforce_asr=True, report=messages.append)
+    reconstruct_compact(space, index, derivatives, enforce_asr=True, report=messages.append)
 
     assert len(messages) == 2
     assert messages[0].startswith("- Max drift of fc3: ")

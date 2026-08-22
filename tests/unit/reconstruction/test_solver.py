@@ -5,7 +5,7 @@ from ase.build import bulk
 from mlfcs.core.geometry import make_supercell, resolve_cutoff
 from mlfcs.core.orbits import build_orbit_space
 from mlfcs.core.symmetry import SymmetryOperations
-from mlfcs.reconstruction.solver import reconstruct_sparse
+from mlfcs.reconstruction.solver import reconstruct_compact
 
 
 @pytest.mark.parametrize("order", [3, 4])
@@ -38,6 +38,6 @@ def test_reconstructs_every_orbit_from_independent_components(order):
         for image in orbit.images:
             expected[image.cluster] = image.action.apply_flat(representative).reshape((3,) * order)
 
-    compact = reconstruct_sparse(space, index, derivatives, enforce_asr=False).to_dense()
+    compact = reconstruct_compact(space, index, derivatives, enforce_asr=False)
     for cluster, tensor in expected.items():
         np.testing.assert_allclose(compact[cluster], tensor, atol=1e-9)
