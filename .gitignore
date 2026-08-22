@@ -43,6 +43,7 @@ site/
 # Generated force-constant artifact kept locally for inspection
 /FORCE_CONSTANTS_2ND
 /FORCE_CONSTANTS_3RD
+sscha.h5
 
 # Local calculator inputs and interactive scratch files
 /POSCAR

@@ -1,6 +1,6 @@
 [project]
 name = "mlfcs"
-version = "4.0.0a3"
+version = "4.0.0a4"
 description = "ASE-first symmetry-reduced force constants from second to arbitrary order"
 readme = "README.md"
 requires-python = ">=3.12"
