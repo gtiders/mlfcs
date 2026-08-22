@@ -7,10 +7,7 @@ import numpy as np
 from ase import Atoms
 
 from mlfcs.core.geometry import PeriodicIndex
-from mlfcs.io._text import zero_small_scalar
 from mlfcs.model import SparseOrderForceConstants
-
-_TEXT_ZERO_TOLERANCE = 1e-8
 
 
 def write_shengbte(
@@ -71,9 +68,7 @@ def _format_sparse_force_constants(
         ]
         for directions in product(range(3), repeat=fc.order):
             direction_text = " ".join(f"{direction + 1:>2d}" for direction in directions)
-            value = zero_small_scalar(
-                tensor[directions], tolerance=_TEXT_ZERO_TOLERANCE
-            )
+            value = tensor[directions]
             lines.append(f"{direction_text} {value:>20.10e}")
         blocks.append("\n".join(lines) + "\n")
     return f"{len(blocks):>5}\n" + "".join(blocks)
