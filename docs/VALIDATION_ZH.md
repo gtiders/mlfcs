@@ -41,8 +41,7 @@ hiphive 仅属于开发依赖和独立验证工具，不参与 MLFCS 的计算�
 这使 hiphive 成为格式与表示的第三方适配器，而不是被验证算法的一部分。
 
 安装 ALAMODE 的 `anphon` 后，下列可选集成测试会让真实的 harmonic reader 读取
-MLFCS 写出的最小 FCSXML，以及半超胞边界的双重 27 镜像展开。若其不在 `PATH`，可通过
-`MLFCS_ANPHON` 指定：
+MLFCS 写出的 FCSXML。若其不在 `PATH`，可通过 `MLFCS_ANPHON` 指定：
 
 ```bash
 MLFCS_ANPHON=/path/to/anphon uv run pytest -q tests/integration/test_alamode_anphon.py
