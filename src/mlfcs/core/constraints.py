@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import numpy as np
 from ase import Atoms
+from ase.geometry import find_mic
 from scipy import sparse
 from scipy.sparse.linalg import lsmr
 
-from mlfcs.core.geometry import PeriodicGeometry
 from mlfcs.core.orbits import OrbitSpace
 
 
@@ -62,13 +62,16 @@ def build_harmonic_rotational_constraints(
     columns: list[int] = []
     data: list[float] = []
     axes = np.eye(3)
-    geometry = PeriodicGeometry(supercell.cell, supercell.pbc)
 
     for orbit_index, orbit in enumerate(orbit_space.orbits):
         representative_from_pivots = orbit.basis @ np.linalg.inv(orbit.basis[orbit.pivots])
         for image in orbit.images:
             first, second = image.cluster
-            vector, _ = geometry.mic(supercell.positions[second] - supercell.positions[first])
+            vector, _ = find_mic(
+                supercell.positions[second] - supercell.positions[first],
+                supercell.cell,
+                supercell.pbc,
+            )
             rigid_displacements = np.cross(axes, vector)
             image_from_pivots = image.action.apply_columns(representative_from_pivots)
             for force_direction in range(3):
