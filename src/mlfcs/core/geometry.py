@@ -526,7 +526,7 @@ def _thirdorder_candidate(primitive: Atoms, matrix: np.ndarray) -> Atoms:
     return supercell
 
 
-def _make_supercell(
+def make_supercell(
     atoms: Atoms,
     supercell_matrix: object,
     *,
@@ -558,16 +558,6 @@ def _make_supercell(
     return relation.reference, relation.index
 
 
-def make_supercell(
-    atoms: Atoms,
-    supercell_matrix: object,
-    *,
-    symprec: float = 1e-5,
-) -> tuple[Atoms, PeriodicIndex]:
-    """Build the default phonopy-ordered supercell for internal callers."""
-    return _make_supercell(atoms, supercell_matrix, ordering="phonopy", symprec=symprec)
-
-
 def build_supercell(
     atoms: Atoms,
     supercell_matrix: object,
@@ -582,7 +572,7 @@ def build_supercell(
     selects MLFCS's former cell-major order. ``'phonopy_snf'`` is reserved
     for a future phonopy SNF-compatible implementation.
     """
-    return _make_supercell(atoms, supercell_matrix, ordering=ordering, symprec=symprec)[0]
+    return make_supercell(atoms, supercell_matrix, ordering=ordering, symprec=symprec)[0]
 
 
 def neighbor_shell_cutoff(
