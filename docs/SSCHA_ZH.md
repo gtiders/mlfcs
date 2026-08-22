@@ -90,9 +90,7 @@ result = sscha.reap(
   样本不再严格服从原正则系综。
 
 `SSCHAIteration.ensemble` 保存 q 点数、模态数、虚频数、排除数和裁剪统计；
-`fitting_relative_force_error` 保存原生拟合器的训练相对力误差，
-`relative_force_constant_change` 保存相对于本轮采样 FC2 的更新幅度；初始化轮该值为
-`None`。公共迭代对象只暴露这些标量诊断，不重复公开内部采样哈密顿量。
+`fitting_relative_force_error` 保存原生拟合器的训练相对力误差。
 
 ## 结果、平均与写出
 
@@ -113,8 +111,7 @@ sscha.write("fc2-300K.hdf5", format="hdf5")
 
 ## 自由能
 
-相容 q 点的同一组本征解用于计算每原胞量子谐波自由能。一轮自由能对应生成该轮快照的
-试探 FC2，而该轮 `force_constants` 是为下一次更新新拟合的 FC2。提供快照能量时：
+相容 q 点的同一组本征解用于计算每原胞量子谐波自由能。提供快照能量时：
 
 ```text
 F = F_harm + mean[(E(u) - E(0) - 1/2 u Phi u) / 超胞原胞数]

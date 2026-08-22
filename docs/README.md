@@ -13,7 +13,6 @@ implementation details, validation, and compatibility decisions.
 | Numerical validation and CI | [Validation](VALIDATION.md) | [数值验证](VALIDATION_ZH.md) |
 | Translational and rotational sum rules | [Sum rules](SUM_RULES.md) | [求和规则](SUM_RULES_ZH.md) |
 | Direct-calculator zero-step extrapolation | [Extrapolation](EXTRAPOLATION.md) | [零步长外推](EXTRAPOLATION_ZH.md) |
-| 4.0 finite-difference sampling changes | [Algorithm note](FINITE_DIFFERENCE_SAMPLING_CHANGE.md) | [算法说明](FINITE_DIFFERENCE_SAMPLING_CHANGE_ZH.md) |
 | Joint force-only FC2--FCn fitting | [Fitting](FITTING.md) | [仅力数据拟合](FITTING_ZH.md) |
 | Fitting architecture versus ALAMODE | [Comparison](ALAMODE_COMPARISON.md) | [比较](ALAMODE_COMPARISON_ZH.md) |
 | Native finite-temperature SSCHA | [SSCHA](SSCHA.md) | [SSCHA](SSCHA_ZH.md) |

@@ -7,8 +7,8 @@ MLFCS 不启动 VASP，也不规定 INCAR、KPOINTS、POTCAR、调度器或收�
 [`examples/vasp_external_fc3.py`](../examples/vasp_external_fc3.py)。
 
 从 API 契约看，严格的位置顺序已经足够：第 `i` 组力必须对应 `sow()` 返回的第 `i` 个
-结构，此时 `reap(forces, atom_order=...)` 不需要 ID。本示例额外使用 manifest，
-用于批处理任务、断点续算、缺失结果检查和长期来源记录。
+结构，此时 `reap(forces, atom_order=...)` 不需要 ID 或计划哈希。本示例额外使用 manifest
+和哈希，只是为了给批处理任务、断点续算、缺失结果检查和长期来源记录增加安全层。
 
 ## 1. 按确定顺序生成结构
 
@@ -34,7 +34,7 @@ fc3-work/
 ```
 
 `POSCAR-001` 对应从零开始的构型 ID 0，`POSCAR-002` 对应 ID 1，以此类推。清单保存
-超胞、截断、位移量、grouped 原子顺序、构型数量和文件顺序。生成以后不要
+超胞、截断、位移量、grouped 原子顺序、构型数量、文件顺序和计划哈希。生成以后不要
 重命名、遗漏、去重或重新排列这些构型。
 
 ## 2. 准备并提交 VASP
@@ -75,7 +75,7 @@ uv run python examples/vasp_external_fc3.py collect \
 ```
 
 缺少任意结果都会报错。程序通过 ASE 读取每个 `vasprun.xml` 的最终力数组，并写出
-`fc3-work/forces.npz`，其中包含构型 ID 和原子顺序。原始 VASP 目录仍然是
+`fc3-work/forces.npz`，其中包含构型 ID、原子顺序和计划哈希。原始 VASP 目录仍然是
 权威原始数据，应另外归档。
 
 ## 4. Reap 并导出
@@ -97,7 +97,7 @@ thirdorder 的二次周期镜像判据和块顺序，可增加 `--compatibility 
 
 - 将 `mlfcs-plan.json`、`POSCAR-unitcell` 和 `forces.npz` 一起保存；
 - 另外归档原始 VASP 输入和所有 `vasprun.xml`；
-- 结构、超胞、截断、位移量、MLFCS 实现或对称性容差发生变化时，应重新 sow，不能
-  混用数据；
+- 结构、超胞、截断、位移量、MLFCS 实现或对称性容差变化都可能改变计划哈希，此时
+  应重新 sow，不能混用数据；
 - 调度器乱序完成不影响结果，collect 会通过目录名恢复准确顺序；
 - 力必须对应生成 POSCAR 中的 grouped 原子顺序，VASP 与 collect 之间不能再次排序。

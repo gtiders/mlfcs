@@ -13,7 +13,6 @@ MLFCS 的用户文档均提供英文和中文版本。仓库根目录的
 | 数值验证与 CI | [数值验证](VALIDATION_ZH.md) | [Validation](VALIDATION.md) |
 | 平移与旋转求和规则 | [求和规则](SUM_RULES_ZH.md) | [Sum rules](SUM_RULES.md) |
 | 直接 calculator 零步长外推 | [零步长外推](EXTRAPOLATION_ZH.md) | [Extrapolation](EXTRAPOLATION.md) |
-| 4.0 有限差分采样算法变更 | [算法说明](FINITE_DIFFERENCE_SAMPLING_CHANGE_ZH.md) | [Algorithm note](FINITE_DIFFERENCE_SAMPLING_CHANGE.md) |
 | FC2--FCn 联合仅力数据拟合 | [仅力数据拟合](FITTING_ZH.md) | [Fitting](FITTING.md) |
 | 与 ALAMODE 的拟合架构比较 | [比较](ALAMODE_COMPARISON_ZH.md) | [Comparison](ALAMODE_COMPARISON.md) |
 | 原生有限温度 SSCHA | [SSCHA](SSCHA_ZH.md) | [SSCHA](SSCHA.md) |

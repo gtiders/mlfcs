@@ -34,21 +34,25 @@ def test_sow_ids_define_positional_reap_order():
     assert [atoms.info["mlfcs_configuration_id"] for atoms in structures] == list(
         range(len(structures))
     )
+    assert {atoms.info["mlfcs_plan_hash"] for atoms in structures} == {job.plan.hash}
     assert all(atoms.info["mlfcs_atom_order"] == "internal" for atoms in structures)
 
     forces = np.zeros((len(structures), len(job.supercell), 3))
-    positional = job.reap(forces)[3]
+    positional = job.reap(forces, plan_hash=job.plan.hash)[3]
     mapped = job.reap(
         {index: forces[index] for index in reversed(range(len(structures)))},
+        plan_hash=job.plan.hash,
     )[3]
     np.testing.assert_array_equal(positional, mapped)
 
 
-def test_reap_rejects_missing_ids():
+def test_reap_rejects_missing_ids_and_wrong_plan():
     job = calculation()
     force = np.zeros((len(job.supercell), 3))
     with pytest.raises(ValueError, match="missing"):
         job.reap({0: force})
+    with pytest.raises(ValueError, match="hash"):
+        job.reap(np.zeros((len(job.plan), len(job.supercell), 3)), plan_hash="wrong")
 
 
 def test_grouped_force_order_and_user_calculator_path():

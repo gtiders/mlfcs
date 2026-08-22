@@ -62,6 +62,9 @@ def generate(mlfcs_root: Path, thirdorder_root: Path, target: Path) -> None:
         unitcell_cell=np.asarray(unitcell.cell),
         unitcell_scaled_positions=unitcell.get_scaled_positions(),
         mlfcs_forces_grouped=forces,
+        mlfcs_plan_hash=np.asarray(
+            "5df41821ee9db73b0f008535f9a6c681eb2cb5581c91b6fe8d10c6d9be8e0676"
+        ),
         reference_translations_mod_supercell=translations,
         reference_primitive_atoms=atoms,
         reference_fc3=values,

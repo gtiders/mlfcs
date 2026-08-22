@@ -63,7 +63,6 @@ def test_sscha_external_sow_reap():
     assert result.free_energy_error is None
     assert result.potential_energy is not None and np.isfinite(result.potential_energy)
     assert result.fitting_relative_force_error < 1e-12
-    assert result.relative_force_constant_change is None
 
 
 def test_sscha_direct_run_and_average(tmp_path):
@@ -88,7 +87,6 @@ def test_sscha_direct_run_and_average(tmp_path):
     assert len(sscha.history) == 2
     assert all(item.sampling == "canonical" for item in sscha.history)
     assert all(item.fitting_relative_force_error < 1e-7 for item in sscha.history)
-    assert all(item.relative_force_constant_change is not None for item in sscha.history)
     averaged = sscha.use_average(2)
     assert averaged.shape == fc.shape
     target = tmp_path / "fc2.hdf5"

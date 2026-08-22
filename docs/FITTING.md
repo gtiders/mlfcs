@@ -10,8 +10,7 @@ irreducible force-constant parameters and uses covariance-orthogonalized Wick di
 features to reduce leakage between adjacent orders.
 
 The fitted parameter vector is expressed in the Wick basis. Public `ForceConstants` output is
-converted exactly within the exported FC2--FCn range to ordinary Taylor IFCs before serialization,
-because phonopy, ShengBTE, and
+converted exactly to ordinary Taylor IFCs before serialization, because phonopy, ShengBTE, and
 other force-constant formats interpret tensors as Taylor derivatives. For displacement
 covariance `Sigma`, the conversion begins as
 
@@ -23,20 +22,6 @@ Phi_T[m] = Phi_W[m] - 1/2 Phi_W[m+2]:Sigma
 This is a polynomial change of coordinates, not another fit. `FittingResult.parameters` remains
 the fitted Wick parameter vector; `FittingResult.force_constants` contains Taylor IFCs ready for
 common output formats.
-
-Odd Wick orders also contract to a Taylor FC1 (constant-force) term. FC1 has no standard phonon or
-ShengBTE output role and is not included in `ForceConstants`; its maximum component and net force
-are reported explicitly. Therefore the exported FC2--FCn tensors are the exact Taylor derivatives
-in that order range, but they do not by themselves reproduce a non-zero omitted FC1.
-
-A non-zero reported FC1 is useful diagnostic information, not by itself evidence of an incorrect
-fit. It can arise when the reference structure is not the statistical center or stationary point
-best represented by the sampled data, from residual reference forces, finite-sample noise, an
-asymmetric sampling distribution, truncation of the polynomial order, or spatial/body-order
-cutoffs. Translational invariance constrains the net FC1 but does not require every atomic FC1 to
-vanish. MLFCS therefore reports both the largest atomic component and the net value, and does not
-silently constrain FC1 to zero. Imposing a zero Taylor FC1 would define a different constrained
-regression problem and may be added only as an explicit option after separate validation.
 
 Translational constraints commute with the covariance contractions and therefore remain valid
 under this conversion. Rotational constraints couple adjacent Taylor orders and cannot be applied
@@ -62,7 +47,6 @@ fitter = ForceConstantFitter(
     supercell=(2, 2, 3),
     orders=(2, 3, 4),
     cutoffs={2: None, 3: 12 * 0.529177210903, 4: 8 * 0.529177210903},
-    max_body_orders={2: 2, 3: 3, 4: 3},
 )
 result = fitter.fit(
     read("train.xyz", index=":"),
@@ -72,25 +56,11 @@ result = fitter.fit(
     max_iterations=10_000,
     acoustic_sum_rule=True,
     rotational_invariance=2,
-    allow_unconverged=False,
 )
 result.force_constants.write("FORCE_CONSTANTS_2ND", format="phonopy", order=2)
 result.force_constants.write("FORCE_CONSTANTS_3RD", format="shengbte", order=3)
 result.force_constants.write("FORCE_CONSTANTS_4TH", format="shengbte", order=4)
 ```
-
-`max_body_orders` optionally limits the number of distinct atomic sites in a cluster at each
-order. For example, `(0, 0, 1, 1)` is a two-body fourth-order cluster. Omitting an order or using
-`None` retains all body orders up to that force-constant order. The same definition is available
-as `max_body_order` on `ForceConstantCalculation`, so fitting and finite differences use an
-identical interaction space.
-
-The reference structure defines zero displacement. If it carries forces, they are treated as
-residual reference forces and subtracted from every training target; without reference forces they
-are assumed to be zero. Snapshot displacements and forces are otherwise left unchanged. In
-particular, MLFCS does not silently remove a rigid translation or a snapshot's net force. The
-maximum center-of-mass displacement, reference force, and snapshot net force are diagnostics so
-that inconsistent input is visible without changing user data.
 
 The fitter has one solver path. It streams each design batch into the sufficient statistics
 `A.T @ A` and `A.T @ F`
@@ -107,9 +77,7 @@ rank-revealing pseudoinverse of `C @ C.T`; projected conjugate gradient therefor
 `null(C)` instead of
 solving an indefinite KKT system and repairing its result afterward. `max_iterations` is a safety
 limit: a zero solver status means the projected-gradient tolerance was reached, while a positive
-status means that limit was reached without convergence. An unconverged solve raises by default
-and cannot produce writable force constants. `allow_unconverged=True` is an explicit diagnostic
-escape hatch and prints a warning in the result log.
+status means that limit was reached without convergence.
 
 The primary accuracy metric follows ALAMODE:
 
@@ -120,10 +88,8 @@ relative force error = ||F_reference - F_model||₂ / ||F_reference||₂
 It is printed as a percentage together with force RMSE in eV/angstrom, validation error,
 order-resolved force-contribution RMS, projected normal residual, and constraint drift.
 
-Both rotational modes use the fitted Taylor FC1 in the complete FC1--FC2 lower identity and impose
-every represented Cartesian adjacent-order identity. They do not silently force FC1 to zero.
-`rotational_invariance=2` follows the ALAMODE `ICONST=2` boundary choice: the
-maximum-order/next-order boundary is omitted.
+`rotational_invariance=2` follows ALAMODE `ICONST=2`: Cartesian adjacent-order rotational
+constraints are imposed while the maximum-order/next-order boundary is omitted.
 `rotational_invariance=3` additionally assumes the unrepresented next order is zero and imposes
 the maximum-order boundary. The latter can overconstrain a truncated expansion and is never the
 default. Fractional coordinates are not used for rigid rotations because a non-orthogonal cell

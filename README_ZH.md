@@ -77,7 +77,7 @@ Born–Huang 旋转求和规则，详见[求和规则](docs/SUM_RULES_ZH.md)。
 - 公共结构与计算器接口完全采用 ASE；
 - 支持适合外部调度和断点续算的 `sow()` / `reap()`；
 - 直接 calculator 路径支持可配置偶次幂阶数的零步长外推；
-- 稳定的构型 ID 和显式原子顺序映射；
+- 稳定的构型 ID、计划哈希和显式原子顺序映射；
 - 与既有逻辑兼容的周期团簇截断；
 - 递归中心有限差分模板；
 - JAX 加速高阶张量变换，可选择 CPU 或 GPU；
@@ -131,7 +131,7 @@ JAX 数值核使用 64 位浮点数。
 结构列表。用户可以自行用 ASE 将这些结构写成 VASP 的 `POSCAR-xxx`，也可以选择其他
 第一性原理软件的输入格式，再通过任意本地调度系统提交。计算完成后，仍由用户使用 ASE
 读取每个结果、提取力，并恢复 `sow()` 的原始顺序（或按构型 ID 建立字典），最后只把
-力交给 `reap()`。只要能够保证这个位置顺序，就不需要构型 ID。
+力交给 `reap()`。只要能够保证这个位置顺序，就不需要构型 ID 和计划哈希。
 
 下面是按位置顺序组织的 VASP 案例：
 
@@ -184,7 +184,7 @@ fc3.write("fc3.h5", format="hdf5")
 `read()` 所使用的格式，并补充该程序需要的输入参数；`sow/reap` 契约不变。若文件名和
 返回的力严格保持 sow 顺序，位置式 `reap()` 不需要任何额外元数据。POSCAR 这类文件
 不会保存 Python 中的 `atoms.info`，因此对于任务乱序、断点续算、长期归档或防止混入
-其他数据集的情况，建议用 manifest 保存文件名—构型 ID 对应关系。完整的
+其他数据集的情况，建议用 manifest 保存文件名—构型 ID 对应关系和计划哈希。完整的
 [`vasp_external_fc3.py`](examples/vasp_external_fc3.py) 示例把 manifest 作为可选安全层，
 并实现力收集、缺失结果检查和最终导出，详见
 [外部 VASP 工作流](docs/EXTERNAL_VASP_WORKFLOW_ZH.md)。
@@ -199,6 +199,7 @@ fc3.write("fc3.h5", format="hdf5")
 
 ```python
 atoms.info["mlfcs_configuration_id"]
+atoms.info["mlfcs_plan_hash"]
 atoms.info["mlfcs_atom_order"]
 atoms.arrays["mlfcs_displacement"]
 ```
@@ -209,10 +210,11 @@ atoms.arrays["mlfcs_displacement"]
 fc3 = calculation.reap(
     forces_by_configuration_id,
     atom_order="grouped",
+    plan_hash=calculation.plan.hash,
 )
 ```
 
-缺少或多出 ID、形状错误以及非有限数值都会被拒绝。
+缺少或多出 ID、形状错误、非有限数值以及计划哈希不匹配都会被拒绝。
 
 ### 直接使用 ASE Calculator
 
@@ -249,8 +251,8 @@ fc4 = calculation.run(
 
 ```python
 forces = calculation.evaluate(calculator)
-np.savez_compressed("forces.npz", forces=forces)
-fc3 = calculation.reap(forces)
+np.savez_compressed("forces.npz", forces=forces, plan_hash=calculation.plan.hash)
+fc3 = calculation.reap(forces, plan_hash=calculation.plan.hash)
 ```
 
 `sow()`、`reap()` 和直接 ASE Calculator 运行默认开启阶段信息，输出对称性、不可约
@@ -422,7 +424,6 @@ result = sscha.reap(
 
 拟合 FC2 只需要力；只有估计自由能时才需要能量。已完成轮次和采样诊断保存在
 `sscha.history`。phonopy 兼容文本和 HDF5 由公共 MLFCS writer 写出，运行时无需 phonopy。
-正则系综轮次还会报告 FC2 相对更新幅度，试探采样哈密顿量保持为内部细节。
 
 该方法是随机有效谐波方法，不是显式 FC3 bubble 或 FC4 loop 计算。详见
 [SSCHA 文档](docs/SSCHA_ZH.md)。
@@ -463,7 +464,7 @@ hiphive 和 phono3py 仅作为开发验证依赖。CI 中的 AlN 三阶基准先
 原子顺序和张量表示统一为完整超胞 FC3，再与独立的 phono3py 有限差分结果做数值比较。
 测试层级和各项独立参考测试的运行命令见 [tests/README.md](tests/README.md)。
 
-当前开发预发布版本为 `4.0.0a1`（4.0 alpha 1）。版本变化见 [CHANGELOG_ZH.md](CHANGELOG_ZH.md)，开发流程见
+当前正式版本为 `3.1.0`。版本变化见 [CHANGELOG.md](CHANGELOG.md)，开发流程见
 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 ## 许可证

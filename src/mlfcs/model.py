@@ -15,7 +15,6 @@ class RunConfig:
     order: int
     supercell: tuple[int, int, int] = (2, 2, 2)
     cutoff: float | int | None = -5
-    max_body_order: int | None = None
     displacement: float = 0.01
     symprec: float = 1e-5
 
@@ -26,8 +25,6 @@ class RunConfig:
             raise ValueError("supercell multipliers must be positive")
         if self.cutoff == 0:
             raise ValueError("cutoff cannot be zero")
-        if self.max_body_order is not None and not 1 <= self.max_body_order <= self.order:
-            raise ValueError("max_body_order must be between 1 and order")
         if self.displacement <= 0:
             raise ValueError("displacement must be positive")
 

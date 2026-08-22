@@ -63,6 +63,7 @@ def generate(source: Path, target: Path) -> None:
         "cutoff_angstrom": calculation.cutoff,
         "displacement_angstrom": DISPLACEMENT,
         "atom_order": "grouped",
+        "plan_hash": calculation.plan.hash,
         "configurations": records,
     }
     (target / "sow-plan.json").write_text(

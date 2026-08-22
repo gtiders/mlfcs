@@ -35,7 +35,6 @@ class SSCHAIteration:
     harmonic_potential_energy: float
     ensemble: EnsembleDiagnostics | None
     fitting_relative_force_error: float
-    relative_force_constant_change: float | None
 
 
 class SSCHA:
@@ -231,29 +230,21 @@ class SSCHA:
         )
         fitted_compact = fit.force_constants.materialize(2, max_bytes=None)
         fitted_full = expand_compact_fc2(fitted_compact, self._reference)
-        relative_change = None
-        if self._sampling_compact is not None:
-            denominator = np.linalg.norm(self._sampling_compact)
-            relative_change = float(
-                np.linalg.norm(fitted_compact - self._sampling_compact)
-                / max(float(denominator), np.finfo(float).tiny)
-            )
         displacement = np.asarray(
             [atoms.positions - self._reference.positions for atoms in snapshots]
         )
         trial_compact = fitted_compact if self._sampling_compact is None else self._sampling_compact
         trial_full = expand_compact_fc2(trial_compact, self._reference)
-        n_cells = int(np.prod(self.supercell))
         harmonic_each = (
             np.einsum("ijab,mia,mjb->m", trial_full, displacement, displacement, optimize=True) / 2
-        ) / n_cells
+        )
         free_energy = free_energy_error = potential_energy = None
         ensemble = self._sampling_ensemble or self._make_ensemble(trial_compact)
         if energy_array is not None and self._reference_energy is not None:
             potential_each = energy_array - self._reference_energy
-            potential_energy = float(np.mean(potential_each) / n_cells)
+            potential_energy = float(np.mean(potential_each))
             if self._sampling_compact is not None:
-                correction = potential_each / n_cells - harmonic_each
+                correction = (potential_each - harmonic_each) / int(np.prod(self.supercell))
                 free_energy = float(ensemble.harmonic_free_energy() + np.mean(correction))
                 free_energy_error = (
                     float(np.std(correction, ddof=1) / np.sqrt(len(correction)))
@@ -270,7 +261,6 @@ class SSCHA:
             harmonic_potential_energy=float(np.mean(harmonic_each)),
             ensemble=None if self._sampling_ensemble is None else ensemble.diagnostics,
             fitting_relative_force_error=fit.diagnostics.training_relative_force_error,
-            relative_force_constant_change=relative_change,
         )
         self._active_compact = fitted_compact.copy()
         self.history.append(result)
@@ -278,17 +268,6 @@ class SSCHA:
         self._prepared_structures = None
         self._sampling_compact = None
         self._sampling_ensemble = None
-        if self.log_level:
-            print(
-                f"- Fitting relative force error: {100 * result.fitting_relative_force_error:.6f} %"
-            )
-            if relative_change is not None:
-                print(f"- Relative FC2 change: {relative_change:.6e}")
-            if result.free_energy is not None:
-                print(
-                    f"- Variational free-energy estimate: {result.free_energy:.10e} "
-                    f"+/- {result.free_energy_error:.3e} eV/primitive cell"
-                )
         return result
 
     def step(

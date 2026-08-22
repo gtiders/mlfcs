@@ -1,19 +1,14 @@
 import numpy as np
 from ase import Atoms
-from ase.build import bulk
 from scipy import sparse
 
 from mlfcs.api import ForceConstantCalculation
-from mlfcs.core.constraints import build_harmonic_rotational_constraints
-from mlfcs.fitting.basis import symmetrized_covariance as _symmetrized_covariance
-from mlfcs.fitting.constraints import (
-    build_joint_constraints,
-    build_wick_to_taylor_fc1_transform,
-    build_wick_to_taylor_transform,
-    omitted_taylor_fc1,
+from mlfcs.fitting.constraints import build_joint_constraints, build_wick_to_taylor_transform
+from mlfcs.fitting.model import (
+    _ConstraintNullSpace,
+    _StreamingGramSystem,
+    _symmetrized_covariance,
 )
-from mlfcs.fitting.model import _StreamingGramSystem
-from mlfcs.fitting.solver import ConstraintNullSpace as _ConstraintNullSpace
 
 
 def test_implicit_null_space_is_idempotent_and_satisfies_constraints():
@@ -75,17 +70,9 @@ def test_wick_rotational_constraints_equal_taylor_constraints_after_transform():
     from mlfcs.fitting.constraints import (
         _adjacent_rotational_constraints,
         _compress_rows,
-        _fc1_rotation_matrix,
     )
 
-    harmonic = build_harmonic_rotational_constraints(
-        calculations[0].orbit_space, calculations[0].supercell
-    )
-    harmonic = sparse.hstack(
-        [harmonic, sparse.csr_matrix((harmonic.shape[0], sum(dimensions[1:])))],
-        format="csr",
-    )
-    adjacent = sparse.vstack(
+    rotational = sparse.vstack(
         [
             _adjacent_rotational_constraints(
                 calculations[index], calculations[index + 1], dimensions, index
@@ -94,10 +81,7 @@ def test_wick_rotational_constraints_equal_taylor_constraints_after_transform():
         ],
         format="csr",
     )
-    lower = harmonic @ transform + _fc1_rotation_matrix(
-        calculations[0].index.n_primitive
-    ) @ build_wick_to_taylor_fc1_transform(calculations, covariance)
-    expected = _compress_rows(sparse.vstack([adjacent @ transform, lower], format="csr"))
+    expected = _compress_rows(rotational @ transform)
     wick = build_joint_constraints(
         calculations,
         acoustic=False,
@@ -105,54 +89,3 @@ def test_wick_rotational_constraints_equal_taylor_constraints_after_transform():
         covariance=covariance,
     ).matrix
     np.testing.assert_allclose(wick.toarray(), expected.toarray(), atol=1e-12, rtol=1e-12)
-
-
-def test_fc2_only_fit_includes_shared_fc1_zero_rotational_boundary():
-    primitive = bulk("Si", "diamond", a=5.43)
-    calculation = ForceConstantCalculation(
-        primitive,
-        order=2,
-        supercell=(2, 2, 2),
-        cutoff=-2,
-        verbose=False,
-    )
-    covariance = np.eye(len(calculation.supercell) * 3)
-    actual = build_joint_constraints(
-        (calculation,),
-        acoustic=False,
-        rotational_mode=2,
-        covariance=covariance,
-    ).matrix
-    expected = build_harmonic_rotational_constraints(calculation.orbit_space, calculation.supercell)
-
-    assert actual.shape[0] > 0
-    # Row compression can change normalization/order, so compare null-space
-    # action through the ranks of the two equivalent row spaces.
-    assert np.linalg.matrix_rank(actual.toarray()) == np.linalg.matrix_rank(expected.toarray())
-    stacked = sparse.vstack([actual, expected]).toarray()
-    assert np.linalg.matrix_rank(stacked) == np.linalg.matrix_rank(expected.toarray())
-
-
-def test_explicit_fc1_transform_matches_reported_wick_contraction():
-    primitive = Atoms("Si", positions=[[0, 0, 0]], cell=np.eye(3) * 4.0, pbc=True)
-    calculations = tuple(
-        ForceConstantCalculation(
-            primitive,
-            order=order,
-            supercell=(2, 1, 1),
-            cutoff=4.1,
-            verbose=False,
-        )
-        for order in (2, 3)
-    )
-    covariance = np.eye(len(calculations[0].supercell) * 3)
-    rng = np.random.default_rng(19)
-    parameters = rng.normal(
-        size=sum(sum(orbit.dimension for orbit in item.orbit_space.orbits) for item in calculations)
-    )
-    transform = build_wick_to_taylor_fc1_transform(calculations, covariance)
-    np.testing.assert_allclose(
-        (transform @ parameters).reshape(-1, 3),
-        omitted_taylor_fc1(calculations, parameters, covariance),
-        atol=1e-13,
-    )

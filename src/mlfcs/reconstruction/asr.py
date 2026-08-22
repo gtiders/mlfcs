@@ -4,14 +4,10 @@ from itertools import pairwise
 
 import numpy as np
 from ase import Atoms
+from ase.geometry import find_mic
 from scipy import sparse
+from scipy.sparse.linalg import lsmr
 
-from mlfcs.core.constraints import (
-    build_harmonic_rotational_constraints,
-    build_translational_constraints,
-    maximum_constraint_residual,
-    project_parameters,
-)
 from mlfcs.core.orbits import OrbitSpace
 
 
@@ -33,8 +29,51 @@ def build_rotational_constraints(
     *,
     tolerance: float = 1e-12,
 ) -> sparse.csr_matrix:
-    """Compatibility wrapper for the shared FC1=0 Born--Huang boundary."""
-    return build_harmonic_rotational_constraints(orbit_space, supercell, tolerance=tolerance)
+    """Build harmonic Born-Huang rotational constraints in pivot space.
+
+    For every force component and rotation axis this imposes zero force under
+    the infinitesimal rigid displacement ``u_j = omega x r_ij``. Relative MIC
+    vectors make the equations independent of the coordinate origin.
+    """
+    if orbit_space.order != 2:
+        raise ValueError(
+            "rotational sum rules are currently available only for order 2; "
+            "higher-order conditions couple adjacent force-constant orders"
+        )
+    dimensions = [orbit.dimension for orbit in orbit_space.orbits]
+    offsets = np.cumsum([0, *dimensions])
+    equations: dict[tuple[int, int, int], int] = {}
+    rows: list[int] = []
+    columns: list[int] = []
+    data: list[float] = []
+    axes = np.eye(3)
+
+    for orbit_index, orbit in enumerate(orbit_space.orbits):
+        representative_from_pivots = orbit.basis @ np.linalg.inv(orbit.basis[orbit.pivots])
+        for image in orbit.images:
+            first, second = image.cluster
+            vector, _ = find_mic(
+                supercell.positions[second] - supercell.positions[first],
+                supercell.cell,
+                supercell.pbc,
+            )
+            rigid_displacements = np.cross(axes, vector)
+            image_from_pivots = image.action.apply_columns(representative_from_pivots)
+            for force_direction in range(3):
+                block = image_from_pivots.reshape(3, 3, -1)[force_direction]
+                for rotation_axis in range(3):
+                    equation_key = (int(first), force_direction, rotation_axis)
+                    equation = equations.setdefault(equation_key, len(equations))
+                    coefficients = rigid_displacements[rotation_axis] @ block
+                    nonzero = np.flatnonzero(np.abs(coefficients) > tolerance)
+                    rows.extend([equation] * len(nonzero))
+                    columns.extend(int(offsets[orbit_index] + value) for value in nonzero)
+                    data.extend(float(coefficients[value]) for value in nonzero)
+
+    return sparse.coo_matrix(
+        (data, (rows, columns)),
+        shape=(len(equations), int(offsets[-1])),
+    ).tocsr()
 
 
 def project_sum_rules(
@@ -63,17 +102,54 @@ def project_sum_rules(
     projected = (
         original.copy()
         if constraints is None
-        else project_parameters(constraints, original, tolerance=tolerance)
+        else _project_parameters(constraints, original, tolerance=tolerance)
     )
     drifts = {
         name: (
-            maximum_constraint_residual(matrix, original),
-            maximum_constraint_residual(matrix, projected),
+            _maximum_residual(matrix, original),
+            _maximum_residual(matrix, projected),
         )
         for name, matrix in matrices.items()
     }
     values = [projected[begin:end] for begin, end in pairwise(offsets)]
     return values, drifts
+
+
+def build_translational_constraints(
+    orbit_space: OrbitSpace,
+    *,
+    tolerance: float = 1e-12,
+) -> sparse.csr_matrix:
+    """Build the order-local acoustic sum-rule matrix ``A``.
+
+    Each row fixes the first ``n - 1`` atom indices and every Cartesian
+    component, and sums only the final atom index. Permutation symmetry in
+    the orbit space makes the equivalent constraints on other axes redundant.
+    """
+    dimensions = [orbit.dimension for orbit in orbit_space.orbits]
+    offsets = np.cumsum([0, *dimensions])
+    equations: dict[tuple[int, ...], int] = {}
+    rows: list[int] = []
+    columns: list[int] = []
+    data: list[float] = []
+
+    for orbit_index, orbit in enumerate(orbit_space.orbits):
+        representative_from_pivots = orbit.basis @ np.linalg.inv(orbit.basis[orbit.pivots])
+        for image in orbit.images:
+            image_from_pivots = image.action.apply_columns(representative_from_pivots)
+            for component in range(3**orbit_space.order):
+                directions = np.unravel_index(component, (3,) * orbit_space.order)
+                equation_key = image.cluster[:-1] + tuple(int(x) for x in directions)
+                equation = equations.setdefault(equation_key, len(equations))
+                nonzero = np.flatnonzero(np.abs(image_from_pivots[component]) > tolerance)
+                rows.extend([equation] * len(nonzero))
+                columns.extend(int(offsets[orbit_index] + value) for value in nonzero)
+                data.extend(float(image_from_pivots[component, value]) for value in nonzero)
+
+    return sparse.coo_matrix(
+        (data, (rows, columns)),
+        shape=(len(equations), int(offsets[-1])),
+    ).tocsr()
 
 
 def project_acoustic_sum_rule(
@@ -91,8 +167,47 @@ def project_acoustic_sum_rule(
         return (pivot_values, 0.0, 0.0) if return_drift else pivot_values
 
     initial_drift = float(np.linalg.norm(constraints @ parameters, ord=np.inf))
-    parameters = project_parameters(constraints, parameters, tolerance=tolerance)
+    parameters = _project_parameters(constraints, parameters, tolerance=tolerance)
     final_residual = constraints @ parameters
     projected = [parameters[begin:end] for begin, end in pairwise(offsets)]
     final_drift = float(np.linalg.norm(final_residual, ord=np.inf))
     return (projected, initial_drift, final_drift) if return_drift else projected
+
+
+def _project_parameters(
+    constraints: sparse.csr_matrix,
+    parameters: np.ndarray,
+    *,
+    tolerance: float,
+) -> np.ndarray:
+    scale = max(float(np.linalg.norm(parameters)), 1.0)
+    # LSMR returns the minimum-norm correction solving A @ correction =
+    # A @ parameters. Subtracting it is the orthogonal projection onto
+    # null(A), without forming a dense Gram matrix or squaring its condition
+    # number. Repeating the projection only refines finite-precision residuals.
+    for _ in range(8):
+        residual = constraints @ parameters
+        if float(np.linalg.norm(residual, ord=np.inf)) <= tolerance * scale:
+            break
+        correction = lsmr(
+            constraints,
+            residual,
+            atol=tolerance * 0.01,
+            btol=tolerance * 0.01,
+            maxiter=max(1000, 4 * constraints.shape[1]),
+        )[0]
+        parameters = parameters - correction
+
+    final_residual = constraints @ parameters
+    if float(np.linalg.norm(final_residual, ord=np.inf)) > tolerance * scale:
+        raise RuntimeError(
+            "sum-rule projection did not converge: "
+            f"max residual={np.linalg.norm(final_residual, ord=np.inf):.3e}"
+        )
+    return parameters
+
+
+def _maximum_residual(constraints: sparse.csr_matrix, parameters: np.ndarray) -> float:
+    if constraints.shape[0] == 0 or constraints.shape[1] == 0:
+        return 0.0
+    return float(np.linalg.norm(constraints @ parameters, ord=np.inf))

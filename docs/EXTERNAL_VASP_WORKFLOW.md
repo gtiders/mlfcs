@@ -36,8 +36,8 @@ fc3-work/
 ```
 
 `POSCAR-001` is configuration ID 0, `POSCAR-002` is ID 1, and so forth. The manifest stores the
-supercell, cutoff, displacement, grouped atom order, configuration count, and filename sequence.
-Do not rename, omit, deduplicate, or reorder configurations after sowing.
+supercell, cutoff, displacement, grouped atom order, configuration count, filename sequence, and
+plan hash. Do not rename, omit, deduplicate, or reorder configurations after sowing.
 
 ## 2. Prepare and submit VASP calculations
 
@@ -78,7 +78,7 @@ uv run python examples/vasp_external_fc3.py collect \
 ```
 
 The command fails if any result is missing. It reads the final ASE force array from every
-`vasprun.xml` and writes `fc3-work/forces.npz` with configuration IDs and atom order.
+`vasprun.xml` and writes `fc3-work/forces.npz` with configuration IDs, atom order, and plan hash.
 The original VASP directories remain the authoritative raw results.
 
 ## 4. Reap and export
@@ -100,8 +100,8 @@ Alternative FC3 outputs include generic sparse `hdf5`, `numpy`, and full `phono3
 
 - Keep `mlfcs-plan.json`, `POSCAR-unitcell`, and `forces.npz` together.
 - Archive the original VASP inputs and `vasprun.xml` files separately.
-- If the structure, supercell, cutoff, displacement, implementation, or symmetry tolerance changes,
-  sow again instead of mixing datasets.
+- A changed structure, supercell, cutoff, displacement, MLFCS implementation, or symmetry
+  tolerance may change the plan hash; sow again instead of mixing datasets.
 - If a scheduler returns jobs out of order, directory names restore the exact sequence during
   collection.
 - Forces must correspond to the grouped atom order written in each generated POSCAR. Never apply

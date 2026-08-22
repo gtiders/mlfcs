@@ -39,10 +39,7 @@ def write_shengbte(
         raise ValueError("ShengBTE output supports only third- and fourth-order tensors")
     n_supercell = len(supercell)
     expected = (n_primitive,) + (n_supercell,) * (order - 1) + (3,) * order
-    if (
-        not isinstance(force_constants, SparseOrderForceConstants)
-        and force_constants.shape != expected
-    ):
+    if not isinstance(force_constants, SparseOrderForceConstants) and force_constants.shape != expected:
         raise ValueError(f"force constants must have shape {expected}")
     if compatibility not in {None, "thirdorder"}:
         raise ValueError("compatibility must be None or 'thirdorder'")
@@ -54,12 +51,7 @@ def write_shengbte(
     distances, counts, shifts = _periodic_distances(geometry)
     if isinstance(force_constants, SparseOrderForceConstants):
         text = _format_sparse_force_constants(
-            force_constants,
-            geometry,
-            distances,
-            counts,
-            shifts,
-            cutoff_nm,
+            force_constants, geometry, distances, counts, shifts, cutoff_nm,
             compatibility=compatibility,
         )
     else:

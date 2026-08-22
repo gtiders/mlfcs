@@ -48,15 +48,12 @@ src/mlfcs/
     geometry.py                  deterministic supercells and neighbor shells
     symmetry.py                  space-group operations and atom permutations
     orbits.py                    generic cluster orbits and tensor actions
-    interactions.py              shared per-order interaction space
-    constraints.py               shared ASR construction and LSMR projection
   finite_difference/
     sampling.py                  stable displacement plans and force contraction
     stencil.py                   recursive central-difference stencils
   reconstruction/
     solver.py                    sparse cluster reconstruction
-    asr.py                       finite-difference sum-rule orchestration
-  fitting/                       Wick force design and constrained Gram fitting
+    asr.py                       strict acoustic sum-rule projection
   io/
     hdf5.py                      dense or sparse generic storage
     numpy.py                     NumPy storage
@@ -135,7 +132,7 @@ sign combinations are generated recursively, so the same stencil machinery cover
 supported order. The nominal sign count grows as `2**(order-1)`, but symmetry-equivalent
 displacement keys are deduplicated before calculator evaluation.
 
-Every sow structure contains a stable zero-based configuration ID, atom-order label,
+Every sow structure contains a stable zero-based configuration ID, plan hash, atom-order label,
 and displacement array. Positional reap follows the exact sow order. Mapping-based reap accepts
 results in arbitrary arrival order when keyed by configuration ID.
 
@@ -195,13 +192,6 @@ left-singular-vector matrix unrelated to the small number of unknown parameters.
 For sum-rule projection, MLFCS uses sparse LSMR for every parameter-space size. It computes the
 minimum-norm correction without forming `A.T @ A`, avoiding quadratic Gram storage and squared
 conditioning.
-
-Finite-difference reconstruction and force fitting share the same interaction space, translational
-constraint builder, residual metric, and final LSMR projection. Their top-level solvers remain
-different mathematical problems: finite differences project an already reconstructed parameter
-vector, whereas fitting minimizes a force residual inside the constraint null space. The current
-fitting null-space projector forms dense `C @ C.T`; replacing it automatically for large constraint
-systems is tracked in the roadmap.
 
 The final convergence test is relative to the parameter and constraint scale, not a fixed
 absolute residual alone.
@@ -272,13 +262,13 @@ internal geometry and uses scientific notation for both supported orders.
 | Code organization | Separate third/fourth-order implementations | Shared order-parameterized pipeline |
 | Calculator | Workflow-integrated calculator handling | User-owned ASE Calculator or external forces |
 | Supercell identity | Position/order conventions spread across workflow | Explicit primitive and translation arrays |
-| Sow/reap contract | Primarily file and positional convention | IDs, positional or mapping reap |
+| Sow/reap contract | Primarily file and positional convention | IDs, plan hash, positional or mapping reap |
 | Higher orders | Separate fixed-order logic | Generic reconstruction validated through order 5 |
 | Tensor actions | Dense transformations in critical paths | Matrix-free rotation and permutation kernels |
 | Reconstruction storage | Primarily dense order-specific arrays | Sparse cluster images with lazy dense conversion |
 | ASR FC3 | One-axis sum with relative compensation | Strict one-axis constrained projection |
 | ASR FC4 | Incorrect two-axis sum | Same physical one-axis rule as every order |
-| Large constraints | Full SVD could allocate huge matrices | Sparse LSMR projection; scalable fitting null space is on the roadmap |
+| Large constraints | Full SVD could allocate huge matrices | Small Gram null space plus sparse LSMR |
 | JAX | Not a primary backend | Explicit CPU/GPU tensor backend |
 | Output | Order-specific writers and CLI conventions | Explicit extensible `format` routing |
 | Phonopy FC2 | Dependency-driven interface | Dependency-free compatible dense writer |

@@ -80,6 +80,7 @@ def generate_fixture(dataset: Path, potential: Path, target: Path) -> None:
         unitcell_cell=np.asarray(unitcell.cell),
         unitcell_scaled_positions=unitcell.get_scaled_positions(),
         mlfcs_forces=mlfcs_forces,
+        mlfcs_plan_hash=np.asarray(calculation.plan.hash),
         cutoff_angstrom=np.asarray(calculation.cutoff),
         displacement_angstrom=np.asarray(DISPLACEMENT),
         maximum_mic_distance_angstrom=np.asarray(maximum_mic_distance),
