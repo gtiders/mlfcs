@@ -117,6 +117,11 @@ class ForceConstants:
     sparse: dict[int, SparseOrderForceConstants] = field(default_factory=dict)
     relation: object | None = None
 
+    def __getitem__(self, order: int) -> np.ndarray:
+        if order not in self.arrays:
+            self.arrays[order] = self.sparse[order].to_dense()
+        return self.arrays[order]
+
     @property
     def orders(self) -> tuple[int, ...]:
         return tuple(sorted(self.arrays.keys() | self.sparse.keys()))

@@ -37,10 +37,10 @@ def test_sow_ids_define_positional_reap_order():
     assert all(atoms.info["mlfcs_atom_order"] == "reference" for atoms in structures)
 
     forces = np.zeros((len(structures), len(job.supercell), 3))
-    positional = job.reap(forces).materialize(3)
+    positional = job.reap(forces)[3]
     mapped = job.reap(
         {index: forces[index] for index in reversed(range(len(structures)))},
-    ).materialize(3)
+    )[3]
     np.testing.assert_array_equal(positional, mapped)
 
 
@@ -57,11 +57,11 @@ def test_reference_force_order_and_user_calculator_path():
     assert all(atoms.info["mlfcs_atom_order"] == "reference" for atoms in structures)
     forces = np.zeros((len(structures), len(job.supercell), 3))
     result = job.reap(forces)
-    np.testing.assert_array_equal(result.materialize(3), 0.0)
+    np.testing.assert_array_equal(result[3], 0.0)
     evaluated = job.evaluate(ZeroCalculator())
     assert evaluated.shape == (len(job.plan), len(job.supercell), 3)
     direct = job.reap(evaluated)
-    np.testing.assert_array_equal(direct.materialize(3), 0.0)
+    np.testing.assert_array_equal(direct[3], 0.0)
 
 
 def test_second_order_uses_the_same_pipeline():
@@ -74,7 +74,7 @@ def test_second_order_uses_the_same_pipeline():
     forces = np.zeros((len(job.plan), len(job.supercell), 3))
     result = job.reap(forces)
     assert result.orders == (2,)
-    assert result.materialize(2).shape == (2, 16, 3, 3)
+    assert result[2].shape == (2, 16, 3, 3)
 
 
 def test_stage_reporting_is_enabled_by_default(capsys):
