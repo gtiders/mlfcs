@@ -321,12 +321,6 @@ from mlfcs import build_supercell
 reference_supercell = build_supercell(primitive, [[2, 1, 0], [0, 2, 0], [0, 0, 1]])
 ```
 
-This helper defaults to phonopy old-style atom ordering while retaining MLFCS's
-supercell-matrix convention. Pass `ordering="thirdorder"` explicitly for the
-former cell-major order. `ordering="phonopy_snf"` is reserved for future
-compatibility and currently reports that it is not implemented. An explicitly
-provided `reference_supercell` is never reordered.
-
 Format writers create any required format-specific ordering only at the export boundary.
 For independently reordered snapshots, call `mlfcs.align_structures(reference, atoms)` explicitly;
 it returns the aligned structure and its maximum periodic matching residual.

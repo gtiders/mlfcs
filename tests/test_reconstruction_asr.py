@@ -27,7 +27,7 @@ def test_acoustic_sum_rule_projection_is_strict(order):
     raw_residual = np.linalg.norm(raw.sum(axis=order - 1))
     projected_residual = np.linalg.norm(projected.sum(axis=order - 1))
     assert projected_residual < raw_residual
-    assert projected_residual < 2e-10
+    assert projected_residual < 1e-10
 
 
 def test_asr_reports_phonopy_style_maximum_drift():

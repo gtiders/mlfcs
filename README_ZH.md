@@ -300,10 +300,6 @@ from mlfcs import build_supercell
 reference_supercell = build_supercell(primitive, [[2, 1, 0], [0, 2, 0], [0, 0, 1]])
 ```
 
-该函数默认采用 phonopy old-style 的原子排列；MLFCS 的超胞矩阵约定保持不变。需要与旧
-thirdorder 工作流保持 cell-major 排列时，显式传入 `ordering="thirdorder"`。`ordering="phonopy_snf"`
-已保留为未来兼容入口，目前会明确报告未实现。显式提供的 `reference_supercell` 不会被重排。
-
 phonopy 等格式所需的排序仅在导出边界生成。
 对于独立产生且已重排的快照，可显式调用 `mlfcs.align_structures(reference, atoms)`；它返回
 对齐后的结构和最大周期匹配残差。
