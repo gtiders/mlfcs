@@ -37,7 +37,10 @@ jobs:
         run: uv run --group docs mkdocs build --strict -f mkdocs.zh.yml
 
       - name: Place English site at Pages root
-        run: cp -a site/en/. site/
+        run: |
+          cp -a site/en/. site/
+          test -f site/index.html
+          test -f site/zh/index.html
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
