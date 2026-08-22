@@ -1,4 +1,4 @@
-# MLFCS 4.0 技术概览
+# MLFCS 3.1 技术概览
 
 [English](TECHNICAL_OVERVIEW.md) | 中文
 
