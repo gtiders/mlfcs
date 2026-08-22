@@ -1,26 +1,5 @@
-"""Finite-temperature SSCHA and self-consistent phonon methods."""
-
-from importlib import import_module
-from typing import TYPE_CHECKING
+"""Finite-temperature anharmonic lattice-dynamics methods."""
 
 from mlfcs.anharmonic.scph import LoopSCPH, LoopSCPHResult, harmonic_frequencies
 
-if TYPE_CHECKING:
-    from mlfcs.anharmonic.sscha import SSCHA, EnsembleDiagnostics, HarmonicEnsemble, SSCHAIteration
-
-__all__ = [
-    "SSCHA",
-    "EnsembleDiagnostics",
-    "HarmonicEnsemble",
-    "LoopSCPH",
-    "LoopSCPHResult",
-    "SSCHAIteration",
-    "harmonic_frequencies",
-]
-
-
-def __getattr__(name: str):
-    """Load SSCHA only when its public symbols are requested."""
-    if name in {"EnsembleDiagnostics", "HarmonicEnsemble", "SSCHA", "SSCHAIteration"}:
-        return getattr(import_module("mlfcs.anharmonic.sscha"), name)
-    raise AttributeError(name)
+__all__ = ["LoopSCPH", "LoopSCPHResult", "harmonic_frequencies"]

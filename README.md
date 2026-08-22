@@ -409,11 +409,11 @@ dense = fc5.materialize(5, max_bytes=None)  # explicitly disable the warning bud
 
 ## Native SSCHA
 
-The independent `mlfcs.anharmonic.sscha` module fits a temperature-dependent effective harmonic FC2 from
+The independent `mlfcs.sscha` module fits a temperature-dependent effective harmonic FC2 from
 thermally sampled forces:
 
 ```python
-from mlfcs.anharmonic.sscha import SSCHA
+from mlfcs.sscha import SSCHA
 
 sscha = SSCHA(
     atoms,

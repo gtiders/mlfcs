@@ -6,7 +6,7 @@ English | [中文]
 
 The base MLFCS pipeline is a clean ASE-first implementation for reconstructing force constants
 from user-supplied forces. It does not embed a force calculator and has no command-line interface.
-The native `mlfcs.anharmonic.sscha` module combines compact-FC2
+The native `mlfcs.sscha` module combines compact-FC2
 q-space sampling with the same Gram fitting parameterization for finite-temperature effective
 FC2 calculations. The main public workflow remains a Python API:
 
@@ -80,13 +80,13 @@ after module moves.
 ## Public signatures
 
 The supported entry points are grouped in `mlfcs.public.finite_difference`,
-`mlfcs.public.fitting`, `mlfcs.public.constraints`, `mlfcs.public.scph`, and
+`mlfcs.public.fitting`, `mlfcs.public.constraints`, `mlfcs.public.anharmonic`, and
 `mlfcs.public.io`. Their callable signatures are declared at the definition site, including
 keyword-only options and defaults. Fitting and SSCHA are loaded lazily so importing the base
 finite-difference or IO API does not initialize JAX.
 
 The SSCHA package is an explicit submodule but has no additional runtime dependency. Applications
-opt in with `from mlfcs.anharmonic.sscha import SSCHA`.
+opt in with `from mlfcs.sscha import SSCHA`.
 
 ## 3. Generic force-constant pipeline
 
@@ -379,7 +379,7 @@ An independent development-only phonopy reference checks q-space frequencies and
 ## 10. Version summary
 
 `v3.0.0` consolidates phonopy FC2 export, explicit neighbor-shell diagnostics,
-generic sparse reconstruction, strict ASR, and the independent optional `mlfcs.anharmonic.sscha` module.
+generic sparse reconstruction, strict ASR, and the independent optional `mlfcs.sscha` module.
 It also includes a redesigned ASE-first direct and
 external API, structured iteration history, free-energy uncertainty, final-iteration averaging,
 and phonopy-native FC2 output.

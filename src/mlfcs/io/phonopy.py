@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 from ase import Atoms
 
-from mlfcs.anharmonic.common.fc2 import expand_compact_fc2
+from mlfcs.core.fc2 import expand_compact_fc2
 
 
 def write_phonopy(

@@ -12,12 +12,7 @@ from pathlib import Path
 
 import numpy as np
 
-from mlfcs.anharmonic.common.thermodynamics import (
-    HBAR_ASE,
-    OMEGA_TO_THZ,
-    mode_sigma,
-    regular_qpoints,
-)
+from mlfcs.anharmonic.core import HBAR_ASE, OMEGA_TO_THZ, mode_sigma, regular_qpoints
 from mlfcs.ifc.model import ForceConstants, SparseOrderForceConstants
 from mlfcs.structure.geometry import PeriodicGeometry
 

@@ -6,7 +6,7 @@ from typing import Literal
 import numpy as np
 from ase import Atoms, units
 
-from mlfcs.anharmonic.common.thermodynamics import HBAR_ASE, OMEGA_TO_THZ, mode_sigma
+from mlfcs.anharmonic.core import HBAR_ASE, OMEGA_TO_THZ, mode_sigma
 from mlfcs.structure.geometry import PeriodicIndex
 
 Statistics = Literal["quantum", "classical"]

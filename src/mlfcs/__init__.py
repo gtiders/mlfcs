@@ -2,7 +2,7 @@
 
 from importlib import import_module
 
-from mlfcs.anharmonic.scph import LoopSCPH, LoopSCPHResult, harmonic_frequencies
+from mlfcs.anharmonic import LoopSCPH, LoopSCPHResult, harmonic_frequencies
 from mlfcs.api import Calculation, ForceConstantCalculation
 from mlfcs.constraints.harmonic import (
     HarmonicConstraintDiagnostics,
@@ -55,5 +55,5 @@ def __getattr__(name: str):
     if name in {"FitDataset", "FittingDiagnostics", "FittingResult", "ForceConstantFitter"}:
         return getattr(import_module("mlfcs.fitting"), name)
     if name in {"EnsembleDiagnostics", "HarmonicEnsemble", "SSCHA", "SSCHAIteration"}:
-        return getattr(import_module("mlfcs.anharmonic.sscha"), name)
+        return getattr(import_module("mlfcs.sscha"), name)
     raise AttributeError(name)
