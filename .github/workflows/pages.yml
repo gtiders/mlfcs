@@ -36,6 +36,9 @@ jobs:
       - name: Build Chinese documentation
         run: uv run --group docs mkdocs build --strict -f mkdocs.zh.yml
 
+      - name: Place English site at Pages root
+        run: cp -a site/en/. site/
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
