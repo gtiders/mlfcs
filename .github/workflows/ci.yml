@@ -24,5 +24,3 @@ jobs:
         run: uv sync --locked --group docs
       - name: Build English documentation
         run: uv run --group docs mkdocs build --strict -f mkdocs.yml
-      - name: Build Chinese documentation
-        run: uv run --group docs mkdocs build --strict -f mkdocs.zh.yml

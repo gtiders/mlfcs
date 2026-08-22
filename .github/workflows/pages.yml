@@ -30,24 +30,18 @@ jobs:
       - name: Install documentation dependencies
         run: uv sync --locked --group docs
 
-      - name: Build English documentation
+      - name: Build documentation
         run: uv run --group docs mkdocs build --strict -f mkdocs.yml
 
-      - name: Build Chinese documentation
-        run: uv run --group docs mkdocs build --strict -f mkdocs.zh.yml
-
-      - name: Place English site at Pages root
+      - name: Verify published layout
         run: |
-          mkdir -p site-publish/zh
-          cp -a site/en/. site-publish/
-          cp -a site/zh/zh/. site-publish/zh/
-          test -f site-publish/index.html
-          test -f site-publish/zh/index.html
+          test -f site/index.html
+          test -f site/zh/index.html
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: site-publish
+          path: site
 
   deploy:
     needs: build

@@ -9,5 +9,5 @@
 uv run ruff check src tests examples
 uv run pytest -m "not reference"
 uv run --group docs mkdocs build --strict -f mkdocs.yml
-uv run --group docs mkdocs build --strict -f mkdocs.zh.yml
+uv run --group docs mkdocs build --strict -f mkdocs.yml
 ```

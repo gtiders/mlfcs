@@ -67,7 +67,7 @@ sum over one atom index of Phi(i1, ..., in) = 0
 ```
 
 All constraint systems use a sparse, matrix-free LSMR projection. Harmonic calculations may also
-enable the optional Born-Huang rotational sum rules; see [Sum rules](docs/en/methods/sum-rules.md).
+enable the optional Born-Huang rotational sum rules; see [Sum rules](docs/methods/sum-rules.md).
 
 ## Features
 
@@ -199,7 +199,7 @@ so a manifest containing the filename-to-configuration-ID relation is recommende
 for out-of-order jobs, restarts, long-term archives, and accidental-dataset detection. The complete
 [`vasp_external_fc3.py`](examples/vasp_external_fc3.py) example implements this optional safety
 layer, force collection, missing-result checks, and final export; see the
-[external VASP workflow guide](docs/en/workflows/external-calculators.md).
+[external VASP workflow guide](docs/workflows/external-calculators.md).
 
 The force array must have shape:
 
@@ -254,7 +254,7 @@ fc4 = calculation.run(
 For a central displacement of `0.03` Å, this samples `0.02`, `0.025`, `0.03`, `0.035`, and
 `0.04` Å. The default degree `1` fits `D(h) = D0 + c2 h²`; higher degrees fit additional even
 powers. This backend is intentionally available only through `run()`, not external `sow()` /
-`reap()`. See [Zero-step extrapolation](docs/en/workflows/extrapolation.md).
+`reap()`. See [Zero-step extrapolation](docs/workflows/extrapolation.md).
 
 For explicit checkpointing:
 
@@ -343,7 +343,7 @@ constrained = enforce_rotational_sum_rules(result,
 
 The projector always enforces FC2 ASR, uses all tied nearest periodic images, and reports its
 residuals and correction. `strength` in `[0, 1]` scales only the Born-Huang/Huang correction.
-See [Sum rules](docs/en/methods/sum-rules.md).
+See [Sum rules](docs/methods/sum-rules.md).
 
 ## Output formats
 
@@ -388,7 +388,7 @@ ALAMODE XML preserves the exact atom order of `fc.supercell`. Primitive-atom ide
 translation mappings come exclusively from MLFCS's `primitive_index` and `cell_translation`
 metadata; export does not ask spglib or ALAMODE to rediscover or reorder the cell. Use `order=2`,
 `3`, or `4` to write one available order, or omit it to combine all available FC2--FC4 orders.
-See the [ALAMODE XML guide](docs/en/formats/alamode.md) for the mapping and periodic-image contract.
+See the [ALAMODE XML guide](docs/formats/alamode.md) for the mapping and periodic-image contract.
 
 Sparse HDF5 is recommended for high orders. Dense materialization is explicit and emits a
 warning above the default 2 GB advisory budget:
@@ -443,7 +443,7 @@ Canonical iterations also report the relative FC2 update, while the trial sampli
 remains an internal detail.
 
 This is a stochastic effective-harmonic method, not an explicit FC3 bubble or FC4 loop
-calculation. See the [SSCHA guide](docs/en/workflows/sscha.md) for details.
+calculation. See the [SSCHA guide](docs/workflows/sscha.md) for details.
 
 ## Current limitations
 
@@ -457,7 +457,7 @@ calculation. See the [SSCHA guide](docs/en/workflows/sscha.md) for details.
 
 ## Documentation
 
-- Full bilingual docs: [English site](https://gtiders.github.io/mlfcs/) and [中文 site](https://gtiders.github.io/mlfcs/zh/). See [runnable examples](examples/README.md) and [development validation](docs/en/development/validation.md)
+- Full bilingual docs: [English site](https://gtiders.github.io/mlfcs/) and [中文 site](https://gtiders.github.io/mlfcs/zh/). See [runnable examples](examples/README.md) and [development validation](docs/development/validation.md)
 
 ## Development
 
