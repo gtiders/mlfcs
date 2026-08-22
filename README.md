@@ -30,10 +30,6 @@ constants with a stochastic self-consistent harmonic approximation (SSCHA).
 
 MLFCS provides a Python API only; it has no CLI.
 
-> **Development branch:** The joint force-only FC2--FCn fitting API described below is currently
-> developed on the `dev` branch. The stable `main` branch retains the finite-difference API and
-> common force-constant I/O. This label will be removed when fitting validation is promoted.
-
 ## How it works
 
 An order-`n` force constant is the `n`th derivative of potential energy with respect to atomic

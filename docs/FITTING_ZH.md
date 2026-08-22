@@ -20,18 +20,6 @@ Phi_T[m] = Phi_W[m] - 1/2 Phi_W[m+2]:Sigma
 这只是多项式坐标变换，不是第二次拟合。`FittingResult.parameters` 仍是 Wick 参数；
 `FittingResult.force_constants` 则是可供通用格式导出的 Taylor 力常数。
 
-平移约束与协方差收缩可交换，因此换基后仍成立。旋转约束会耦合相邻Taylor阶数，不能
-直接施加到Wick系数。开启 `rotational_invariance=2` 或 `3` 时，MLFCS先构造Taylor
-约束矩阵 `C_T` 和依赖协方差的Wick→Taylor映射 `T(Sigma)`，实际求解约束为：
-
-```text
-C_W = C_T @ T(Sigma)
-```
-
-最终导出也使用同一个 `T(Sigma)`，因此拟合约束和Taylor输出采用完全一致的定义，而不是
-拟合完成后再投影。早期开发实现中曾在未进行此映射时直接开启旋转拟合，这类结果需要
-重新计算；仅开启ASR或 `rotational_invariance=0` 的结果不受影响。
-
 ```python
 from ase.io import read
 from mlfcs.fitting import ForceConstantFitter
