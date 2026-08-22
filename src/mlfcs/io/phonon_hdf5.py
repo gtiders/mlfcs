@@ -6,8 +6,7 @@ from pathlib import Path
 import h5py
 import numpy as np
 
-from mlfcs.core.geometry import PeriodicIndex
-from mlfcs.ifc.model import ForceConstants
+from mlfcs.model import ForceConstants
 
 
 def write_phonon_hdf5(
@@ -19,8 +18,8 @@ def write_phonon_hdf5(
     """Write full-supercell FC2/FC3 in phonopy/phono3py HDF5 conventions.
 
     MLFCS keeps a translation-reduced first atomic axis. The external files
-    use every supercell atom on every atomic axis in the explicit reference
-    order. Slabs are expanded and written one first atom at a time
+    use every supercell atom on every atomic axis and group translated images
+    by primitive atom. Slabs are expanded and written one first atom at a time
     so the full FC3 is never materialized in memory.
     """
     if order not in {2, 3}:
@@ -29,11 +28,7 @@ def write_phonon_hdf5(
         raise ValueError(f"order {order} is not present in force constants")
 
     sparse = force_constants.sparse.get(order)
-    compact = (
-        sparse.to_dense(primitive_index=force_constants.supercell.arrays["primitive_index"])
-        if sparse is not None
-        else np.asarray(force_constants.arrays[order])
-    )
+    compact = sparse.to_dense() if sparse is not None else np.asarray(force_constants.arrays[order])
     supercell = force_constants.supercell
     primitive = np.asarray(supercell.arrays["primitive_index"], dtype=np.int64)
     translations = np.asarray(supercell.arrays["cell_translation"], dtype=np.int64)
@@ -43,10 +38,12 @@ def write_phonon_hdf5(
     if compact.shape != expected:
         raise ValueError(f"compact FC{order} must have shape {expected}, got {compact.shape}")
 
-    matrix = supercell.info.get("mlfcs_supercell_matrix")
-    if matrix is None:
-        raise ValueError("supercell is missing the MLFCS supercell-matrix metadata")
-    index = PeriodicIndex(primitive, translations, np.asarray(matrix, dtype=np.int32))
+    repeats = translations.max(axis=0) + 1
+    atom_by_key = {
+        (int(p), *(int(value) for value in translation)): atom
+        for atom, (p, translation) in enumerate(zip(primitive, translations, strict=True))
+    }
+    grouped = np.lexsort((translations[:, 0], translations[:, 1], translations[:, 2], primitive))
     shape = (n_supercell,) * order + (3,) * order
     chunks = (1,) + shape[1:]
     dataset_name = "force_constants" if order == 2 else "fc3"
@@ -60,27 +57,25 @@ def write_phonon_hdf5(
             compression="gzip",
             compression_opts=4,
         )
-        for source_first in range(n_supercell):
-            relative = translations - translations[source_first]
+        for target_first, source_first in enumerate(grouped):
+            relative = np.mod(translations - translations[source_first], repeats)
             anchored = np.fromiter(
                 (
-                    index.atom(int(p), translation)
+                    atom_by_key[(int(p), *(int(value) for value in translation))]
                     for p, translation in zip(primitive, relative, strict=True)
                 ),
                 dtype=np.int64,
                 count=n_supercell,
             )
-            tails = anchored
+            tails = anchored[grouped]
             if order == 2:
                 slab = compact[int(primitive[source_first]), tails]
             else:
                 slab = compact[int(primitive[source_first])][np.ix_(tails, tails)]
-            dataset[source_first] = slab
+            dataset[target_first] = slab
 
-        handle.create_dataset(
-            "p2s_map",
-            data=np.asarray([np.flatnonzero(primitive == site)[0] for site in range(n_primitive)]),
-        )
+        n_cells = n_supercell // n_primitive
+        handle.create_dataset("p2s_map", data=np.arange(n_primitive, dtype=np.int64) * n_cells)
         try:
             release = version("mlfcs")
         except PackageNotFoundError:

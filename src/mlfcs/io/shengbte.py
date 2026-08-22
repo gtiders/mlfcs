@@ -1,22 +1,21 @@
 from __future__ import annotations
 
-from itertools import product
+from itertools import combinations, product
 from pathlib import Path
 
 import numpy as np
 from ase import Atoms
-
-from mlfcs.core.geometry import PeriodicGeometry, PeriodicIndex
-from mlfcs.ifc.model import SparseOrderForceConstants
-from mlfcs.io._text import zero_small_scalar
-
-_TEXT_ZERO_TOLERANCE = 1e-8
+from scipy.spatial.distance import cdist
 
 
 def write_shengbte(
     target: str | Path,
-    force_constants: SparseOrderForceConstants,
+    force_constants: np.ndarray,
     supercell: Atoms,
+    *,
+    cutoff: float,
+    support: np.ndarray | None = None,
+    compatibility: str | None = None,
 ) -> None:
     """Write an order-parameterized ShengBTE-style force-constant file.
 
@@ -24,82 +23,156 @@ def write_shengbte(
     lattice translations, ``order`` primitive atom indices, and ``3**order``
     Cartesian components. Values use scientific notation at every order.
     """
-    order = force_constants.order
-    if force_constants.n_supercell != len(supercell):
-        raise ValueError("sparse force constants and supercell sizes differ")
-    if order not in {3, 4}:
+    order = force_constants.ndim // 2
+    if order not in {3, 4} or force_constants.ndim != 2 * order:
         raise ValueError("ShengBTE output supports only third- and fourth-order tensors")
-    Path(target).write_text(_format_sparse_force_constants(force_constants, supercell))
+    n_primitive = force_constants.shape[0]
+    n_supercell = len(supercell)
+    expected = (n_primitive,) + (n_supercell,) * (order - 1) + (3,) * order
+    if force_constants.shape != expected:
+        raise ValueError(f"force constants must have shape {expected}")
+    if compatibility not in {None, "thirdorder"}:
+        raise ValueError("compatibility must be None or 'thirdorder'")
+    if support is not None and np.asarray(support).shape != expected[:order]:
+        raise ValueError(f"support must have shape {expected[:order]}")
+
+    geometry = _nanometre_geometry(supercell)
+    cutoff_nm = cutoff * 0.1
+    distances, counts, shifts = _periodic_distances(geometry)
+    text = _format_force_constants(
+        force_constants,
+        geometry,
+        n_primitive,
+        distances,
+        counts,
+        shifts,
+        cutoff_nm,
+        order,
+        support=None if support is None else np.asarray(support, dtype=bool),
+        compatibility=compatibility,
+    )
+    Path(target).write_text(text)
 
 
-def _format_sparse_force_constants(
-    fc: SparseOrderForceConstants,
-    supercell: Atoms,
-) -> str:
-    """Serialize sparse lattice-labelled clusters without atom-number arithmetic."""
-    try:
-        index = PeriodicIndex(
-            np.asarray(supercell.arrays["primitive_index"]),
-            np.asarray(supercell.arrays["cell_translation"]),
-            np.asarray(supercell.info["mlfcs_supercell_matrix"]),
-        )
-    except KeyError as error:
-        raise ValueError("supercell is missing MLFCS periodic mapping metadata") from error
-    primitive_cell = np.linalg.inv(index.supercell_matrix) @ np.asarray(supercell.cell)
-    if fc.is_lattice_labelled:
-        sites = np.asarray(fc.sites)
-        relative = np.asarray(fc.translation_representatives)
+def _nanometre_geometry(supercell: Atoms) -> Atoms:
+    geometry = supercell.copy()
+    geometry.set_cell(np.asarray(geometry.cell) * 0.1, scale_atoms=False)
+    required = {"primitive_scaled_position", "cell_translation"}
+    if required <= geometry.arrays.keys():
+        translations = geometry.arrays["cell_translation"]
+        repeats = translations.max(axis=0) + 1
+        fractional = (geometry.arrays["primitive_scaled_position"] + translations) / repeats
+        geometry.positions = fractional @ geometry.cell
     else:
-        sites = index.primitive[fc.clusters]
-        translations = index.translations[fc.clusters]
-        relative = translations[:, 1:] - translations[:, :1]
-    try:
-        primitive_scaled = np.asarray(supercell.arrays["primitive_scaled_position"])
-    except KeyError as error:
-        raise ValueError("supercell is missing primitive-site position metadata") from error
-    basis_scaled = np.empty((fc.n_primitive, 3), dtype=float)
-    for site in range(fc.n_primitive):
-        atoms = np.flatnonzero(index.primitive == site)
-        if not len(atoms):
-            raise ValueError(f"supercell has no image of primitive site {site}")
-        basis_scaled[site] = primitive_scaled[atoms[0]]
-        if not np.allclose(primitive_scaled[atoms], basis_scaled[site], atol=1e-10, rtol=0.0):
-            raise ValueError("primitive-site position metadata is inconsistent")
+        geometry.positions *= 0.1
+    return geometry
 
-    geometry = PeriodicGeometry(supercell.cell, supercell.pbc)
-    physical: dict[tuple[int, ...], tuple[np.ndarray, np.ndarray, np.ndarray]] = {}
-    for site_labels, translations, tensor in zip(sites, relative, fc.tensors, strict=True):
-        translations = np.atleast_2d(translations)
-        basis_vectors = (
-            basis_scaled[site_labels[1:]] - basis_scaled[site_labels[0]]
-        ) @ primitive_cell
-        vectors = basis_vectors + translations @ primitive_cell
-        for shifts in geometry.joint_closest_image_shifts(vectors):
-            resolved = translations + shifts @ index.supercell_matrix
-            key = tuple(int(value) for value in np.concatenate((site_labels, resolved.ravel())))
-            previous = physical.get(key)
-            if previous is not None:
-                if not np.allclose(previous[2], tensor, atol=1e-8, rtol=1e-10):
-                    raise ValueError("duplicate ShengBTE cluster has inconsistent force constants")
-                continue
-            physical[key] = (site_labels.copy(), resolved.copy(), tensor)
 
-    # Writer order is physical and therefore independent of source reference
-    # atom ordering. Block order is not part of ShengBTE's IFC semantics.
+def _periodic_distances(
+    supercell: Atoms,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    shift_vectors = np.asarray(list(product(range(-1, 2), repeat=3)), dtype=np.int32)
+    cartesian_shifts = shift_vectors @ supercell.cell
+    positions = supercell.positions
+    squared = np.asarray(
+        [cdist(positions, positions + shift, "sqeuclidean") for shift in cartesian_shifts]
+    )
+    minimum = squared.min(axis=0)
+    degenerate = np.abs(squared - minimum) < 1e-4
+    counts = degenerate.sum(axis=0, dtype=np.int32)
+    maximum = int(counts.max())
+    sorting = np.argsort(~degenerate, axis=0)
+    shift_indices = np.transpose(sorting[:maximum], (1, 2, 0)).astype(np.int32)
+    return np.sqrt(minimum), counts, shift_indices
+
+
+def _format_force_constants(
+    fc: np.ndarray,
+    supercell: Atoms,
+    n_primitive: int,
+    distances: np.ndarray,
+    counts: np.ndarray,
+    shifts: np.ndarray,
+    cutoff: float,
+    order: int,
+    *,
+    support: np.ndarray | None,
+    compatibility: str | None,
+) -> str:
+    shift_vectors = np.asarray(list(product(range(-1, 2), repeat=3)))
     blocks: list[str] = []
-    for site_labels, translations, tensor in (physical[key] for key in sorted(physical)):
-        lines = [
-            "",
-            f"{len(blocks) + 1:>5}",
-            *[_vector_line(np.asarray(vector) * 0.1) for vector in translations @ primitive_cell],
-            " ".join(f"{site + 1:>6d}" for site in site_labels),
-        ]
-        for directions in product(range(3), repeat=fc.order):
-            direction_text = " ".join(f"{direction + 1:>2d}" for direction in directions)
-            value = zero_small_scalar(tensor[directions], tolerance=_TEXT_ZERO_TOLERANCE)
-            lines.append(f"{direction_text} {value:>20.10e}")
-        blocks.append("\n".join(lines) + "\n")
-    return f"{len(blocks):>5}\n" + "".join(blocks)
+    block_number = 0
+    for first in range(n_primitive):
+        for remaining in product(range(len(supercell)), repeat=order - 1):
+            atom_indices = (first,) + remaining
+            tensor = fc[atom_indices]
+            if compatibility is None:
+                included = (
+                    bool(support[atom_indices])
+                    if support is not None
+                    else bool(np.any(tensor != 0.0))
+                )
+                if not included:
+                    continue
+            elif any(distances[first, atom] >= cutoff for atom in remaining):
+                continue
+            possible_shifts = [
+                shift_vectors[shifts[first, atom, : counts[first, atom]]] for atom in remaining
+            ]
+            best_distance, best_shifts = _best_joint_images(supercell, remaining, possible_shifts)
+            if compatibility == "thirdorder" and best_distance >= cutoff * cutoff:
+                continue
+            primitive_atoms = (first,) + tuple(atom % n_primitive for atom in remaining)
+            translations = tuple(
+                _translation(supercell, atom, primitive_atom, shift)
+                for atom, primitive_atom, shift in zip(
+                    remaining, primitive_atoms[1:], best_shifts, strict=True
+                )
+            )
+            block_number += 1
+            lines = [
+                "",
+                f"{block_number:>5}",
+                *[_vector_line(vector) for vector in translations],
+                " ".join(f"{atom + 1:>6d}" for atom in primitive_atoms),
+            ]
+            for directions in product(range(3), repeat=order):
+                direction_text = " ".join(f"{direction + 1:>2d}" for direction in directions)
+                value = fc[atom_indices + directions]
+                lines.append(f"{direction_text} {value:>20.10e}")
+            blocks.append("\n".join(lines) + "\n")
+    return f"{block_number:>5}\n" + "".join(blocks)
+
+
+def _best_joint_images(
+    supercell: Atoms,
+    atoms: tuple[int, ...],
+    possible_shifts: list[np.ndarray],
+) -> tuple[float, tuple[np.ndarray, ...]]:
+    best_distance = np.inf
+    best_shifts = tuple(shifts[0] for shifts in possible_shifts)
+    pairs = tuple(combinations(range(len(atoms)), 2))
+    for selected_shifts in product(*possible_shifts):
+        positions = tuple(
+            supercell.positions[atom] + shift @ supercell.cell
+            for atom, shift in zip(atoms, selected_shifts, strict=True)
+        )
+        distance = max(
+            float(np.sum((positions[left] - positions[right]) ** 2)) for left, right in pairs
+        )
+        if distance < best_distance:
+            best_distance = distance
+            best_shifts = selected_shifts
+    return best_distance, best_shifts
+
+
+def _translation(
+    supercell: Atoms,
+    atom: int,
+    primitive_atom: int,
+    shift: np.ndarray,
+) -> np.ndarray:
+    return supercell.positions[atom] + shift @ supercell.cell - supercell.positions[primitive_atom]
 
 
 def _vector_line(vector: np.ndarray) -> str:

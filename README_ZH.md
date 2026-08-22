@@ -7,21 +7,22 @@ MLFCS 是一个以 ASE 为公共接口、根据原子力计算对称性约化力
 验证路径。五阶及更高阶也可以直接计算，并通过通用稀疏 HDF5 格式导出；实际可算
 规模取决于团簇数量、近邻截断、超胞大小和可用内存。
 
-有限差分路径只使用 ASE、NumPy 和 SciPy，因此外部计算器可完全自行决定使用 CPU 或
-GPU。联合拟合同时支持 CPU 和 GPU：安装 CUDA 版 JAX 后，仅将计算密集的 Wick 特征核
-放到 GPU；几何、对称性、稀疏约束和最终求解仍在宿主端。实现通过对称性约化、连续稀疏
-数组、惰性稠密物化、约束零空间坐标和有界特征 tile 控制内存；每次拟合只准备一次静态
-JAX 缓冲区与已编译核，训练、验证和诊断均复用它们。
+MLFCS 的三阶技术路线明确参考并借鉴了 GPL 许可的
+[thirdorder](https://gitlab.com/sousaw/thirdorder) 项目，包括其算法、周期镜像约定和
+`sow`/`reap` 工作流。MLFCS 在此基础上发展出阶数参数化的 ASE/JAX 架构，并新增稀疏
+表示、约束求解、加速和互操作层。具体归属和范围见[第三方来源说明](THIRD_PARTY_ZH.md)。
+
+数值计算同时支持 CPU 和 GPU：CPU 模式适合常规计算和大规模稀疏线性代数，安装
+CUDA 版 JAX 后可将高阶笛卡尔张量旋转与批处理变换放到 GPU。实现通过对称性约化、
+连续稀疏数组、惰性稠密物化、矩阵无关张量操作、小 Gram 零空间和稀疏 LSMR 控制
+内存；通过 JAX JIT、`vmap`、批量张量收缩和位移任务去重优化速度。具体收益取决于
+体系、阶数和硬件，GPU 不会替代仍在 CPU 上执行的团簇枚举与稀疏求解。
 
 基础包不规定力由什么程序产生。用户可以使用任意 ASE Calculator，也可以把位移结构
-交给外部任务系统计算。原生 SSCHA 模块结合 q 空间量子谐波采样与 MLFCS Gram 拟合器，
-计算温度相关的有效二阶力常数。
+交给外部任务系统计算。独立的可选模块使用 phonopy 和 symfc，通过随机自洽谐波近似
+（SSCHA）计算温度相关的有效二阶力常数。
 
 MLFCS 只提供 Python API，不提供 CLI。
-
-> **开发分支说明：** 下文的 FC2--FCn 联合仅力数据拟合 API 当前在 `dev` 分支开发。
-> 稳定的 `main` 分支保留有限差分 API 和公共力常数 IO；拟合验证达到发布条件后再移除
-> 此标注并合入稳定分支。
 
 ## 基本原理
 
@@ -47,7 +48,7 @@ ASE 原胞结构
 稀疏对称性重建和可选求和规则投影
     │
     ▼
-ForceConstants → HDF5 / ShengBTE / phonopy 兼容格式
+ForceConstants → HDF5 / NumPy / ShengBTE / phonopy
 ```
 
 空间群对称性、力常数指标置换和团簇稳定子约束会把每个团簇张量约化为独立分量，
@@ -61,7 +62,7 @@ ForceConstants → HDF5 / ShengBTE / phonopy 兼容格式
 ```
 
 所有约束系统统一使用稀疏、矩阵无关的 LSMR 投影。二阶计算还可主动开启可选的
-Born–Huang 旋转求和规则，详见[求和规则](docs/zh/methods/sum-rules.md)。
+Born–Huang 旋转求和规则，详见[求和规则](docs/SUM_RULES_ZH.md)。
 
 ## 主要特点
 
@@ -71,21 +72,19 @@ Born–Huang 旋转求和规则，详见[求和规则](docs/zh/methods/sum-rules
 - 二阶和五阶完成端到端验证；
 - 公共结构与计算器接口完全采用 ASE；
 - 支持适合外部调度和断点续算的 `sow()` / `reap()`；
-- 直接 calculator 路径支持可配置偶次幂阶数的零步长外推；
-- 稳定的构型 ID 和显式原子顺序映射；
+- 稳定的构型 ID、计划哈希和显式原子顺序映射；
 - 与既有逻辑兼容的周期团簇截断；
 - 递归中心有限差分模板；
-- 拟合支持 CPU/GPU 的常驻 JAX Wick 特征核；有限差分保持宿主端执行；
-- JAX JIT、`vmap` 和批量张量收缩降低高阶拟合特征计算开销；
+- JAX 加速高阶张量变换，可选择 CPU 或 GPU；
+- JAX JIT、`vmap` 和批量张量收缩减少高阶张量处理开销；
 - 连续稀疏数组、矩阵无关变换和惰性稠密物化降低峰值内存；
 - 位移键去重减少需要调用势函数的构型数量；
-- 使用 Wick 正交特征联合拟合 FC2--FCn，并输出兼容通用格式的 Taylor 力常数；
 - 稀疏矩阵无关 LSMR 实现严格平移 ASR；
 - 二阶力常数可选 Born–Huang 旋转求和规则；
 - 任意阶通用稀疏 HDF5；
 - 三阶、四阶 ShengBTE 输出；
 - 二阶完整 phonopy 文本输出；
-- 原生量子/经典 SSCHA，并支持任意 ASE Calculator。
+- 可选 phonopy/symfc SSCHA，并支持任意 ASE Calculator。
 
 ## 安装
 
@@ -103,6 +102,12 @@ uv sync
 - [`nep89_orders.py`](examples/nep89_orders.py) 通过 calorine ASE calculator，使用用户提供的
   NEP89 模型计算一个或多个阶数。
 
+需要 SSCHA 时安装可选依赖：
+
+```bash
+uv sync --extra sscha
+```
+
 calorine、MACE 等势函数包不是基础依赖，请根据实际任务单独安装。
 
 ## 单位
@@ -118,13 +123,6 @@ calorine、MACE 等势函数包不是基础依赖，请根据实际任务单独�
 
 JAX 数值核使用 64 位浮点数。
 
-## 先确定后处理结构
-
-计算力常数之前，应先确定最终使用哪个程序进行后处理，并优先采用该程序生成或验证的
-原胞与参考超胞。建议把这两个结构以相同的 ASE `Atoms` 形式直接交给 MLFCS 计算。
-MLFCS 能验证和转换原子重排、整数换基等严格等价的原胞/超胞表示，但从后处理软件自身
-认可的结构开始，可以避免在最终导出时引入不必要的原子映射和周期平移歧义。
-
 ## 快速开始
 
 ### 外部力计算
@@ -133,7 +131,7 @@ MLFCS 能验证和转换原子重排、整数换基等严格等价的原胞/超�
 结构列表。用户可以自行用 ASE 将这些结构写成 VASP 的 `POSCAR-xxx`，也可以选择其他
 第一性原理软件的输入格式，再通过任意本地调度系统提交。计算完成后，仍由用户使用 ASE
 读取每个结果、提取力，并恢复 `sow()` 的原始顺序（或按构型 ID 建立字典），最后只把
-力交给 `reap()`。只要能够保证这个位置顺序，就不需要构型 ID。
+力交给 `reap()`。只要能够保证这个位置顺序，就不需要构型 ID 和计划哈希。
 
 下面是按位置顺序组织的 VASP 案例：
 
@@ -147,14 +145,15 @@ from mlfcs import ForceConstantCalculation
 calculation = ForceConstantCalculation(
     read("POSCAR"),
     order=3,
-    reference=read("reference-supercell.vasp"),
+    supercell=(2, 2, 2),
     cutoff=-5,
     displacement=0.01,
     symprec=1e-5,
+    jax_platform="auto",  # "auto"、"cpu" 或 "gpu"
 )
 
 # 1. sow()：获得与 reap 完全对应的 ASE 位移结构列表。
-structures = calculation.sow()
+structures = calculation.sow(atom_order="grouped")
 Path("vasp-jobs").mkdir(exist_ok=True)
 for configuration_id, atoms in enumerate(structures):
     job = Path("vasp-jobs") / f"POSCAR-{configuration_id + 1:03d}"
@@ -173,7 +172,11 @@ for configuration_id in range(len(structures)):
 forces = np.asarray(forces)
 
 # 4. reap()：forces[i] 必须对应 structures[i]。
-fc3 = calculation.reap(forces, acoustic_sum_rule=True)
+fc3 = calculation.reap(
+    forces,
+    atom_order="grouped",
+    acoustic_sum_rule=True,
+)
 fc3.write("fc3.h5", format="hdf5")
 ```
 
@@ -181,10 +184,10 @@ fc3.write("fc3.h5", format="hdf5")
 `read()` 所使用的格式，并补充该程序需要的输入参数；`sow/reap` 契约不变。若文件名和
 返回的力严格保持 sow 顺序，位置式 `reap()` 不需要任何额外元数据。POSCAR 这类文件
 不会保存 Python 中的 `atoms.info`，因此对于任务乱序、断点续算、长期归档或防止混入
-其他数据集的情况，建议用 manifest 保存文件名—构型 ID 对应关系。完整的
+其他数据集的情况，建议用 manifest 保存文件名—构型 ID 对应关系和计划哈希。完整的
 [`vasp_external_fc3.py`](examples/vasp_external_fc3.py) 示例把 manifest 作为可选安全层，
 并实现力收集、缺失结果检查和最终导出，详见
-[外部 VASP 工作流](docs/zh/workflows/external-calculators.md)。
+[外部 VASP 工作流](docs/EXTERNAL_VASP_WORKFLOW_ZH.md)。
 
 力数组的形状必须为：
 
@@ -196,6 +199,7 @@ fc3.write("fc3.h5", format="hdf5")
 
 ```python
 atoms.info["mlfcs_configuration_id"]
+atoms.info["mlfcs_plan_hash"]
 atoms.info["mlfcs_atom_order"]
 atoms.arrays["mlfcs_displacement"]
 ```
@@ -203,10 +207,14 @@ atoms.arrays["mlfcs_displacement"]
 如果外部任务乱序返回，可以按任意顺序读取，但应传入以原始零基构型 ID 为键的字典：
 
 ```python
-fc3 = calculation.reap(forces_by_configuration_id)
+fc3 = calculation.reap(
+    forces_by_configuration_id,
+    atom_order="grouped",
+    plan_hash=calculation.plan.hash,
+)
 ```
 
-缺少或多出 ID、形状错误以及非有限数值都会被拒绝。
+缺少或多出 ID、形状错误、非有限数值以及计划哈希不匹配都会被拒绝。
 
 ### 直接使用 ASE Calculator
 
@@ -222,29 +230,12 @@ fc3 = calculation.run(
 Calculator 默认串行执行，避免同时复制多个大型机器学习势导致内存峰值。需要外部
 并行或断点续算时，应使用 `sow()` / `reap()`。
 
-直接 ASE calculator 路径可以选择将指定阶导数外推到零位移：
-
-```python
-fc4 = calculation.run(
-    calculator,
-    derivative_backend="extrapolate",
-    extrapolation_spacing=0.005,
-    extrapolation_side_steps=2,
-    extrapolation_degree=1,
-)
-```
-
-中心位移为 `0.03` Å 时，上例采样 `0.02`、`0.025`、`0.03`、`0.035` 和 `0.04` Å。
-默认阶数 `1` 拟合 `D(h) = D0 + c2 h²`；更高阶数继续加入偶次幂。该后端有意只通过
-`run()` 开放，不属于外部 `sow()` / `reap()` 工作流。详见
-[零步长外推](docs/zh/workflows/extrapolation.md)。
-
 显式保存力：
 
 ```python
 forces = calculation.evaluate(calculator)
-np.savez_compressed("forces.npz", forces=forces)
-fc3 = calculation.reap(forces)
+np.savez_compressed("forces.npz", forces=forces, plan_hash=calculation.plan.hash)
+fc3 = calculation.reap(forces, plan_hash=calculation.plan.hash)
 ```
 
 `sow()`、`reap()` 和直接 ASE Calculator 运行默认开启阶段信息，输出对称性、不可约
@@ -278,31 +269,32 @@ Selected neighbor cutoff: shell = 8, cutoff radius = 7.5419604204 Å
 高阶计算的团簇组合、张量分量、置换和有限差分符号都会快速增长。建议从较小近邻
 开始，并监控构型数量和内存。
 
-## 原子顺序与结构参考系
+## 原子顺序
 
-用户提供的 reference 超胞原子顺序是唯一权威。`sow()` 返回该顺序，传入 `reap()` 的
-每组力也必须保持该顺序；MLFCS 不再提供 internal/grouped 模式，更不会静默重排外部力或
-拟合快照。计算 API 只接受显式 reference 结构：
+内部超胞的标准顺序为：
 
-```python
-calculation = ForceConstantCalculation(primitive, reference=reference_supercell, order=3)
+```text
+z → y → x → primitive_atom
 ```
 
-若需显式构造这个 reference，可使用稳定的公开函数：
+原胞原子编号变化最快。这也是 `sow()` 和 `reap()` 的默认顺序。
+
+需要按原胞原子分组时：
 
 ```python
-from mlfcs.tools import build_supercell
-
-reference_supercell = build_supercell(primitive, [[2, 1, 0], [0, 2, 0], [0, 0, 1]])
+structures = calculation.sow(atom_order="grouped")
+force_constants = calculation.reap(forces, atom_order="grouped")
 ```
 
-该函数默认采用 phonopy old-style 的原子排列；MLFCS 的超胞矩阵约定保持不变。需要与旧
-thirdorder 工作流保持 cell-major 排列时，显式传入 `ordering="thirdorder"`。`ordering="phonopy_snf"`
-已保留为未来兼容入口，目前会明确报告未实现。显式提供的 `reference_supercell` 不会被重排。
+显式映射为：
 
-phonopy 等格式所需的排序仅在导出边界生成。
-对于独立产生且已重排的快照，可显式调用 `mlfcs.align_structures(reference, atoms)`；它返回
-对齐后的结构和最大周期匹配残差。
+```python
+calculation.index.grouped_permutation
+calculation.index.internal_from_grouped
+calculation.index.group_atoms(atoms)
+```
+
+导出 phonopy 格式时，MLFCS 会自动完成 grouped 顺序转换。
 
 ## 声学求和规则
 
@@ -316,18 +308,19 @@ raw = calculation.reap(forces, acoustic_sum_rule=False)
 受约束结果是在独立参数空间中距离测量结果最近、同时满足平移不变性的解。置换对称性
 会给出其他原子轴上的等价约束。
 
-Born-Huang 与 Huang 条件是独立的 FC2 后处理，有限差分和拟合结果共用同一入口。默认
-`strength=1.0` 为严格模式，FC3 及更高阶不会被改动：
+二阶力常数可以主动开启旋转求和规则；默认关闭：
 
 ```python
-constrained = result.enforce_harmonic_constraints(
-    born_huang=True,
-    huang=True,
+fc2 = calculation.reap(
+    forces,
+    acoustic_sum_rule=True,
+    rotational_sum_rule=True,
 )
 ```
 
-投影器始终满足 FC2 的 ASR，使用全部简并最近周期像，并报告残差与修正量。`[0, 1]`
-中的 `strength` 只缩放 Born-Huang/Huang 修正。详见[求和规则](docs/zh/methods/sum-rules.md)。
+程序会联合投影平移和旋转约束。严格的高阶旋转条件会耦合相邻阶力常数，因此当前
+单阶 API 只允许在二阶设置 `rotational_sum_rule=True`。详见
+[求和规则](docs/SUM_RULES_ZH.md)。
 
 ## 输出格式
 
@@ -338,40 +331,34 @@ fc2.write("FORCE_CONSTANTS", format="phonopy")
 fc2.write("fc2.hdf5", format="phonopy_hdf5")
 fc3.write("fc3.h5", format="hdf5")
 fc3.write("fc3.hdf5", format="phono3py_hdf5")
+fc3.write("fc3.npz", format="numpy")
 fc3.write("FORCE_CONSTANTS_3RD", format="shengbte")
 fc4.write("FORCE_CONSTANTS_4TH", format="shengbte")
-fc234.write("force_constants.xml", format="alamode")
-```
-
-原生稀疏 HDF5 可通过对应的公开 API 读取：
-
-```python
-from mlfcs import read_hdf5
-
-fc234 = read_hdf5("fc3.h5")
 ```
 
 | 格式 | 阶数 | 表示 |
 |---|---|---|
-| `hdf5` | 任意阶 | 原生 v2 晶格标记稀疏 IFC（`sites`、平移代表与笛卡尔张量） |
+| `hdf5` | 任意阶 | 稀疏团簇张量或稠密数组 |
+| `numpy` / `npz` | 任意阶 | 物化后的 NumPy 数组 |
 | `shengbte` | 3、4 | 对称闭合、基于晶格平移的文本块 |
 | `phonopy` | 2 | 完整稠密超胞 FC2 文本 |
 | `phonopy_hdf5` | 2 | phonopy 兼容的完整超胞 `force_constants` HDF5 |
 | `phono3py_hdf5` | 3 | phono3py 兼容的完整超胞 `fc3` HDF5 |
-| `alamode` | 2--4 | 合并 FC2--FC4 的 ALAMODE FCSXML 文档 |
 
-ShengBTE 严格写出重建后稀疏结果携带的对称闭合团簇支撑域，并把晶格 residue 解析为
-联合相容的最近周期像。
+ShengBTE 默认使用保真模式：严格写出重建后稀疏结果携带的对称闭合团簇支撑域。
+如需复现旧 thirdorder 的二次 joint-image 过滤和块顺序，必须显式启用兼容模式：
 
-phonopy 和 phono3py HDF5 保持显式 reference 超胞顺序，并逐个第一原子 slab
-流式写入，因此不会在内存中构造完整 FC3。原生 `hdf5` 使用 v2 schema，保存 primitive、
-reference、经验证映射和晶格标记稀疏 IFC；旧原生 schema 被明确拒绝。
+```python
+fc3.write(
+    "FORCE_CONSTANTS_3RD",
+    format="shengbte",
+    compatibility="thirdorder",
+)
+```
 
-ALAMODE XML 严格保留 `fc.supercell` 当前的原子顺序。原胞原子身份和晶格平移映射仅取自
-MLFCS 的 `primitive_index` 与 `cell_translation` 元数据；导出阶段不会让 spglib 或
-ALAMODE 重新识别、重排晶胞。传入 `order=2`、`3` 或 `4` 可只写指定阶，省略则把当前
-可用的 FC2--FC4 合并到一个 XML。完整映射与周期像约定见
-[ALAMODE XML 指南](docs/zh/formats/alamode.md)。
+phonopy 和 phono3py HDF5 使用按原胞原子分组的超胞顺序，并逐个第一原子 slab
+流式写入，因此不会在内存中构造完整 FC3。原生 `hdf5` 仍然是 MLFCS 的紧凑、
+阶数参数化表示。
 
 高阶结果推荐使用稀疏 HDF5。显式稠密化超过默认 2 GB 建议预算时会发出警告：
 
@@ -381,18 +368,17 @@ dense = fc5.materialize(5)
 dense = fc5.materialize(5, max_bytes=None)  # 显式关闭警告预算
 ```
 
-## 原生 SSCHA
+## 可选 SSCHA
 
-独立的 `mlfcs.anharmonic.sscha` 模块根据热位移上的原子力拟合温度相关有效 FC2：
+独立的 `mlfcs.sscha` 模块根据热位移上的原子力拟合温度相关有效 FC2：
 
 ```python
-from mlfcs.anharmonic.sscha import SSCHA
+from mlfcs.sscha import SSCHA
 
 sscha = SSCHA(
     atoms,
-    reference=read("reference-supercell.vasp"),
+    supercell=(3, 3, 3),
     temperature=300,
-    statistics="quantum",
     snapshots=1000,
     max_iterations=10,
     random_seed=42,
@@ -403,9 +389,8 @@ sscha.use_average(last=5)
 sscha.write("fc2-300K.hdf5", format="hdf5")
 ```
 
-第零轮通过小随机笛卡尔位移拟合初始 FC2。后续每轮直接在 compact FC2 的 q 空间采样
-谐振子正则系综，再由原生流式 Gram 拟合器重拟合 FC2。因此 `max_iterations=10` 表示
-一次初始化加十次更新。
+第零轮通过小随机笛卡尔位移拟合初始 FC2。后续每轮由 phonopy 采样谐振子正则系综，
+再由 symfc 拟合完整 FC2。因此 `max_iterations=10` 表示一次初始化加十次更新。
 
 也支持逐轮外部计算：
 
@@ -418,12 +403,12 @@ result = sscha.reap(
 )
 ```
 
-拟合 FC2 只需要力；只有估计自由能时才需要能量。已完成轮次和采样诊断保存在
-`sscha.history`。phonopy 兼容文本和 HDF5 由公共 MLFCS writer 写出，运行时无需 phonopy。
-正则系综轮次还会报告 FC2 相对更新幅度，试探采样哈密顿量保持为内部细节。
+拟合 FC2 只需要力；只有估计自由能时才需要能量。已完成轮次保存在
+`sscha.history`，`sscha.phonopy` 暴露底层 Phonopy 对象，可继续计算网格、能带、
+DOS 和热力学性质。
 
 该方法是随机有效谐波方法，不是显式 FC3 bubble 或 FC4 loop 计算。详见
-[SSCHA 文档](docs/zh/workflows/sscha.md)。
+[SSCHA 文档](docs/SSCHA_ZH.md)。
 
 ## 当前限制
 
@@ -436,27 +421,37 @@ result = sscha.reap(
 
 ## 文档
 
-完整双语文档：[English site](https://gtiders.github.io/mlfcs/) 和 [中文站点](https://gtiders.github.io/mlfcs/zh/)。参见[可运行案例](examples/README_ZH.md)和[开发与验证](docs/zh/development/validation.md)
+- [文档索引](docs/README_ZH.md)（[English](docs/README.md)）
+- [外部 VASP 工作流](docs/EXTERNAL_VASP_WORKFLOW_ZH.md)
+- [技术总览](docs/TECHNICAL_OVERVIEW_ZH.md)
+- [数值验证与持续集成](docs/VALIDATION_ZH.md)
+- [SSCHA 使用说明](docs/SSCHA_ZH.md)
+- [新旧实现详细对比](docs/OLD_NEW_COMPARISON_ZH.md)
+
+旧版兼容决策、基准构型数量和实测内存统一放在对比与技术文档中，不在用户入口
+README 中重复。
 
 ## 开发与测试
 
 所有命令使用 uv，测试串行运行：
 
 ```bash
-uv sync
+uv sync --extra sscha
 uv run pytest
-uv run ruff check src tests examples
-uv run ruff format --check src tests examples
+uv run pytest -m "not reference"
+uv run ruff check src tests reference_tools examples
+uv run ruff format --check src tests reference_tools examples
 uv build
 ```
 
-本地测试只包含确定性的单元和公共 API 回归。材料比较和第三方输运工作流记录在
-`examples/`，需要时手动运行。CI 只构建双语文档站。测试组织见 [tests/README.md](tests/README.md)。
+hiphive 和 phono3py 仅作为开发验证依赖。CI 中的 AlN 三阶基准先由 hiphive 将双方的
+原子顺序和张量表示统一为完整超胞 FC3，再与独立的 phono3py 有限差分结果做数值比较。
+测试层级和各项独立参考测试的运行命令见 [tests/README.md](tests/README.md)。
 
-当前开发预发布版本为 `4.0.0a2`（4.0 alpha 2）。版本变化见 [CHANGELOG_ZH.md](CHANGELOG_ZH.md)，开发流程见
+当前正式版本为 `3.1.0`。版本变化见 [CHANGELOG.md](CHANGELOG.md)，开发流程见
 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 ## 许可证
 
-MLFCS 使用 [GNU 通用公共许可证第 3 版或更高版本](LICENSE)发布。改编的第三方组件和
-ALAMODE 适配器的第三方来源与许可条款直接保留在其源码模块顶部。
+MLFCS 使用 [GNU 通用公共许可证第 3 版或更高版本](LICENSE)发布。三阶算法来源以及
+参考借鉴内容与 MLFCS 新增开发之间的边界见[第三方来源说明](THIRD_PARTY_ZH.md)。

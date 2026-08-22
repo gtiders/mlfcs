@@ -2,17 +2,18 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
 from math import ceil
-from typing import Literal
 
 import numpy as np
 from ase import Atoms
 from ase.calculators.calculator import Calculator
 
-from mlfcs.constraints.solver import reconstruct_sparse
-from mlfcs.core.interactions import InteractionSpace
-from mlfcs.finite_difference.extrapolation import ExtrapolationBackend
+from mlfcs.core.geometry import make_supercell, resolve_cutoff
+from mlfcs.core.orbits import OrbitSpace, build_orbit_space
+from mlfcs.core.symmetry import SymmetryOperations
 from mlfcs.finite_difference.sampling import DisplacementPlan, build_displacement_plan
-from mlfcs.ifc.model import ForceConstants
+from mlfcs.model import ForceConstants, RunConfig
+from mlfcs.reconstruction.solver import reconstruct_sparse
+from mlfcs.runtime import JaxPlatform, configure_jax
 
 Progress = Callable[[int, int], None]
 ForceInput = np.ndarray | Sequence[np.ndarray] | Mapping[int, np.ndarray]
@@ -26,38 +27,71 @@ class ForceConstantCalculation:
         atoms: Atoms,
         *,
         order: int,
-        reference: Atoms,
+        supercell: tuple[int, int, int] = (2, 2, 2),
         cutoff: float | None = -5,
-        max_body_order: int | None = None,
         displacement: float = 0.01,
         symprec: float = 1e-5,
+        jax_platform: JaxPlatform = "auto",
         report_cutoff: bool = True,
         verbose: bool = True,
     ):
-        self.verbose = bool(verbose)
-        self._report(f"Preparing order-{order} force-constant calculation")
-        self.interaction_space = InteractionSpace(
-            atoms,
+        configure_jax(jax_platform)
+        config = RunConfig(
             order=order,
-            reference=reference,
+            supercell=supercell,
             cutoff=cutoff,
-            max_body_order=max_body_order,
-            symprec=symprec,
             displacement=displacement,
-            report_cutoff=report_cutoff,
-            reporter=self._report if self.verbose else None,
+            symprec=symprec,
         )
-        self.primitive = self.interaction_space.primitive
-        self.config = self.interaction_space.config
-        self.supercell = self.interaction_space.supercell
-        self.index = self.interaction_space.index
-        self.cutoff = self.interaction_space.cutoff
-        self.symmetry = self.interaction_space.symmetry
+        self.primitive = atoms.copy()
+        self.config = config
+        self.jax_platform = jax_platform
+        self.verbose = bool(verbose)
+        self._report(f"Preparing order-{config.order} force-constant calculation")
+        self._report(
+            f"Creating {config.supercell[0]}x{config.supercell[1]}x{config.supercell[2]} supercell"
+        )
+        self.supercell, self.index = make_supercell(self.primitive, config.supercell)
+        self._report(
+            f"- {len(self.primitive)} primitive atoms, {len(self.supercell)} supercell atoms"
+        )
+        self._report("Resolving the interaction cutoff")
+        self.cutoff = resolve_cutoff(
+            self.supercell,
+            self.index,
+            config.cutoff,
+            report=report_cutoff and self.verbose,
+        )
+        if config.cutoff is not None and (config.cutoff >= 0 or not report_cutoff):
+            self._report(f"- Cutoff radius: {self.cutoff:.10f} Å")
+        self._report("Analyzing crystal symmetries")
+        self.symmetry = SymmetryOperations.from_atoms(
+            self.primitive,
+            self.supercell,
+            symprec=config.symprec,
+        )
+        self._report(f"- Space group {self.symmetry.symbol}")
+        self._report(f"- {self.symmetry.size} symmetry operations")
+        self._orbit_space: OrbitSpace | None = None
         self._plan: DisplacementPlan | None = None
 
     @property
-    def orbit_space(self):
-        return self.interaction_space.orbit_space
+    def orbit_space(self) -> OrbitSpace:
+        if self._orbit_space is None:
+            self._report(
+                f"Finding symmetry-inequivalent order-{self.config.order} interaction clusters"
+            )
+            self._orbit_space = build_orbit_space(
+                self.supercell,
+                self.index,
+                self.symmetry,
+                order=self.config.order,
+                cutoff=self.cutoff,
+            )
+            dimensions = sum(orbit.dimension for orbit in self._orbit_space.orbits)
+            self._report(f"- {len(self._orbit_space.orbits)} cluster equivalence classes")
+            self._report(f"- {dimensions} independent tensor parameters")
+        return self._orbit_space
 
     @property
     def plan(self) -> DisplacementPlan:
@@ -74,21 +108,35 @@ class ForceConstantCalculation:
             self._report(f"- {len(self._plan)} force calculations required")
         return self._plan
 
-    def sow(self) -> list[Atoms]:
+    def sow(self, *, atom_order: str = "internal") -> list[Atoms]:
         """Return displaced structures in the exact positional reap order.
 
         Configuration ``i`` must be returned to positional :meth:`reap` at
         index ``i``. Each structure also carries its zero-based stable ID.
         """
         structures = list(self.plan)
-        self._report(f"Sowing {len(structures)} displaced structures in reference atom order")
-        return structures
+        self._report(f"Sowing {len(structures)} displaced structures in {atom_order} atom order")
+        self._report(f"- Plan hash: {self.plan.hash}")
+        if atom_order == "internal":
+            return structures
+        if atom_order == "grouped":
+            grouped: list[Atoms] = []
+            for atoms in structures:
+                reordered = self.index.group_atoms(atoms)
+                reordered.info.update(atoms.info)
+                reordered.info["mlfcs_atom_order"] = "grouped"
+                grouped.append(reordered)
+            return grouped
+        raise ValueError("atom_order must be 'internal' or 'grouped'")
 
     def reap(
         self,
         forces: ForceInput,
         *,
+        atom_order: str = "internal",
+        plan_hash: str | None = None,
         acoustic_sum_rule: bool = True,
+        rotational_sum_rule: bool = False,
     ) -> ForceConstants:
         """Reconstruct force constants from forces supplied by the user.
 
@@ -97,35 +145,33 @@ class ForceConstantCalculation:
         insertion order.
         """
         self._report(f"Reaping forces for order-{self.config.order} force constants")
+        if rotational_sum_rule and self.config.order != 2:
+            raise ValueError(
+                "rotational_sum_rule is currently available only for order=2; "
+                "higher-order rotational conditions couple adjacent force-constant orders"
+            )
+        if plan_hash is not None and plan_hash != self.plan.hash:
+            raise ValueError("force dataset plan hash does not match this calculation")
         values = self._normalize_forces(forces)
         self._report(f"- Validated {len(values)} force configurations")
+        if atom_order == "grouped":
+            values = values[:, self.index.internal_from_grouped, :]
+        elif atom_order != "internal":
+            raise ValueError("atom_order must be 'internal' or 'grouped'")
         derivatives = self.plan.contract_forces(values)
         self._report(f"- Contracted {len(derivatives)} finite-difference derivatives")
-        return self._reconstruct(
-            derivatives,
-            acoustic_sum_rule=acoustic_sum_rule,
-            metadata={
-                "derivative_backend": "central",
-                "configurations": len(self.plan),
-            },
-        )
-
-    def _reconstruct(
-        self,
-        derivatives,
-        *,
-        acoustic_sum_rule: bool,
-        metadata: dict[str, object],
-    ) -> ForceConstants:
         self._report(
             "Reconstructing symmetry-expanded force constants "
-            f"(ASR {'enabled' if acoustic_sum_rule else 'disabled'})"
+            f"(ASR {'enabled' if acoustic_sum_rule else 'disabled'}, "
+            f"rotational sum rule {'enabled' if rotational_sum_rule else 'disabled'})"
         )
         sparse = reconstruct_sparse(
             self.orbit_space,
             self.index,
             derivatives,
             enforce_asr=acoustic_sum_rule,
+            enforce_rotational=rotational_sum_rule,
+            supercell=self.supercell,
             report=self._report,
         )
         self._report(f"- Reconstructed {len(sparse.clusters)} sparse cluster tensors")
@@ -137,11 +183,13 @@ class ForceConstantCalculation:
                 "cutoff_angstrom": self.cutoff,
                 "displacement_angstrom": self.config.displacement,
                 "spacegroup": self.symmetry.symbol,
+                "configurations": len(self.plan),
+                "plan_hash": self.plan.hash,
                 "acoustic_sum_rule": acoustic_sum_rule,
-                **metadata,
+                "rotational_sum_rule": rotational_sum_rule,
+                "jax_platform": self.jax_platform,
             },
             sparse={self.config.order: sparse},
-            relation=self.interaction_space.relation,
         )
 
     def run(
@@ -150,102 +198,15 @@ class ForceConstantCalculation:
         *,
         progress: Progress | None = None,
         acoustic_sum_rule: bool = True,
-        derivative_backend: Literal["central", "extrapolate"] = "central",
-        extrapolation_spacing: float | None = None,
-        extrapolation_side_steps: int = 1,
-        extrapolation_degree: int = 1,
+        rotational_sum_rule: bool = False,
     ) -> ForceConstants:
-        """Evaluate force constants serially with a user-owned ASE Calculator."""
-        if derivative_backend == "extrapolate":
-            if extrapolation_spacing is None:
-                raise ValueError(
-                    "extrapolation_spacing is required for derivative_backend='extrapolate'"
-                )
-            return self._run_extrapolation(
-                calculator,
-                spacing=extrapolation_spacing,
-                side_steps=extrapolation_side_steps,
-                degree=extrapolation_degree,
-                progress=progress,
-                acoustic_sum_rule=acoustic_sum_rule,
-            )
-        if derivative_backend != "central":
-            raise ValueError("derivative_backend must be 'central' or 'extrapolate'")
-        if (
-            extrapolation_spacing is not None
-            or extrapolation_side_steps != 1
-            or extrapolation_degree != 1
-        ):
-            raise ValueError("extrapolation options require derivative_backend='extrapolate'")
+        """Evaluate the sow list serially with a user-owned ASE Calculator."""
         forces = self.evaluate(calculator, progress=progress)
         return self.reap(
             forces,
+            plan_hash=self.plan.hash,
             acoustic_sum_rule=acoustic_sum_rule,
-        )
-
-    def _run_extrapolation(
-        self,
-        calculator: Calculator,
-        *,
-        spacing: float,
-        side_steps: int,
-        degree: int,
-        progress: Progress | None,
-        acoustic_sum_rule: bool,
-    ) -> ForceConstants:
-        if not isinstance(calculator, Calculator):
-            raise TypeError("calculator must be an ASE Calculator")
-        backend = ExtrapolationBackend(
-            self.config.displacement,
-            spacing,
-            side_steps,
-            degree,
-        )
-        plans = backend.plans(self.supercell, self.orbit_space)
-        total = sum(len(plan) for plan in plans)
-        grid_text = ", ".join(f"{step:.10f}" for step in backend.grid)
-        self._report("Derivative backend: zero-step extrapolation")
-        self._report(f"- Displacement grid: {grid_text} Å")
-        self._report(f"- Polynomial degree in h^2: {degree}")
-        self._report(f"- {len(plans)} central-difference subplans")
-        self._report(f"- {total} force calculations required")
-
-        derivative_sets = []
-        completed = 0
-        for step, plan in zip(backend.grid, plans, strict=True):
-            self._report(f"Evaluating displacement step {step:.10f} Å")
-            forces = self._evaluate_plan(
-                plan,
-                calculator,
-                progress=progress,
-                completed_offset=completed,
-                total=total,
-            )
-            derivative_sets.append(plan.contract_forces(forces))
-            completed += len(plan)
-        derivatives, metrics = backend.extrapolate(derivative_sets)
-        unit = f"eV/angstrom^{self.config.order}"
-        self._report("Zero-step derivative extrapolation")
-        self._report(
-            f"- Maximum correction from central displacement: "
-            f"{metrics.maximum_correction:.10e} {unit}"
-        )
-        self._report(f"- Relative L2 correction: {metrics.relative_l2_correction:.10e}")
-        self._report(
-            f"- Maximum polynomial fit residual: {metrics.maximum_fit_residual:.10e} {unit}"
-        )
-        return self._reconstruct(
-            derivatives,
-            acoustic_sum_rule=acoustic_sum_rule,
-            metadata={
-                "derivative_backend": "extrapolate",
-                "configurations": total,
-                "extrapolation_grid_angstrom": backend.grid.tolist(),
-                "extrapolation_degree": degree,
-                "extrapolation_maximum_correction": metrics.maximum_correction,
-                "extrapolation_relative_l2_correction": metrics.relative_l2_correction,
-                "extrapolation_maximum_fit_residual": metrics.maximum_fit_residual,
-            },
+            rotational_sum_rule=rotational_sum_rule,
         )
 
     def evaluate(
@@ -258,48 +219,21 @@ class ForceConstantCalculation:
         if not isinstance(calculator, Calculator):
             raise TypeError("calculator must be an ASE Calculator")
         self._report(f"Evaluating {len(self.plan)} configurations with {type(calculator).__name__}")
-        return self._evaluate_plan(
-            self.plan,
-            calculator,
-            progress=progress,
-            completed_offset=0,
-            total=len(self.plan),
-        )
-
-    def _evaluate_plan(
-        self,
-        plan: DisplacementPlan,
-        calculator: Calculator,
-        *,
-        progress: Progress | None,
-        completed_offset: int,
-        total: int,
-    ) -> np.ndarray:
-        forces = np.empty((len(plan), len(self.supercell), 3), dtype=float)
-        reporting_interval = max(1, ceil(total / 10))
-        for configuration_id, atoms in enumerate(plan):
+        forces = np.empty((len(self.plan), len(self.supercell), 3), dtype=float)
+        reporting_interval = max(1, ceil(len(self.plan) / 10))
+        for configuration_id, atoms in enumerate(self.sow()):
             atoms.calc = calculator
-            values = np.asarray(atoms.get_forces(), dtype=float)
-            expected = (len(self.supercell), 3)
-            if values.shape != expected:
-                raise ValueError(
-                    f"calculator forces for configuration {configuration_id} must have "
-                    f"shape {expected}, got {values.shape}"
-                )
-            if not np.isfinite(values).all():
-                raise ValueError(
-                    f"calculator forces for configuration {configuration_id} "
-                    "contain NaN or infinite values"
-                )
-            forces[configuration_id] = values
-            completed = completed_offset + configuration_id + 1
+            forces[configuration_id] = atoms.get_forces()
             if progress is not None:
-                progress(completed, total)
+                progress(configuration_id + 1, len(self.plan))
             elif self.verbose and (
-                completed == 1 or completed == total or completed % reporting_interval == 0
+                configuration_id == 0
+                or configuration_id + 1 == len(self.plan)
+                or (configuration_id + 1) % reporting_interval == 0
             ):
-                percentage = 100.0 * completed / total
-                self._report(f"- Forces: {completed}/{total} ({percentage:.0f}%)")
+                completed = configuration_id + 1
+                percentage = 100.0 * completed / len(self.plan)
+                self._report(f"- Forces: {completed}/{len(self.plan)} ({percentage:.0f}%)")
         return forces
 
     def _report(self, message: str) -> None:

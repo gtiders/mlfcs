@@ -5,8 +5,7 @@ from dataclasses import dataclass
 import numpy as np
 import spglib
 from ase import Atoms
-
-from mlfcs.core.geometry import PeriodicGeometry
+from ase.geometry import find_mic
 
 
 @dataclass(frozen=True, slots=True)
@@ -58,14 +57,14 @@ def _map_supercell(
 ) -> np.ndarray:
     primitive_inverse = np.linalg.inv(np.asarray(primitive.cell))
     target = supercell.get_positions()
-    geometry = PeriodicGeometry(supercell.cell, supercell.pbc)
     result = np.empty((len(rotations), len(supercell)), dtype=np.int32)
     for operation, (rotation, translation) in enumerate(zip(rotations, translations, strict=True)):
         fractional = supercell.positions @ primitive_inverse
         transformed = (fractional @ rotation.T + translation) @ primitive.cell
         for atom, position in enumerate(transformed):
             delta = target - position
-            _, lengths = geometry.mic(delta)
+            # ASE's MIC implementation handles skewed cells reliably.
+            _, lengths = find_mic(delta, supercell.cell, pbc=True)
             same_species = supercell.numbers == supercell.numbers[atom]
             valid = np.flatnonzero(same_species & (lengths < symprec * 10.0))
             if len(valid) != 1:

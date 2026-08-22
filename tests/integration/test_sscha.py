@@ -1,0 +1,102 @@
+from __future__ import annotations
+
+from typing import ClassVar
+
+import numpy as np
+import pytest
+from ase import Atoms
+from ase.calculators.calculator import Calculator, all_changes
+
+pytest.importorskip("phonopy")
+pytest.importorskip("symfc")
+
+from mlfcs.sscha import SSCHA
+
+pytestmark = pytest.mark.integration
+
+
+class TranslationalHarmonic(Calculator):
+    implemented_properties: ClassVar[list[str]] = ["energy", "forces"]
+
+    def __init__(self, reference: Atoms, spring: float = 2.0):
+        super().__init__()
+        self.reference = reference.copy()
+        self.spring = spring
+
+    def calculate(self, atoms=None, properties=None, system_changes=all_changes):
+        super().calculate(atoms, properties, system_changes)
+        delta = atoms.positions - self.reference.positions
+        delta -= np.rint(delta @ np.linalg.inv(atoms.cell)) @ atoms.cell
+        delta -= np.mean(delta, axis=0)
+        self.results = {
+            "energy": self.spring * np.sum(delta**2) / 2,
+            "forces": -self.spring * delta,
+        }
+
+
+def primitive() -> Atoms:
+    return Atoms("Al", cell=np.eye(3) * 4.0, scaled_positions=[[0, 0, 0]], pbc=True)
+
+
+def test_sscha_external_sow_reap():
+    sscha = SSCHA(
+        primitive(),
+        supercell=(2, 1, 1),
+        snapshots=12,
+        max_iterations=0,
+        random_seed=7,
+    )
+    structures = sscha.sow()
+    assert [a.info["mlfcs_configuration_id"] for a in structures] == list(range(12))
+    calc = TranslationalHarmonic(sscha.supercell_atoms)
+    forces = {}
+    energies = {}
+    for i, atoms in enumerate(structures):
+        atoms.calc = calc
+        forces[i] = atoms.get_forces()
+        energies[i] = atoms.get_potential_energy()
+
+    result = sscha.reap(forces, energies=energies, reference_energy=0.0)
+
+    assert result.index == 0
+    assert result.sampling == "cartesian"
+    assert result.force_constants.shape == (2, 2, 3, 3)
+    assert np.isfinite(result.force_constants).all()
+    assert result.free_energy is not None and np.isfinite(result.free_energy)
+
+
+def test_sscha_direct_run_and_average(tmp_path):
+    n_atoms = 2
+    fc = np.zeros((n_atoms, n_atoms, 3, 3))
+    for axis in range(3):
+        fc[0, 0, axis, axis] = 1.0
+        fc[1, 1, axis, axis] = 1.0
+        fc[0, 1, axis, axis] = -1.0
+        fc[1, 0, axis, axis] = -1.0
+    sscha = SSCHA(
+        primitive(),
+        supercell=(2, 1, 1),
+        snapshots=12,
+        max_iterations=1,
+        random_seed=11,
+        initial_force_constants=fc,
+    )
+    calc = TranslationalHarmonic(sscha.supercell_atoms)
+
+    returned = sscha.run(calc, calculate_free_energy=False)
+
+    assert returned is sscha
+    assert len(sscha.history) == 2
+    assert all(item.sampling == "canonical" for item in sscha.history)
+    averaged = sscha.use_average(2)
+    assert averaged.shape == fc.shape
+    target = tmp_path / "fc2.hdf5"
+    sscha.write(target)
+    assert target.is_file()
+
+
+def test_sscha_validates_external_order():
+    sscha = SSCHA(primitive(), supercell=(1, 1, 1), snapshots=2, max_iterations=0)
+    sscha.sow()
+    with pytest.raises(ValueError, match="IDs"):
+        sscha.reap({0: np.zeros((1, 3))})

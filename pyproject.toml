@@ -1,11 +1,10 @@
 [project]
 name = "mlfcs"
-version = "4.0.0a3"
+version = "3.1.0"
 description = "ASE-first symmetry-reduced force constants from second to arbitrary order"
 readme = "README.md"
 requires-python = ">=3.12"
 license = "GPL-3.0-or-later"
-license-files = ["LICENSE"]
 authors = [{ name = "Yibo Gao", email = "242211044@csu.edu.cn" }]
 keywords = [
     "anharmonicity",
@@ -24,12 +23,12 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Physics",
 ]
 dependencies = [
-    "ase>=3.23",
-    "h5py>=3.10",
-    "jax>=0.4.31",
-    "numpy>=1.26",
-    "scipy>=1.11",
-    "spglib>=2.5",
+    "ase>=3.29.0",
+    "h5py>=3.14",
+    "jax>=0.11.0",
+    "numpy>=1.26.0,<2.5",
+    "scipy>=1.16",
+    "spglib>=2.6",
 ]
 
 [project.urls]
@@ -37,19 +36,22 @@ Documentation = "https://github.com/gtiders/mlfcs#readme"
 Issues = "https://github.com/gtiders/mlfcs/issues"
 Repository = "https://github.com/gtiders/mlfcs"
 
-[dependency-groups]
-dev = [
-    "pytest>=8",
-    "ruff>=0.9",
-]
-docs = [
-    "mkdocs-material>=9.5",
-    "mkdocstrings[python]>=0.27",
+[project.optional-dependencies]
+sscha = [
+    "phonopy>=2.43",
+    "symfc>=1.5",
 ]
 
-[[tool.uv.index]]
-url = "https://mirrors.ustc.edu.cn/pypi/web/simple"
-default = true
+[dependency-groups]
+dev = [
+    "hiphive>=1.5",
+    "phono3py>=3.18",
+    "pytest>=8.4",
+    "ruff>=0.12",
+]
+reference = [
+    "pypolymlp>=0.20.4",
+]
 
 [build-system]
 requires = ["hatchling"]
@@ -61,7 +63,14 @@ packages = ["src/mlfcs"]
 [tool.pytest.ini_options]
 addopts = "-q"
 testpaths = ["tests"]
+markers = [
+    "integration: public API integration tests",
+    "reference: independent external scientific reference tests",
+]
 
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+
+[tool.ruff.lint.isort]
+known-third-party = ["phonopy"]

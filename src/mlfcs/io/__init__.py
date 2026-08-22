@@ -4,10 +4,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from ase import Atoms
-
 if TYPE_CHECKING:
-    from mlfcs.ifc.model import ForceConstants
+    from mlfcs.model import ForceConstants
 
 Writer = Callable[..., None]
 
@@ -18,41 +16,20 @@ def write_force_constants(
     *,
     format: str,
     order: int | None = None,
-    primitive: Atoms | None = None,
-    supercell: Atoms | None = None,
+    compatibility: str | None = None,
 ) -> None:
-    """Write force constants in a named external or native format.
-
-    ``primitive`` and ``supercell`` may only describe an exactly equivalent
-    representation; writers receive the resulting validated export view.
-    """
-    from mlfcs.io.export import build_export_view
-
-    view = build_export_view(force_constants, primitive=primitive, supercell=supercell)
-    force_constants = view.force_constants
     normalized = format.casefold().replace("-", "_")
+    if compatibility is not None and normalized != "shengbte":
+        raise ValueError("compatibility is available only for ShengBTE output")
     if normalized == "hdf5":
         from mlfcs.io.hdf5 import write_hdf5
 
         write_hdf5(target, force_constants)
         return
-    if normalized in {"alamode", "alamode_xml", "fcsxml"}:
-        from mlfcs.io.alamode import AlamodeMirrorImageError, write_alamode
-        from mlfcs.io.export import alamode_reduced_export_view
+    if normalized in {"numpy", "npz"}:
+        from mlfcs.io.numpy import write_numpy
 
-        selected_orders = (
-            tuple(value for value in force_constants.orders if value in {2, 3, 4})
-            if order is None
-            else (order,)
-        )
-        try:
-            write_alamode(target, force_constants, orders=selected_orders)
-        except AlamodeMirrorImageError as original_error:
-            try:
-                reduced = alamode_reduced_export_view(force_constants)
-            except ValueError:
-                raise original_error
-            write_alamode(target, reduced.force_constants, orders=selected_orders)
+        write_numpy(target, force_constants)
         return
     if normalized == "phonopy":
         from mlfcs.io.phonopy import write_phonopy
@@ -86,13 +63,18 @@ def write_force_constants(
         from mlfcs.io.shengbte import write_shengbte
 
         selected_order = order if order is not None else max(force_constants.orders)
+        cutoff = force_constants.metadata.get("cutoff_angstrom")
+        if cutoff is None:
+            raise ValueError("cutoff_angstrom metadata is required for ShengBTE output")
         sparse = force_constants.sparse.get(selected_order)
-        if sparse is None:
-            raise ValueError("ShengBTE output requires lattice-labelled sparse force constants")
+        values = force_constants.materialize(selected_order)
         write_shengbte(
             target,
-            sparse,
+            values,
             force_constants.supercell,
+            cutoff=float(cutoff),
+            support=None if sparse is None else sparse.support,
+            compatibility=compatibility,
         )
         return
     raise ValueError(f"unknown force-constant format: {format!r}")

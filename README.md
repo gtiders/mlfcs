@@ -9,24 +9,26 @@ Fifth and higher orders can also be calculated and exported through the generic 
 format; practical size is determined by cluster count, cutoff, supercell size, and available
 memory.
 
-Finite differences use ASE, NumPy, and SciPy only, so an external calculator retains complete
-control over CPU or GPU execution. The joint fitter supports CPU and GPU: a CUDA-enabled JAX
-installation accelerates only the dense Wick feature kernel, while geometry, symmetry, sparse
-constraints, and final solving remain host-side. Memory is controlled through symmetry reduction,
-contiguous sparse arrays, lazy dense materialization, constraint null-space coordinates, and
-bounded feature tiles. Static JAX buffers and compiled kernels are prepared once per fit and reused
-for training, validation, and diagnostics.
+The third-order lineage of MLFCS explicitly references and draws on the algorithms, periodic-
+image conventions, and `sow`/`reap` workflow of the GPL-licensed
+[thirdorder](https://gitlab.com/sousaw/thirdorder) project. MLFCS develops these ideas into an
+order-parameterized ASE/JAX architecture with new sparse, constraint-solving, acceleration, and
+interoperability layers. See [Third-party provenance](THIRD_PARTY.md) for attribution and scope.
+
+Numerical execution supports both CPU and GPU. CPU mode handles ordinary calculations and
+large sparse linear algebra, while a CUDA-enabled JAX installation can move high-rank Cartesian
+tensor rotations and batched transformations to a GPU. Memory is controlled through symmetry
+reduction, contiguous sparse arrays, lazy dense materialization, matrix-free tensor actions,
+small Gram null spaces, and sparse LSMR. JAX JIT, `vmap`, batched contractions, and displacement
+deduplication improve throughput. Actual gains depend on the system, order, and hardware; GPU
+execution does not replace cluster enumeration or sparse solvers that still run on the CPU.
 
 The base package does not prescribe how forces are generated. Structures can be evaluated with
-any user-owned ASE Calculator or dispatched to an external workflow. The native SSCHA module
-combines q-space quantum harmonic sampling with the MLFCS Gram fitter to calculate
-temperature-dependent effective second-order force constants.
+any user-owned ASE Calculator or dispatched to an external workflow. An independent optional
+module uses phonopy and symfc to calculate temperature-dependent effective second-order force
+constants with a stochastic self-consistent harmonic approximation (SSCHA).
 
 MLFCS provides a Python API only; it has no CLI.
-
-> **Development branch:** The joint force-only FC2--FCn fitting API described below is currently
-> developed on the `dev` branch. The stable `main` branch retains the finite-difference API and
-> common force-constant I/O. This label will be removed when fitting validation is promoted.
 
 ## How it works
 
@@ -52,7 +54,7 @@ user-provided forces
 sparse symmetry reconstruction and optional sum-rule projection
         │
         ▼
-ForceConstants → HDF5 / ShengBTE / phonopy-compatible formats
+ForceConstants → HDF5 / NumPy / ShengBTE / phonopy
 ```
 
 Space-group symmetry, force-constant index permutations, and stabilizer constraints reduce each
@@ -67,7 +69,7 @@ sum over one atom index of Phi(i1, ..., in) = 0
 ```
 
 All constraint systems use a sparse, matrix-free LSMR projection. Harmonic calculations may also
-enable the optional Born-Huang rotational sum rules; see [Sum rules](docs/en/methods/sum-rules.md).
+enable the optional Born-Huang rotational sum rules; see [Sum rules](docs/SUM_RULES.md).
 
 ## Features
 
@@ -78,22 +80,19 @@ enable the optional Born-Huang rotational sum rules; see [Sum rules](docs/en/met
 - End-to-end second- and fifth-order validation.
 - ASE `Atoms` and ASE `Calculator` at the public boundary.
 - External, checkpoint-friendly `sow()` / `reap()` workflow.
-- Optional direct-calculator zero-step extrapolation with configurable even-power degree.
-- Stable configuration IDs and explicit atom-order mappings.
+- Stable configuration IDs, plan hashes, and explicit atom-order mappings.
 - Joint periodic-image cluster cutoff geometry.
 - Recursive central-difference stencils.
-- CPU/GPU fitting with persistent JAX Wick-feature kernels; finite differences stay host-side.
-- Reusable JAX JIT and batched contractions for high-rank fitting throughput.
+- JAX-accelerated high-rank tensor transformations with CPU/GPU selection.
+- JAX JIT, `vmap`, and batched contractions for high-rank tensor throughput.
 - Contiguous sparse arrays, matrix-free actions, and lazy materialization to reduce peak memory.
 - Displacement-key deduplication to reduce expensive calculator evaluations.
-- Joint force-only FC2--FCn fitting with Wick-orthogonalized features and Taylor-compatible
-  force-constant output.
 - Strict translational ASR using sparse matrix-free LSMR.
 - Optional Born-Huang rotational sum rules for FC2.
 - Generic sparse HDF5 for any order.
 - ShengBTE output for orders 3 and 4.
 - Full dense phonopy text output for order 2.
-- Native quantum/classical SSCHA with arbitrary ASE calculators.
+- Optional phonopy/symfc SSCHA with arbitrary ASE calculators.
 
 ## Installation
 
@@ -111,6 +110,12 @@ Runnable API examples are available in [`examples/`](examples/):
 - [`nep89_orders.py`](examples/nep89_orders.py) evaluates one or more orders with a user-supplied
   NEP89 model through calorine's ASE calculator.
 
+Install the optional SSCHA dependencies when needed:
+
+```bash
+uv sync --extra sscha
+```
+
 Calculator packages such as calorine or MACE are intentionally not base dependencies. Install
 the calculator required by your application separately.
 
@@ -127,16 +132,6 @@ the calculator required by your application separately.
 
 JAX numerical kernels use 64-bit floating point.
 
-## Choose the downstream structure first
-
-Before calculating force constants, decide which program will consume them and establish its
-primitive-cell and supercell conventions first. For the most reliable workflow, use the primitive
-cell and reference supercell generated or validated by that downstream program, then pass those
-same ASE `Atoms` objects to MLFCS. MLFCS can validate and convert equivalent primitive and
-supercell representations, including atom reorderings and integral basis changes, but starting
-from the downstream program's own structures avoids unnecessary mapping ambiguity at the final
-export boundary.
-
 ## Quick start
 
 ### External force workflow
@@ -147,7 +142,7 @@ structure as `POSCAR-xxx` for VASP or in another calculator's input format, afte
 can be submitted by any local scheduler. When the calculations finish, use ASE to read each
 result, extract its forces, restore the sow order (or key the forces by configuration ID), and
 pass only those forces to `reap()`. If this positional order is guaranteed, configuration IDs
-are not required.
+and a plan hash are not required.
 
 For example, a positional VASP workflow is:
 
@@ -161,14 +156,15 @@ from mlfcs import ForceConstantCalculation
 calculation = ForceConstantCalculation(
     read("POSCAR"),
     order=3,
-    reference=read("reference-supercell.vasp"),
+    supercell=(2, 2, 2),
     cutoff=-5,
     displacement=0.01,
     symprec=1e-5,
+    jax_platform="auto",  # "auto", "cpu", or "gpu"
 )
 
 # 1. sow(): obtain the displaced ASE structures in the exact reap order.
-structures = calculation.sow()
+structures = calculation.sow(atom_order="grouped")
 Path("vasp-jobs").mkdir(exist_ok=True)
 for configuration_id, atoms in enumerate(structures):
     job = Path("vasp-jobs") / f"POSCAR-{configuration_id + 1:03d}"
@@ -187,7 +183,11 @@ for configuration_id in range(len(structures)):
 forces = np.asarray(forces)
 
 # 4. reap(): the force at forces[i] must belong to structures[i].
-fc3 = calculation.reap(forces, acoustic_sum_rule=True)
+fc3 = calculation.reap(
+    forces,
+    atom_order="grouped",
+    acoustic_sum_rule=True,
+)
 fc3.write("fc3.h5", format="hdf5")
 ```
 
@@ -195,11 +195,11 @@ For Quantum ESPRESSO, ABINIT, CP2K, or another external program, replace only th
 and `read()` formats and provide that program's required input parameters. The sow/reap contract
 is unchanged. Positional `reap()` needs no metadata when file names and returned forces preserve
 the exact sow order. File formats such as POSCAR do not preserve the Python `atoms.info` metadata,
-so a manifest containing the filename-to-configuration-ID relation is recommended
+so a manifest containing the filename-to-configuration-ID relation and plan hash is recommended
 for out-of-order jobs, restarts, long-term archives, and accidental-dataset detection. The complete
 [`vasp_external_fc3.py`](examples/vasp_external_fc3.py) example implements this optional safety
 layer, force collection, missing-result checks, and final export; see the
-[external VASP workflow guide](docs/en/workflows/external-calculators.md).
+[external VASP workflow guide](docs/EXTERNAL_VASP_WORKFLOW.md).
 
 The force array must have shape:
 
@@ -212,6 +212,7 @@ audit metadata:
 
 ```python
 atoms.info["mlfcs_configuration_id"]
+atoms.info["mlfcs_plan_hash"]
 atoms.info["mlfcs_atom_order"]
 atoms.arrays["mlfcs_displacement"]
 ```
@@ -220,7 +221,11 @@ When jobs return out of order, read them in any order and pass a mapping keyed b
 zero-based configuration ID:
 
 ```python
-fc3 = calculation.reap(forces_by_configuration_id)
+fc3 = calculation.reap(
+    forces_by_configuration_id,
+    atom_order="grouped",
+    plan_hash=calculation.plan.hash,
+)
 ```
 
 Missing or extra IDs, invalid shapes, non-finite values, and plan-hash mismatches are rejected.
@@ -239,29 +244,12 @@ fc3 = calculation.run(
 Calculator evaluation is serial by design to avoid multiplying the memory used by large machine
 learning potentials. Use `sow()` / `reap()` when external parallelism or checkpointing is needed.
 
-Direct ASE-calculator runs can optionally extrapolate the selected order to zero displacement:
-
-```python
-fc4 = calculation.run(
-    calculator,
-    derivative_backend="extrapolate",
-    extrapolation_spacing=0.005,
-    extrapolation_side_steps=2,
-    extrapolation_degree=1,
-)
-```
-
-For a central displacement of `0.03` Å, this samples `0.02`, `0.025`, `0.03`, `0.035`, and
-`0.04` Å. The default degree `1` fits `D(h) = D0 + c2 h²`; higher degrees fit additional even
-powers. This backend is intentionally available only through `run()`, not external `sow()` /
-`reap()`. See [Zero-step extrapolation](docs/en/workflows/extrapolation.md).
-
 For explicit checkpointing:
 
 ```python
 forces = calculation.evaluate(calculator)
-np.savez_compressed("forces.npz", forces=forces)
-fc3 = calculation.reap(forces)
+np.savez_compressed("forces.npz", forces=forces, plan_hash=calculation.plan.hash)
+fc3 = calculation.reap(forces, plan_hash=calculation.plan.hash)
 ```
 
 Stage reporting is enabled by default for `sow()`, `reap()`, and direct ASE-calculator runs.
@@ -298,34 +286,33 @@ Higher orders grow combinatorially through cluster combinations, tensor componen
 permutations, and finite-difference signs. Use small cutoffs first and monitor configuration
 count and memory.
 
-## Atom ordering and structure frames
+## Atom ordering
 
-The reference supercell order is authoritative. `sow()` returns that exact order, and every force
-array passed to `reap()` must use it unchanged. There is no internal/grouped atom-order mode and
-MLFCS never silently reorders external forces or fitting snapshots. Construct a calculation either
-from an integer general supercell matrix or from an explicit reference frame:
+The canonical internal supercell order is:
 
-```python
-calculation = ForceConstantCalculation(primitive, reference=reference_supercell, order=3)
+```text
+z → y → x → primitive_atom
 ```
 
-To build that reference explicitly, use the stable public helper:
+The primitive-atom index changes fastest. This is the default order used by `sow()` and `reap()`.
+
+For primitive-atom-grouped data:
 
 ```python
-from mlfcs.tools import build_supercell
-
-reference_supercell = build_supercell(primitive, [[2, 1, 0], [0, 2, 0], [0, 0, 1]])
+structures = calculation.sow(atom_order="grouped")
+force_constants = calculation.reap(forces, atom_order="grouped")
 ```
 
-This helper defaults to phonopy old-style atom ordering while retaining MLFCS's
-supercell-matrix convention. Pass `ordering="thirdorder"` explicitly for the
-former cell-major order. `ordering="phonopy_snf"` is reserved for future
-compatibility and currently reports that it is not implemented. An explicitly
-provided `reference_supercell` is never reordered.
+Explicit mappings are available as:
 
-Format writers create any required format-specific ordering only at the export boundary.
-For independently reordered snapshots, call `mlfcs.align_structures(reference, atoms)` explicitly;
-it returns the aligned structure and its maximum periodic matching residual.
+```python
+calculation.index.grouped_permutation
+calculation.index.internal_from_grouped
+calculation.index.group_atoms(atoms)
+```
+
+MLFCS performs the required grouped-order conversion automatically at the phonopy output
+boundary.
 
 ## Acoustic sum rule
 
@@ -340,20 +327,19 @@ The constrained result is the nearest solution in independent parameter space th
 translational invariance. Permutation symmetry supplies equivalent constraints on the other atom
 axes.
 
-Born-Huang and Huang conditions are explicit FC2-only postprocessing, shared by finite
-difference and fitting results. The strict default is `strength=1.0`; FC3 and higher orders are
-not changed:
+For harmonic force constants, rotational sum rules are optional and disabled by default:
 
 ```python
-constrained = result.enforce_harmonic_constraints(
-    born_huang=True,
-    huang=True,
+fc2 = calculation.reap(
+    forces,
+    acoustic_sum_rule=True,
+    rotational_sum_rule=True,
 )
 ```
 
-The projector always enforces FC2 ASR, uses all tied nearest periodic images, and reports its
-residuals and correction. `strength` in `[0, 1]` scales only the Born-Huang/Huang correction.
-See [Sum rules](docs/en/methods/sum-rules.md).
+Translational and rotational constraints are projected together. The current single-order API
+accepts `rotational_sum_rule=True` only for order 2 because rigorous higher-order rotational
+conditions couple adjacent force-constant orders. See [Sum rules](docs/SUM_RULES.md).
 
 ## Output formats
 
@@ -364,41 +350,35 @@ fc2.write("FORCE_CONSTANTS", format="phonopy")
 fc2.write("fc2.hdf5", format="phonopy_hdf5")
 fc3.write("fc3.h5", format="hdf5")
 fc3.write("fc3.hdf5", format="phono3py_hdf5")
+fc3.write("fc3.npz", format="numpy")
 fc3.write("FORCE_CONSTANTS_3RD", format="shengbte")
 fc4.write("FORCE_CONSTANTS_4TH", format="shengbte")
-fc234.write("force_constants.xml", format="alamode")
-```
-
-Read the native sparse HDF5 format through the matching public API:
-
-```python
-from mlfcs import read_hdf5
-
-fc234 = read_hdf5("fc3.h5")
 ```
 
 | Format | Orders | Representation |
 |---|---|---|
-| `hdf5` | Any | Native v2 lattice-labelled sparse IFCs (`sites`, translation representatives, Cartesian tensors) |
+| `hdf5` | Any | Sparse cluster tensors or dense arrays |
+| `numpy` / `npz` | Any | Materialized NumPy arrays |
 | `shengbte` | 3 and 4 | Symmetry-closed translation-based text blocks |
 | `phonopy` | 2 | Full dense supercell FC2 text |
 | `phonopy_hdf5` | 2 | Phonopy-compatible full-supercell `force_constants` HDF5 |
 | `phono3py_hdf5` | 3 | Phono3py-compatible full-supercell `fc3` HDF5 |
-| `alamode` | 2--4 | Combined ALAMODE FCSXML document |
 
-ShengBTE output writes the symmetry-closed cluster support carried by the reconstructed sparse
-result and resolves its lattice residues to jointly compatible minimum images.
+ShengBTE output is faithful by default: it writes exactly the symmetry-closed cluster support
+carried by the reconstructed sparse result. To reproduce the legacy thirdorder secondary
+joint-image filtering and block order, request compatibility explicitly:
 
-The phonopy and phono3py HDF5 writers preserve the explicit reference-supercell order and stream
-one first-atom slab at a time. They therefore do not materialize the full FC3 in memory. The native
-`hdf5` format is native schema v2: it stores primitive and reference structures, their verified
-mapping, and lattice-labelled sparse IFCs. Older native schemas are intentionally unsupported.
+```python
+fc3.write(
+    "FORCE_CONSTANTS_3RD",
+    format="shengbte",
+    compatibility="thirdorder",
+)
+```
 
-ALAMODE XML preserves the exact atom order of `fc.supercell`. Primitive-atom identities and
-translation mappings come exclusively from MLFCS's `primitive_index` and `cell_translation`
-metadata; export does not ask spglib or ALAMODE to rediscover or reorder the cell. Use `order=2`,
-`3`, or `4` to write one available order, or omit it to combine all available FC2--FC4 orders.
-See the [ALAMODE XML guide](docs/en/formats/alamode.md) for the mapping and periodic-image contract.
+The phonopy and phono3py HDF5 writers use primitive-atom-grouped supercell order and stream one
+first-atom slab at a time. They therefore do not materialize the full FC3 in memory. The native
+`hdf5` format remains the compact, order-parameterized MLFCS representation.
 
 Sparse HDF5 is recommended for high orders. Dense materialization is explicit and emits a
 warning above the default 2 GB advisory budget:
@@ -409,19 +389,18 @@ dense = fc5.materialize(5)
 dense = fc5.materialize(5, max_bytes=None)  # explicitly disable the warning budget
 ```
 
-## Native SSCHA
+## Optional SSCHA
 
-The independent `mlfcs.anharmonic.sscha` module fits a temperature-dependent effective harmonic FC2 from
+The independent `mlfcs.sscha` module fits a temperature-dependent effective harmonic FC2 from
 thermally sampled forces:
 
 ```python
-from mlfcs.anharmonic.sscha import SSCHA
+from mlfcs.sscha import SSCHA
 
 sscha = SSCHA(
     atoms,
-    reference=read("reference-supercell.vasp"),
+    supercell=(3, 3, 3),
     temperature=300,
-    statistics="quantum",
     snapshots=1000,
     max_iterations=10,
     random_seed=42,
@@ -433,8 +412,8 @@ sscha.write("fc2-300K.hdf5", format="hdf5")
 ```
 
 Iteration zero fits an initial FC2 from small random Cartesian displacements. Each subsequent
-iteration samples the canonical harmonic ensemble in compact-FC2 q space and refits FC2 with the
-native streamed-Gram fitter. Thus `max_iterations=10` performs one initialization and ten updates.
+iteration uses phonopy to sample the canonical harmonic ensemble and symfc to refit full FC2.
+Thus `max_iterations=10` performs one initialization and ten updates.
 
 External per-iteration execution is also supported:
 
@@ -448,13 +427,11 @@ result = sscha.reap(
 ```
 
 Forces are sufficient for FC2 fitting. Energies are required only for the free-energy estimate.
-Completed iterations and sampling diagnostics are stored in `sscha.history`. Phonopy-compatible
-text and HDF5 output use the shared MLFCS writers without requiring phonopy at runtime.
-Canonical iterations also report the relative FC2 update, while the trial sampling Hamiltonian
-remains an internal detail.
+Completed iterations are stored in `sscha.history`, and `sscha.phonopy` exposes the underlying
+Phonopy object for meshes, bands, DOS, and thermal properties.
 
 This is a stochastic effective-harmonic method, not an explicit FC3 bubble or FC4 loop
-calculation. See the [SSCHA guide](docs/en/workflows/sscha.md) for details.
+calculation. See the [SSCHA guide](docs/SSCHA.md) for details.
 
 ## Current limitations
 
@@ -468,29 +445,41 @@ calculation. See the [SSCHA guide](docs/en/workflows/sscha.md) for details.
 
 ## Documentation
 
-- Full bilingual docs: [English site](https://gtiders.github.io/mlfcs/) and [中文 site](https://gtiders.github.io/mlfcs/zh/). See [runnable examples](examples/README.md) and [development validation](docs/en/development/validation.md)
+- [Documentation index](docs/README.md) ([中文](docs/README_ZH.md))
+- [External VASP workflow](docs/EXTERNAL_VASP_WORKFLOW.md)
+- [Technical overview](docs/TECHNICAL_OVERVIEW.md)
+- [Numerical validation and CI](docs/VALIDATION.md)
+- [SSCHA guide](docs/SSCHA.md)
+- [Detailed old/new implementation comparison](docs/OLD_NEW_COMPARISON.md)
+
+Implementation comparisons, compatibility decisions, benchmark counts, and measured memory
+figures are intentionally kept in the comparison and technical documents rather than this user
+introduction.
 
 ## Development
 
 All commands use uv and tests run serially:
 
 ```bash
-uv sync
+uv sync --extra sscha
 uv run pytest
-uv run ruff check src tests examples
-uv run ruff format --check src tests examples
+uv run pytest -m "not reference"
+uv run ruff check src tests reference_tools examples
+uv run ruff format --check src tests reference_tools examples
 uv build
 ```
 
-Local tests are deterministic unit and public-API regressions. Material comparisons and third-party
-transport workflows are documented under `examples/` and are run manually. CI only builds
-the bilingual documentation sites. The test organization is documented in [tests/README.md](tests/README.md).
+hiphive and phono3py are development-only validation dependencies. The CI reference compares
+AlN FC3 values against an independent phono3py finite-difference result after hiphive converts
+both atom orderings and tensor representations to the same full-supercell form.
+The test hierarchy and independent reference commands are documented in
+[tests/README.md](tests/README.md).
 
-The current development version is `4.0.0a2` (4.0 alpha 2). See [CHANGELOG.md](CHANGELOG.md) for release notes and
+The current release is `3.1.0`. See [CHANGELOG.md](CHANGELOG.md) for release notes and
 [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow.
 
 ## License
 
-MLFCS is distributed under the [GNU General Public License v3.0 or later](LICENSE). Adapted
-third-party components and redistributed reference data are documented in
-Third-party terms for the ALAMODE adapter are retained directly in its source module.
+MLFCS is distributed under the [GNU General Public License v3.0 or later](LICENSE). Its
+third-order lineage and the boundary between borrowed ideas and new MLFCS development are
+documented in [Third-party provenance](THIRD_PARTY.md).

@@ -1,4 +1,4 @@
-name: Documentation
+name: CI
 
 on:
   push:
@@ -6,11 +6,89 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: docs-${{ github.workflow }}-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  documentation:
+  unit-and-api:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    env:
+      JAX_PLATFORMS: cpu
+      OMP_NUM_THREADS: "1"
+      OPENBLAS_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+          python-version: ${{ matrix.python-version }}
+          version: "0.11.26"
+      - name: Install locked development environment
+        run: uv sync --locked --dev
+      - name: Lint
+        run: uv run ruff check src tests reference_tools examples
+      - name: Check formatting
+        run: uv run ruff format --check src tests reference_tools examples
+      - name: Unit and API tests
+        run: uv run pytest -m "not reference"
+
+  scientific-reference:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      JAX_PLATFORMS: cpu
+      OMP_NUM_THREADS: "1"
+      OPENBLAS_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+          python-version: "3.12"
+          version: "0.11.26"
+      - name: Install pypolymlp system build dependency
+        run: sudo apt-get update && sudo apt-get install --yes libeigen3-dev
+      - name: Install locked development environment
+        run: uv sync --locked --dev --group reference
+      - name: Analytic FCC Morse FC4 reference
+        run: uv run pytest tests/reference/analytic/Morse_FCC_FC4/test_morse_fc4.py
+      - name: hiphive adapter contract
+        run: uv run pytest tests/reference/phono3py/AlN_FC3/test_adapter.py
+      - name: AlN reference provenance
+        run: uv run pytest tests/reference/phono3py/AlN_FC3/test_provenance.py
+      - name: AlN FC3 without ASR
+        run: uv run pytest tests/reference/phono3py/AlN_FC3/test_raw.py
+      - name: AlN FC3 with ASR
+        run: uv run pytest tests/reference/phono3py/AlN_FC3/test_asr.py
+      - name: AlN FC2 reference provenance
+        run: uv run pytest tests/reference/phonopy/AlN_FC2/test_provenance.py
+      - name: AlN FC2 with and without ASR
+        run: uv run pytest tests/reference/phonopy/AlN_FC2/test_fc2.py
+      - name: K4As4Pt2 reference provenance and potential
+        run: uv run pytest tests/reference/phono3py/K4As4Pt2_FC23/test_provenance.py tests/reference/phono3py/K4As4Pt2_FC23/test_potential.py
+      - name: K4As4Pt2 FC2 comparison
+        run: uv run pytest tests/reference/phono3py/K4As4Pt2_FC23/test_fc2.py
+      - name: K4As4Pt2 FC3 comparison
+        run: uv run pytest tests/reference/phono3py/K4As4Pt2_FC23/test_fc3.py
+      - name: K4As4Pt2 phonopy and phono3py HDF5 roundtrip
+        run: uv run pytest tests/reference/phono3py/K4As4Pt2_FC23/test_external_hdf5.py
+      - name: K4As4Pt2 faithful ShengBTE roundtrip
+        run: uv run pytest tests/reference/phono3py/K4As4Pt2_FC23/test_shengbte_roundtrip.py
+      - name: Si FC3 external sow contract
+        run: uv run pytest tests/reference/shengbte/Si_FC3/test_sow_contract.py
+      - name: Si FC3 ShengBTE provenance
+        run: uv run pytest tests/reference/shengbte/Si_FC3/test_provenance.py
+      - name: Si FC3 ShengBTE numerical comparison
+        run: uv run pytest tests/reference/shengbte/Si_FC3/test_numerical.py
+
+  package:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -20,9 +98,5 @@ jobs:
           enable-cache: true
           python-version: "3.12"
           version: "0.11.26"
-      - name: Install documentation environment
-        run: uv sync --locked --group docs
-      - name: Build English documentation
-        run: uv run --group docs mkdocs build --strict -f mkdocs.yml
-      - name: Build Chinese documentation
-        run: uv run --group docs mkdocs build --strict -f mkdocs.zh.yml
+      - name: Build distributions
+        run: uv build
