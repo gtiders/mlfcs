@@ -67,7 +67,7 @@ sum over one atom index of Phi(i1, ..., in) = 0
 ```
 
 All constraint systems use a sparse, matrix-free LSMR projection. Harmonic calculations may also
-enable the optional Born-Huang rotational sum rules; see [Sum rules](docs/en/methods/sum-rules.md).
+enable the optional Born-Huang rotational sum rules; see [Sum rules](docs/SUM_RULES.md).
 
 ## Features
 
@@ -199,7 +199,7 @@ so a manifest containing the filename-to-configuration-ID relation is recommende
 for out-of-order jobs, restarts, long-term archives, and accidental-dataset detection. The complete
 [`vasp_external_fc3.py`](examples/vasp_external_fc3.py) example implements this optional safety
 layer, force collection, missing-result checks, and final export; see the
-[external VASP workflow guide](docs/en/workflows/external-calculators.md).
+[external VASP workflow guide](docs/EXTERNAL_VASP_WORKFLOW.md).
 
 The force array must have shape:
 
@@ -254,7 +254,7 @@ fc4 = calculation.run(
 For a central displacement of `0.03` Å, this samples `0.02`, `0.025`, `0.03`, `0.035`, and
 `0.04` Å. The default degree `1` fits `D(h) = D0 + c2 h²`; higher degrees fit additional even
 powers. This backend is intentionally available only through `run()`, not external `sow()` /
-`reap()`. See [Zero-step extrapolation](docs/en/workflows/extrapolation.md).
+`reap()`. See [Zero-step extrapolation](docs/EXTRAPOLATION.md).
 
 For explicit checkpointing:
 
@@ -338,20 +338,26 @@ The constrained result is the nearest solution in independent parameter space th
 translational invariance. Permutation symmetry supplies equivalent constraints on the other atom
 axes.
 
-Born-Huang and Huang conditions are explicit FC2-only postprocessing, shared by finite
-difference and fitting results. The strict default is `strength=1.0`; FC3 and higher orders are
-not changed:
+For harmonic force constants, rotational sum rules are optional and disabled by default:
 
 ```python
-constrained = result.enforce_harmonic_constraints(
-    born_huang=True,
-    huang=True,
+fc2 = calculation.reap(
+    forces,
+    acoustic_sum_rule=True,
+    rotational_sum_rule=True,
 )
 ```
 
-The projector always enforces FC2 ASR, uses all tied nearest periodic images, and reports its
-residuals and correction. `strength` in `[0, 1]` scales only the Born-Huang/Huang correction.
-See [Sum rules](docs/en/methods/sum-rules.md).
+Translational and rotational constraints are projected together. The current single-order API
+accepts `rotational_sum_rule=True` only for order 2 because rigorous higher-order rotational
+conditions couple adjacent force-constant orders. See [Sum rules](docs/SUM_RULES.md).
+
+Rotational-constraint conditioning is an active limitation. MLFCS currently treats the
+FC1-FC2 boundary as a hard null-space constraint after a structure-tolerance-aware rank
+filter. This is not equivalent to hiphive's ridge-regularized Huang/Born-Huang projection:
+near-zero singular directions can be handled differently by units, scaling, and truncation.
+Do not interpret `rotational_invariance=2` as the combined Huang + Born-Huang correction until
+the conditioning policy and soft projection are finalized; see the development roadmap.
 
 ## Output formats
 
@@ -396,7 +402,7 @@ ALAMODE XML preserves the exact atom order of `fc.supercell`. Primitive-atom ide
 translation mappings come exclusively from MLFCS's `primitive_index` and `cell_translation`
 metadata; export does not ask spglib or ALAMODE to rediscover or reorder the cell. Use `order=2`,
 `3`, or `4` to write one available order, or omit it to combine all available FC2--FC4 orders.
-See the [ALAMODE XML guide](docs/en/formats/alamode.md) for the mapping and periodic-image contract.
+See the [ALAMODE XML guide](docs/ALAMODE_XML.md) for the mapping and periodic-image contract.
 
 Sparse HDF5 is recommended for high orders. Dense materialization is explicit and emits a
 warning above the default 2 GB advisory budget:
@@ -452,7 +458,7 @@ Canonical iterations also report the relative FC2 update, while the trial sampli
 remains an internal detail.
 
 This is a stochastic effective-harmonic method, not an explicit FC3 bubble or FC4 loop
-calculation. See the [SSCHA guide](docs/en/workflows/sscha.md) for details.
+calculation. See the [SSCHA guide](docs/SSCHA.md) for details.
 
 ## Current limitations
 
@@ -466,7 +472,13 @@ calculation. See the [SSCHA guide](docs/en/workflows/sscha.md) for details.
 
 ## Documentation
 
-- Full bilingual docs: [English site](https://gtiders.github.io/mlfcs/) and [中文 site](https://gtiders.github.io/mlfcs/zh/). See [runnable examples](examples/README.md) and [development validation](docs/en/development/validation.md)
+- [Documentation index](docs/README.md) ([中文](docs/README_ZH.md))
+- [External VASP workflow](docs/EXTERNAL_VASP_WORKFLOW.md)
+- [Technical overview](docs/TECHNICAL_OVERVIEW.md)
+- [Numerical validation and CI](docs/VALIDATION.md)
+- [Force-only fitting](docs/FITTING.md)
+- [SSCHA guide](docs/SSCHA.md)
+- [Development roadmap](docs/ROADMAP.md)
 
 ## Development
 
@@ -475,14 +487,17 @@ All commands use uv and tests run serially:
 ```bash
 uv sync
 uv run pytest
-uv run ruff check src tests examples
-uv run ruff format --check src tests examples
+uv run pytest -m "not reference"
+uv run ruff check src tests reference_tools examples
+uv run ruff format --check src tests reference_tools examples
 uv build
 ```
 
-Local tests are deterministic unit and public-API regressions. Material comparisons and third-party
-transport workflows are documented under `examples/cases/` and are run manually. CI only builds
-the bilingual documentation sites. The test organization is documented in [tests/README.md](tests/README.md).
+hiphive and phono3py are development-only validation dependencies. The CI reference compares
+AlN FC3 values against an independent phono3py finite-difference result after hiphive converts
+both atom orderings and tensor representations to the same full-supercell form.
+The test hierarchy and independent reference commands are documented in
+[tests/README.md](tests/README.md).
 
 The current development version is `4.0.0a2` (4.0 alpha 2). See [CHANGELOG.md](CHANGELOG.md) for release notes and
 [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow.

@@ -1,14 +1,18 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from itertools import pairwise
 from math import factorial
 
 import numpy as np
 from scipy import sparse
+from scipy.linalg import qr
 
 from mlfcs.core.constraints import (
+    build_harmonic_rotational_constraints,
     build_translational_constraints,
 )
+from mlfcs.core.geometry import PeriodicGeometry
 from mlfcs.core.orbits import cluster_invariant_dimension
 
 
@@ -16,36 +20,25 @@ from mlfcs.core.orbits import cluster_invariant_dimension
 class JointConstraints:
     matrix: sparse.csr_matrix
     translational_rows: int
-
-
-def append_zero_taylor_order_constraints(
-    constraints: JointConstraints, calculations, covariance, orders
-) -> JointConstraints:
-    """Require selected residual Taylor orders to vanish exactly."""
-    orders = set(orders)
-    if not orders:
-        return constraints
-    dimensions = [_parameter_count(calculation) for calculation in calculations]
-    offsets = np.cumsum([0, *dimensions])
-    transform = build_wick_to_taylor_transform(calculations, covariance)
-    rows = []
-    for index, calculation in enumerate(calculations):
-        if calculation.config.order in orders:
-            rows.append(transform[offsets[index] : offsets[index + 1]])
-    matrix = sparse.vstack([constraints.matrix, *rows], format="csr")
-    return JointConstraints(_compress_rows(matrix), constraints.translational_rows)
+    rotational_rows: int
+    rotational_mode: int
 
 
 def build_joint_constraints(
     calculations,
     *,
     acoustic: bool,
+    rotational_mode: int,
+    covariance: np.ndarray | None = None,
 ) -> JointConstraints:
-    """Build only translational constraints in the fitting parameter basis.
+    """Build ASR and the complete adjacent-order rotation hierarchy.
 
-    Born--Huang and Huang conditions deliberately live in the explicit FC2
-    postprocessor.  Applying them here would couple Wick FC2 to FC4.
+    In a Wick fit the lowest identity couples the fitted Taylor FC1 to FC2.
+    Both modes include that identity and every represented adjacent-order
+    identity. Mode 2 leaves the upper boundary open; mode 3 closes it.
     """
+    if rotational_mode not in (0, 2, 3):
+        raise ValueError("rotational_mode must be 0, 2, or 3")
     dimensions = [_parameter_count(calculation) for calculation in calculations]
     total = sum(dimensions)
     translational = []
@@ -64,12 +57,45 @@ def build_joint_constraints(
                     format="csr",
                 )
             )
-    matrices = translational
+    rotational = []
+    harmonic_index = None
+    if rotational_mode:
+        harmonic_index = next(
+            (index for index, item in enumerate(calculations) if item.config.order == 2),
+            None,
+        )
+        for index, (lower, upper) in enumerate(pairwise(calculations)):
+            rotational.append(_adjacent_rotational_constraints(lower, upper, dimensions, index))
+        if rotational_mode == 3:
+            rotational.append(_highest_order_rotational_boundary(calculations[-1], dimensions))
+    matrices = translational + rotational
     matrix = sparse.vstack(matrices, format="csr") if matrices else sparse.csr_matrix((0, total))
+    lower_rows = 0
+    if rotational_mode:
+        if covariance is None:
+            raise ValueError("covariance is required for rotational constraints in the Wick basis")
+        transform = build_wick_to_taylor_transform(calculations, covariance)
+        matrix = matrix @ transform
+        if harmonic_index is not None:
+            fc1 = build_wick_to_taylor_fc1_transform(calculations, covariance)
+            lower = _lowest_order_rotational_constraints(
+                calculations,
+                dimensions,
+                harmonic_index,
+                transform,
+                fc1,
+            )
+            lower = _independent_constraint_rows(
+                lower, tolerance=calculations[harmonic_index].config.symprec
+            )
+            lower_rows = lower.shape[0]
+            matrix = sparse.vstack([matrix, lower], format="csr")
     matrix = _compress_rows(matrix)
     return JointConstraints(
         matrix,
         sum(item.shape[0] for item in translational),
+        lower_rows + sum(item.shape[0] for item in rotational),
+        rotational_mode,
     )
 
 
@@ -288,8 +314,74 @@ def build_wick_to_taylor_fc1_transform(calculations, covariance) -> sparse.csr_m
     ).tocsr()
 
 
+def _fc1_rotation_matrix(n_primitive: int, tolerance: float = 1e-12) -> sparse.csr_matrix:
+    """Map Taylor FC1 to its term in the lowest FC1--FC2 identity."""
+    matrix_rows = []
+    matrix_columns = []
+    matrix_data = []
+    axes = np.eye(3)
+    for atom in range(n_primitive):
+        for force_direction in range(3):
+            for rotation_axis in range(3):
+                equation = (atom * 3 + force_direction) * 3 + rotation_axis
+                for component in range(3):
+                    # Harmonic moment minus (omega x FC1) equals zero.
+                    value = -np.cross(axes[rotation_axis], axes[component])[force_direction]
+                    if abs(value) > tolerance:
+                        matrix_rows.append(equation)
+                        matrix_columns.append(atom * 3 + component)
+                        matrix_data.append(float(value))
+    return sparse.coo_matrix(
+        (matrix_data, (matrix_rows, matrix_columns)),
+        shape=(n_primitive * 9, n_primitive * 3),
+    ).tocsr()
+
+
 def _parameter_count(calculation):
     return sum(orbit.dimension for orbit in calculation.orbit_space.orbits)
+
+
+def _lowest_order_rotational_constraints(calculations, dimensions, harmonic_index, transform, fc1):
+    """Apply the common FC1-FC2 rule, with a zero FC1 block when absent."""
+    calculation = calculations[harmonic_index]
+    harmonic = build_harmonic_rotational_constraints(
+        calculation.orbit_space,
+        calculation.supercell,
+        index=calculation.index,
+    )
+    left = sum(dimensions[:harmonic_index])
+    right = sum(dimensions[harmonic_index + 1 :])
+    harmonic = sparse.hstack(
+        [
+            sparse.csr_matrix((harmonic.shape[0], left)),
+            harmonic,
+            sparse.csr_matrix((harmonic.shape[0], right)),
+        ],
+        format="csr",
+    )
+    fc1_rotation = _fc1_rotation_matrix(calculations[0].index.n_primitive)
+    return harmonic @ transform + fc1_rotation @ fc1
+
+
+def _independent_constraint_rows(matrix, tolerance=1e-11):
+    """Keep a numerically independent row basis before row normalization."""
+    matrix = sparse.csr_matrix(matrix)
+    if not matrix.shape[0] or not matrix.nnz:
+        return matrix
+    _q, triangular, permutation = qr(
+        matrix.toarray().T,
+        mode="economic",
+        pivoting=True,
+        check_finite=False,
+    )
+    diagonal = np.abs(np.diag(triangular))
+    threshold = (
+        max(tolerance, tolerance * max(matrix.shape) * float(diagonal.max()))
+        if len(diagonal)
+        else 0.0
+    )
+    rank = int(np.count_nonzero(diagonal > threshold))
+    return matrix[np.sort(permutation[:rank])]
 
 
 def _image_columns(calculation):
@@ -300,6 +392,148 @@ def _image_columns(calculation):
         for image in orbit.images:
             yield image.cluster, image.action.apply_columns(representative), offset
         offset += orbit.dimension
+
+
+def _physical_image_groups(calculation):
+    """Group orbit images exactly as sparse IFC materialization groups them."""
+    groups = {}
+    for cluster, columns, local_offset in _image_columns(calculation):
+        first = int(cluster[0])
+        key = (int(calculation.index.primitive[first]), *map(int, cluster[1:]))
+        groups.setdefault(key, []).append((columns, local_offset))
+    return groups
+
+
+def _adjacent_rotational_constraints(lower, upper, dimensions, lower_index, tolerance=1e-12):
+    lower_order = lower.config.order
+    upper_order = upper.config.order
+    if upper_order != lower_order + 1:
+        raise ValueError("rotational constraints require consecutive IFC orders")
+    lower_global = sum(dimensions[:lower_index])
+    upper_global = lower_global + dimensions[lower_index]
+    equations = {}
+    entries = {}
+
+    def row(key):
+        return equations.setdefault(key, len(equations))
+
+    # Lower-order Cartesian tensor rotation term.
+    for cluster, images in _physical_image_groups(lower).items():
+        weight = 1.0 / len(images)
+        for columns, local_offset in images:
+            shaped = columns.reshape((3,) * lower_order + (-1,))
+            for components in np.ndindex((3,) * lower_order):
+                for mu in range(3):
+                    for nu in range(mu + 1, 3):
+                        equation = row((cluster, components, mu, nu))
+                        for axis in range(lower_order):
+                            if components[axis] == mu:
+                                changed = (*components[:axis], nu, *components[axis + 1 :])
+                                _add(
+                                    entries,
+                                    equation,
+                                    lower_global + local_offset,
+                                    shaped[changed],
+                                    weight,
+                                    tolerance,
+                                )
+                            if components[axis] == nu:
+                                changed = (*components[:axis], mu, *components[axis + 1 :])
+                                _add(
+                                    entries,
+                                    equation,
+                                    lower_global + local_offset,
+                                    shaped[changed],
+                                    -weight,
+                                    tolerance,
+                                )
+
+    # Upper-order moment term, summed over its final atom index.
+    positions = upper.supercell.positions
+    geometry = PeriodicGeometry(upper.supercell.cell, upper.supercell.pbc)
+    for cluster, images in _physical_image_groups(upper).items():
+        prefix = cluster[:-1]
+        origin = positions[upper.index.representative(prefix[0])]
+        vector, _ = geometry.mic(positions[cluster[-1]] - origin)
+        weight = 1.0 / len(images)
+        for columns, local_offset in images:
+            shaped = columns.reshape((3,) * upper_order + (-1,))
+            for components in np.ndindex((3,) * lower_order):
+                for mu in range(3):
+                    for nu in range(mu + 1, 3):
+                        equation = row((prefix, components, mu, nu))
+                        _add(
+                            entries,
+                            equation,
+                            upper_global + local_offset,
+                            shaped[components + (nu,)],
+                            weight * vector[mu],
+                            tolerance,
+                        )
+                        _add(
+                            entries,
+                            equation,
+                            upper_global + local_offset,
+                            shaped[components + (mu,)],
+                            -weight * vector[nu],
+                            tolerance,
+                        )
+    return _entries_to_matrix(entries, len(equations), sum(dimensions))
+
+
+def _highest_order_rotational_boundary(calculation, dimensions, tolerance=1e-12):
+    order = calculation.config.order
+    global_offset = sum(dimensions[:-1])
+    equations = {}
+    entries = {}
+    for cluster, images in _physical_image_groups(calculation).items():
+        weight = 1.0 / len(images)
+        for columns, local_offset in images:
+            shaped = columns.reshape((3,) * order + (-1,))
+            for components in np.ndindex((3,) * order):
+                for mu in range(3):
+                    for nu in range(mu + 1, 3):
+                        key = (cluster, components, mu, nu)
+                        equation = equations.setdefault(key, len(equations))
+                        for axis in range(order):
+                            if components[axis] == mu:
+                                changed = (*components[:axis], nu, *components[axis + 1 :])
+                                _add(
+                                    entries,
+                                    equation,
+                                    global_offset + local_offset,
+                                    shaped[changed],
+                                    weight,
+                                    tolerance,
+                                )
+                            if components[axis] == nu:
+                                changed = (*components[:axis], mu, *components[axis + 1 :])
+                                _add(
+                                    entries,
+                                    equation,
+                                    global_offset + local_offset,
+                                    shaped[changed],
+                                    -weight,
+                                    tolerance,
+                                )
+    return _entries_to_matrix(entries, len(equations), sum(dimensions))
+
+
+def _add(entries, row, offset, values, factor, tolerance):
+    for local in np.flatnonzero(np.abs(values * factor) > tolerance):
+        key = (row, offset + int(local))
+        entries[key] = entries.get(key, 0.0) + float(factor * values[local])
+
+
+def _entries_to_matrix(entries, rows, columns):
+    filtered = [(key, value) for key, value in entries.items() if abs(value) > 1e-12]
+    return sparse.coo_matrix(
+        (
+            [value for _, value in filtered],
+            ([key[0] for key, _ in filtered], [key[1] for key, _ in filtered]),
+        ),
+        shape=(rows, columns),
+    ).tocsr()
 
 
 def _compress_rows(matrix, tolerance=1e-12):

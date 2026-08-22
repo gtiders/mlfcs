@@ -61,7 +61,7 @@ ForceConstants → HDF5 / NumPy / ShengBTE / phonopy
 ```
 
 所有约束系统统一使用稀疏、矩阵无关的 LSMR 投影。二阶计算还可主动开启可选的
-Born–Huang 旋转求和规则，详见[求和规则](docs/zh/methods/sum-rules.md)。
+Born–Huang 旋转求和规则，详见[求和规则](docs/SUM_RULES_ZH.md)。
 
 ## 主要特点
 
@@ -184,7 +184,7 @@ fc3.write("fc3.h5", format="hdf5")
 其他数据集的情况，建议用 manifest 保存文件名—构型 ID 对应关系。完整的
 [`vasp_external_fc3.py`](examples/vasp_external_fc3.py) 示例把 manifest 作为可选安全层，
 并实现力收集、缺失结果检查和最终导出，详见
-[外部 VASP 工作流](docs/zh/workflows/external-calculators.md)。
+[外部 VASP 工作流](docs/EXTERNAL_VASP_WORKFLOW_ZH.md)。
 
 力数组的形状必须为：
 
@@ -237,7 +237,7 @@ fc4 = calculation.run(
 中心位移为 `0.03` Å 时，上例采样 `0.02`、`0.025`、`0.03`、`0.035` 和 `0.04` Å。
 默认阶数 `1` 拟合 `D(h) = D0 + c2 h²`；更高阶数继续加入偶次幂。该后端有意只通过
 `run()` 开放，不属于外部 `sow()` / `reap()` 工作流。详见
-[零步长外推](docs/zh/workflows/extrapolation.md)。
+[零步长外推](docs/EXTRAPOLATION_ZH.md)。
 
 显式保存力：
 
@@ -316,18 +316,25 @@ raw = calculation.reap(forces, acoustic_sum_rule=False)
 受约束结果是在独立参数空间中距离测量结果最近、同时满足平移不变性的解。置换对称性
 会给出其他原子轴上的等价约束。
 
-Born-Huang 与 Huang 条件是独立的 FC2 后处理，有限差分和拟合结果共用同一入口。默认
-`strength=1.0` 为严格模式，FC3 及更高阶不会被改动：
+二阶力常数可以主动开启旋转求和规则；默认关闭：
 
 ```python
-constrained = result.enforce_harmonic_constraints(
-    born_huang=True,
-    huang=True,
+fc2 = calculation.reap(
+    forces,
+    acoustic_sum_rule=True,
+    rotational_sum_rule=True,
 )
 ```
 
-投影器始终满足 FC2 的 ASR，使用全部简并最近周期像，并报告残差与修正量。`[0, 1]`
-中的 `strength` 只缩放 Born-Huang/Huang 修正。详见[求和规则](docs/zh/methods/sum-rules.md)。
+程序会联合投影平移和旋转约束。严格的高阶旋转条件会耦合相邻阶力常数，因此当前
+单阶 API 只允许在二阶设置 `rotational_sum_rule=True`。详见
+[求和规则](docs/SUM_RULES_ZH.md)。
+
+旋转约束的数值条件处理目前仍是已知限制。MLFCS 当前先按结构容差判断 FC1–FC2
+边界的数值秩，再把保留方向作为严格零空间约束；这不等价于 hiphive 使用岭正则的
+Huang/Born–Huang 软投影。接近零的奇异方向可能因单位、尺度和截断而得到不同处理。
+在无量纲条件判据与独立软投影完成前，不应把 `rotational_invariance=2` 理解为
+hiphive 的 Huang + Born–Huang 组合修正。详见[路线图](docs/ROADMAP_ZH.md)。
 
 ## 输出格式
 
@@ -371,7 +378,7 @@ ALAMODE XML 严格保留 `fc.supercell` 当前的原子顺序。原胞原子身�
 MLFCS 的 `primitive_index` 与 `cell_translation` 元数据；导出阶段不会让 spglib 或
 ALAMODE 重新识别、重排晶胞。传入 `order=2`、`3` 或 `4` 可只写指定阶，省略则把当前
 可用的 FC2--FC4 合并到一个 XML。完整映射与周期像约定见
-[ALAMODE XML 指南](docs/zh/formats/alamode.md)。
+[ALAMODE XML 指南](docs/ALAMODE_XML_ZH.md)。
 
 高阶结果推荐使用稀疏 HDF5。显式稠密化超过默认 2 GB 建议预算时会发出警告：
 
@@ -423,7 +430,7 @@ result = sscha.reap(
 正则系综轮次还会报告 FC2 相对更新幅度，试探采样哈密顿量保持为内部细节。
 
 该方法是随机有效谐波方法，不是显式 FC3 bubble 或 FC4 loop 计算。详见
-[SSCHA 文档](docs/zh/workflows/sscha.md)。
+[SSCHA 文档](docs/SSCHA_ZH.md)。
 
 ## 当前限制
 
@@ -436,7 +443,13 @@ result = sscha.reap(
 
 ## 文档
 
-完整双语文档：[English site](https://gtiders.github.io/mlfcs/) 和 [中文站点](https://gtiders.github.io/mlfcs/zh/)。参见[可运行案例](examples/README_ZH.md)和[开发与验证](docs/zh/development/validation.md)
+- [文档索引](docs/README_ZH.md)（[English](docs/README.md)）
+- [外部 VASP 工作流](docs/EXTERNAL_VASP_WORKFLOW_ZH.md)
+- [技术总览](docs/TECHNICAL_OVERVIEW_ZH.md)
+- [数值验证与持续集成](docs/VALIDATION_ZH.md)
+- [仅力数据拟合](docs/FITTING_ZH.md)
+- [SSCHA 使用说明](docs/SSCHA_ZH.md)
+- [开发路线图](docs/ROADMAP_ZH.md)
 
 ## 开发与测试
 
@@ -445,13 +458,15 @@ result = sscha.reap(
 ```bash
 uv sync
 uv run pytest
-uv run ruff check src tests examples
-uv run ruff format --check src tests examples
+uv run pytest -m "not reference"
+uv run ruff check src tests reference_tools examples
+uv run ruff format --check src tests reference_tools examples
 uv build
 ```
 
-本地测试只包含确定性的单元和公共 API 回归。材料比较和第三方输运工作流记录在
-`examples/cases/`，需要时手动运行。CI 只构建双语文档站。测试组织见 [tests/README.md](tests/README.md)。
+hiphive 和 phono3py 仅作为开发验证依赖。CI 中的 AlN 三阶基准先由 hiphive 将双方的
+原子顺序和张量表示统一为完整超胞 FC3，再与独立的 phono3py 有限差分结果做数值比较。
+测试层级和各项独立参考测试的运行命令见 [tests/README.md](tests/README.md)。
 
 当前开发预发布版本为 `4.0.0a2`（4.0 alpha 2）。版本变化见 [CHANGELOG_ZH.md](CHANGELOG_ZH.md)，开发流程见
 [CONTRIBUTING.md](CONTRIBUTING.md)。

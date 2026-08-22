@@ -79,7 +79,9 @@ def write_phonon_hdf5(
 
         handle.create_dataset(
             "p2s_map",
-            data=np.asarray([np.flatnonzero(primitive == site)[0] for site in range(n_primitive)]),
+            data=np.asarray(
+                [np.flatnonzero(primitive == site)[0] for site in range(n_primitive)]
+            ),
         )
         try:
             release = version("mlfcs")
@@ -88,6 +90,5 @@ def write_phonon_hdf5(
         handle.create_dataset("version", data=np.bytes_(f"mlfcs {release}"))
         if order == 2:
             handle.create_dataset("physical_unit", data=np.asarray([b"eV/angstrom^2"]))
-
 
 __all__ = ["write_phonon_hdf5"]

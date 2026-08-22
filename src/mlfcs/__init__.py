@@ -2,15 +2,9 @@
 
 from pathlib import Path
 
-from mlfcs.anharmonic import LoopSCPH, LoopSCPHResult, harmonic_frequencies
 from mlfcs.api import Calculation, ForceConstantCalculation
 from mlfcs.core.geometry import PeriodicIndex, StructureRelation, align_structures, build_supercell
 from mlfcs.finite_difference.stencil import CentralDifferenceStencil
-from mlfcs.harmonic_constraints import (
-    HarmonicConstraintDiagnostics,
-    HarmonicConstraintResult,
-    enforce_harmonic_constraints,
-)
 from mlfcs.model import ForceConstants, SparseOrderForceConstants
 
 # SSCHA remains an explicit submodule so the base namespace stays compact.
@@ -20,17 +14,11 @@ __all__ = [
     "CentralDifferenceStencil",
     "ForceConstantCalculation",
     "ForceConstants",
-    "HarmonicConstraintDiagnostics",
-    "HarmonicConstraintResult",
-    "LoopSCPH",
-    "LoopSCPHResult",
     "PeriodicIndex",
     "SparseOrderForceConstants",
     "StructureRelation",
     "align_structures",
     "build_supercell",
-    "enforce_harmonic_constraints",
-    "harmonic_frequencies",
     "read_hdf5",
 ]
 

@@ -60,6 +60,7 @@ class SSCHA:
         max_displacement: float | None = None,
         initial_force_constants: ArrayLike | None = None,
         acoustic_sum_rule: bool = True,
+        rotational_invariance: int = 0,
         log_level: int = 0,
     ) -> None:
         if not isinstance(atoms, Atoms):
@@ -108,6 +109,7 @@ class SSCHA:
         self.imaginary_tolerance = float(imaginary_tolerance)
         self.max_displacement = max_displacement
         self.acoustic_sum_rule = acoustic_sum_rule
+        self.rotational_invariance = rotational_invariance
         self.log_level = log_level
         self.history: list[SSCHAIteration] = []
         self._prepared_index: int | None = None
@@ -233,6 +235,7 @@ class SSCHA:
             snapshots,
             validation_split=0.0,
             acoustic_sum_rule=self.acoustic_sum_rule,
+            rotational_invariance=self.rotational_invariance,
         )
         fitted_compact = fit.force_constants.materialize(2, max_bytes=None)
         fitted_full = expand_compact_fc2(fitted_compact, self._reference)

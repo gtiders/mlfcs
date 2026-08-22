@@ -6,14 +6,13 @@ from typing import Literal
 import numpy as np
 from ase import Atoms, units
 
-from mlfcs.anharmonic.core import HBAR_ASE, OMEGA_TO_THZ, mode_sigma
 from mlfcs.core.geometry import PeriodicIndex
 
 Statistics = Literal["quantum", "classical"]
 ImaginaryModePolicy = Literal["error", "absolute", "exclude"]
 
-_HBAR_ASE = HBAR_ASE
-_OMEGA_TO_THZ = OMEGA_TO_THZ
+_HBAR_ASE = units._hbar * units.J * units.s
+_OMEGA_TO_THZ = units.s / (2 * np.pi * 1e12)
 
 
 @dataclass(frozen=True, slots=True)
@@ -242,11 +241,19 @@ class HarmonicEnsemble:
         return eigenvalues, internal @ eigenvectors
 
     def _mode_sigma(self, eigenvalues: np.ndarray) -> np.ndarray:
-        return mode_sigma(
-            eigenvalues,
-            temperature=self.temperature,
-            statistics=self.statistics,
-        )
+        omega = np.sqrt(np.abs(eigenvalues))
+        safe = np.where(omega > 0, omega, 1.0)
+        if self.statistics == "classical":
+            return np.sqrt(units.kB * self.temperature) / safe
+        energy = _HBAR_ASE * safe
+        if self.temperature == 0:
+            occupation = np.zeros_like(safe)
+        else:
+            x = energy / (units.kB * self.temperature)
+            occupation = np.zeros_like(x)
+            finite = x < 700
+            occupation[finite] = 1.0 / np.expm1(x[finite])
+        return np.sqrt(_HBAR_ASE * (0.5 + occupation) / safe)
 
     def _diagnostics(
         self, maximum_sampled: float, clipped_atoms: int, affected_snapshots: int
