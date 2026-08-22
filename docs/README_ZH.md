@@ -10,7 +10,6 @@ MLFCS 的用户文档均提供英文和中文版本。仓库根目录的
 |---|---|---|
 | 外部 VASP sow/reap 工作流 | [指南](EXTERNAL_VASP_WORKFLOW_ZH.md) | [Guide](EXTERNAL_VASP_WORKFLOW.md) |
 | 技术架构与算法 | [概览](TECHNICAL_OVERVIEW_ZH.md) | [Overview](TECHNICAL_OVERVIEW.md) |
-| ALAMODE XML 输出与原子映射 | [指南](ALAMODE_XML_ZH.md) | [Guide](ALAMODE_XML.md) |
 | 数值验证与 CI | [数值验证](VALIDATION_ZH.md) | [Validation](VALIDATION.md) |
 | 平移与旋转求和规则 | [求和规则](SUM_RULES_ZH.md) | [Sum rules](SUM_RULES.md) |
 | 直接 calculator 零步长外推 | [零步长外推](EXTRAPOLATION_ZH.md) | [Extrapolation](EXTRAPOLATION.md) |

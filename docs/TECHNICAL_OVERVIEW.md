@@ -249,7 +249,6 @@ I/O is selected explicitly through `format`:
 - `phonopy`: full dense second-order text format;
 - `phonopy_hdf5`: streamed full-supercell FC2 HDF5;
 - `phono3py_hdf5`: streamed full-supercell FC3 HDF5.
-- `alamode`: combined FC2--FC4 ALAMODE FCSXML with explicit MLFCS atom mappings.
 
 The phonopy writer expands compact FC2 to `(N, N, 3, 3)`, applies translational equivalence to
 every first supercell atom, and converts both atom axes to phonopy's primitive-atom-grouped
@@ -264,11 +263,6 @@ full-supercell tensor solely for output.
 ShengBTE output is cluster-and-translation based rather than a simple global supercell tensor
 order. The writer derives its primitive atom indices and lattice translations from the canonical
 internal geometry and uses scientific notation for both supported orders.
-
-The ALAMODE adapter preserves internal supercell order and serializes the existing
-`primitive_index`/`cell_translation` mapping rather than rediscovering a primitive cell. Its
-mirror-cell identifiers follow ALAMODE's fixed 27-image convention; export rejects a geometry
-whose true minimum image lies outside that representable set.
 
 ## 6. Comparison with the previous implementation
 

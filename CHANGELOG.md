@@ -4,13 +4,6 @@
 
 All notable changes are documented here. Releases follow semantic versioning.
 
-## 4.0.0a2 — 2026-08-14
-
-### Added
-
-- ALAMODE FCSXML output for combined FC2--FC4, with exact MLFCS atom-order and primitive-cell
-  mapping control and documented upstream ALM writer provenance.
-
 ## 4.0.0a1 — 2026-08-14
 
 ### Added

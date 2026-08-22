@@ -18,7 +18,3 @@ Copyright (C) 2016-2018 Genadi Naydenov
 thirdorder is distributed under GPL-3.0-or-later. See THIRD_PARTY.md for the
 scope of the lineage and attribution. Other redistributed reference datasets
 retain the notices and licenses stored beside them.
-
-The ALAMODE FCSXML writer adapts portions of ttadano/ALM:
-Copyright (c) 2014,2015,2016 Terumasa Tadano
-Licensed under the MIT License. See third_party_licenses/ALM-MIT.txt.

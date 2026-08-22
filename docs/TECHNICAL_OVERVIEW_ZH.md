@@ -65,10 +65,6 @@ JAX 以双精度执行高阶张量旋转、`vmap` 批处理和 JIT 张量收缩�
 共享的对称闭合周期支撑域；`compatibility="thirdorder"` 仅用于复现旧 thirdorder 的
 二次周期像筛选和区块顺序。
 
-`alamode` 可在同一个 FCSXML 中写出 FC2--FC4。适配器保留内部超胞顺序，并直接序列化
-已有的 `primitive_index`/`cell_translation` 映射，而不重新识别原胞。周期镜像编号遵循
-ALAMODE 固定的 27 像约定；若真实最小镜像超出该格式的表示范围，导出会明确拒绝。
-
 新版应在超胞几何、近邻壳层、原始重建、原子映射和格式语义上与参考实现核对，但不会
 模拟物理约束错误的旧 ASR。详细数值见[验证文档](VALIDATION_ZH.md)，历史差异见
 [新旧实现对比](OLD_NEW_COMPARISON_ZH.md)。

@@ -369,7 +369,6 @@ fc3.write("fc3.hdf5", format="phono3py_hdf5")
 fc3.write("fc3.npz", format="numpy")
 fc3.write("FORCE_CONSTANTS_3RD", format="shengbte")
 fc4.write("FORCE_CONSTANTS_4TH", format="shengbte")
-fc234.write("force_constants.xml", format="alamode")
 ```
 
 | Format | Orders | Representation |
@@ -380,7 +379,6 @@ fc234.write("force_constants.xml", format="alamode")
 | `phonopy` | 2 | Full dense supercell FC2 text |
 | `phonopy_hdf5` | 2 | Phonopy-compatible full-supercell `force_constants` HDF5 |
 | `phono3py_hdf5` | 3 | Phono3py-compatible full-supercell `fc3` HDF5 |
-| `alamode` | 2--4 | Combined ALAMODE FCSXML document |
 
 ShengBTE output is faithful by default: it writes exactly the symmetry-closed cluster support
 carried by the reconstructed sparse result. To reproduce the legacy thirdorder secondary
@@ -397,12 +395,6 @@ fc3.write(
 The phonopy and phono3py HDF5 writers use primitive-atom-grouped supercell order and stream one
 first-atom slab at a time. They therefore do not materialize the full FC3 in memory. The native
 `hdf5` format remains the compact, order-parameterized MLFCS representation.
-
-ALAMODE XML preserves the exact atom order of `fc.supercell`. Primitive-atom identities and
-translation mappings come exclusively from MLFCS's `primitive_index` and `cell_translation`
-metadata; export does not ask spglib or ALAMODE to rediscover or reorder the cell. Use `order=2`,
-`3`, or `4` to write one available order, or omit it to combine all available FC2--FC4 orders.
-See the [ALAMODE XML guide](docs/ALAMODE_XML.md) for the mapping and periodic-image contract.
 
 Sparse HDF5 is recommended for high orders. Dense materialization is explicit and emits a
 warning above the default 2 GB advisory budget:
@@ -499,7 +491,7 @@ both atom orderings and tensor representations to the same full-supercell form.
 The test hierarchy and independent reference commands are documented in
 [tests/README.md](tests/README.md).
 
-The current development version is `4.0.0a2` (4.0 alpha 2). See [CHANGELOG.md](CHANGELOG.md) for release notes and
+The current development version is `4.0.0a1` (4.0 alpha 1). See [CHANGELOG.md](CHANGELOG.md) for release notes and
 [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow.
 
 ## License

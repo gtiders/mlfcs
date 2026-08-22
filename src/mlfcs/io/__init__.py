@@ -31,16 +31,6 @@ def write_force_constants(
 
         write_numpy(target, force_constants)
         return
-    if normalized in {"alamode", "alamode_xml", "fcsxml"}:
-        from mlfcs.io.alamode import write_alamode
-
-        selected_orders = (
-            tuple(value for value in force_constants.orders if value in {2, 3, 4})
-            if order is None
-            else (order,)
-        )
-        write_alamode(target, force_constants, orders=selected_orders)
-        return
     if normalized == "phonopy":
         from mlfcs.io.phonopy import write_phonopy
 
