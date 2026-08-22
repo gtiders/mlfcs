@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -46,8 +45,3 @@ def write_hdf5(target: str | Path, force_constants: ForceConstants) -> None:
         for key, value in force_constants.metadata.items():
             if isinstance(value, (str, int, float, bool, np.number)):
                 handle.attrs[key] = value
-            elif key == "cutoff_angstrom_by_order" and isinstance(value, dict):
-                handle.attrs[key] = json.dumps(
-                    {str(order): float(cutoff) for order, cutoff in value.items()},
-                    sort_keys=True,
-                )

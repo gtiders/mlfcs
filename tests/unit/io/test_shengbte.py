@@ -73,26 +73,10 @@ def test_force_constants_defaults_to_closed_support_and_offers_thirdorder_mode(t
     faithful = tmp_path / "faithful"
     compatible = tmp_path / "compatible"
     result.write(faithful, format="shengbte")
-    assert 3 not in result.arrays
     result.write(compatible, format="shengbte", compatibility="thirdorder")
 
     assert " 1  1  1     7.0000000000e+00" in faithful.read_text().splitlines()
     assert " 1  1  1     7.0000000000e+00" not in compatible.read_text().splitlines()
-
-
-def test_sparse_and_dense_shengbte_writers_have_identical_order(tmp_path):
-    atoms = Atoms("Si", positions=[[0, 0, 0]], cell=np.eye(3) * 5, pbc=True)
-    supercell, _ = make_supercell(atoms, (2, 1, 1))
-    clusters = np.asarray([[0, 1, 1], [0, 0, 1]], dtype=np.int32)
-    tensors = np.arange(2 * 27.0).reshape((2, 3, 3, 3))
-    sparse = SparseOrderForceConstants(3, 1, 2, clusters, tensors)
-    sparse_output = tmp_path / "sparse"
-    dense_output = tmp_path / "dense"
-
-    write_shengbte(sparse_output, sparse, supercell, cutoff=5.0)
-    write_shengbte(dense_output, sparse.to_dense(), supercell, cutoff=5.0, support=sparse.support)
-
-    assert sparse_output.read_bytes() == dense_output.read_bytes()
 
 
 def test_shengbte_rejects_unknown_compatibility_mode(tmp_path):

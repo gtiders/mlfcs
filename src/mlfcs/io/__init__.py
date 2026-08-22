@@ -63,22 +63,17 @@ def write_force_constants(
         from mlfcs.io.shengbte import write_shengbte
 
         selected_order = order if order is not None else max(force_constants.orders)
-        cutoffs = force_constants.metadata.get("cutoff_angstrom_by_order", {})
-        cutoff = cutoffs.get(selected_order) if isinstance(cutoffs, dict) else None
-        if cutoff is None:
-            cutoff = force_constants.metadata.get("cutoff_angstrom")
+        cutoff = force_constants.metadata.get("cutoff_angstrom")
         if cutoff is None:
             raise ValueError("cutoff_angstrom metadata is required for ShengBTE output")
         sparse = force_constants.sparse.get(selected_order)
-        # ShengBTE is block-oriented, so compact cluster tensors can be
-        # serialized directly.  Avoid materializing very large FC4 arrays.
-        values = sparse if sparse is not None else force_constants.materialize(selected_order)
+        values = force_constants.materialize(selected_order)
         write_shengbte(
             target,
             values,
             force_constants.supercell,
             cutoff=float(cutoff),
-            support=None,
+            support=None if sparse is None else sparse.support,
             compatibility=compatibility,
         )
         return
