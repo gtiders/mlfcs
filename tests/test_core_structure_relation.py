@@ -3,7 +3,7 @@ from ase import Atoms
 from ase.geometry import find_mic
 
 from mlfcs.api import ForceConstantCalculation
-from mlfcs.structure.geometry import (
+from mlfcs.core.geometry import (
     PeriodicGeometry,
     StructureRelation,
     align_structures,

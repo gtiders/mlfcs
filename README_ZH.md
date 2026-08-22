@@ -47,7 +47,7 @@ ASE 原胞结构
 稀疏对称性重建和可选求和规则投影
     │
     ▼
-ForceConstants → HDF5 / ShengBTE / phonopy 兼容格式
+ForceConstants → HDF5 / NumPy / ShengBTE / phonopy
 ```
 
 空间群对称性、力常数指标置换和团簇稳定子约束会把每个团簇张量约化为独立分量，

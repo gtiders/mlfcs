@@ -2,9 +2,9 @@ import numpy as np
 import pytest
 from ase import Atoms
 
-from mlfcs.ifc.model import ForceConstants, SparseOrderForceConstants
+from mlfcs.core.geometry import make_supercell
 from mlfcs.io.shengbte import write_shengbte
-from mlfcs.structure.geometry import make_supercell
+from mlfcs.model import ForceConstants, SparseOrderForceConstants
 
 
 def test_third_order_direction_and_block_order(tmp_path):
@@ -89,7 +89,7 @@ def test_sparse_writer_uses_general_lattice_labels_for_reordered_nondiagonal_cel
     supercell, index = make_supercell(primitive, [[2, 1, 0], [0, 1, 0], [0, 0, 1]])
     supercell = supercell[[1, 0]]
     # Rebuild the index in the deliberately shuffled reference order.
-    from mlfcs.structure.geometry import PeriodicIndex
+    from mlfcs.core.geometry import PeriodicIndex
 
     index = PeriodicIndex(
         supercell.arrays["primitive_index"],

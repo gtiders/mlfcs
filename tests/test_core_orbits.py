@@ -1,7 +1,8 @@
 import numpy as np
 from ase import Atoms
 
-from mlfcs.clusters.orbits import (
+from mlfcs.core.geometry import make_supercell
+from mlfcs.core.orbits import (
     _canonical_cluster,
     _compatible_sorted_tails,
     _joint_periodic_cluster_geometry,
@@ -10,7 +11,6 @@ from mlfcs.clusters.orbits import (
     tensor_action_matrix,
 )
 from mlfcs.core.symmetry import SymmetryOperations
-from mlfcs.structure.geometry import make_supercell
 
 
 def test_identity_tensor_action():

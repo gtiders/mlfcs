@@ -67,10 +67,11 @@ src/mlfcs/
     ensemble.py                  commensurate-q harmonic sampling and thermodynamics
 ```
 
-The former compatibility-only modules have been removed. New code imports from `mlfcs.public` or
-the responsibility-specific packages. This replaces duplicated order-specific implementation
-with a shared pipeline; order-dependent behavior is still expressed through `order`, tensor rank,
-permutations, and recursive finite-difference keys.
+The old `mlfcs.model`, `mlfcs.core.geometry`, `mlfcs.core.orbits`, and
+`mlfcs.harmonic_constraints` paths remain thin compatibility imports. New code should import
+from `mlfcs.public` or the responsibility-specific packages. This replaces duplicated
+order-specific implementation with a shared pipeline; order-dependent behavior is still
+expressed through `order`, tensor rank, permutations, and recursive finite-difference keys.
 
 The refactor is intentionally numerical-neutral. It does not change algorithms, defaults,
 constraint equations, sparse labels, HDF5 schema, or output semantics. The regression suite
