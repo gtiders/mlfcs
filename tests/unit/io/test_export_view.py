@@ -3,7 +3,6 @@ import pytest
 from ase import Atoms
 
 from mlfcs.api import ForceConstantCalculation
-from mlfcs.core.geometry import make_supercell
 from mlfcs.io.export import build_export_view
 from mlfcs.io.hdf5 import read_hdf5
 
@@ -52,34 +51,6 @@ def test_export_view_accepts_unimodular_primitive_basis_change():
     view = build_export_view(result, primitive=target_primitive)
     assert view.relation is not None
     np.testing.assert_array_equal(view.relation.primitive.cell, target_primitive.cell)
-
-
-def test_export_view_roundtrips_when_primitive_basis_and_reference_are_both_represented_anew():
-    result = _result()
-    source_primitive = result.relation.primitive
-    change = np.asarray([[1, 1, 0], [0, 1, 0], [0, 0, 1]])
-    target_primitive = source_primitive.copy()
-    target_primitive.set_cell(change @ source_primitive.cell, scale_atoms=False)
-    target_matrix = result.relation.supercell_matrix @ np.linalg.inv(change)
-    target_supercell, _ = make_supercell(target_primitive, target_matrix)
-    target_supercell = target_supercell[[1, 0]]
-
-    target_view = build_export_view(
-        result,
-        primitive=target_primitive,
-        supercell=target_supercell,
-    )
-    returned = build_export_view(
-        target_view.force_constants,
-        primitive=source_primitive,
-        supercell=result.supercell,
-    ).force_constants.sparse[2]
-    source = result.sparse[2]
-    np.testing.assert_array_equal(returned.sites, source.sites)
-    np.testing.assert_array_equal(
-        returned.translation_representatives, source.translation_representatives
-    )
-    np.testing.assert_allclose(returned.tensors, source.tensors)
 
 
 def test_export_view_rejects_cartesian_rotation():

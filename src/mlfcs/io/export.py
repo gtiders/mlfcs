@@ -31,7 +31,9 @@ def _unimodular_change(target: np.ndarray, source: np.ndarray, *, name: str) -> 
     return integer
 
 
-def _site_mapping(source: Atoms, target: Atoms) -> tuple[np.ndarray, np.ndarray]:
+def _site_mapping(
+    source: Atoms, target: Atoms, target_from_source: np.ndarray
+) -> tuple[np.ndarray, np.ndarray]:
     if len(source) != len(target):
         raise ValueError("target primitive atom count differs from the source primitive")
     inverse = np.linalg.inv(np.asarray(target.cell))
@@ -98,7 +100,7 @@ def build_export_view(
         np.rint(source_lattice_in_target).astype(np.int32),
     ):
         raise ValueError("target supercell does not preserve the source translation sublattice")
-    site_map, site_shift = _site_mapping(source.primitive, target.primitive)
+    site_map, site_shift = _site_mapping(source.primitive, target.primitive, primitive_change)
     source_to_target_translation = np.linalg.inv(primitive_change)
     sparse: dict[int, SparseOrderForceConstants] = {}
     for order, values in force_constants.sparse.items():

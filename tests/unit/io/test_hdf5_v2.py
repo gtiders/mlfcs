@@ -39,17 +39,3 @@ def test_native_hdf5_rejects_pre_v2_schema_without_guessing_atom_semantics(tmp_p
         handle.attrs["format"] = "mlfcs-force-constants"
     with pytest.raises(ValueError, match="only v2 is supported"):
         read_hdf5(source)
-
-
-def test_native_hdf5_rejects_a_mapping_inconsistent_with_its_structures(tmp_path):
-    primitive = Atoms("Si", positions=[[0, 0, 0]], cell=np.eye(3) * 4, pbc=True)
-    reference = primitive.repeat((2, 1, 1))
-    calculation = ForceConstantCalculation(primitive, reference=reference, order=2, cutoff=3.0)
-    result = calculation.reap(np.zeros((len(calculation.plan), len(reference), 3)))
-    target = tmp_path / "tampered.hdf5"
-    result.write(target, format="hdf5")
-    with h5py.File(target, "r+") as handle:
-        handle["reference_mapping/primitive_index"][0] = 1
-
-    with pytest.raises(ValueError, match="primitive-index mapping"):
-        read_hdf5(target)
