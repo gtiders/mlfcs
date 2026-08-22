@@ -62,6 +62,14 @@ sparse constraints remain on memory-efficient CPU solvers.
 
 # State of the field
 
+MLFCS originates in reference to and adaptation of the algorithms and workflow implemented by
+the GPL-licensed thirdorder software [@thirdorder]. In particular, it draws on thirdorder's
+symmetry reduction of finite-displacement FC3, periodic-image conventions, and ordered
+`sow`/`reap` workflow. This provenance is retained explicitly rather than presented as an
+independently originated FC3 method. MLFCS extends that foundation through a newly designed,
+order-parameterized ASE/JAX architecture, sparse representations, constrained sum-rule solvers,
+and interoperable APIs from second to arbitrary order.
+
 phonopy and phono3py provide widely used harmonic and third-order finite-displacement workflows
 [@phonopy2015; @phono3py2015]. ALAMODE supports displacement and regression approaches for
 anharmonic lattice dynamics [@alamode2018], and hiphive fits force-constant models in
@@ -154,8 +162,9 @@ and cited literature.
 
 The author acknowledges the School of Physics at Central South University for institutional
 support and thanks the author's research group for access to computational resources and for
-providing a test dataset used in software verification. The author also thanks the developers and
-maintainers of ASE, JAX, NumPy, SciPy, spglib, phonopy, phono3py, hiphive, ALAMODE,
+providing a test dataset used in software verification. The author acknowledges the thirdorder
+authors, whose algorithms and workflow informed the development of MLFCS, and also thanks the
+developers and maintainers of ASE, JAX, NumPy, SciPy, spglib, phonopy, phono3py, hiphive, ALAMODE,
 ShengBTE, and FourPhonon. This work received no external financial support, and no sponsor had a
 role in the software design, validation, manuscript preparation, or decision to submit. The
 author declares no competing interests.

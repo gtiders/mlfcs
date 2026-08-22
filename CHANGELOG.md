@@ -79,7 +79,7 @@ implementation with one order-parameterized API and numerical pipeline.
 - CPU/GPU selection for JAX-accelerated high-rank tensor operations.
 - Generic sparse HDF5 output for arbitrary order.
 - Dense phonopy FC2, phono3py FC3 HDF5, and ShengBTE FC3/FC4 output.
-- ShengBTE FC3/FC4 export with explicit periodic geometry.
+- Faithful ShengBTE periodic geometry by default and an explicit thirdorder compatibility mode.
 - Optional phonopy/symfc stochastic effective-harmonic workflow.
 - Independent scientific references against phonopy, phono3py, hiphive-converted data,
   ShengBTE files, and an analytically differentiated FCC Morse FC4 model.
@@ -96,6 +96,7 @@ implementation with one order-parameterized API and numerical pipeline.
 
 ### Compatibility
 
+- Existing thirdorder sow order and ShengBTE layout are available only when explicitly requested.
 - Earlier MLFCS scripts must migrate to `ForceConstantCalculation`, `sow()`, `reap()`, or `run()`.
 
 ## Earlier releases

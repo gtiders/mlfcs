@@ -5,8 +5,19 @@ MLFCS is free software licensed under the GNU General Public License as
 published by the Free Software Foundation, either version 3 of the License,
 or (at your option) any later version.
 
-Redistributed reference datasets retain the notices and licenses stored beside
-them.
+The force-constant symmetry-reduction algorithms, periodic-geometry
+conventions, and sow/reap workflow in MLFCS draw on and adapt ideas from the
+thirdorder project. The relevant thirdorder copyright holders include:
+
+Copyright (C) 2012-2018 Wu Li
+Copyright (C) 2012-2018 Jesus Carrete Montana
+Copyright (C) 2012-2018 Natalio Mingo Bisquert
+Copyright (C) 2014-2018 Antti J. Karttunen
+Copyright (C) 2016-2018 Genadi Naydenov
+
+thirdorder is distributed under GPL-3.0-or-later. See THIRD_PARTY.md for the
+scope of the lineage and attribution. Other redistributed reference datasets
+retain the notices and licenses stored beside them.
 
 The ALAMODE FCSXML writer adapts portions of ttadano/ALM:
 Copyright (c) 2014,2015,2016 Terumasa Tadano

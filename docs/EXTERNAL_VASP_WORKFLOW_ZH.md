@@ -89,8 +89,8 @@ uv run python examples/vasp_external_fc3.py reap \
 ```
 
 默认施加严格平移 ASR；传入 `--no-asr` 可保留原始有限差分结果。ShengBTE 直接
-序列化重建后的稀疏物理支撑域，并在格式边界解析周期平移。其他 FC3 输出包括通用稀疏
-`hdf5`、`numpy` 和完整 `phono3py_hdf5`。
+序列化重建后的稀疏物理支撑域，不提供旧 thirdorder 兼容模式。其他 FC3 输出包括通用
+稀疏 `hdf5`、`numpy` 和完整 `phono3py_hdf5`。
 
 ## 恢复与审计约定
 

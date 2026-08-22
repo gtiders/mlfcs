@@ -9,6 +9,12 @@ Fifth and higher orders can also be calculated and exported through the generic 
 format; practical size is determined by cluster count, cutoff, supercell size, and available
 memory.
 
+The third-order lineage of MLFCS explicitly references and draws on the algorithms, periodic-
+image conventions, and `sow`/`reap` workflow of the GPL-licensed
+[thirdorder](https://gitlab.com/sousaw/thirdorder) project. MLFCS develops these ideas into an
+order-parameterized ASE/JAX architecture with new sparse, constraint-solving, acceleration, and
+interoperability layers. See [Third-party provenance](THIRD_PARTY.md) for attribution and scope.
+
 Finite differences use ASE, NumPy, and SciPy only, so an external calculator retains complete
 control over CPU or GPU execution. The joint fitter supports CPU and GPU: a CUDA-enabled JAX
 installation accelerates only the dense Wick feature kernel, while geometry, symmetry, sparse
@@ -126,16 +132,6 @@ the calculator required by your application separately.
 | `None` cutoff | Maximum radius enumerable by the supercell |
 
 JAX numerical kernels use 64-bit floating point.
-
-## Choose the downstream structure first
-
-Before calculating force constants, decide which program will consume them and establish its
-primitive-cell and supercell conventions first. For the most reliable workflow, use the primitive
-cell and reference supercell generated or validated by that downstream program, then pass those
-same ASE `Atoms` objects to MLFCS. MLFCS can validate and convert equivalent primitive and
-supercell representations, including atom reorderings and integral basis changes, but starting
-from the downstream program's own structures avoids unnecessary mapping ambiguity at the final
-export boundary.
 
 ## Quick start
 
@@ -385,8 +381,9 @@ fc234 = read_hdf5("fc3.h5")
 | `phono3py_hdf5` | 3 | Phono3py-compatible full-supercell `fc3` HDF5 |
 | `alamode` | 2--4 | Combined ALAMODE FCSXML document |
 
-ShengBTE output writes the symmetry-closed cluster support carried by the reconstructed sparse
-result and resolves its lattice residues to jointly compatible minimum images.
+ShengBTE output writes exactly the symmetry-closed cluster support carried by the reconstructed
+sparse result. Legacy thirdorder filtering and block-order compatibility is intentionally not
+provided.
 
 The phonopy and phono3py HDF5 writers use primitive-atom-grouped supercell order and stream one
 first-atom slab at a time. They therefore do not materialize the full FC3 in memory. The native
@@ -499,6 +496,6 @@ The current development version is `4.0.0a2` (4.0 alpha 2). See [CHANGELOG.md](C
 
 ## License
 
-MLFCS is distributed under the [GNU General Public License v3.0 or later](LICENSE). Adapted
-third-party components and redistributed reference data are documented in
-[Third-party provenance](THIRD_PARTY.md).
+MLFCS is distributed under the [GNU General Public License v3.0 or later](LICENSE). Its
+third-order lineage and the boundary between borrowed ideas and new MLFCS development are
+documented in [Third-party provenance](THIRD_PARTY.md).
