@@ -54,7 +54,7 @@ src/mlfcs/
   finite_difference/
     sampling.py                  stable displacement plans and force contraction
     stencil.py                   recursive central-difference stencils
-  constraints/
+  reconstruction/
     solver.py                    sparse cluster reconstruction
     asr.py                       finite-difference sum-rule orchestration
   fitting/                       Wick force design and constrained Gram fitting
@@ -62,10 +62,9 @@ src/mlfcs/
     hdf5.py                      dense or sparse generic storage
     phonopy.py                   full dense FC2 text output
     shengbte.py                  third- and fourth-order ShengBTE output
-  anharmonic/
-    scph.py                      quartic-loop self-consistent phonons
-    sscha.py                     ASE evaluation and FC2 iteration
-    common/                      ensemble, thermodynamic, and compact-FC2 helpers
+  sscha/
+    core.py                      ASE evaluation and FC2 iteration
+    ensemble.py                  commensurate-q harmonic sampling and thermodynamics
 ```
 
 The former compatibility-only modules have been removed. New code imports from `mlfcs.public` or

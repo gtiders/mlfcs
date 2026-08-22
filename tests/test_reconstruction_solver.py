@@ -3,8 +3,8 @@ import pytest
 from ase.build import bulk
 
 from mlfcs.clusters.orbits import build_orbit_space
-from mlfcs.constraints.solver import reconstruct_sparse
 from mlfcs.core.symmetry import SymmetryOperations
+from mlfcs.reconstruction.solver import reconstruct_sparse
 from mlfcs.structure.geometry import make_supercell, resolve_cutoff
 
 

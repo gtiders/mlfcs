@@ -8,11 +8,11 @@ import numpy as np
 from ase import Atoms
 from ase.calculators.calculator import Calculator
 
-from mlfcs.constraints.solver import reconstruct_sparse
 from mlfcs.core.interactions import InteractionSpace
 from mlfcs.finite_difference.extrapolation import ExtrapolationBackend
 from mlfcs.finite_difference.sampling import DisplacementPlan, build_displacement_plan
 from mlfcs.ifc.model import ForceConstants
+from mlfcs.reconstruction.solver import reconstruct_sparse
 
 Progress = Callable[[int, int], None]
 ForceInput = np.ndarray | Sequence[np.ndarray] | Mapping[int, np.ndarray]
