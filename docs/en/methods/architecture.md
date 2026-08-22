@@ -5,8 +5,8 @@ English | [中文]
 ## 1. Scope and design goals
 
 The base MLFCS pipeline is a clean ASE-first implementation for reconstructing force constants
-from user-supplied forces. It does not embed a force calculator and has no command-line interface.
-The native `mlfcs.sscha` module combines compact-FC2
+from user-supplied forces. It does not embed a force calculator, does not require phonopy or
+symfc, and has no command-line interface. The native `mlfcs.sscha` module combines compact-FC2
 q-space sampling with the same Gram fitting parameterization for finite-temperature effective
 FC2 calculations. The main public workflow remains a Python API:
 
@@ -264,7 +264,7 @@ I/O is selected explicitly through `format`:
 
 The phonopy writer expands compact FC2 to `(N, N, 3, 3)`, applies translational equivalence to
 every first supercell atom, and preserves the explicit reference-supercell order on both atom
-axes. A generated K3Au3Sb2 3x3x3 file was successfully
+axes. It has no phonopy runtime dependency. A generated K3Au3Sb2 3x3x3 file was successfully
 read by phonopy's own parser as `(216, 216, 3, 3)` with a maximum ASR residual of
 `2.60e-14`.
 
@@ -378,8 +378,9 @@ An independent development-only phonopy reference checks q-space frequencies and
 
 ## 10. Version summary
 
-`v3.0.0` consolidates phonopy FC2 export, explicit neighbor-shell diagnostics,
+`v3.0.0` consolidates dependency-free phonopy FC2 export, explicit neighbor-shell diagnostics,
 generic sparse reconstruction, strict ASR, and the independent optional `mlfcs.sscha` module.
 It also includes a redesigned ASE-first direct and
 external API, structured iteration history, free-energy uncertainty, final-iteration averaging,
-and phonopy-native FC2 output.
+and phonopy-native FC2 output. The base force-constant implementation remains free of phonopy and
+symfc runtime dependencies.

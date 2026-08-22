@@ -4,7 +4,7 @@
 
 `mlfcs.sscha` iteratively fits an effective FC2 from ASE force snapshots and samples the next
 harmonic canonical ensemble. It uses the native MLFCS symmetry-reduced Gram fitter and a compact
-q-space sampler.
+q-space sampler; phonopy and symfc are not runtime dependencies.
 
 ## Method
 

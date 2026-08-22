@@ -4,11 +4,12 @@
 
 ## 范围与架构
 
-MLFCS 基础流程以 ASE 为公共边界，根据用户提供的力重建力常数，不内置势函数。`ForceConstantCalculation` 用同一套 `order` 参数化算法处理
+MLFCS 基础流程以 ASE 为公共边界，根据用户提供的力重建力常数，不内置势函数，也不
+不要求安装 phonopy 或 symfc。`ForceConstantCalculation` 用同一套 `order` 参数化算法处理
 二阶及更高阶；`structure` 负责结构关系和周期几何，`clusters` 负责团簇与轨道，
 `constraints` 负责 ASR 和物理二阶约束，`ifc` 负责力常数数据模型，`io` 负责格式适配。
 原生 `mlfcs.sscha` 直接使用
-compact FC2 的相容 q 点采样和同一套 Gram 拟合参数化。
+compact FC2 的相容 q 点采样和同一套 Gram 拟合参数化，不要求这些外部工具。
 
 ## 超胞、截断与顺序
 
