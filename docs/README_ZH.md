@@ -17,7 +17,6 @@ MLFCS 的用户文档均提供英文和中文版本。仓库根目录的
 | 与 ALAMODE 的拟合架构比较 | [比较](ALAMODE_COMPARISON_ZH.md) | [Comparison](ALAMODE_COMPARISON.md) |
 | 可选有限温度 SSCHA | [SSCHA](SSCHA_ZH.md) | [SSCHA](SSCHA.md) |
 | 新旧实现差异 | [对比](OLD_NEW_COMPARISON_ZH.md) | [Comparison](OLD_NEW_COMPARISON.md) |
-| 开发路线图 | [路线图](ROADMAP_ZH.md) | [Roadmap](ROADMAP.md) |
 
 科学基准夹具及其再生成方法位于 [`tests/reference`](../tests/reference/) 和
 [`reference_tools`](../reference_tools/README_ZH.md)，公共 API 的可执行示例位于

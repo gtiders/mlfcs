@@ -475,7 +475,6 @@ calculation. See the [SSCHA guide](docs/SSCHA.md) for details.
 - [Numerical validation and CI](docs/VALIDATION.md)
 - [Force-only fitting](docs/FITTING.md)
 - [SSCHA guide](docs/SSCHA.md)
-- [Development roadmap](docs/ROADMAP.md)
 
 ## Development
 

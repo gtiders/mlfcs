@@ -17,7 +17,6 @@ implementation details, validation, and compatibility decisions.
 | Fitting architecture versus ALAMODE | [Comparison](ALAMODE_COMPARISON.md) | [比较](ALAMODE_COMPARISON_ZH.md) |
 | Optional finite-temperature SSCHA | [SSCHA](SSCHA.md) | [SSCHA](SSCHA_ZH.md) |
 | Previous and current implementations | [Comparison](OLD_NEW_COMPARISON.md) | [对比](OLD_NEW_COMPARISON_ZH.md) |
-| Development roadmap | [Roadmap](ROADMAP.md) | [路线图](ROADMAP_ZH.md) |
 
 Scientific fixtures and regeneration procedures are documented under
 [`tests/reference`](../tests/reference/) and [`reference_tools`](../reference_tools/README.md).
