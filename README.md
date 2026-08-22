@@ -123,7 +123,7 @@ the calculator required by your application separately.
 | Order-`n` force constants | eV/Åⁿ |
 | Positive cutoff | Å |
 | Negative integer cutoff | Neighbor shell |
-| `None` cutoff | Unsupported; every order requires an explicit cutoff |
+| `None` cutoff | Largest periodic-image-unambiguous exact-$R$ radius of the reference, with a $0.01$ Å boundary margin |
 
 JAX numerical kernels use 64-bit floating point.
 
@@ -188,7 +188,7 @@ forces = np.asarray(forces)
 
 # 4. reap(): the force at forces[i] must belong to structures[i].
 fc3 = calculation.reap(forces, acoustic_sum_rule=True)
-fc3.write("fc3.h5", format="hdf5")
+write_force_constants(fc3, "fc3.h5", format="hdf5")
 ```
 
 For Quantum ESPRESSO, ABINIT, CP2K, or another external program, replace only the ASE `write()`
@@ -279,8 +279,10 @@ fc5_calculation = ForceConstantCalculation(atoms, reference=reference, order=5, 
 ```
 
 A positive cutoff is a radius in Å. A negative integer selects a one-based neighbor shell on the
-infinite primitive lattice. For example, `cutoff=-8` selects the eighth shell. Every order requires
-an explicit cutoff; `None` is rejected. The selected exact interactions are then realized in the
+infinite primitive lattice. For example, `cutoff=-8` selects the eighth shell. `cutoff=None`
+selects the largest periodic-image-unambiguous exact-$R$ radius supported by the reference and
+keeps a $0.01$ Å margin below the first ambiguous boundary. It is not an infinite cutoff or a
+complete periodized finite-cell FC2. The selected exact interactions are then realized in the
 single reference supercell, and construction is rejected if that finite supercell cannot identify
 all independent primitive-space parameters.
 
@@ -333,7 +335,7 @@ difference and fitting results. The strict default is `strength=1.0`; FC3 and hi
 not changed:
 
 ```python
-constrained = result.enforce_rotational_sum_rules(
+constrained = enforce_rotational_sum_rules(result, 
     born_huang=True,
     huang=True,
 )
@@ -348,13 +350,13 @@ See [Sum rules](docs/en/methods/sum-rules.md).
 The output format is always explicit:
 
 ```python
-fc2.write("FORCE_CONSTANTS", format="phonopy")
-fc2.write("fc2.hdf5", format="phonopy_hdf5")
-fc3.write("fc3.h5", format="hdf5")
-fc3.write("fc3.hdf5", format="phono3py_hdf5")
-fc3.write("FORCE_CONSTANTS_3RD", format="shengbte")
-fc4.write("FORCE_CONSTANTS_4TH", format="shengbte")
-fc234.write("force_constants.xml", format="alamode")
+write_force_constants(fc2, "FORCE_CONSTANTS", format="phonopy")
+write_force_constants(fc2, "fc2.hdf5", format="phonopy_hdf5")
+write_force_constants(fc3, "fc3.h5", format="hdf5")
+write_force_constants(fc3, "fc3.hdf5", format="phono3py_hdf5")
+write_force_constants(fc3, "FORCE_CONSTANTS_3RD", format="shengbte")
+write_force_constants(fc4, "FORCE_CONSTANTS_4TH", format="shengbte")
+write_force_constants(fc234, "force_constants.xml", format="alamode")
 ```
 
 Read the native sparse HDF5 format through the matching public API:
@@ -392,18 +394,18 @@ Sparse HDF5 is recommended for high orders. Dense materialization is explicit an
 warning above the default 2 GB advisory budget:
 
 ```python
-fc5.write("fc5.h5", format="hdf5")
+write_force_constants(fc5, "fc5.h5", format="hdf5")
 dense = fc5.materialize(5)
 dense = fc5.materialize(5, max_bytes=None)  # explicitly disable the warning budget
 ```
 
 ## Native SSCHA
 
-The independent `mlfcs.anharmonic.sscha` module fits a temperature-dependent effective harmonic FC2 from
+The independent `mlfcs.physics.sscha` module fits a temperature-dependent effective harmonic FC2 from
 thermally sampled forces:
 
 ```python
-from mlfcs.anharmonic.sscha import SSCHA
+from mlfcs.physics.sscha import SSCHA
 
 sscha = SSCHA(
     atoms,
@@ -415,9 +417,8 @@ sscha = SSCHA(
     random_seed=42,
 )
 
-sscha.run(calculator)
-sscha.use_average(last=5)
-sscha.write("fc2-300K.hdf5", format="hdf5")
+sscha_result = sscha.run(calculator)
+write_force_constants(sscha_result.force_constants, "fc2-300K.hdf5", format="hdf5")
 ```
 
 Iteration zero fits an initial FC2 from small random Cartesian displacements. Each subsequent

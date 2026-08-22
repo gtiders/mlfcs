@@ -20,10 +20,10 @@ from pathlib import Path
 import numpy as np
 from ase.io import read
 
-from mlfcs.fitting.basis import symmetrized_covariance
-from mlfcs.fitting.data import FitDataset
+from mlfcs.basis.wick import symmetrized_covariance
+from mlfcs.fitting.dataset import FitDataset
 from mlfcs.fitting.design import ForceDesignOperator
-from mlfcs.fitting.model import ForceConstantFitter
+from mlfcs.fitting.fitter import ForceConstantFitter
 
 
 @dataclass(frozen=True)

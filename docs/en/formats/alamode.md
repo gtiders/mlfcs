@@ -5,8 +5,8 @@
 MLFCS writes second- through fourth-order force constants into one ALAMODE FCSXML document:
 
 ```python
-force_constants.write("force_constants.xml", format="alamode")
-force_constants.write("fc3.xml", format="alamode", order=3)
+write_force_constants(force_constants, "force_constants.xml", format="alamode")
+write_force_constants(force_constants, "fc3.xml", format="alamode", order=3)
 ```
 
 Omitting `order` writes every available order among FC2, FC3, and FC4. Higher orders remain

@@ -12,7 +12,7 @@ constructed or read from native HDF5:
 from mlfcs import read_hdf5
 
 result = read_hdf5("mlfcs.h5")
-constrained = result.enforce_rotational_sum_rules(
+constrained = enforce_rotational_sum_rules(result, 
     born_huang=True,
     huang=True,
 )

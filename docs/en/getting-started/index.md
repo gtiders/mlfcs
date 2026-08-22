@@ -17,7 +17,7 @@ calculation = ForceConstantCalculation(
     order=2,
 )
 result = calculation.run(EMT())
-result.write("fc2.h5", format="hdf5")
+write_force_constants(result, "fc2.h5", format="hdf5")
 ```
 
 For expensive calculators, use [`sow()` and `reap()`](../workflows/external-calculators.md)

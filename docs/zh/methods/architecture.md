@@ -5,10 +5,24 @@
 ## 范围与架构
 
 MLFCS 基础流程以 ASE 为公共边界，根据用户提供的力重建力常数，不内置势函数。`ForceConstantCalculation` 用同一套 `order` 参数化算法处理
-二阶及更高阶；`structure` 负责结构关系和周期几何，`clusters` 负责团簇与轨道，
-`constraints` 负责 ASR 和物理二阶约束，`ifc` 负责力常数数据模型，`io` 负责格式适配。
-原生 `mlfcs.anharmonic.sscha` 直接使用
+二阶及更高阶；`structure` 负责整数格、结构关系和周期几何，`interactions` 负责团簇、
+轨道与有限超胞 realization，`basis` 负责 Wick/Taylor 变换，`force_constants` 负责规范
+力常数表示，`constraints` 负责物理约束，`io` 负责格式适配。
+原生 `mlfcs.physics.sscha` 直接使用
 compact FC2 的相容 q 点采样和同一套 Gram 拟合参数化。
+
+源码按职责组织为：
+
+```text
+structure → interactions → basis
+structure + interactions → force_constants
+底层表示 → constraints / finite_difference / fitting
+force_constants + fitting → physics
+structure + force_constants → io
+```
+
+这里的箭头表示允许的 import 方向，不是强制工作流。`physics` 和 `io` 是终端层，底层
+数据对象不会反向导入 writer 或高层求解流程。
 
 ## 超胞、截断与顺序
 
@@ -43,7 +57,7 @@ ASE Calculator 直接运行时，可选外推后端围绕设定位移构造多�
 
 本次模块整理的硬性要求是保持当前数值实现：不改变算法、默认值、约束方程、稀疏
 标签、HDF5 schema 或 writer 语义。旧的兼容转发模块已经删除；新代码使用
-`mlfcs.public` 或职责对应的子包。所有用户入口在定义处直接声明完整签名，拟合和 SSCHA
+`mlfcs` 或职责对应的子包。所有用户入口在定义处直接声明完整签名，拟合和 SSCHA
 按需加载，不会因为导入有限差分或 IO 而初始化 JAX。
 
 平移不变性要求固定其他指标时，对任意一个原子指标求和为零。MLFCS 在不可约轨道参数

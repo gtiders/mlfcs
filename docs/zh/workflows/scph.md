@@ -19,9 +19,9 @@ result = LoopSCPH(
 SCPH 专用转换，直接使用普通 writer 即可写出：
 
 ```python
-result.force_constants.write("scph.h5", format="hdf5")
-result.force_constants.write("FORCE_CONSTANTS_SCPH", format="phonopy")
-result.force_constants.write("force_constants.xml", format="alamode")
+write_force_constants(result.force_constants, "scph.h5", format="hdf5")
+write_force_constants(result.force_constants, "FORCE_CONSTANTS_SCPH", format="phonopy")
+write_force_constants(result.force_constants, "force_constants.xml", format="alamode")
 ```
 
 q 点网格由 reference 超胞矩阵的整数倍自动生成：

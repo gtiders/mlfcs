@@ -14,7 +14,7 @@ calculation = ForceConstantCalculation(
     primitive, reference=reference_supercell, order=2
 )
 result = calculation.run(EMT())
-result.write("fc2.h5", format="hdf5")
+write_force_constants(result, "fc2.h5", format="hdf5")
 ```
 
 对于昂贵的 calculator，请使用[外部 `sow()`/`reap()` 工作流](../workflows/external-calculators.md)，

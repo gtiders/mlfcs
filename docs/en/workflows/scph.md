@@ -17,9 +17,9 @@ can therefore be written through the ordinary export API without a
 SCPH-specific conversion:
 
 ```python
-result.force_constants.write("scph.h5", format="hdf5")
-result.force_constants.write("FORCE_CONSTANTS_SCPH", format="phonopy")
-result.force_constants.write("force_constants.xml", format="alamode")
+write_force_constants(result.force_constants, "scph.h5", format="hdf5")
+write_force_constants(result.force_constants, "FORCE_CONSTANTS_SCPH", format="phonopy")
+write_force_constants(result.force_constants, "force_constants.xml", format="alamode")
 ```
 
 The q grids are reciprocal quotients of integer multiples of the reference

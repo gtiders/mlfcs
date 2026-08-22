@@ -2,7 +2,7 @@
 
 [中文]
 
-`mlfcs.anharmonic.sscha` iteratively fits an effective FC2 from ASE force snapshots and samples the next
+`mlfcs.physics.sscha` iteratively fits an effective FC2 from ASE force snapshots and samples the next
 harmonic canonical ensemble. It uses the native MLFCS symmetry-reduced Gram fitter and a compact
 q-space sampler.
 
@@ -37,7 +37,7 @@ Set `statistics="classical"` for `kB T / omega_s**2`.
 
 ```python
 from ase.io import read
-from mlfcs.anharmonic.sscha import SSCHA
+from mlfcs.physics.sscha import SSCHA
 
 calculation = SSCHA(
     read("POSCAR"),
@@ -98,9 +98,9 @@ make the fixed-point path oscillate; it does not alter the fitted IFC for the cu
 ## Results and output
 
 ```python
-result.force_constants.write("mlfcs.h5", format="hdf5")
-result.force_constants.write("FORCE_CONSTANTS_2ND", format="phonopy", order=2)
-result.force_constants.write("force_constants.xml", format="alamode", order=2)
+write_force_constants(result.force_constants, "mlfcs.h5", format="hdf5")
+write_force_constants(result.force_constants, "FORCE_CONSTANTS_2ND", format="phonopy", order=2)
+write_force_constants(result.force_constants, "force_constants.xml", format="alamode", order=2)
 ```
 
 `result.force_constants` is a standard, lattice-labelled `ForceConstants` object containing only

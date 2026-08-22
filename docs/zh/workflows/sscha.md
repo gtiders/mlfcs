@@ -2,7 +2,7 @@
 
 [English]
 
-`mlfcs.anharmonic.sscha` 使用 ASE 力快照迭代拟合有效 FC2，并由当前谐波哈密顿量采样下一轮正则
+`mlfcs.physics.sscha` 使用 ASE 力快照迭代拟合有效 FC2，并由当前谐波哈密顿量采样下一轮正则
 系综。它采用 MLFCS 自身的对称性约化 Gram 拟合器和 compact q 空间采样器。
 
 ## 方法
@@ -34,7 +34,7 @@ variance(q_s) = hbar / (2 omega_s) coth[hbar omega_s / (2 kB T)]
 
 ```python
 from ase.io import read
-from mlfcs.anharmonic.sscha import SSCHA
+from mlfcs.physics.sscha import SSCHA
 
 calculation = SSCHA(
     read("POSCAR"),
@@ -103,9 +103,9 @@ Phi_next = (1 - mixing) Phi_sampled + mixing Phi_fitted.
 ## 结果与写出
 
 ```python
-result.force_constants.write("mlfcs.h5", format="hdf5")
-result.force_constants.write("FORCE_CONSTANTS_2ND", format="phonopy", order=2)
-result.force_constants.write("force_constants.xml", format="alamode", order=2)
+write_force_constants(result.force_constants, "mlfcs.h5", format="hdf5")
+write_force_constants(result.force_constants, "FORCE_CONSTANTS_2ND", format="phonopy", order=2)
+write_force_constants(result.force_constants, "force_constants.xml", format="alamode", order=2)
 ```
 
 `result.force_constants` 是标准的 lattice-labelled `ForceConstants`，只包含自洽后的有效

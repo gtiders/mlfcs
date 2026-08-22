@@ -81,9 +81,9 @@ result = fitter.fit(
     acoustic_sum_rule=True,
     allow_unconverged=False,
 )
-result.force_constants.write("FORCE_CONSTANTS_2ND", format="phonopy", order=2)
-result.force_constants.write("FORCE_CONSTANTS_3RD", format="shengbte", order=3)
-result.force_constants.write("FORCE_CONSTANTS_4TH", format="shengbte", order=4)
+write_force_constants(result.force_constants, "FORCE_CONSTANTS_2ND", format="phonopy", order=2)
+write_force_constants(result.force_constants, "FORCE_CONSTANTS_3RD", format="shengbte", order=3)
+write_force_constants(result.force_constants, "FORCE_CONSTANTS_4TH", format="shengbte", order=4)
 ```
 
 MLFCS does not freeze externally supplied low-order IFCs during a higher-order fit. All requested
@@ -162,5 +162,5 @@ It is printed as a percentage together with force RMSE in eV/angstrom, validatio
 order-resolved force-contribution RMS, projected normal residual, and constraint drift.
 
 For physical FC2 Born-Huang/Huang correction, call
-`result.force_constants.enforce_rotational_sum_rules(...)`. Its strict default is
+`enforce_rotational_sum_rules(result.force_constants, ...)`. Its strict default is
 `strength=1.0`; see [sum rules].

@@ -176,7 +176,7 @@ forces = np.asarray(forces)
 
 # 4. reap()：forces[i] 必须对应 structures[i]。
 fc3 = calculation.reap(forces, acoustic_sum_rule=True)
-fc3.write("fc3.h5", format="hdf5")
+write_force_constants(fc3, "fc3.h5", format="hdf5")
 ```
 
 若使用 Quantum ESPRESSO、ABINIT、CP2K 或其他外部程序，只需更换 ASE `write()` 和
@@ -266,8 +266,7 @@ full_calculation = ForceConstantCalculation(atoms, order=3, cutoff=None)
 ```
 
 正数截断表示 Å 半径；负整数表示从 1 开始编号的近邻壳层。例如 `cutoff=-8` 表示
-第八近邻。`cutoff=None` 表示使用当前有限超胞可枚举的最大半径，并不表示无穷大的
-相互作用范围。程序同时打印超胞容量和本次选择的实际半径：
+第八近邻。`cutoff=None` 表示使用当前 reference supercell 中 exact-$R$ 交互的最大无周期像歧义半径，并从第一个歧义边界减去 $0.01$ Å。它不表示无穷大的相互作用范围，也不等价于 phonopy/ALAMODE 的完整有限超胞 FC2。程序同时打印超胞容量和本次选择的实际半径：
 
 ```text
 Supercell neighbor limit: maximum shell = 33, maximum cutoff radius = 15.7504983443 Å
@@ -321,7 +320,7 @@ Born-Huang 与 Huang 条件是独立的 FC2 后处理，有限差分和拟合结
 `strength=1.0` 为严格模式，FC3 及更高阶不会被改动：
 
 ```python
-constrained = result.enforce_rotational_sum_rules(
+constrained = enforce_rotational_sum_rules(result, 
     born_huang=True,
     huang=True,
 )
@@ -335,13 +334,13 @@ constrained = result.enforce_rotational_sum_rules(
 输出格式必须显式指定：
 
 ```python
-fc2.write("FORCE_CONSTANTS", format="phonopy")
-fc2.write("fc2.hdf5", format="phonopy_hdf5")
-fc3.write("fc3.h5", format="hdf5")
-fc3.write("fc3.hdf5", format="phono3py_hdf5")
-fc3.write("FORCE_CONSTANTS_3RD", format="shengbte")
-fc4.write("FORCE_CONSTANTS_4TH", format="shengbte")
-fc234.write("force_constants.xml", format="alamode")
+write_force_constants(fc2, "FORCE_CONSTANTS", format="phonopy")
+write_force_constants(fc2, "fc2.hdf5", format="phonopy_hdf5")
+write_force_constants(fc3, "fc3.h5", format="hdf5")
+write_force_constants(fc3, "fc3.hdf5", format="phono3py_hdf5")
+write_force_constants(fc3, "FORCE_CONSTANTS_3RD", format="shengbte")
+write_force_constants(fc4, "FORCE_CONSTANTS_4TH", format="shengbte")
+write_force_constants(fc234, "force_constants.xml", format="alamode")
 ```
 
 原生稀疏 HDF5 可通过对应的公开 API 读取：
@@ -377,17 +376,17 @@ ALAMODE 重新识别、重排晶胞。传入 `order=2`、`3` 或 `4` 可只写�
 高阶结果推荐使用稀疏 HDF5。显式稠密化超过默认 2 GB 建议预算时会发出警告：
 
 ```python
-fc5.write("fc5.h5", format="hdf5")
+write_force_constants(fc5, "fc5.h5", format="hdf5")
 dense = fc5.materialize(5)
 dense = fc5.materialize(5, max_bytes=None)  # 显式关闭警告预算
 ```
 
 ## 原生 SSCHA
 
-独立的 `mlfcs.anharmonic.sscha` 模块根据热位移上的原子力拟合温度相关有效 FC2：
+独立的 `mlfcs.physics.sscha` 模块根据热位移上的原子力拟合温度相关有效 FC2：
 
 ```python
-from mlfcs.anharmonic.sscha import SSCHA
+from mlfcs.physics.sscha import SSCHA
 
 sscha = SSCHA(
     atoms,
@@ -399,9 +398,8 @@ sscha = SSCHA(
     random_seed=42,
 )
 
-sscha.run(calculator)
-sscha.use_average(last=5)
-sscha.write("fc2-300K.hdf5", format="hdf5")
+sscha_result = sscha.run(calculator)
+write_force_constants(sscha_result.force_constants, "fc2-300K.hdf5", format="hdf5")
 ```
 
 第零轮通过小随机笛卡尔位移拟合初始 FC2。后续每轮直接在 compact FC2 的 q 空间采样

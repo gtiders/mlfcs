@@ -18,8 +18,8 @@ from sympy import ZZ
 from sympy.polys.matrices import DomainMatrix
 from sympy.polys.matrices.normalforms import smith_normal_decomp
 
-from mlfcs.anharmonic.common.thermodynamics import quotient_qpoints
-from mlfcs.core.integer_lattice import (
+from mlfcs.structure.reciprocal import quotient_qpoints
+from mlfcs.structure.integer_lattice import (
     IntegerLatticeQuotient,
     adjugate_3x3,
     determinant_3x3,

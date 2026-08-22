@@ -5,22 +5,22 @@ are the normative usage guide; generated signatures document accepted arguments 
 
 ## Core
 
-::: mlfcs.public.finite_difference
+::: mlfcs.finite_difference.calculation
     options:
       members: false
 
-::: mlfcs.ifc.model.ForceConstants
+::: mlfcs.force_constants.data.ForceConstants
 
-::: mlfcs.core.geometry.StructureRelation
+::: mlfcs.structure.relation.StructureRelation
 
-::: mlfcs.core.geometry.PeriodicGeometry
+::: mlfcs.structure.periodic_geometry.PeriodicGeometry
 
 ## Fitting, SSCHA, and SCPH workflows
 
-::: mlfcs.public.fitting
+::: mlfcs.fitting
     options:
       members: false
 
-::: mlfcs.public.scph
+::: mlfcs.physics.scph
 
-::: mlfcs.anharmonic.sscha.SSCHA
+::: mlfcs.physics.sscha.SSCHA

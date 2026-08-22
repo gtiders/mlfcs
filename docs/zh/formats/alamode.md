@@ -5,8 +5,8 @@
 MLFCS 可以把二阶至四阶力常数写入同一个 ALAMODE FCSXML 文档：
 
 ```python
-force_constants.write("force_constants.xml", format="alamode")
-force_constants.write("fc3.xml", format="alamode", order=3)
+write_force_constants(force_constants, "force_constants.xml", format="alamode")
+write_force_constants(force_constants, "fc3.xml", format="alamode", order=3)
 ```
 
 省略 `order` 时，会写出当前结果中所有可用的 FC2、FC3 和 FC4。更高阶仍可使用 MLFCS

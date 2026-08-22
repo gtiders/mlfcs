@@ -6,7 +6,7 @@ English | [中文]
 
 The base MLFCS pipeline is a clean ASE-first implementation for reconstructing force constants
 from user-supplied forces. It does not embed a force calculator and has no command-line interface.
-The native `mlfcs.anharmonic.sscha` module combines compact-FC2
+The native `mlfcs.physics.sscha` module combines compact-FC2
 q-space sampling with the same Gram fitting parameterization for finite-temperature effective
 FC2 calculations. The main public workflow remains a Python API:
 
@@ -41,34 +41,30 @@ The implementation is separated by responsibility:
 
 ```text
 src/mlfcs/
-  public/                        stable workflow entry points with explicit signatures
-  api.py                         finite-difference implementation
-  ifc/                           force-constant data model and materialization
-  structure/                     structure relations and periodic geometry
-  clusters/                      cluster and orbit construction
-  constraints/                   ASR and physical FC2 constraints
-  runtime.py                     JAX backend selection
-  core/
-    symmetry.py                  space-group operations and atom permutations
-    interactions.py              shared per-order interaction space
-  finite_difference/
-    sampling.py                  stable displacement plans and force contraction
-    stencil.py                   recursive central-difference stencils
-  constraints/
-    solver.py                    sparse cluster reconstruction
-    asr.py                       finite-difference sum-rule orchestration
-  fitting/                       Wick force design and constrained Gram fitting
-  io/
-    hdf5.py                      dense or sparse generic storage
-    phonopy.py                   full dense FC2 text output
-    shengbte.py                  third- and fourth-order ShengBTE output
-  anharmonic/
-    scph.py                      quartic-loop self-consistent phonons
-    sscha.py                     ASE evaluation and FC2 iteration
-    common/                      ensemble, thermodynamic, and compact-FC2 helpers
+  structure/                     lattice arithmetic, geometry, mapping, symmetry, q grids
+  interactions/                  exact-R keys, tensor actions, orbits, enumeration, realization
+  basis/                         Wick basis and Wick-to-Taylor intertwiners
+  force_constants/               canonical IFC data, expansion, dense and target views
+  constraints/                   translational and rotational physical constraints
+  finite_difference/             stencils, sampling, reconstruction and calculation workflow
+  fitting/                       datasets, design kernels, Gram systems and fitting workflow
+  physics/                       harmonic utilities, SCPH and SSCHA workflows
+  io/                            native and external force-constant formats
 ```
 
-The former compatibility-only modules have been removed. New code imports from `mlfcs.public` or
+The dependency graph is deliberately not the same as the runtime sequence:
+
+```text
+structure -> interactions -> basis
+structure + interactions -> force_constants
+lower representations -> constraints / finite_difference / fitting
+force_constants + fitting -> physics
+structure + force_constants -> io
+```
+
+`io` and `physics` are terminal layers. Core data objects never import writers or workflows.
+
+The former compatibility-only modules have been removed. New code imports from `mlfcs` or
 the responsibility-specific packages. This replaces duplicated order-specific implementation
 with a shared pipeline; order-dependent behavior is still expressed through `order`, tensor rank,
 permutations, and recursive finite-difference keys.
@@ -80,14 +76,14 @@ after module moves.
 
 ## Public signatures
 
-The supported entry points are grouped in `mlfcs.public.finite_difference`,
-`mlfcs.public.fitting`, `mlfcs.public.constraints`, `mlfcs.public.scph`, and
-`mlfcs.public.io`. Their callable signatures are declared at the definition site, including
+The supported entry points are grouped in `mlfcs.finite_difference.calculation`,
+`mlfcs.fitting`, `mlfcs.constraints`, `mlfcs.physics.scph`, and
+`mlfcs.io`. Their callable signatures are declared at the definition site, including
 keyword-only options and defaults. Fitting and SSCHA are loaded lazily so importing the base
 finite-difference or IO API does not initialize JAX.
 
 The SSCHA package is an explicit submodule but has no additional runtime dependency. Applications
-opt in with `from mlfcs.anharmonic.sscha import SSCHA`.
+opt in with `from mlfcs.physics.sscha import SSCHA`.
 
 ## 3. Generic force-constant pipeline
 
@@ -144,8 +140,10 @@ the compressed basis by matrix-free NumPy tensor operations instead of construct
 
 An order-`n` force constant is obtained from an `(n-1)`-fold force derivative. Central-difference
 sign combinations are generated recursively, so the same stencil machinery covers every
-supported order. The nominal sign count grows as `2**(order-1)`, but symmetry-equivalent
-displacement keys are deduplicated before calculator evaluation.
+supported order. The nominal sign count grows as `2**(order-1)`. Interaction symmetry reduces
+the displacement keys, but every surviving key currently evaluates its complete signed stencil.
+A further signed-configuration orbit reduction has been derived but is not part of the
+production path.
 
 Every sow structure contains a stable zero-based configuration ID, atom-order label,
 and displacement array. Positional reap follows the exact sow order. Mapping-based reap accepts
@@ -382,7 +380,7 @@ An independent development-only phonopy reference checks q-space frequencies and
 ## 10. Version summary
 
 `v3.0.0` consolidates phonopy FC2 export, explicit neighbor-shell diagnostics,
-generic sparse reconstruction, strict ASR, and the independent optional `mlfcs.anharmonic.sscha` module.
+generic sparse reconstruction, strict ASR, and the independent optional `mlfcs.physics.sscha` module.
 It also includes a redesigned ASE-first direct and
 external API, structured iteration history, free-energy uncertainty, final-iteration averaging,
 and phonopy-native FC2 output.

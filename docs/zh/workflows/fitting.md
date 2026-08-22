@@ -69,9 +69,9 @@ result = fitter.fit(
     acoustic_sum_rule=True,
     allow_unconverged=False,
 )
-result.force_constants.write("FORCE_CONSTANTS_2ND", format="phonopy", order=2)
-result.force_constants.write("FORCE_CONSTANTS_3RD", format="shengbte", order=3)
-result.force_constants.write("FORCE_CONSTANTS_4TH", format="shengbte", order=4)
+write_force_constants(result.force_constants, "FORCE_CONSTANTS_2ND", format="phonopy", order=2)
+write_force_constants(result.force_constants, "FORCE_CONSTANTS_3RD", format="shengbte", order=3)
+write_force_constants(result.force_constants, "FORCE_CONSTANTS_4TH", format="shengbte", order=4)
 ```
 
 MLFCS 不支持将外部低阶 IFC 冻结到高阶拟合中。所有阶数必须在同一个 Wick 参数空间中联合
@@ -136,5 +136,5 @@ OpenBLAS/SciPy 完成稀疏约化和 Gram 累积。JAX GPU 模式中，物理设
 投影法方程残差以及约束 drift。
 
 物理 FC2 的 Born-Huang/Huang 修正使用
-`result.force_constants.enforce_rotational_sum_rules(...)`。默认 `strength=1.0` 为严格
+`enforce_rotational_sum_rules(result.force_constants, ...)`。默认 `strength=1.0` 为严格
 模式；详见[求和规则]。
