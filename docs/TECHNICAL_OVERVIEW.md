@@ -1,4 +1,4 @@
-# MLFCS 3.1 technical overview
+# MLFCS 3.0 technical overview
 
 English | [中文](TECHNICAL_OVERVIEW_ZH.md)
 
@@ -6,7 +6,7 @@ English | [中文](TECHNICAL_OVERVIEW_ZH.md)
 
 The base MLFCS pipeline is a clean ASE-first implementation for reconstructing force constants
 from user-supplied forces. It does not embed a force calculator, does not require phonopy or
-symfc, and has no command-line interface. Version 3.1 includes an isolated, optional
+symfc, and has no command-line interface. Version 3.0 includes an isolated, optional
 `mlfcs.sscha` module that deliberately depends on phonopy and symfc for finite-temperature
 effective FC2 calculations. The main public workflow remains a Python API:
 
@@ -127,15 +127,7 @@ Every sow structure contains a stable zero-based configuration ID, plan hash, at
 and displacement array. Positional reap follows the exact sow order. Mapping-based reap accepts
 results in arbitrary arrival order when keyed by configuration ID.
 
-### 3.5 Direct-calculator zero-step extrapolation
-
-The optional extrapolation backend builds several complete central-difference subplans around the
-configured displacement, contracts each independently, and fits the derivatives as a polynomial
-in `h^2`. Its zero-step intercept enters the same reconstruction and sum-rule pipeline. This
-backend is restricted to direct serial ASE Calculator execution; external `sow()` / `reap()` keeps
-one deterministic displacement plan.
-
-### 3.6 Sparse reconstruction
+### 3.5 Sparse reconstruction
 
 The reconstructed result is stored as:
 
@@ -247,7 +239,7 @@ internal geometry and uses scientific notation for both supported orders.
 
 ## 6. Comparison with the previous implementation
 
-| Area | Previous implementation | MLFCS 3.1 |
+| Area | Previous implementation | MLFCS 3.0 |
 |---|---|---|
 | Public interface | Order-specific CLI workflows | Pure Python ASE API |
 | Code organization | Separate third/fourth-order implementations | Shared order-parameterized pipeline |
@@ -301,7 +293,7 @@ The complex-material neighbor-shell regression results at fourth order and cutof
 
 ## 8. Optional stochastic effective-harmonic module
 
-MLFCS 3.1 implements the phonopy-style SSCHA loop behind an optional dependency boundary:
+MLFCS 3.0 implements the phonopy-style SSCHA loop behind an optional dependency boundary:
 
 1. generate small random Cartesian displacements when no initial FC2 is available;
 2. evaluate arbitrary ASE forces and optionally energies;
@@ -323,7 +315,7 @@ Detailed usage, formulas, ordering rules, and stability guidance are in
 The SSCHA tests exercise the real installed phonopy and symfc implementations with an ASE
 harmonic test calculator. They cover Cartesian initialization, canonical sampling, external
 ID-mapped reap, two successive direct fits, FC2 averaging, free-energy evaluation, and HDF5
-output. The v3.1 suite separates fast API tests from serial scientific references.
+output. The v3.0 suite separates fast API tests from serial scientific references.
 
 ## 9. Current limitations and likely next steps
 
