@@ -161,7 +161,7 @@ from mlfcs import ForceConstantCalculation
 calculation = ForceConstantCalculation(
     read("POSCAR"),
     order=3,
-    reference=read("reference-supercell.vasp"),
+    supercell=(2, 2, 2),
     cutoff=-5,
     displacement=0.01,
     symprec=1e-5,
@@ -306,13 +306,17 @@ MLFCS never silently reorders external forces or fitting snapshots. Construct a 
 from an integer general supercell matrix or from an explicit reference frame:
 
 ```python
+calculation = ForceConstantCalculation(
+    primitive, order=3, supercell_matrix=[[2, 1, 0], [0, 2, 0], [0, 0, 1]]
+)
+# or
 calculation = ForceConstantCalculation(primitive, reference=reference_supercell, order=3)
 ```
 
 To build that reference explicitly, use the stable public helper:
 
 ```python
-from mlfcs.tools import build_supercell
+from mlfcs import build_supercell
 
 reference_supercell = build_supercell(primitive, [[2, 1, 0], [0, 2, 0], [0, 0, 1]])
 ```
@@ -419,7 +423,7 @@ from mlfcs.anharmonic.sscha import SSCHA
 
 sscha = SSCHA(
     atoms,
-    reference=read("reference-supercell.vasp"),
+    supercell=(3, 3, 3),
     temperature=300,
     statistics="quantum",
     snapshots=1000,

@@ -147,7 +147,7 @@ from mlfcs import ForceConstantCalculation
 calculation = ForceConstantCalculation(
     read("POSCAR"),
     order=3,
-    reference=read("reference-supercell.vasp"),
+    supercell=(2, 2, 2),
     cutoff=-5,
     displacement=0.01,
     symprec=1e-5,
@@ -282,16 +282,20 @@ Selected neighbor cutoff: shell = 8, cutoff radius = 7.5419604204 Å
 
 用户提供的 reference 超胞原子顺序是唯一权威。`sow()` 返回该顺序，传入 `reap()` 的
 每组力也必须保持该顺序；MLFCS 不再提供 internal/grouped 模式，更不会静默重排外部力或
-拟合快照。计算 API 只接受显式 reference 结构：
+拟合快照。可用一般整数 `3×3` 超胞矩阵，或直接提供 reference 结构：
 
 ```python
+calculation = ForceConstantCalculation(
+    primitive, order=3, supercell_matrix=[[2, 1, 0], [0, 2, 0], [0, 0, 1]]
+)
+# 或
 calculation = ForceConstantCalculation(primitive, reference=reference_supercell, order=3)
 ```
 
 若需显式构造这个 reference，可使用稳定的公开函数：
 
 ```python
-from mlfcs.tools import build_supercell
+from mlfcs import build_supercell
 
 reference_supercell = build_supercell(primitive, [[2, 1, 0], [0, 2, 0], [0, 0, 1]])
 ```
@@ -390,7 +394,7 @@ from mlfcs.anharmonic.sscha import SSCHA
 
 sscha = SSCHA(
     atoms,
-    reference=read("reference-supercell.vasp"),
+    supercell=(3, 3, 3),
     temperature=300,
     statistics="quantum",
     snapshots=1000,

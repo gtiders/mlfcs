@@ -1,8 +1,8 @@
 import numpy as np
 import pytest
 from ase import Atoms
-from supercell_helpers import make_supercell
 
+from mlfcs.core.geometry import make_supercell
 from mlfcs.ifc.model import ForceConstants, SparseOrderForceConstants
 from mlfcs.io.shengbte import write_shengbte
 

@@ -11,7 +11,6 @@ from ase.calculators.morse import MorsePotential
 from ase.filters import FrechetCellFilter
 from ase.neighborlist import neighbor_list
 from ase.optimize import BFGS
-from supercell_helpers import make_supercell
 
 from mlfcs import ForceConstantCalculation
 
@@ -52,11 +51,10 @@ def relaxed_primitive() -> tuple[Atoms, int]:
 
 
 def calculation(displacement: float) -> ForceConstantCalculation:
-    primitive = analytic_primitive()
     return ForceConstantCalculation(
-        primitive,
+        analytic_primitive(),
         order=4,
-        reference=make_supercell(primitive, SUPERCELL)[0],
+        supercell=SUPERCELL,
         cutoff=CUTOFF,
         displacement=displacement,
         report_cutoff=False,

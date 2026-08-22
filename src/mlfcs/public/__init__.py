@@ -18,6 +18,7 @@ from mlfcs.public.structure import (
     PeriodicIndex,
     StructureRelation,
     align_structures,
+    build_supercell,
 )
 
 __all__ = [
@@ -38,6 +39,7 @@ __all__ = [
     "SSCHAIteration",
     "StructureRelation",
     "align_structures",
+    "build_supercell",
     "enforce_harmonic_constraints",
     "harmonic_frequencies",
     "read_hdf5",

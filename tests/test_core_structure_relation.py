@@ -1,14 +1,13 @@
 import numpy as np
-import pytest
 from ase import Atoms
 from ase.geometry import find_mic
-from supercell_helpers import make_supercell
 
 from mlfcs.api import ForceConstantCalculation
 from mlfcs.core.geometry import (
     PeriodicGeometry,
     StructureRelation,
     align_structures,
+    make_supercell,
 )
 
 
@@ -101,18 +100,17 @@ def test_finite_difference_reap_is_invariant_to_reference_atom_permutation():
     np.testing.assert_allclose(fc_a.tensors[order_a], fc_b.tensors[order_b])
 
 
-def test_reference_matrix_argument_is_rejected_from_calculation_api():
+def test_reference_matrix_argument_is_an_explicit_consistency_assertion():
     primitive = Atoms("Si", positions=[[0, 0, 0]], cell=np.eye(3) * 4, pbc=True)
     reference, _ = make_supercell(primitive, (2, 1, 1))
-    with pytest.raises(TypeError, match="supercell_matrix"):
-        ForceConstantCalculation(
-            primitive,
-            reference=reference,
-            supercell_matrix=[[2, 0, 0], [0, 1, 0], [0, 0, 1]],
-            order=2,
-            cutoff=3.0,
-        )
-    with pytest.raises(TypeError, match="supercell_matrix"):
+    ForceConstantCalculation(
+        primitive,
+        reference=reference,
+        supercell_matrix=[[2, 0, 0], [0, 1, 0], [0, 0, 1]],
+        order=2,
+        cutoff=3.0,
+    )
+    with np.testing.assert_raises_regex(ValueError, "disagree|does not match"):
         ForceConstantCalculation(
             primitive,
             reference=reference,

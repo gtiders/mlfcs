@@ -5,6 +5,7 @@ from mlfcs.core.geometry import (
     PeriodicIndex,
     StructureRelation,
     align_structures,
+    build_supercell,
     normalize_supercell_matrix,
 )
 
@@ -13,5 +14,6 @@ __all__ = [
     "PeriodicIndex",
     "StructureRelation",
     "align_structures",
+    "build_supercell",
     "normalize_supercell_matrix",
 ]

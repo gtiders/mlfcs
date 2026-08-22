@@ -5,7 +5,6 @@ import pytest
 from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
 from scipy import sparse
-from supercell_helpers import make_supercell
 
 from mlfcs.fitting import ForceConstantFitter
 from mlfcs.fitting.basis import convert_sparse_wick_reference as _wick_to_taylor_sparse
@@ -112,12 +111,11 @@ def test_reduced_wick_transform_matches_sparse_tensor_conversion():
     from mlfcs.fitting.constraints import build_wick_to_taylor_transform
 
     primitive = Atoms("Si", positions=[[0, 0, 0]], cell=np.eye(3) * 4.0, pbc=True)
-    reference = make_supercell(primitive, (2, 1, 1))[0]
     calculations = tuple(
         ForceConstantCalculation(
             primitive,
             order=order,
-            reference=reference,
+            supercell=(2, 1, 1),
             cutoff=4.1,
             verbose=False,
         )

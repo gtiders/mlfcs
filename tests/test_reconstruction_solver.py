@@ -1,10 +1,9 @@
 import numpy as np
 import pytest
 from ase.build import bulk
-from supercell_helpers import make_supercell
 
 from mlfcs.constraints.solver import reconstruct_sparse
-from mlfcs.core.geometry import resolve_cutoff
+from mlfcs.core.geometry import make_supercell, resolve_cutoff
 from mlfcs.core.orbits import build_orbit_space
 from mlfcs.core.symmetry import SymmetryOperations
 
