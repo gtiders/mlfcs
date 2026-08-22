@@ -38,14 +38,16 @@ jobs:
 
       - name: Place English site at Pages root
         run: |
-          cp -a site/en/. site/
-          test -f site/index.html
-          test -f site/zh/index.html
+          mkdir -p site-publish/zh
+          cp -a site/en/. site-publish/
+          cp -a site/zh/zh/. site-publish/zh/
+          test -f site-publish/index.html
+          test -f site-publish/zh/index.html
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: site
+          path: site-publish
 
   deploy:
     needs: build

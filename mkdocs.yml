@@ -1,8 +1,9 @@
 site_name: MLFCS Documentation
 site_description: ASE-first symmetry-reduced force constants from second to arbitrary order
 site_url: https://gtiders.github.io/mlfcs/
-docs_dir: docs/en
 site_dir: site/en
+exclude_docs: |
+  zh/**
 repo_url: https://github.com/gtiders/mlfcs
 theme:
   name: material
@@ -37,37 +38,37 @@ markdown_extensions:
   - pymdownx.tabbed
   - tables
 nav:
-  - Home: index.md
+  - Home: en/index.md
   - Getting started:
-      - Overview: getting-started/index.md
-      - Installation: getting-started/installation.md
-      - First FC2: getting-started/first-fc2.md
-      - Structure and downstream software: getting-started/structures.md
+      - Overview: en/getting-started/index.md
+      - Installation: en/getting-started/installation.md
+      - First FC2: en/getting-started/first-fc2.md
+      - Structure and downstream software: en/getting-started/structures.md
   - Workflows:
-      - Overview: workflows/index.md
-      - Finite differences: workflows/finite-difference.md
-      - External calculators: workflows/external-calculators.md
-      - Force-only fitting: workflows/fitting.md
-      - SSCHA: workflows/sscha.md
-      - SCPH: workflows/scph.md
-      - Extrapolation: workflows/extrapolation.md
+      - Overview: en/workflows/index.md
+      - Finite differences: en/workflows/finite-difference.md
+      - External calculators: en/workflows/external-calculators.md
+      - Force-only fitting: en/workflows/fitting.md
+      - SSCHA: en/workflows/sscha.md
+      - SCPH: en/workflows/scph.md
+      - Extrapolation: en/workflows/extrapolation.md
   - Methods:
-      - Architecture: methods/architecture.md
-      - Periodic geometry and IFCs: methods/periodic-ifc.md
-      - Sum rules: methods/sum-rules.md
-      - Wick and Taylor bases: methods/wick-taylor.md
+      - Architecture: en/methods/architecture.md
+      - Periodic geometry and IFCs: en/methods/periodic-ifc.md
+      - Sum rules: en/methods/sum-rules.md
+      - Wick and Taylor bases: en/methods/wick-taylor.md
   - Formats:
-      - Overview and invariants: formats/index.md
-      - Native HDF5: formats/hdf5.md
-      - Phonopy and phono3py: formats/phonopy.md
-      - ShengBTE: formats/shengbte.md
-      - ALAMODE XML: formats/alamode.md
-  - Cases: cases/index.md
+      - Overview and invariants: en/formats/index.md
+      - Native HDF5: en/formats/hdf5.md
+      - Phonopy and phono3py: en/formats/phonopy.md
+      - ShengBTE: en/formats/shengbte.md
+      - ALAMODE XML: en/formats/alamode.md
+  - Cases: en/cases/index.md
   - Reference:
-      - API overview: reference/api.md
-      - Units and parameters: reference/parameters.md
-      - Diagnostics: reference/diagnostics.md
+      - API overview: en/reference/api.md
+      - Units and parameters: en/reference/parameters.md
+      - Diagnostics: en/reference/diagnostics.md
   - Development:
-      - Tests and examples: development/tests-and-examples.md
-      - Validation: development/validation.md
-      - Contributing: development/contributing.md
+      - Tests and examples: en/development/tests-and-examples.md
+      - Validation: en/development/validation.md
+      - Contributing: en/development/contributing.md
