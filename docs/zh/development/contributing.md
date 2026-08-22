@@ -1,3 +1,11 @@
+---
+title: 贡献
+audience:
+  - developer
+status: stable
+code_verified: 4.0.0a4
+---
+
 # 贡献
 
 公共行为必须由可运行案例或聚焦单元测试说明。新增用户页面必须提供对应的中英文页面、在两个 MkDocs

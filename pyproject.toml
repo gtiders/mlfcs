@@ -34,7 +34,7 @@ dependencies = [
 ]
 
 [project.urls]
-Documentation = "https://github.com/gtiders/mlfcs#readme"
+Documentation = "https://gtiders.github.io/mlfcs/en/"
 Issues = "https://github.com/gtiders/mlfcs/issues"
 Repository = "https://github.com/gtiders/mlfcs"
 
@@ -45,7 +45,6 @@ dev = [
 ]
 docs = [
     "mkdocs-material>=9.5",
-    "mkdocstrings[python]>=0.27",
 ]
 
 [[tool.uv.index]]

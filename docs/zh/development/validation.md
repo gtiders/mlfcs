@@ -1,3 +1,11 @@
+---
+title: 数值验证
+audience:
+  - developer
+status: stable
+code_verified: 4.0.0a4
+---
+
 # 数值验证
 
 数值验证分为确定性的本地测试和材料案例。本地测试检查数学恒等式、结构映射、稀疏支撑、writer 契约和

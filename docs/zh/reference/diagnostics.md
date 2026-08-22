@@ -1,3 +1,11 @@
+---
+title: 诊断
+audience:
+  - user
+status: stable
+code_verified: 4.0.0a4
+---
+
 # 诊断
 
 出现异常结果时，先检查结构关系：primitive 原子数、参考原子顺序、超胞矩阵和最大映射残差。然后检查
