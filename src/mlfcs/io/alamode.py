@@ -18,7 +18,6 @@ from ase import Atoms
 from ase.units import Bohr, Rydberg
 
 from mlfcs.core.geometry import PeriodicGeometry, PeriodicIndex
-from mlfcs.io._text import zero_small_scalar
 from mlfcs.model import ForceConstants, SparseOrderForceConstants
 
 _MIRROR_SHIFTS = np.asarray(
@@ -26,7 +25,6 @@ _MIRROR_SHIFTS = np.asarray(
     dtype=np.int32,
 )
 _MIRROR_TOLERANCE_BOHR = 1.0e-3
-_TEXT_ZERO_TOLERANCE = 1.0e-8
 
 
 class AlamodeMirrorImageError(ValueError):
@@ -261,9 +259,6 @@ def _write_order(
     container = SubElement(parent, "HARMONIC" if order == 2 else f"ANHARM{order}")
     conversion = Bohr**order / Rydberg
     for flat, value in sorted(entries.items()):
-        value = zero_small_scalar(value, tolerance=_TEXT_ZERO_TOLERANCE)
-        if value == 0.0:
-            continue
         atoms = tuple(index // 3 for index in flat)
         directions = tuple(index % 3 + 1 for index in flat)
         first = atoms[0]

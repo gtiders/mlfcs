@@ -82,24 +82,6 @@ def test_alamode_xml_writes_fc2_fc3_fc4_and_reuses_mirror_for_repeated_atom(tmp_
         assert np.isclose(recovered, expected, atol=1e-13, rtol=1e-13)
 
 
-def test_alamode_xml_omits_text_noise_below_export_tolerance(tmp_path):
-    primitive = Atoms("Si", positions=[[0, 0, 0]], cell=np.eye(3) * 5, pbc=True)
-    supercell, _ = make_supercell(primitive, (1, 1, 1))
-    small = _sparse(2, 1, 1, [0, 0], [0, 0], 9e-9)
-    retained = _sparse(3, 1, 1, [0, 0, 0], [0, 0, 0], 1e-8)
-    output = tmp_path / "noise.xml"
-
-    ForceConstants({}, supercell, sparse={2: small, 3: retained}).write(
-        output, format="alamode"
-    )
-
-    root = parse(output).getroot()
-    assert not root.findall("ForceConstants/HARMONIC/FC2")
-    retained_entries = root.findall("ForceConstants/ANHARM3/FC3")
-    assert retained_entries
-    assert all(float(entry.text) != 0.0 for entry in retained_entries)
-
-
 def test_alamode_xml_selects_one_order_and_rejects_higher_orders(tmp_path):
     primitive = Atoms("Si", positions=((0.0, 0.0, 0.0),), cell=np.eye(3) * 3.0, pbc=True)
     supercell, _ = make_supercell(primitive, (1, 1, 1))
