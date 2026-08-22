@@ -4,13 +4,10 @@ from __future__ import annotations
 
 from math import factorial
 
-import jax
 import jax.numpy as jnp
 import numpy as np
 
 from mlfcs.model import SparseOrderForceConstants
-
-jax.config.update("jax_enable_x64", True)
 
 
 def wick(displacement, covariance, coordinates, order):
@@ -151,10 +148,8 @@ def convert_sparse_wick_reference(force_constants, covariance):
                     tensors_by_cluster.get(key, np.zeros((3,) * target_order))
                     + coefficient * contracted
                 )
-        clusters = np.asarray(tuple(tensors_by_cluster), dtype=np.int32).reshape((-1, target_order))
-        tensors = np.asarray(
-            [tensors_by_cluster[tuple(cluster)] for cluster in clusters], dtype=float
-        ).reshape((-1,) + (3,) * target_order)
+        clusters = np.asarray(tuple(tensors_by_cluster), dtype=np.int32)
+        tensors = np.asarray([tensors_by_cluster[tuple(cluster)] for cluster in clusters])
         original = result[target_order]
         result[target_order] = SparseOrderForceConstants(
             target_order,

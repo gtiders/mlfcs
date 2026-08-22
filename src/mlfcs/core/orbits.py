@@ -1,38 +1,45 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from itertools import permutations
+from itertools import permutations, product
 
+import jax
+import jax.numpy as jnp
 import numpy as np
 from ase import Atoms
 
-from mlfcs.core.geometry import PeriodicGeometry, PeriodicIndex
+from mlfcs.core.geometry import SupercellIndex
 from mlfcs.core.symmetry import SymmetryOperations
+
+jax.config.update("jax_enable_x64", True)
 
 
 @dataclass(frozen=True, slots=True)
 class TensorAction:
-    """Host-side Cartesian rotation followed by an IFC-axis permutation.
-
-    Orbit enumeration, constraint construction, and finite-difference
-    reconstruction invoke this operation frequently on small, irregular
-    tensors.  Keeping it in NumPy avoids device dispatch and transfer costs;
-    the fitting-only JAX feature kernels implement their own batched form.
-    """
+    """Matrix-free Cartesian rotation followed by an IFC-axis permutation."""
 
     rotation: np.ndarray
     permutation: tuple[int, ...]
     order: int
 
     def apply(self, tensor: np.ndarray) -> np.ndarray:
-        return _apply_action_tensor_numpy(self, np.asarray(tensor, dtype=float))
+        value = jnp.asarray(tensor, dtype=jnp.float64)
+        rotated = _rotate_tensor(value, jnp.asarray(self.rotation), self.order)
+        return np.asarray(jnp.transpose(rotated, self.permutation))
 
     def apply_flat(self, values: np.ndarray) -> np.ndarray:
         tensor = np.asarray(values).reshape((3,) * self.order)
         return self.apply(tensor).reshape(-1)
 
     def apply_columns(self, values: np.ndarray) -> np.ndarray:
-        return _apply_action_columns_numpy(self, values)
+        tensors = jnp.asarray(values.T.reshape((-1,) + (3,) * self.order))
+        rotation = jnp.asarray(self.rotation)
+        transformed = jax.vmap(
+            lambda tensor: jnp.transpose(
+                _rotate_tensor(tensor, rotation, self.order), self.permutation
+            )
+        )(tensors)
+        return np.asarray(transformed.reshape(len(values.T), -1).T)
 
     def as_matrix(self) -> np.ndarray:
         return tensor_action_matrix(self.rotation, self.permutation, self.order)
@@ -77,43 +84,9 @@ class OrbitSpace:
         return tuple(sorted(keys))
 
 
-def cluster_invariant_dimension(
-    cluster: tuple[int, ...],
-    index: PeriodicIndex,
-    symmetry: SymmetryOperations,
-    *,
-    tolerance: float = 1e-9,
-) -> int:
-    """Return the symmetry-allowed Cartesian tensor dimension of one cluster.
-
-    This deliberately ignores cutoff and body-order support.  It is used to
-    distinguish a genuinely omitted interaction from a cluster whose tensor
-    vanishes identically under its site stabilizer.
-    """
-    representative = _canonical_cluster(cluster, index, symmetry)
-    label_basis = _label_symmetric_basis(representative)
-    constraint_gram = np.zeros((label_basis.shape[1],) * 2)
-    for operation in range(symmetry.size):
-        transformed = tuple(
-            int(symmetry.atom_permutations[operation, atom]) for atom in representative
-        )
-        for axis_permutation in permutations(range(len(representative))):
-            candidate = index.anchor(tuple(transformed[axis] for axis in axis_permutation))
-            if candidate == representative:
-                action = TensorAction(
-                    symmetry.cartesian_rotations[operation].T,
-                    axis_permutation,
-                    len(representative),
-                )
-                constraint = _apply_action_columns_numpy(action, label_basis) - label_basis
-                constraint_gram += constraint.T @ constraint
-    reduced_basis, _ = _null_space_from_gram(constraint_gram, tolerance)
-    return int(reduced_basis.shape[1])
-
-
 def build_orbit_space(
     supercell: Atoms,
-    index: PeriodicIndex,
+    index: SupercellIndex,
     symmetry: SymmetryOperations,
     *,
     order: int,
@@ -126,8 +99,11 @@ def build_orbit_space(
         raise ValueError("order must be at least two")
     if max_body_order is not None and not 1 <= max_body_order <= order:
         raise ValueError("max_body_order must be between 1 and order")
-    anchors = np.asarray([index.representative(site) for site in range(index.n_primitive)])
-    distances, tail_compatibility = _joint_periodic_cluster_geometry(supercell, anchors, cutoff)
+    distances, tail_compatibility = _joint_periodic_cluster_geometry(
+        supercell,
+        index.n_primitive,
+        cutoff,
+    )
     neighbors = [
         np.flatnonzero(distances[atom] < cutoff).tolist() for atom in range(index.n_primitive)
     ]
@@ -135,8 +111,10 @@ def build_orbit_space(
     seen_representatives: set[tuple[int, ...]] = set()
     orbits: list[ClusterOrbit] = []
 
-    for site, first in enumerate(anchors):
-        for tail in _compatible_sorted_tails(neighbors[site], order - 1, tail_compatibility[site]):
+    for first in range(index.n_primitive):
+        for tail in _compatible_sorted_tails(
+            neighbors[first], order - 1, tail_compatibility[first]
+        ):
             cluster = (first, *tail)
             if max_body_order is not None and len(set(cluster)) > max_body_order:
                 continue
@@ -223,7 +201,7 @@ def _compatible_sorted_tails(
 
 def _canonical_cluster(
     cluster: tuple[int, ...],
-    index: PeriodicIndex,
+    index: SupercellIndex,
     symmetry: SymmetryOperations,
 ) -> tuple[int, ...]:
     """Return the smallest anchored, tail-sorted space-group image.
@@ -282,24 +260,13 @@ def _apply_action_columns_numpy(action: TensorAction, values: np.ndarray) -> np.
     NumPy contraction over the already compressed label basis avoids the large
     XLA intermediates produced by vmapping hundreds of sixth-order tensors.
     """
-    tensors = np.asarray(values, dtype=float).T.reshape((-1,) + (3,) * action.order)
+    tensors = values.T.reshape((-1,) + (3,) * action.order)
     transformed = tensors
     for axis in range(action.order):
         transformed = np.tensordot(action.rotation, transformed, axes=((1,), (axis + 1,)))
         transformed = np.moveaxis(transformed, 0, axis + 1)
     axes = (0,) + tuple(axis + 1 for axis in action.permutation)
     return np.transpose(transformed, axes).reshape(len(values.T), -1).T
-
-
-def _apply_action_tensor_numpy(action: TensorAction, tensor: np.ndarray) -> np.ndarray:
-    """Apply one action to one tensor without a dense representation matrix."""
-    if tensor.shape != (3,) * action.order:
-        raise ValueError(f"expected tensor shape {(3,) * action.order}, got {tensor.shape}")
-    transformed = tensor
-    for axis in range(action.order):
-        transformed = np.tensordot(action.rotation, transformed, axes=((1,), (axis,)))
-        transformed = np.moveaxis(transformed, 0, axis)
-    return np.transpose(transformed, action.permutation)
 
 
 def _independent_basis_rows(basis: np.ndarray, tolerance: float) -> np.ndarray:
@@ -332,7 +299,7 @@ def _independent_basis_rows(basis: np.ndarray, tolerance: float) -> np.ndarray:
 
 def _joint_periodic_cluster_geometry(
     supercell: Atoms,
-    anchors: np.ndarray,
+    n_primitive: int,
     cutoff: float,
     *,
     degeneracy_tolerance: float = 1e-2,
@@ -345,31 +312,27 @@ def _joint_periodic_cluster_geometry(
     code used a squared-distance tolerance of ``1e-4 nm**2``, equivalent to
     ``1e-2 angstrom**2``.
     """
-    if np.isscalar(anchors):  # compatibility with the former private helper
-        anchors = np.arange(int(anchors), dtype=np.int32)
-    anchors = np.asarray(anchors, dtype=np.int32)
     n_supercell = len(supercell)
+    shift_vectors = np.asarray(tuple(product((-1, 0, 1), repeat=3)), dtype=np.int32)
+    cartesian_shifts = shift_vectors @ np.asarray(supercell.cell)
     positions = supercell.positions
-    distances = np.empty((len(anchors), n_supercell), dtype=float)
+    distances = np.empty((n_primitive, n_supercell), dtype=float)
     minimum_images: list[list[np.ndarray]] = []
-    geometry = PeriodicGeometry(supercell.cell, supercell.pbc)
-    for row, first in enumerate(anchors):
-        delta = positions - positions[first]
-        _, lengths = geometry.mic(delta)
-        distances[row] = lengths
-        images = []
-        for atom in range(n_supercell):
-            nearest, _ = geometry.closest_images(delta[atom])
-            # Historical orbit cutoff semantics use a comparatively generous
-            # squared-distance degeneracy tolerance.  Preserve that tolerance
-            # while sourcing the images from the common reduced-lattice core.
-            squared = np.sum(nearest**2, axis=1)
-            images.append(nearest[np.abs(squared - squared.min()) < degeneracy_tolerance])
-        minimum_images.append(images)
+    for first in range(n_primitive):
+        shifted = positions[None, :, :] + cartesian_shifts[:, None, :]
+        squared = np.sum((shifted - positions[first]) ** 2, axis=2)
+        minimum = squared.min(axis=0)
+        distances[first] = np.sqrt(minimum)
+        minimum_images.append(
+            [
+                shifted[np.abs(squared[:, atom] - minimum[atom]) < degeneracy_tolerance, atom]
+                for atom in range(n_supercell)
+            ]
+        )
 
-    compatible = np.zeros((len(anchors), n_supercell, n_supercell), dtype=bool)
+    compatible = np.zeros((n_primitive, n_supercell, n_supercell), dtype=bool)
     cutoff_squared = cutoff * cutoff
-    for first in range(len(anchors)):
+    for first in range(n_primitive):
         neighbors = np.flatnonzero(distances[first] < cutoff)
         compatible[first, neighbors, neighbors] = True
         for left_index, left in enumerate(neighbors):
@@ -393,8 +356,11 @@ def tensor_action_matrix(
 ) -> np.ndarray:
     """Return the Cartesian tensor representation of a symmetry action."""
     size = 3**order
-    action = TensorAction(np.asarray(rotation, dtype=float), axis_permutation, order)
-    return _apply_action_columns_numpy(action, np.eye(size))
+    tensors = jnp.eye(size, dtype=jnp.float64).reshape((size,) + (3,) * order)
+    rotation_array = jnp.asarray(rotation)
+    transformed = jax.vmap(lambda tensor: _rotate_tensor(tensor, rotation_array, order))(tensors)
+    transformed = jnp.transpose(transformed, (0,) + tuple(axis + 1 for axis in axis_permutation))
+    return np.asarray(transformed.reshape(size, size).T)
 
 
 def permute_tensor_action(
@@ -407,6 +373,14 @@ def permute_tensor_action(
     by_input = action.T.reshape((size,) + (3,) * order)
     axes = (0,) + tuple(axis + 1 for axis in axis_permutation)
     return np.transpose(by_input, axes).reshape(size, size).T
+
+
+def _rotate_tensor(tensor: jax.Array, rotation: jax.Array, order: int) -> jax.Array:
+    result = tensor
+    for axis in range(order):
+        result = jnp.tensordot(rotation, result, axes=((1,), (axis,)))
+        result = jnp.moveaxis(result, 0, axis)
+    return result
 
 
 def _null_space_from_gram(gram: np.ndarray, tolerance: float) -> tuple[np.ndarray, np.ndarray]:

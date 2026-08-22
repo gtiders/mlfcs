@@ -31,7 +31,7 @@ class DisplacementPlan:
         atoms = self.supercell.copy()
         atoms.positions += self.configurations[index].displacement
         atoms.info["mlfcs_configuration_id"] = index
-        atoms.info["mlfcs_atom_order"] = "reference"
+        atoms.info["mlfcs_atom_order"] = "internal"
         atoms.arrays["mlfcs_displacement"] = self.configurations[index].displacement.copy()
         return atoms
 

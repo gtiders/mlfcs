@@ -21,10 +21,14 @@ focus on two related tasks before further feature work:
    memory estimation and replace that projector for large constraint systems with a tested sparse
    constrained method, such as a sparse KKT/MINRES or augmented-Lagrangian formulation. The
    selection must be automatic and must preserve strict ASR and rotational residuals.
-4. **Periodic geometry stress testing.** General MIC and reduced-lattice degenerate-image handling
-   now form the calculation core. Extend the validation matrix with larger skewed cells, boundary
-   degeneracies, and additional external readers; ALAMODE's fixed 27-image encoding remains a
-   format-level limitation and must keep rejecting non-representable geometry.
+4. **General periodic-image geometry.** The compatibility path currently preserves thirdorder's
+   joint cluster test over the 27 neighboring supercell images. Investigate an adaptive image
+   generator (potentially ASE `neighbor_list`) for strongly skewed cells or cutoffs that require
+   more images, while retaining the joint multi-tail compatibility test. Do not replace the
+   current convention until orbit counts, displacement order, and ShengBTE output compatibility
+   have dedicated regression evidence. An initial comparison found no change for the KAsPt
+   2x2x3 supercell through a 12 angstrom cutoff, but a deliberately non-reduced skewed cell needed
+   translation `(-2, 1, 0)` and changed both FC2/FC3 orbit counts and the FC3 displacement set.
 
 No implementation choice for these items is committed yet. Changes will be introduced only with
 focused tests and documented numerical evidence.

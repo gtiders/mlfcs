@@ -15,13 +15,13 @@ image conventions, and `sow`/`reap` workflow of the GPL-licensed
 order-parameterized ASE/JAX architecture with new sparse, constraint-solving, acceleration, and
 interoperability layers. See [Third-party provenance](THIRD_PARTY.md) for attribution and scope.
 
-Finite differences use ASE, NumPy, and SciPy only, so an external calculator retains complete
-control over CPU or GPU execution. The joint fitter supports CPU and GPU: a CUDA-enabled JAX
-installation accelerates only the dense Wick feature kernel, while geometry, symmetry, sparse
-constraints, and final solving remain host-side. Memory is controlled through symmetry reduction,
-contiguous sparse arrays, lazy dense materialization, constraint null-space coordinates, and
-bounded feature tiles. Static JAX buffers and compiled kernels are prepared once per fit and reused
-for training, validation, and diagnostics.
+Numerical execution supports both CPU and GPU. CPU mode handles ordinary calculations and
+large sparse linear algebra, while a CUDA-enabled JAX installation can move high-rank Cartesian
+tensor rotations and batched transformations to a GPU. Memory is controlled through symmetry
+reduction, contiguous sparse arrays, lazy dense materialization, matrix-free tensor actions,
+small Gram null spaces, and sparse LSMR. JAX JIT, `vmap`, batched contractions, and displacement
+deduplication improve throughput. Actual gains depend on the system, order, and hardware; GPU
+execution does not replace cluster enumeration or sparse solvers that still run on the CPU.
 
 The base package does not prescribe how forces are generated. Structures can be evaluated with
 any user-owned ASE Calculator or dispatched to an external workflow. The native SSCHA module
@@ -88,8 +88,8 @@ enable the optional Born-Huang rotational sum rules; see [Sum rules](docs/SUM_RU
 - Stable configuration IDs and explicit atom-order mappings.
 - Joint periodic-image cluster cutoff geometry.
 - Recursive central-difference stencils.
-- CPU/GPU fitting with persistent JAX Wick-feature kernels; finite differences stay host-side.
-- Reusable JAX JIT and batched contractions for high-rank fitting throughput.
+- JAX-accelerated high-rank tensor transformations with CPU/GPU selection.
+- JAX JIT, `vmap`, and batched contractions for high-rank tensor throughput.
 - Contiguous sparse arrays, matrix-free actions, and lazy materialization to reduce peak memory.
 - Displacement-key deduplication to reduce expensive calculator evaluations.
 - Joint force-only FC2--FCn fitting with Wick-orthogonalized features and Taylor-compatible
@@ -161,10 +161,11 @@ calculation = ForceConstantCalculation(
     cutoff=-5,
     displacement=0.01,
     symprec=1e-5,
+    jax_platform="auto",  # "auto", "cpu", or "gpu"
 )
 
 # 1. sow(): obtain the displaced ASE structures in the exact reap order.
-structures = calculation.sow()
+structures = calculation.sow(atom_order="grouped")
 Path("vasp-jobs").mkdir(exist_ok=True)
 for configuration_id, atoms in enumerate(structures):
     job = Path("vasp-jobs") / f"POSCAR-{configuration_id + 1:03d}"
@@ -183,7 +184,11 @@ for configuration_id in range(len(structures)):
 forces = np.asarray(forces)
 
 # 4. reap(): the force at forces[i] must belong to structures[i].
-fc3 = calculation.reap(forces, acoustic_sum_rule=True)
+fc3 = calculation.reap(
+    forces,
+    atom_order="grouped",
+    acoustic_sum_rule=True,
+)
 fc3.write("fc3.h5", format="hdf5")
 ```
 
@@ -216,7 +221,10 @@ When jobs return out of order, read them in any order and pass a mapping keyed b
 zero-based configuration ID:
 
 ```python
-fc3 = calculation.reap(forces_by_configuration_id)
+fc3 = calculation.reap(
+    forces_by_configuration_id,
+    atom_order="grouped",
+)
 ```
 
 Missing or extra IDs, invalid shapes, non-finite values, and plan-hash mismatches are rejected.
@@ -294,32 +302,33 @@ Higher orders grow combinatorially through cluster combinations, tensor componen
 permutations, and finite-difference signs. Use small cutoffs first and monitor configuration
 count and memory.
 
-## Atom ordering and structure frames
+## Atom ordering
 
-The reference supercell order is authoritative. `sow()` returns that exact order, and every force
-array passed to `reap()` must use it unchanged. There is no internal/grouped atom-order mode and
-MLFCS never silently reorders external forces or fitting snapshots. Construct a calculation either
-from an integer general supercell matrix or from an explicit reference frame:
+The canonical internal supercell order is:
 
-```python
-calculation = ForceConstantCalculation(
-    primitive, order=3, supercell_matrix=[[2, 1, 0], [0, 2, 0], [0, 0, 1]]
-)
-# or
-calculation = ForceConstantCalculation(primitive, reference=reference_supercell, order=3)
+```text
+z → y → x → primitive_atom
 ```
 
-To build that reference explicitly, use the stable public helper:
+The primitive-atom index changes fastest. This is the default order used by `sow()` and `reap()`.
+
+For primitive-atom-grouped data:
 
 ```python
-from mlfcs import build_supercell
-
-reference_supercell = build_supercell(primitive, [[2, 1, 0], [0, 2, 0], [0, 0, 1]])
+structures = calculation.sow(atom_order="grouped")
+force_constants = calculation.reap(forces, atom_order="grouped")
 ```
 
-Format writers create any required format-specific ordering only at the export boundary.
-For independently reordered snapshots, call `mlfcs.align_structures(reference, atoms)` explicitly;
-it returns the aligned structure and its maximum periodic matching residual.
+Explicit mappings are available as:
+
+```python
+calculation.index.grouped_permutation
+calculation.index.internal_from_grouped
+calculation.index.group_atoms(atoms)
+```
+
+MLFCS performs the required grouped-order conversion automatically at the phonopy output
+boundary.
 
 ## Acoustic sum rule
 
@@ -365,7 +374,7 @@ fc234.write("force_constants.xml", format="alamode")
 
 | Format | Orders | Representation |
 |---|---|---|
-| `hdf5` | Any | Native v2 lattice-labelled sparse IFCs (`sites`, translation representatives, Cartesian tensors) |
+| `hdf5` | Any | Sparse cluster tensors or dense arrays |
 | `numpy` / `npz` | Any | Materialized NumPy arrays |
 | `shengbte` | 3 and 4 | Symmetry-closed translation-based text blocks |
 | `phonopy` | 2 | Full dense supercell FC2 text |
@@ -373,14 +382,21 @@ fc234.write("force_constants.xml", format="alamode")
 | `phono3py_hdf5` | 3 | Phono3py-compatible full-supercell `fc3` HDF5 |
 | `alamode` | 2--4 | Combined ALAMODE FCSXML document |
 
-ShengBTE output writes exactly the symmetry-closed cluster support carried by the reconstructed
-sparse result. Legacy thirdorder filtering and block-order compatibility is intentionally not
-provided.
+ShengBTE output is faithful by default: it writes exactly the symmetry-closed cluster support
+carried by the reconstructed sparse result. To reproduce the legacy thirdorder secondary
+joint-image filtering and block order, request compatibility explicitly:
+
+```python
+fc3.write(
+    "FORCE_CONSTANTS_3RD",
+    format="shengbte",
+    compatibility="thirdorder",
+)
+```
 
 The phonopy and phono3py HDF5 writers use primitive-atom-grouped supercell order and stream one
 first-atom slab at a time. They therefore do not materialize the full FC3 in memory. The native
-`hdf5` format is native schema v2: it stores primitive and reference structures, their verified
-mapping, and lattice-labelled sparse IFCs. Older native schemas are intentionally unsupported.
+`hdf5` format remains the compact, order-parameterized MLFCS representation.
 
 ALAMODE XML preserves the exact atom order of `fc.supercell`. Primitive-atom identities and
 translation mappings come exclusively from MLFCS's `primitive_index` and `cell_translation`

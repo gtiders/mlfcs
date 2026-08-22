@@ -106,25 +106,3 @@ def test_alamode_xml_selects_one_order_and_rejects_higher_orders(tmp_path):
     mixed_root = parse(tmp_path / "mixed.xml").getroot()
     assert mixed_root.findall("ForceConstants/HARMONIC/FC2")
     assert not mixed_root.findall("ForceConstants/ANHARM5/FC5")
-
-
-def test_alamode_sparse_entries_follow_reordered_reference_labels(tmp_path):
-    primitive = Atoms("Si", positions=[[0, 0, 0]], cell=np.eye(3) * 4, pbc=True)
-    supercell, _ = make_supercell(primitive, [[2, 1, 0], [0, 1, 0], [0, 0, 1]])
-    supercell = supercell[[1, 0]]
-    from mlfcs.core.geometry import PeriodicIndex
-
-    index = PeriodicIndex(
-        supercell.arrays["primitive_index"],
-        supercell.arrays["cell_translation"],
-        supercell.info["mlfcs_supercell_matrix"],
-    )
-    first = index.representative(0)
-    tail = index.atom(0, [1, 0, 0])
-    sparse = _sparse(2, 1, 2, (first, tail), (0, 0), 2.0)
-    output = tmp_path / "reordered.xml"
-    ForceConstants({}, supercell, sparse={2: sparse}).write(output, format="alamode")
-
-    entry = parse(output).getroot().find("ForceConstants/HARMONIC/FC2")
-    assert entry is not None
-    assert entry.attrib["pair1"] == "1 1"

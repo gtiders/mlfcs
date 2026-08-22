@@ -78,17 +78,20 @@ opt in with `from mlfcs.sscha import SSCHA`.
 
 ### 3.1 Deterministic supercells
 
-ASE `Atoms` is the structure model. Each calculation uses an explicit `StructureRelation` between
-the primitive and a user-ordered reference supercell; general integer `3x3` supercell matrices
-are supported. The reference order is never replaced by a hidden cell-major representation. Each
-supercell stores:
+ASE `Atoms` is the structure model. Diagonal supercells use one canonical internal order:
+
+```text
+cell z -> y -> x -> primitive atom
+```
+
+The primitive atom is the fastest index. Each supercell stores:
 
 - `primitive_index`;
 - `cell_translation`;
 - `primitive_scaled_position`.
 
-The explicit maps avoid reconstructing atom identity from floating-point positions. `PeriodicIndex`
-looks up atoms by `(primitive_site, translation_residue)` in the general lattice quotient.
+The explicit maps avoid reconstructing atom identity from floating-point positions. A grouped
+primitive-atom-major permutation exists only at format boundaries, such as phonopy FC2 output.
 
 ### 3.2 Neighbor-shell cutoffs
 
@@ -165,17 +168,16 @@ writing never requires this dense allocation.
 
 ## 4. Numerical and programming techniques
 
-### 4.1 JAX fitting kernels
+### 4.1 JAX tensor kernels
 
-JAX is intentionally limited to the dense Wick force-design kernel used by the joint fitter. It
-uses batched contractions and JIT-compatible array operations; orbit enumeration, tensor actions,
-finite-difference stencils, sparse constraints, reconstruction, and I/O remain NumPy/SciPy host
-work. Double precision is enabled for fitting accuracy.
+JAX is used for high-rank Cartesian tensor rotations and batched column transformations. The
+implementation uses tensor contractions, `vmap`, and JIT-compatible array operations rather than
+Python loops over every Cartesian component. Double precision is enabled for force-constant and
+constraint accuracy.
 
-The fitter's `jax_platform` option accepts `"auto"`, `"cpu"`, or `"gpu"` and selects an explicit
-device without changing JAX's process-global backend selection. Static interaction buffers and
-compiled kernels are prepared once per fit. GPU reduction uses bounded device-side sparse chunks,
-so the physical design matrix is not copied through the host before Gram accumulation.
+The public `jax_platform` option accepts `"auto"`, `"cpu"`, or `"gpu"`. GPU selection is explicit
+and fails clearly when the installed `jaxlib` has no GPU backend. JAX backend selection is
+process-global, so applications should configure it before other JAX workloads.
 
 ### 4.2 Matrix-free symmetry transformations
 
@@ -263,7 +265,7 @@ ShengBTE output is cluster-and-translation based rather than a simple global sup
 order. The writer derives its primitive atom indices and lattice translations from the canonical
 internal geometry and uses scientific notation for both supported orders.
 
-The ALAMODE adapter preserves the explicit reference-supercell order and serializes the existing
+The ALAMODE adapter preserves internal supercell order and serializes the existing
 `primitive_index`/`cell_translation` mapping rather than rediscovering a primitive cell. Its
 mirror-cell identifiers follow ALAMODE's fixed 27-image convention; export rejects a geometry
 whose true minimum image lies outside that representable set.

@@ -48,9 +48,9 @@ sscha = SSCHA(
     max_iterations=10,
     initial_displacement=0.01,
     random_seed=42,
-    cutoff_frequency=0.01,  # THz
+    cutoff_frequency=0.01,       # THz
     imaginary_modes="error",
-    max_displacement=None,  # canonical sampling is not clipped
+    max_displacement=None,       # canonical sampling is not clipped
     log_level=1,
 )
 sscha.run(make_my_ase_calculator())

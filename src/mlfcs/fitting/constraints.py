@@ -12,7 +12,6 @@ from mlfcs.core.constraints import (
     build_harmonic_rotational_constraints,
     build_translational_constraints,
 )
-from mlfcs.core.orbits import cluster_invariant_dimension
 
 
 @dataclass(frozen=True, slots=True)
@@ -143,7 +142,6 @@ def build_wick_to_taylor_transform(calculations, covariance) -> sparse.csr_matri
             pairs = (source_order - target_order) // 2
             coefficient = (-1.0) ** pairs / (2.0**pairs * factorial(pairs))
             contracted_by_target: dict[tuple[int, ...], dict[int, np.ndarray]] = {}
-            contraction_scales: dict[tuple[int, ...], dict[int, np.ndarray]] = {}
             for cluster, columns, local_offset in _image_columns(source):
                 contracted = columns.reshape((3,) * source_order + (-1,))
                 for pair in reversed(range(pairs)):
@@ -155,24 +153,17 @@ def build_wick_to_taylor_transform(calculations, covariance) -> sparse.csr_matri
                         optimize=True,
                     )
                 target_cluster = cluster[:target_order]
+                if target_cluster not in image_maps[target_order]:
+                    raise ValueError(
+                        f"Wick-to-Taylor contraction creates FC{target_order} cluster "
+                        f"{target_cluster} outside its configured support"
+                    )
                 source_offset = int(offsets[source_index] + local_offset)
                 contributions = contracted_by_target.setdefault(target_cluster, {})
                 contribution = contracted.reshape(3**target_order, -1)
                 contributions[source_offset] = (
                     contributions.get(source_offset, np.zeros_like(contribution)) + contribution
                 )
-                scales = contraction_scales.setdefault(target_cluster, {})
-                scales[source_offset] = scales.get(
-                    source_offset, np.zeros_like(contribution)
-                ) + np.abs(contribution)
-            _validate_missing_contractions(
-                contracted_by_target,
-                contraction_scales,
-                image_maps[target_order],
-                by_order[target_order][1],
-                source_order=source_order,
-                target_order=target_order,
-            )
             # All symmetry images of one target orbit describe the same target
             # parameter vector.  Solve them together.  Solving each image and
             # adding the answers would multiply the contraction by the number
@@ -222,55 +213,6 @@ def build_wick_to_taylor_transform(calculations, covariance) -> sparse.csr_matri
                     ] += coefficient * mapping[:, begin : begin + width]
                     begin += width
     return transform.tocsr()
-
-
-def _validate_missing_contractions(
-    contracted_by_target,
-    contraction_scales,
-    target_images,
-    target_calculation,
-    *,
-    source_order,
-    target_order,
-    absolute_tolerance=1e-12,
-    relative_tolerance=1e-9,
-):
-    """Classify missing Wick contractions after all symmetry images are aggregated."""
-    missing = set(contracted_by_target).difference(target_images)
-    for target_cluster in sorted(missing):
-        contributions = contracted_by_target[target_cluster]
-        magnitude = max(
-            (float(np.max(np.abs(values))) for values in contributions.values()),
-            default=0.0,
-        )
-        scale = max(
-            (
-                float(np.max(values))
-                for values in contraction_scales.get(target_cluster, {}).values()
-            ),
-            default=0.0,
-        )
-        threshold = absolute_tolerance + relative_tolerance * scale
-        dimension = cluster_invariant_dimension(
-            target_cluster,
-            target_calculation.index,
-            target_calculation.symmetry,
-        )
-        if dimension == 0 and magnitude <= threshold:
-            continue
-        if dimension == 0:
-            raise RuntimeError(
-                f"Wick-to-Taylor FC{source_order}->FC{target_order} contraction "
-                f"creates symmetry-forbidden cluster {target_cluster} with maximum "
-                f"coefficient {magnitude:.6e} above tolerance {threshold:.6e}; "
-                "check covariance symmetrization, periodic representatives, and image "
-                "aggregation"
-            )
-        raise ValueError(
-            f"Wick-to-Taylor contraction creates symmetry-allowed FC{target_order} "
-            f"cluster {target_cluster} outside its configured support "
-            f"(allowed dimension={dimension}, maximum coefficient={magnitude:.6e})"
-        )
 
 
 def omitted_taylor_fc1(calculations, parameters, covariance) -> np.ndarray:

@@ -16,14 +16,11 @@ def write_force_constants(
     *,
     format: str,
     order: int | None = None,
-    primitive=None,
-    supercell=None,
+    compatibility: str | None = None,
 ) -> None:
-    from mlfcs.io.export import build_export_view
-
-    view = build_export_view(force_constants, primitive=primitive, supercell=supercell)
-    force_constants = view.force_constants
     normalized = format.casefold().replace("-", "_")
+    if compatibility is not None and normalized != "shengbte":
+        raise ValueError("compatibility is available only for ShengBTE output")
     if normalized == "hdf5":
         from mlfcs.io.hdf5 import write_hdf5
 
@@ -76,13 +73,23 @@ def write_force_constants(
         from mlfcs.io.shengbte import write_shengbte
 
         selected_order = order if order is not None else max(force_constants.orders)
+        cutoffs = force_constants.metadata.get("cutoff_angstrom_by_order", {})
+        cutoff = cutoffs.get(selected_order) if isinstance(cutoffs, dict) else None
+        if cutoff is None:
+            cutoff = force_constants.metadata.get("cutoff_angstrom")
+        if cutoff is None:
+            raise ValueError("cutoff_angstrom metadata is required for ShengBTE output")
         sparse = force_constants.sparse.get(selected_order)
-        if sparse is None:
-            raise ValueError("ShengBTE output requires lattice-labelled sparse force constants")
+        # ShengBTE is block-oriented, so compact cluster tensors can be
+        # serialized directly.  Avoid materializing very large FC4 arrays.
+        values = sparse if sparse is not None else force_constants.materialize(selected_order)
         write_shengbte(
             target,
-            sparse,
+            values,
             force_constants.supercell,
+            cutoff=float(cutoff),
+            support=None,
+            compatibility=compatibility,
         )
         return
     raise ValueError(f"unknown force-constant format: {format!r}")

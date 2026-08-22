@@ -7,7 +7,7 @@ MLFCS 不启动 VASP，也不规定 INCAR、KPOINTS、POTCAR、调度器或收�
 [`examples/vasp_external_fc3.py`](../examples/vasp_external_fc3.py)。
 
 从 API 契约看，严格的位置顺序已经足够：第 `i` 组力必须对应 `sow()` 返回的第 `i` 个
-结构，此时 `reap(forces)` 不需要 ID。本示例额外使用 manifest，
+结构，此时 `reap(forces, atom_order=...)` 不需要 ID。本示例额外使用 manifest，
 用于批处理任务、断点续算、缺失结果检查和长期来源记录。
 
 ## 1. 按确定顺序生成结构
@@ -34,7 +34,7 @@ fc3-work/
 ```
 
 `POSCAR-001` 对应从零开始的构型 ID 0，`POSCAR-002` 对应 ID 1，以此类推。清单保存
-超胞、截断、位移量、reference 原子顺序、构型数量和文件顺序。生成以后不要
+超胞、截断、位移量、grouped 原子顺序、构型数量和文件顺序。生成以后不要
 重命名、遗漏、去重或重新排列这些构型。
 
 ## 2. 准备并提交 VASP
@@ -88,9 +88,10 @@ uv run python examples/vasp_external_fc3.py reap \
   --format shengbte
 ```
 
-默认施加严格平移 ASR；传入 `--no-asr` 可保留原始有限差分结果。ShengBTE 直接
-序列化重建后的稀疏物理支撑域，不提供旧 thirdorder 兼容模式。其他 FC3 输出包括通用
-稀疏 `hdf5`、`numpy` 和完整 `phono3py_hdf5`。
+默认施加严格平移 ASR；传入 `--no-asr` 可保留原始有限差分结果。若必须复现历史
+thirdorder 的二次周期镜像判据和块顺序，可增加 `--compatibility thirdorder`；它只
+改变 ShengBTE 导出支撑域和顺序，不改变重建。其他 FC3 输出包括通用稀疏 `hdf5`、
+`numpy` 和完整 `phono3py_hdf5`。
 
 ## 恢复与审计约定
 
@@ -99,4 +100,4 @@ uv run python examples/vasp_external_fc3.py reap \
 - 结构、超胞、截断、位移量、MLFCS 实现或对称性容差发生变化时，应重新 sow，不能
   混用数据；
 - 调度器乱序完成不影响结果，collect 会通过目录名恢复准确顺序；
-- 力必须对应生成 POSCAR 中的 reference 原子顺序，VASP 与 collect 之间不能再次排序。
+- 力必须对应生成 POSCAR 中的 grouped 原子顺序，VASP 与 collect 之间不能再次排序。

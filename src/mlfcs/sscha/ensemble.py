@@ -6,8 +6,6 @@ from typing import Literal
 import numpy as np
 from ase import Atoms, units
 
-from mlfcs.core.geometry import PeriodicIndex
-
 Statistics = Literal["quantum", "classical"]
 ImaginaryModePolicy = Literal["error", "absolute", "exclude"]
 
@@ -78,29 +76,17 @@ class HarmonicEnsemble:
         self._n_primitive = len(primitive)
         self._translations = np.asarray(supercell.arrays["cell_translation"], dtype=np.int64)
         self._primitive_index = np.asarray(supercell.arrays["primitive_index"], dtype=np.int64)
-        matrix = supercell.info.get("mlfcs_supercell_matrix")
-        if matrix is None:
-            raise ValueError("supercell is missing the MLFCS supercell-matrix metadata")
-        self._index = PeriodicIndex(self._primitive_index, self._translations, np.asarray(matrix))
-        self._n_cells = self._index.n_cells
+        self._repeats = self._translations.max(axis=0) + 1
+        self._n_cells = int(np.prod(self._repeats))
         expected = (self._n_primitive, len(supercell), 3, 3)
         if self._compact.shape != expected:
             raise ValueError(f"compact FC2 must have shape {expected}, got {self._compact.shape}")
         if len(supercell) != self._n_cells * self._n_primitive:
             raise ValueError("supercell atom count and translation metadata disagree")
         self._masses = np.asarray(primitive.get_masses(), dtype=float)
-        cells: dict[tuple[int, int, int], np.ndarray] = {}
-        for translation in self._translations:
-            cells.setdefault(self._index.residue(translation), translation)
-        self._cell_translations = np.asarray(list(cells.values()), dtype=np.int32)
-        self._cell_atoms = np.asarray(
-            [
-                [self._index.atom(site, translation) for site in range(self._n_primitive)]
-                for translation in self._cell_translations
-            ],
-            dtype=np.int32,
-        )
-        self._qpoints = _quotient_qpoints(self._index.supercell_matrix)
+        self._cell_translations = self._translations.reshape(self._n_cells, self._n_primitive, 3)[
+            :, 0
+        ]
         self._modes = self._prepare_modes()
         self._last_diagnostics: EnsembleDiagnostics | None = None
 
@@ -145,10 +131,7 @@ class HarmonicEnsemble:
                 field.reshape(snapshots, self._n_cells, self._n_primitive, 3) * inverse_root_mass
             )
 
-        values = np.zeros((snapshots, len(self.supercell), 3), dtype=float)
-        values[:, self._cell_atoms.reshape(-1)] = displacement.reshape(
-            snapshots, self._n_cells * self._n_primitive, 3
-        )
+        values = displacement.reshape(snapshots, len(self.supercell), 3)
         norms = np.linalg.norm(values, axis=2)
         maximum_sampled = float(np.max(norms))
         clipped_atoms = affected_snapshots = 0
@@ -190,14 +173,14 @@ class HarmonicEnsemble:
         modes = []
         visited: set[tuple[int, int, int]] = set()
         imaginary_count = 0
-        for qpoint in self._qpoints:
-            grid_index = _qpoint_key(qpoint)
+        for grid_index in np.ndindex(tuple(int(value) for value in self._repeats)):
             if grid_index in visited:
                 continue
-            partner = _qpoint_key(-qpoint)
+            partner = tuple(int((-grid_index[axis]) % self._repeats[axis]) for axis in range(3))
             paired = partner != grid_index
             visited.add(grid_index)
             visited.add(partner)
+            qpoint = np.asarray(grid_index) / self._repeats
             dynamical = self._dynamical_matrix(qpoint)
             if grid_index == (0, 0, 0):
                 eigenvalues, eigenvectors = self._gamma_internal_modes(dynamical)
@@ -220,9 +203,7 @@ class HarmonicEnsemble:
         return tuple(modes)
 
     def _dynamical_matrix(self, qpoint: np.ndarray) -> np.ndarray:
-        values = self._compact[:, self._cell_atoms.reshape(-1)].reshape(
-            self._n_primitive, self._n_cells, self._n_primitive, 3, 3
-        )
+        values = self._compact.reshape(self._n_primitive, self._n_cells, self._n_primitive, 3, 3)
         phase = np.exp(2j * np.pi * (self._cell_translations @ qpoint))
         blocks = np.einsum("c,kclab->kalb", phase, values, optimize=True)
         mass = np.sqrt(self._masses[:, None] * self._masses[None, :])
@@ -276,25 +257,6 @@ class HarmonicEnsemble:
             clipped_atoms,
             affected_snapshots,
         )
-
-
-def _qpoint_key(values: np.ndarray) -> tuple[int, int, int]:
-    return tuple(np.rint(np.mod(values, 1.0) * 10**10).astype(int))
-
-
-def _quotient_qpoints(matrix: np.ndarray) -> np.ndarray:
-    """Characters of Z³ / Z³S in primitive reciprocal coordinates."""
-    determinant = abs(round(float(np.linalg.det(matrix))))
-    inverse = np.linalg.inv(np.asarray(matrix, dtype=float))
-    found: dict[tuple[int, int, int], np.ndarray] = {}
-    for values in np.ndindex((determinant, determinant, determinant)):
-        qpoint = np.mod(inverse @ np.asarray(values, dtype=float), 1.0)
-        found.setdefault(_qpoint_key(qpoint), qpoint)
-        if len(found) == determinant:
-            break
-    if len(found) != determinant:
-        raise RuntimeError("could not enumerate supercell reciprocal characters")
-    return np.asarray(list(found.values()))
 
 
 __all__ = ["EnsembleDiagnostics", "HarmonicEnsemble"]

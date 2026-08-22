@@ -3,8 +3,7 @@ import pytest
 from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
 
-from mlfcs.core.geometry import StructureRelation
-from mlfcs.fitting import FitDataset
+from mlfcs.fitting import FitDataset, ReferenceSupercell
 
 
 def _with_forces(atoms, forces):
@@ -21,7 +20,7 @@ def test_reference_mapping_and_force_only_training_data():
     frame.positions[1, 0] -= 0.02
     frame = _with_forces(frame, [[-0.1, 0, 0], [0.1, 0, 0]])
 
-    geometry = StructureRelation.from_atoms(primitive, reference)
+    geometry = ReferenceSupercell.from_atoms(primitive, reference)
     dataset = FitDataset.from_atoms(geometry, [frame])
 
     np.testing.assert_array_equal(geometry.supercell_matrix, np.diag([2, 1, 1]))
@@ -34,7 +33,7 @@ def test_reference_mapping_and_force_only_training_data():
 def test_reference_forces_are_optional_but_training_forces_are_required():
     primitive = Atoms("Ar", cell=np.eye(3) * 3.0, scaled_positions=[[0, 0, 0]], pbc=True)
     reference = primitive.repeat((2, 1, 1))
-    geometry = StructureRelation.from_atoms(primitive, reference)
+    geometry = ReferenceSupercell.from_atoms(primitive, reference)
     frame = _with_forces(reference, np.zeros((2, 3)))
 
     dataset = FitDataset.from_atoms(geometry, [frame])
@@ -49,7 +48,7 @@ def test_training_data_are_diagnosed_without_silent_recentering():
     frame.positions += [0.02, 0, 0]
     frame = _with_forces(frame, [[0.04, 0, 0], [0.02, 0, 0]])
 
-    dataset = FitDataset.from_atoms(StructureRelation.from_atoms(primitive, reference), [frame])
+    dataset = FitDataset.from_atoms(ReferenceSupercell.from_atoms(primitive, reference), [frame])
 
     np.testing.assert_allclose(dataset.displacements[0, :, 0], 0.02)
     np.testing.assert_allclose(dataset.displacements[0, :, 1:], 0.0)
@@ -72,4 +71,4 @@ def test_fit_dataset_rejects_invalid_force_arrays(forces, message):
     frame.new_array("forces", forces)
 
     with pytest.raises(ValueError, match=message):
-        FitDataset.from_atoms(StructureRelation.from_atoms(primitive, reference), [frame])
+        FitDataset.from_atoms(ReferenceSupercell.from_atoms(primitive, reference), [frame])

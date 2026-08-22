@@ -16,7 +16,7 @@ def test_phonopy_writer_expands_fc2_and_matches_reference_format(tmp_path):
         cell=np.eye(3),
         pbc=True,
     )
-    supercell, _ = make_supercell(primitive, (2, 1, 1))
+    supercell, index = make_supercell(primitive, (2, 1, 1))
     compact = np.arange(2 * 4 * 3 * 3, dtype=float).reshape(2, 4, 3, 3) / 7
     target = tmp_path / "FORCE_CONSTANTS_2ND"
     write_phonopy(target, compact, supercell)
@@ -34,6 +34,7 @@ def test_phonopy_writer_expands_fc2_and_matches_reference_format(tmp_path):
         [[float(value) for value in lines[block + row + 1].split()] for row in range(3)]
     )
     np.testing.assert_allclose(parsed, expected, atol=1e-14)
+    np.testing.assert_array_equal(index.grouped_permutation, [0, 2, 1, 3])
 
 
 def test_force_constants_phonopy_format_requires_order_two(tmp_path):

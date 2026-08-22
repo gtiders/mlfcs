@@ -14,10 +14,8 @@ compact FC2 的相容 q 点采样和同一套 Gram 拟合参数化，不依赖 p
 
 ## 超胞、截断与顺序
 
-计算使用显式 `StructureRelation`，把 primitive 与用户顺序的 reference 超胞关联起来；
-一般整数 `3×3` 超胞矩阵和原子任意重排均受支持。系统保存原胞原子编号和晶格平移，并由
-`PeriodicIndex` 以 `(primitive_site, translation_residue)` 查找身份，避免依赖浮点坐标
-反推或隐藏的 cell-major 顺序。负整数截断表示近邻壳层；程序分别报告当前超胞能够枚举的
+内部超胞顺序固定为 `z → y → x → primitive_atom`，同时保存原胞原子编号和晶格平移，
+避免依赖浮点坐标反推身份。负整数截断表示近邻壳层；程序分别报告当前超胞能够枚举的
 最大壳层/半径，以及用户实际选择的壳层/半径。`sow()` 的零基构型 ID、
 原子顺序和位移数组会随结构保存，位置式 `reap()` 严格遵循写出顺序，字典式 `reap()`
 则按构型 ID 接收乱序结果。
@@ -54,25 +52,26 @@ ASE Calculator 直接运行时，可选外推后端围绕设定位移构造多�
 
 ## CPU、GPU 与内存优化
 
-JAX 只用于联合拟合中的稠密 Wick 力特征核；团簇枚举、张量作用、有限差分模板、稀疏
-约束、重建和 I/O 都保持 NumPy/SciPy 宿主端实现。`jax_platform` 可选 `auto`、`cpu` 或
-`gpu`，它选择拟合使用的显式设备，而不改写 JAX 的进程全局后端。每次拟合只准备一次
-静态相互作用缓冲区和已编译核；GPU 的物理设计、分块稀疏约化与 Gram 累积全程驻留设备。
-连续稀疏数组、位移去重、串行 calculator 计算和惰性稠密物化共同控制内存。超过建议
-预算时程序发出警告而非强制拒绝，通用稀疏 HDF5 不需要完整稠密数组。
+JAX 以双精度执行高阶张量旋转、`vmap` 批处理和 JIT 张量收缩，`jax_platform` 可选
+`auto`、`cpu` 或 `gpu`。团簇枚举和大型稀疏求解仍在 CPU；GPU 主要加速高秩张量核。
+连续稀疏数组、矩阵无关张量作用、位移去重、串行 calculator 计算和惰性稠密物化共同
+控制内存。超过建议预算时程序发出警告而非强制拒绝，通用稀疏 HDF5 不需要完整稠密
+数组。
 
 ## I/O 与兼容性
 
 `format` 显式选择输出：任意阶可用 `hdf5`/`numpy`，二阶可用 phonopy 文本或 HDF5，
-三阶可用 phono3py HDF5，三阶和四阶可用 ShengBTE。ShengBTE 写出与重建结果共享的
-对称闭合周期支撑域，不提供旧 thirdorder 的周期像筛选或区块顺序兼容模式。
+三阶可用 phono3py HDF5，三阶和四阶可用 ShengBTE。ShengBTE 默认写出与重建结果
+共享的对称闭合周期支撑域；`compatibility="thirdorder"` 仅用于复现旧 thirdorder 的
+二次周期像筛选和区块顺序。
 
-`alamode` 可在同一个 FCSXML 中写出 FC2--FC4。适配器保留 reference 超胞顺序，并直接序列化
+`alamode` 可在同一个 FCSXML 中写出 FC2--FC4。适配器保留内部超胞顺序，并直接序列化
 已有的 `primitive_index`/`cell_translation` 映射，而不重新识别原胞。周期镜像编号遵循
 ALAMODE 固定的 27 像约定；若真实最小镜像超出该格式的表示范围，导出会明确拒绝。
 
 新版应在超胞几何、近邻壳层、原始重建、原子映射和格式语义上与参考实现核对，但不会
-模拟物理约束错误的旧 ASR。详细数值见[验证文档](VALIDATION_ZH.md)。
+模拟物理约束错误的旧 ASR。详细数值见[验证文档](VALIDATION_ZH.md)，历史差异见
+[新旧实现对比](OLD_NEW_COMPARISON_ZH.md)。
 
 ## 当前边界
 

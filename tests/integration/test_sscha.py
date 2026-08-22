@@ -7,7 +7,6 @@ import pytest
 from ase import Atoms
 from ase.calculators.calculator import Calculator, all_changes
 
-from mlfcs.core.geometry import make_supercell
 from mlfcs.sscha import SSCHA
 
 pytestmark = pytest.mark.integration
@@ -102,16 +101,6 @@ def test_sscha_validates_external_order():
     sscha.sow()
     with pytest.raises(ValueError, match="IDs"):
         sscha.reap({0: np.zeros((8, 3))})
-
-
-def test_sscha_accepts_a_reordered_nondiagonal_reference_frame():
-    cell = primitive()
-    reference, _ = make_supercell(cell, [[2, 1, 0], [0, 1, 0], [0, 0, 1]])
-    reference = reference[[1, 0]]
-    sscha = SSCHA(cell, reference=reference, snapshots=2, max_iterations=0)
-
-    np.testing.assert_array_equal(sscha.supercell_atoms.numbers, reference.numbers)
-    assert sscha._index.representative(0) == 1
 
 
 def test_sscha_canonical_iterations_use_independent_reproducible_seeds():

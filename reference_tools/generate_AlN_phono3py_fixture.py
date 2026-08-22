@@ -49,6 +49,7 @@ def generate_fixture(dataset: Path, potential: Path, target: Path) -> None:
         supercell=SUPERCELL,
         cutoff=full_supercell_cutoff,
         displacement=DISPLACEMENT,
+        jax_platform="cpu",
         report_cutoff=False,
     )
     mlfcs_forces = calculation.evaluate(calculator)
@@ -92,49 +93,13 @@ def generate_fixture(dataset: Path, potential: Path, target: Path) -> None:
     )
 
 
-def refresh_mlfcs_forces(potential: Path, target: Path) -> None:
-    """Refresh only the order-sensitive MLFCS force capture in an existing fixture.
-
-    The independent phono3py tensors are unchanged because they were generated
-    from the same immutable potential and geometry.  This narrow migration is
-    useful when a symmetry-equivalent displacement-plan enumeration changes.
-    """
-    with np.load(target) as stored:
-        values = {name: stored[name] for name in stored.files}
-    unitcell = Atoms(
-        numbers=values["unitcell_numbers"],
-        cell=values["unitcell_cell"],
-        scaled_positions=values["unitcell_scaled_positions"],
-        pbc=True,
-    )
-    calculation = ForceConstantCalculation(
-        unitcell,
-        order=3,
-        supercell=SUPERCELL,
-        cutoff=float(values["cutoff_angstrom"]),
-        displacement=DISPLACEMENT,
-        report_cutoff=False,
-    )
-    values["mlfcs_forces"] = calculation.evaluate(PolymlpASECalculator(pot=str(potential)))
-    values.pop("mlfcs_plan_hash", None)
-    np.savez_compressed(target, **values)
-
-
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("dataset", type=Path)
     parser.add_argument("potential", type=Path)
     parser.add_argument("target", type=Path)
-    parser.add_argument(
-        "--refresh-mlfcs-forces",
-        action="store_true",
-        help="update the captured MLFCS force sequence while retaining phono3py tensors",
-    )
     args = parser.parse_args()
-    if args.refresh_mlfcs_forces:
-        refresh_mlfcs_forces(args.potential, args.target)
-    else:
-        generate_fixture(args.dataset, args.potential, args.target)
+    generate_fixture(args.dataset, args.potential, args.target)
 
 
 if __name__ == "__main__":

@@ -7,7 +7,7 @@ settings. It defines the displaced structures and the exact positional contract 
 forces return. The complete example is [`examples/vasp_external_fc3.py`](../examples/vasp_external_fc3.py).
 
 At the API level, an exact positional workflow is sufficient: force set `i` must correspond to
-structure `i` returned by `sow()`, and `reap(forces)` needs neither IDs nor a plan
+structure `i` returned by `sow()`, and `reap(forces, atom_order=...)` needs neither IDs nor a plan
 hash. This example deliberately adds a manifest and hash as an operational safety layer for batch
 jobs, restarts, missing results, and long-term provenance.
 
@@ -36,7 +36,7 @@ fc3-work/
 ```
 
 `POSCAR-001` is configuration ID 0, `POSCAR-002` is ID 1, and so forth. The manifest stores the
-supercell, cutoff, displacement, reference atom order, configuration count, and filename sequence.
+supercell, cutoff, displacement, grouped atom order, configuration count, and filename sequence.
 Do not rename, omit, deduplicate, or reorder configurations after sowing.
 
 ## 2. Prepare and submit VASP calculations
@@ -92,9 +92,9 @@ uv run python examples/vasp_external_fc3.py reap \
 ```
 
 Strict translational ASR is enabled by default. Pass `--no-asr` to retain the raw finite-
-difference result. ShengBTE serializes the reconstructed sparse physical support directly;
-there is no legacy thirdorder compatibility mode. Alternative FC3 outputs include generic sparse
-`hdf5`, `numpy`, and full `phono3py_hdf5`.
+difference result. To reproduce the historical thirdorder secondary periodic-image convention,
+add `--compatibility thirdorder`; this changes ShengBTE export support/order, not reconstruction.
+Alternative FC3 outputs include generic sparse `hdf5`, `numpy`, and full `phono3py_hdf5`.
 
 ## Recovery and audit rules
 
@@ -104,5 +104,5 @@ there is no legacy thirdorder compatibility mode. Alternative FC3 outputs includ
   sow again instead of mixing datasets.
 - If a scheduler returns jobs out of order, directory names restore the exact sequence during
   collection.
-- Forces must correspond to the reference atom order written in each generated POSCAR. Never apply
+- Forces must correspond to the grouped atom order written in each generated POSCAR. Never apply
   a separate atom sort between VASP and collection.

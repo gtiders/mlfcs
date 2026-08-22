@@ -5,11 +5,12 @@ from mlfcs.fitting.api import (
     FittingResult,
     ForceConstantFitter,
 )
-from mlfcs.fitting.data import FitDataset
+from mlfcs.fitting.data import FitDataset, ReferenceSupercell
 
 __all__ = [
     "FitDataset",
     "FittingDiagnostics",
     "FittingResult",
     "ForceConstantFitter",
+    "ReferenceSupercell",
 ]

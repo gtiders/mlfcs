@@ -12,11 +12,11 @@ MLFCS 的三阶技术路线明确参考并借鉴了 GPL 许可的
 `sow`/`reap` 工作流。MLFCS 在此基础上发展出阶数参数化的 ASE/JAX 架构，并新增稀疏
 表示、约束求解、加速和互操作层。具体归属和范围见[第三方来源说明](THIRD_PARTY_ZH.md)。
 
-有限差分路径只使用 ASE、NumPy 和 SciPy，因此外部计算器可完全自行决定使用 CPU 或
-GPU。联合拟合同时支持 CPU 和 GPU：安装 CUDA 版 JAX 后，仅将计算密集的 Wick 特征核
-放到 GPU；几何、对称性、稀疏约束和最终求解仍在宿主端。实现通过对称性约化、连续稀疏
-数组、惰性稠密物化、约束零空间坐标和有界特征 tile 控制内存；每次拟合只准备一次静态
-JAX 缓冲区与已编译核，训练、验证和诊断均复用它们。
+数值计算同时支持 CPU 和 GPU：CPU 模式适合常规计算和大规模稀疏线性代数，安装
+CUDA 版 JAX 后可将高阶笛卡尔张量旋转与批处理变换放到 GPU。实现通过对称性约化、
+连续稀疏数组、惰性稠密物化、矩阵无关张量操作、小 Gram 零空间和稀疏 LSMR 控制
+内存；通过 JAX JIT、`vmap`、批量张量收缩和位移任务去重优化速度。具体收益取决于
+体系、阶数和硬件，GPU 不会替代仍在 CPU 上执行的团簇枚举与稀疏求解。
 
 基础包不规定力由什么程序产生。用户可以使用任意 ASE Calculator，也可以把位移结构
 交给外部任务系统计算。原生 SSCHA 模块结合 q 空间量子谐波采样与 MLFCS Gram 拟合器，
@@ -80,8 +80,8 @@ Born–Huang 旋转求和规则，详见[求和规则](docs/SUM_RULES_ZH.md)。
 - 稳定的构型 ID 和显式原子顺序映射；
 - 与既有逻辑兼容的周期团簇截断；
 - 递归中心有限差分模板；
-- 拟合支持 CPU/GPU 的常驻 JAX Wick 特征核；有限差分保持宿主端执行；
-- JAX JIT、`vmap` 和批量张量收缩降低高阶拟合特征计算开销；
+- JAX 加速高阶张量变换，可选择 CPU 或 GPU；
+- JAX JIT、`vmap` 和批量张量收缩减少高阶张量处理开销；
 - 连续稀疏数组、矩阵无关变换和惰性稠密物化降低峰值内存；
 - 位移键去重减少需要调用势函数的构型数量；
 - 使用 Wick 正交特征联合拟合 FC2--FCn，并输出兼容通用格式的 Taylor 力常数；
@@ -149,10 +149,11 @@ calculation = ForceConstantCalculation(
     cutoff=-5,
     displacement=0.01,
     symprec=1e-5,
+    jax_platform="auto",  # "auto"、"cpu" 或 "gpu"
 )
 
 # 1. sow()：获得与 reap 完全对应的 ASE 位移结构列表。
-structures = calculation.sow()
+structures = calculation.sow(atom_order="grouped")
 Path("vasp-jobs").mkdir(exist_ok=True)
 for configuration_id, atoms in enumerate(structures):
     job = Path("vasp-jobs") / f"POSCAR-{configuration_id + 1:03d}"
@@ -171,7 +172,11 @@ for configuration_id in range(len(structures)):
 forces = np.asarray(forces)
 
 # 4. reap()：forces[i] 必须对应 structures[i]。
-fc3 = calculation.reap(forces, acoustic_sum_rule=True)
+fc3 = calculation.reap(
+    forces,
+    atom_order="grouped",
+    acoustic_sum_rule=True,
+)
 fc3.write("fc3.h5", format="hdf5")
 ```
 
@@ -201,7 +206,10 @@ atoms.arrays["mlfcs_displacement"]
 如果外部任务乱序返回，可以按任意顺序读取，但应传入以原始零基构型 ID 为键的字典：
 
 ```python
-fc3 = calculation.reap(forces_by_configuration_id)
+fc3 = calculation.reap(
+    forces_by_configuration_id,
+    atom_order="grouped",
+)
 ```
 
 缺少或多出 ID、形状错误以及非有限数值都会被拒绝。
@@ -276,31 +284,32 @@ Selected neighbor cutoff: shell = 8, cutoff radius = 7.5419604204 Å
 高阶计算的团簇组合、张量分量、置换和有限差分符号都会快速增长。建议从较小近邻
 开始，并监控构型数量和内存。
 
-## 原子顺序与结构参考系
+## 原子顺序
 
-用户提供的 reference 超胞原子顺序是唯一权威。`sow()` 返回该顺序，传入 `reap()` 的
-每组力也必须保持该顺序；MLFCS 不再提供 internal/grouped 模式，更不会静默重排外部力或
-拟合快照。可用一般整数 `3×3` 超胞矩阵，或直接提供 reference 结构：
+内部超胞的标准顺序为：
 
-```python
-calculation = ForceConstantCalculation(
-    primitive, order=3, supercell_matrix=[[2, 1, 0], [0, 2, 0], [0, 0, 1]]
-)
-# 或
-calculation = ForceConstantCalculation(primitive, reference=reference_supercell, order=3)
+```text
+z → y → x → primitive_atom
 ```
 
-若需显式构造这个 reference，可使用稳定的公开函数：
+原胞原子编号变化最快。这也是 `sow()` 和 `reap()` 的默认顺序。
+
+需要按原胞原子分组时：
 
 ```python
-from mlfcs import build_supercell
-
-reference_supercell = build_supercell(primitive, [[2, 1, 0], [0, 2, 0], [0, 0, 1]])
+structures = calculation.sow(atom_order="grouped")
+force_constants = calculation.reap(forces, atom_order="grouped")
 ```
 
-phonopy 等格式所需的排序仅在导出边界生成。
-对于独立产生且已重排的快照，可显式调用 `mlfcs.align_structures(reference, atoms)`；它返回
-对齐后的结构和最大周期匹配残差。
+显式映射为：
+
+```python
+calculation.index.grouped_permutation
+calculation.index.internal_from_grouped
+calculation.index.group_atoms(atoms)
+```
+
+导出 phonopy 格式时，MLFCS 会自动完成 grouped 顺序转换。
 
 ## 声学求和规则
 
@@ -345,7 +354,7 @@ fc234.write("force_constants.xml", format="alamode")
 
 | 格式 | 阶数 | 表示 |
 |---|---|---|
-| `hdf5` | 任意阶 | 原生 v2 晶格标记稀疏 IFC（`sites`、平移代表与笛卡尔张量） |
+| `hdf5` | 任意阶 | 稀疏团簇张量或稠密数组 |
 | `numpy` / `npz` | 任意阶 | 物化后的 NumPy 数组 |
 | `shengbte` | 3、4 | 对称闭合、基于晶格平移的文本块 |
 | `phonopy` | 2 | 完整稠密超胞 FC2 文本 |
@@ -353,12 +362,20 @@ fc234.write("force_constants.xml", format="alamode")
 | `phono3py_hdf5` | 3 | phono3py 兼容的完整超胞 `fc3` HDF5 |
 | `alamode` | 2--4 | 合并 FC2--FC4 的 ALAMODE FCSXML 文档 |
 
-ShengBTE 严格写出重建后稀疏结果携带的对称闭合团簇支撑域；不提供旧 thirdorder 的
-二次 joint-image 过滤或块顺序兼容模式。
+ShengBTE 默认使用保真模式：严格写出重建后稀疏结果携带的对称闭合团簇支撑域。
+如需复现旧 thirdorder 的二次 joint-image 过滤和块顺序，必须显式启用兼容模式：
+
+```python
+fc3.write(
+    "FORCE_CONSTANTS_3RD",
+    format="shengbte",
+    compatibility="thirdorder",
+)
+```
 
 phonopy 和 phono3py HDF5 使用按原胞原子分组的超胞顺序，并逐个第一原子 slab
-流式写入，因此不会在内存中构造完整 FC3。原生 `hdf5` 使用 v2 schema，保存 primitive、
-reference、经验证映射和晶格标记稀疏 IFC；旧原生 schema 被明确拒绝。
+流式写入，因此不会在内存中构造完整 FC3。原生 `hdf5` 仍然是 MLFCS 的紧凑、
+阶数参数化表示。
 
 ALAMODE XML 严格保留 `fc.supercell` 当前的原子顺序。原胞原子身份和晶格平移映射仅取自
 MLFCS 的 `primitive_index` 与 `cell_translation` 元数据；导出阶段不会让 spglib 或
