@@ -7,15 +7,15 @@ from collections.abc import Callable
 import numpy as np
 from ase import Atoms
 
-from mlfcs.clusters.orbits import OrbitSpace, build_orbit_space
-from mlfcs.core.symmetry import SymmetryOperations
-from mlfcs.ifc.model import RunConfig
-from mlfcs.structure.geometry import (
+from mlfcs.core.geometry import (
     StructureRelation,
     make_supercell,
     normalize_supercell_matrix,
     resolve_cutoff,
 )
+from mlfcs.core.orbits import OrbitSpace, build_orbit_space
+from mlfcs.core.symmetry import SymmetryOperations
+from mlfcs.model import RunConfig
 
 
 class InteractionSpace:

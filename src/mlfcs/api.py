@@ -11,7 +11,7 @@ from ase.calculators.calculator import Calculator
 from mlfcs.core.interactions import InteractionSpace
 from mlfcs.finite_difference.extrapolation import ExtrapolationBackend
 from mlfcs.finite_difference.sampling import DisplacementPlan, build_displacement_plan
-from mlfcs.ifc.model import ForceConstants
+from mlfcs.model import ForceConstants
 from mlfcs.reconstruction.solver import reconstruct_sparse
 
 Progress = Callable[[int, int], None]

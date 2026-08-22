@@ -13,8 +13,8 @@ from pathlib import Path
 import numpy as np
 
 from mlfcs.anharmonic.core import HBAR_ASE, OMEGA_TO_THZ, mode_sigma, regular_qpoints
-from mlfcs.ifc.model import ForceConstants, SparseOrderForceConstants
-from mlfcs.structure.geometry import PeriodicGeometry
+from mlfcs.core.geometry import PeriodicGeometry
+from mlfcs.model import ForceConstants, SparseOrderForceConstants
 
 _HBAR_ASE = HBAR_ASE
 _OMEGA_TO_THZ = OMEGA_TO_THZ

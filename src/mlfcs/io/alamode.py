@@ -41,9 +41,9 @@ import numpy as np
 from ase import Atoms
 from ase.units import Bohr, Rydberg
 
-from mlfcs.ifc.model import ForceConstants, SparseOrderForceConstants
+from mlfcs.core.geometry import PeriodicGeometry, PeriodicIndex
 from mlfcs.io._text import zero_small_scalar
-from mlfcs.structure.geometry import PeriodicGeometry, PeriodicIndex
+from mlfcs.model import ForceConstants, SparseOrderForceConstants
 
 _MIRROR_SHIFTS = np.asarray(
     [(0, 0, 0), *(shift for shift in product((-1, 0, 1), repeat=3) if shift != (0, 0, 0))],

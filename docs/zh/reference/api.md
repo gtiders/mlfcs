@@ -7,22 +7,22 @@ API 参考从公共 Python 模块的 docstring 自动生成。教程和工作流
 
 ## 核心
 
-::: mlfcs.public.finite_difference
+::: mlfcs.api
     options:
       members: false
 
-::: mlfcs.ifc.model.ForceConstants
+::: mlfcs.model.ForceConstants
 
-::: mlfcs.structure.geometry.StructureRelation
+::: mlfcs.core.geometry.StructureRelation
 
-::: mlfcs.structure.geometry.PeriodicGeometry
+::: mlfcs.core.geometry.PeriodicGeometry
 
 ## 拟合与非谐工作流
 
-::: mlfcs.public.fitting
+::: mlfcs.fitting
     options:
       members: false
 
-::: mlfcs.public.anharmonic
+::: mlfcs.anharmonic.scph.LoopSCPH
 
 ::: mlfcs.sscha.core.SSCHA

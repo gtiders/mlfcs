@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 from ase import Atoms
 
-from mlfcs.structure.geometry import PeriodicIndex
+from mlfcs.core.geometry import PeriodicIndex
 
 
 def expand_compact_fc2(compact: np.ndarray, supercell: Atoms) -> np.ndarray:

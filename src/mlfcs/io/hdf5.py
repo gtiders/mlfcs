@@ -15,11 +15,11 @@ import h5py
 import numpy as np
 from ase import Atoms
 
-from mlfcs.ifc.model import ForceConstants, SparseOrderForceConstants
-from mlfcs.structure.geometry import StructureRelation
+from mlfcs.core.geometry import StructureRelation
+from mlfcs.model import ForceConstants, SparseOrderForceConstants
 
 if TYPE_CHECKING:
-    from mlfcs.structure.geometry import PeriodicIndex
+    from mlfcs.core.geometry import PeriodicIndex
 
 
 SCHEMA_VERSION = 2

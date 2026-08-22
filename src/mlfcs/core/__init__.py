@@ -1,6 +1,6 @@
 """Core structure, periodic geometry, symmetry, and interaction primitives."""
 
-from mlfcs.structure.geometry import (
+from mlfcs.core.geometry import (
     PeriodicGeometry,
     PeriodicIndex,
     StructureRelation,

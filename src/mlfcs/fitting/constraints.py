@@ -6,10 +6,10 @@ from math import factorial
 import numpy as np
 from scipy import sparse
 
-from mlfcs.clusters.orbits import cluster_invariant_dimension
-from mlfcs.constraints.translational import (
+from mlfcs.core.constraints import (
     build_translational_constraints,
 )
+from mlfcs.core.orbits import cluster_invariant_dimension
 
 
 @dataclass(frozen=True, slots=True)

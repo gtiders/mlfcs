@@ -7,7 +7,7 @@ import numpy as np
 from ase import Atoms, units
 
 from mlfcs.anharmonic.core import HBAR_ASE, OMEGA_TO_THZ, mode_sigma
-from mlfcs.structure.geometry import PeriodicIndex
+from mlfcs.core.geometry import PeriodicIndex
 
 Statistics = Literal["quantum", "classical"]
 ImaginaryModePolicy = Literal["error", "absolute", "exclude"]

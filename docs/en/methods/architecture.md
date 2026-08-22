@@ -41,16 +41,15 @@ The implementation is separated by responsibility:
 
 ```text
 src/mlfcs/
-  public/                        stable workflow entry points with explicit signatures
-  api.py                         finite-difference implementation
-  ifc/                           force-constant data model and materialization
-  structure/                     structure relations and periodic geometry
-  clusters/                      cluster and orbit construction
-  constraints/                   ASR and physical FC2 constraints
+  api.py                         public sow, reap, evaluate, and run API
+  model.py                       run configuration and dense/sparse result models
   runtime.py                     JAX backend selection
   core/
+    geometry.py                  deterministic supercells and neighbor shells
     symmetry.py                  space-group operations and atom permutations
+    orbits.py                    generic cluster orbits and tensor actions
     interactions.py              shared per-order interaction space
+    constraints.py               shared ASR construction and LSMR projection
   finite_difference/
     sampling.py                  stable displacement plans and force contraction
     stencil.py                   recursive central-difference stencils
@@ -67,24 +66,9 @@ src/mlfcs/
     ensemble.py                  commensurate-q harmonic sampling and thermodynamics
 ```
 
-The old `mlfcs.model`, `mlfcs.core.geometry`, `mlfcs.core.orbits`, and
-`mlfcs.harmonic_constraints` paths remain thin compatibility imports. New code should import
-from `mlfcs.public` or the responsibility-specific packages. This replaces duplicated
-order-specific implementation with a shared pipeline; order-dependent behavior is still
-expressed through `order`, tensor rank, permutations, and recursive finite-difference keys.
-
-The refactor is intentionally numerical-neutral. It does not change algorithms, defaults,
-constraint equations, sparse labels, HDF5 schema, or output semantics. The regression suite
-checks representative IFC tensors, residuals, frequencies, and import boundaries before and
-after module moves.
-
-## Public signatures
-
-The supported entry points are grouped in `mlfcs.public.finite_difference`,
-`mlfcs.public.fitting`, `mlfcs.public.constraints`, `mlfcs.public.anharmonic`, and
-`mlfcs.public.io`. Their callable signatures are declared at the definition site, including
-keyword-only options and defaults. Fitting and SSCHA are loaded lazily so importing the base
-finite-difference or IO API does not initialize JAX.
+This replaces the previous order-specific third- and fourth-order packages with a shared
+pipeline. Order-dependent behavior is expressed through `order`, tensor rank, permutations, and
+recursive finite-difference keys instead of duplicated source trees.
 
 The SSCHA package is an explicit submodule but has no additional runtime dependency. Applications
 opt in with `from mlfcs.sscha import SSCHA`.

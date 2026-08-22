@@ -4,11 +4,11 @@ from itertools import pairwise
 
 import numpy as np
 
-from mlfcs.clusters.orbits import OrbitSpace
-from mlfcs.constraints.translational import (
+from mlfcs.core.constraints import (
     build_translational_constraints,
     project_parameters,
 )
+from mlfcs.core.orbits import OrbitSpace
 
 
 def maximum_acoustic_sum_rule_drift(

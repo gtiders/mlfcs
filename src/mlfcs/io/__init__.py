@@ -4,10 +4,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from ase import Atoms
-
 if TYPE_CHECKING:
-    from mlfcs.ifc.model import ForceConstants
+    from mlfcs.model import ForceConstants
 
 Writer = Callable[..., None]
 
@@ -18,14 +16,9 @@ def write_force_constants(
     *,
     format: str,
     order: int | None = None,
-    primitive: Atoms | None = None,
-    supercell: Atoms | None = None,
+    primitive=None,
+    supercell=None,
 ) -> None:
-    """Write force constants in a named external or native format.
-
-    ``primitive`` and ``supercell`` may only describe an exactly equivalent
-    representation; writers receive the resulting validated export view.
-    """
     from mlfcs.io.export import build_export_view
 
     view = build_export_view(force_constants, primitive=primitive, supercell=supercell)
