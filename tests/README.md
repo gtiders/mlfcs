@@ -2,10 +2,6 @@
 
 [中文](README_ZH.md)
 
-New tests must follow the [tests and examples policy](../docs/TESTS_AND_EXAMPLES.md). The current
-`reference/` tree is transitional and is
-not the destination for new numerical comparisons against external programs.
-
 Tests validate current public behavior, mathematical constraints, and independent scientific
 references. They do not use the legacy MLFCS implementation as an oracle.
 

@@ -29,6 +29,11 @@ def write_force_constants(
 
         write_hdf5(target, force_constants)
         return
+    if normalized in {"numpy", "npz"}:
+        from mlfcs.io.numpy import write_numpy
+
+        write_numpy(target, force_constants)
+        return
     if normalized in {"alamode", "alamode_xml", "fcsxml"}:
         from mlfcs.io.alamode import AlamodeMirrorImageError, write_alamode
         from mlfcs.io.export import alamode_reduced_export_view

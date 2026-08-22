@@ -59,6 +59,7 @@ src/mlfcs/
   fitting/                       Wick force design and constrained Gram fitting
   io/
     hdf5.py                      dense or sparse generic storage
+    numpy.py                     NumPy storage
     phonopy.py                   full dense FC2 text output
     shengbte.py                  third- and fourth-order ShengBTE output
   sscha/
@@ -241,6 +242,7 @@ roughly 1.06 GiB peak memory, while the equivalent dense array would require app
 I/O is selected explicitly through `format`:
 
 - `hdf5`: generic dense or sparse storage for any order;
+- `numpy` / `npz`: materialized NumPy tensors;
 - `shengbte`: scientific-notation text for orders 3 and 4;
 - `phonopy`: full dense second-order text format;
 - `phonopy_hdf5`: streamed full-supercell FC2 HDF5;
@@ -248,13 +250,13 @@ I/O is selected explicitly through `format`:
 - `alamode`: combined FC2--FC4 ALAMODE FCSXML with explicit MLFCS atom mappings.
 
 The phonopy writer expands compact FC2 to `(N, N, 3, 3)`, applies translational equivalence to
-every first supercell atom, and preserves the explicit reference-supercell order on both atom
-axes. It has no phonopy runtime dependency. A generated K3Au3Sb2 3x3x3 file was successfully
+every first supercell atom, and converts both atom axes to phonopy's primitive-atom-grouped
+ordering. It has no phonopy runtime dependency. A generated K3Au3Sb2 3x3x3 file was successfully
 read by phonopy's own parser as `(216, 216, 3, 3)` with a maximum ASR residual of
 `2.60e-14`.
 
-The phonopy and phono3py HDF5 writers preserve reference order at the format boundary and stream
-one first-atom slab at a time. This avoids constructing a second complete
+The phonopy and phono3py HDF5 writers convert to primitive-atom-grouped order at the format
+boundary and stream one first-atom slab at a time. This avoids constructing a second complete
 full-supercell tensor solely for output.
 
 ShengBTE output is cluster-and-translation based rather than a simple global supercell tensor

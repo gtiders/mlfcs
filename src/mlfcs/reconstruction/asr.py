@@ -12,7 +12,6 @@ from mlfcs.core.constraints import (
     maximum_constraint_residual,
     project_parameters,
 )
-from mlfcs.core.geometry import PeriodicIndex
 from mlfcs.core.orbits import OrbitSpace
 
 
@@ -32,13 +31,10 @@ def build_rotational_constraints(
     orbit_space: OrbitSpace,
     supercell: Atoms,
     *,
-    index: PeriodicIndex | None = None,
     tolerance: float = 1e-12,
 ) -> sparse.csr_matrix:
     """Compatibility wrapper for the shared FC1=0 Born--Huang boundary."""
-    return build_harmonic_rotational_constraints(
-        orbit_space, supercell, index=index, tolerance=tolerance
-    )
+    return build_harmonic_rotational_constraints(orbit_space, supercell, tolerance=tolerance)
 
 
 def project_sum_rules(
@@ -46,7 +42,6 @@ def project_sum_rules(
     pivot_values: list[np.ndarray],
     *,
     supercell: Atoms,
-    index: PeriodicIndex | None = None,
     acoustic: bool,
     rotational: bool,
     tolerance: float = 1e-9,
@@ -58,7 +53,7 @@ def project_sum_rules(
     if acoustic:
         selected.append(translational)
     if rotational:
-        rotational_matrix = build_rotational_constraints(orbit_space, supercell, index=index)
+        rotational_matrix = build_rotational_constraints(orbit_space, supercell)
         matrices["rotational"] = rotational_matrix
         selected.append(rotational_matrix)
 

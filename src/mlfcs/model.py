@@ -86,12 +86,7 @@ class SparseOrderForceConstants:
             result[tuple(self.clusters.T)] = True
         return result
 
-    def to_dense(
-        self,
-        *,
-        max_bytes: int | None = 2_000_000_000,
-        primitive_index: np.ndarray | None = None,
-    ) -> np.ndarray:
+    def to_dense(self, *, max_bytes: int | None = 2_000_000_000) -> np.ndarray:
         """Materialize the compact tensor, warning when it exceeds the budget."""
         if max_bytes is not None and self.dense_nbytes > max_bytes:
             gib = self.dense_nbytes / 1024**3
@@ -105,8 +100,6 @@ class SparseOrderForceConstants:
         counts = np.zeros(self.dense_shape[: self.order], dtype=np.int16)
         for cluster, tensor in zip(self.clusters, self.tensors, strict=True):
             key = tuple(int(atom) for atom in cluster)
-            if primitive_index is not None:
-                key = (int(primitive_index[key[0]]), *key[1:])
             result[key] += tensor
             counts[key] += 1
         nonzero = counts > 0
@@ -131,10 +124,7 @@ class ForceConstants:
     def materialize(self, order: int, *, max_bytes: int | None = 2_000_000_000) -> np.ndarray:
         if order in self.arrays:
             return self.arrays[order]
-        primitive_index = self.supercell.arrays.get("primitive_index")
-        values = self.sparse[order].to_dense(
-            max_bytes=max_bytes, primitive_index=primitive_index
-        )
+        values = self.sparse[order].to_dense(max_bytes=max_bytes)
         self.arrays[order] = values
         return values
 

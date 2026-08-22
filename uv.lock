@@ -504,20 +504,20 @@ reference = [
 
 [package.metadata]
 requires-dist = [
-    { name = "ase", specifier = ">=3.23" },
-    { name = "h5py", specifier = ">=3.10" },
-    { name = "jax", specifier = ">=0.4.31" },
-    { name = "numpy", specifier = ">=1.26" },
-    { name = "scipy", specifier = ">=1.11" },
-    { name = "spglib", specifier = ">=2.5" },
+    { name = "ase", specifier = ">=3.29.0" },
+    { name = "h5py", specifier = ">=3.14" },
+    { name = "jax", specifier = ">=0.11.0" },
+    { name = "numpy", specifier = ">=1.26.0,<2.5" },
+    { name = "scipy", specifier = ">=1.16" },
+    { name = "spglib", specifier = ">=2.6" },
 ]
 
 [package.metadata.requires-dev]
 dev = [
     { name = "hiphive", specifier = ">=1.5" },
-    { name = "phono3py", specifier = ">=3.0" },
-    { name = "pytest", specifier = ">=8" },
-    { name = "ruff", specifier = ">=0.9" },
+    { name = "phono3py", specifier = ">=3.18" },
+    { name = "pytest", specifier = ">=8.4" },
+    { name = "ruff", specifier = ">=0.12" },
 ]
 reference = [{ name = "pypolymlp", specifier = ">=0.20.4" }]
 

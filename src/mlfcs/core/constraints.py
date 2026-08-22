@@ -7,7 +7,7 @@ from ase import Atoms
 from scipy import sparse
 from scipy.sparse.linalg import lsmr
 
-from mlfcs.core.geometry import PeriodicGeometry, PeriodicIndex
+from mlfcs.core.geometry import PeriodicGeometry
 from mlfcs.core.orbits import OrbitSpace
 
 
@@ -45,7 +45,6 @@ def build_harmonic_rotational_constraints(
     orbit_space: OrbitSpace,
     supercell: Atoms,
     *,
-    index: PeriodicIndex | None = None,
     tolerance: float = 1e-12,
 ) -> sparse.csr_matrix:
     """Build the FC1=0 Born--Huang rotational boundary for harmonic IFCs.
@@ -57,10 +56,6 @@ def build_harmonic_rotational_constraints(
     """
     if orbit_space.order != 2:
         raise ValueError("the FC1=0 rotational boundary requires order-2 force constants")
-    if index is not None:
-        return _build_materialized_harmonic_rotational_constraints(
-            orbit_space, supercell, index, tolerance=tolerance
-        )
     dimensions = [orbit.dimension for orbit in orbit_space.orbits]
     offsets = np.cumsum([0, *dimensions])
     rows: list[int] = []
@@ -93,56 +88,6 @@ def build_harmonic_rotational_constraints(
     return sparse.coo_matrix(
         (data, (rows, columns)),
         shape=(9 * n_anchors, int(offsets[-1])),
-    ).tocsr()
-
-
-def _build_materialized_harmonic_rotational_constraints(
-    orbit_space: OrbitSpace,
-    supercell: Atoms,
-    index: PeriodicIndex,
-    *,
-    tolerance: float,
-) -> sparse.csr_matrix:
-    """Build moments from the same averaged physical keys as sparse IFC output."""
-    dimensions = [orbit.dimension for orbit in orbit_space.orbits]
-    offsets = np.cumsum([0, *dimensions])
-    images: dict[tuple[int, int], list[tuple[np.ndarray, int]]] = {}
-    for orbit_index, orbit in enumerate(orbit_space.orbits):
-        representative = orbit.basis @ np.linalg.inv(orbit.basis[orbit.pivots])
-        for image in orbit.images:
-            first, second = (int(value) for value in image.cluster)
-            key = (int(index.primitive[first]), second)
-            images.setdefault(key, []).append(
-                (image.action.apply_columns(representative), int(offsets[orbit_index]))
-            )
-
-    n_parameters = int(offsets[-1])
-    positions = supercell.positions
-    geometry = PeriodicGeometry(supercell.cell, supercell.pbc)
-    axes = np.eye(3)
-    rows: list[int] = []
-    columns: list[int] = []
-    data: list[float] = []
-    for (site, second), values in images.items():
-        tensor_columns = np.zeros((9, n_parameters), dtype=float)
-        for local_columns, offset in values:
-            width = local_columns.shape[1]
-            tensor_columns[:, offset : offset + width] += local_columns
-        tensor_columns = tensor_columns.reshape(3, 3, n_parameters) / len(values)
-        first = index.representative(site)
-        vector, _ = geometry.mic(positions[second] - positions[first])
-        rigid_displacements = np.cross(axes, vector)
-        for force_direction in range(3):
-            for rotation_axis in range(3):
-                coefficients = rigid_displacements[rotation_axis] @ tensor_columns[force_direction]
-                nonzero = np.flatnonzero(np.abs(coefficients) > tolerance)
-                equation = (site * 3 + force_direction) * 3 + rotation_axis
-                rows.extend([equation] * len(nonzero))
-                columns.extend(int(value) for value in nonzero)
-                data.extend(float(coefficients[value]) for value in nonzero)
-    return sparse.coo_matrix(
-        (data, (rows, columns)),
-        shape=(9 * index.n_primitive, n_parameters),
     ).tocsr()
 
 

@@ -44,13 +44,10 @@ uv run pytest tests/reference/analytic/Morse_FCC_FC4/test_morse_fc4.py
 
 ## 测试要求
 
-新增或迁移验证内容前必须遵循[测试与案例设计原则](docs/TESTS_AND_EXAMPLES_ZH.md)。
-外部软件的材料数值对比属于 `examples/cases`，不应新增为普通 pytest oracle。
-
 - 单元测试覆盖确定性的数学和 I/O 行为；
 - 集成测试只使用公共 API；
 - 科学结论必须提供独立参考、来源、单位、原子顺序映射、容差和独立 CI 步骤；
-- 第三方参考文件必须在案例 README 中说明来源和再分发条款；
+- 大型参考文件必须说明再分发条款并提供校验值；
 - 不得把旧版 MLFCS 当作当前测试的真值。
 
 拉取请求应保持范围清晰并解释科学或 API 动机。公共行为变化时同步更新中英文文档，

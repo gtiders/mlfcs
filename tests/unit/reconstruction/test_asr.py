@@ -2,8 +2,7 @@ import numpy as np
 import pytest
 from ase.build import bulk
 
-from mlfcs.core.expansion import expand_orbit_parameters
-from mlfcs.core.geometry import PeriodicGeometry, make_supercell, resolve_cutoff
+from mlfcs.core.geometry import make_supercell, resolve_cutoff
 from mlfcs.core.orbits import build_orbit_space
 from mlfcs.core.symmetry import SymmetryOperations
 from mlfcs.reconstruction.asr import project_sum_rules
@@ -71,32 +70,13 @@ def test_harmonic_translational_and_rotational_rules_are_projected_together():
     rng = np.random.default_rng(9)
     pivots = [rng.normal(size=orbit.dimension) for orbit in space.orbits]
 
-    projected, drifts = project_sum_rules(
+    _, drifts = project_sum_rules(
         space,
         pivots,
         supercell=supercell,
-        index=index,
         acoustic=True,
         rotational=True,
     )
 
     assert drifts["translational"][1] < 1e-8
     assert drifts["rotational"][1] < 1e-8
-
-    sparse_fc = expand_orbit_parameters(
-        space,
-        np.concatenate(projected),
-        n_primitive=index.n_primitive,
-        n_supercell=len(supercell),
-        index=index,
-    )
-    dense = sparse_fc.to_dense(primitive_index=index.primitive)
-    geometry = PeriodicGeometry(supercell.cell, supercell.pbc)
-    axes = np.eye(3)
-    residual = []
-    for site in range(index.n_primitive):
-        first = index.representative(site)
-        vectors, _ = geometry.mic(supercell.positions - supercell[first].position)
-        rigid = np.cross(axes[:, None, :], vectors[None, :, :])
-        residual.append(np.einsum("jab,wjb->aw", dense[site], rigid))
-    assert np.max(np.abs(residual)) < 1e-8

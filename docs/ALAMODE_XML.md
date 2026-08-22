@@ -48,8 +48,8 @@ positions are unchanged.
 ## Provenance and compatibility note
 
 The layout and mirror expansion are adapted from the MIT-licensed `alm.fcsxml.Fcsxml` writer in
-`ttadano/ALM` revision `f1d668f210d3e95355643132144f3fd1ec10d4d7`; its complete attribution and
-license are embedded at the top of `src/mlfcs/io/alamode.py`. Semantic tests cover multicomponent ordering,
+`ttadano/ALM` revision `f1d668f210d3e95355643132144f3fd1ec10d4d7`; see
+[third-party provenance](../THIRD_PARTY.md). Semantic tests cover multicomponent ordering,
 translation maps, mirror degeneracy, repeated atoms, unit conversion, and FC2--FC4 sections.
 
 ALAMODE's separate Python XML reader may choose an origin-shifted primitive cell when it invokes

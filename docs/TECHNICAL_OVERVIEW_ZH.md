@@ -63,7 +63,7 @@ JAX 只用于联合拟合中的稠密 Wick 力特征核；团簇枚举、张量�
 
 ## I/O 与兼容性
 
-`format` 显式选择输出：任意阶可用原生 `hdf5`，二阶可用 phonopy 文本或 HDF5，
+`format` 显式选择输出：任意阶可用 `hdf5`/`numpy`，二阶可用 phonopy 文本或 HDF5，
 三阶可用 phono3py HDF5，三阶和四阶可用 ShengBTE。ShengBTE 写出与重建结果共享的
 对称闭合周期支撑域，并在格式边界解析联合相容的最近周期像。
 

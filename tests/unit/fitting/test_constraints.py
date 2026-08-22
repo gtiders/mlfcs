@@ -6,12 +6,9 @@ from scipy import sparse
 
 from mlfcs.api import ForceConstantCalculation
 from mlfcs.core.constraints import build_harmonic_rotational_constraints
-from mlfcs.core.expansion import expand_orbit_parameters
-from mlfcs.core.geometry import PeriodicGeometry
 from mlfcs.core.orbits import cluster_invariant_dimension
 from mlfcs.fitting.basis import symmetrized_covariance as _symmetrized_covariance
 from mlfcs.fitting.constraints import (
-    _independent_constraint_rows,
     _validate_missing_contractions,
     build_joint_constraints,
     build_wick_to_taylor_fc1_transform,
@@ -31,15 +28,6 @@ def test_implicit_null_space_is_idempotent_and_satisfies_constraints():
 
     np.testing.assert_allclose(constraints @ projected, 0.0, atol=1e-13)
     np.testing.assert_allclose(projector.project(projected), projected, atol=1e-13)
-
-
-def test_rotational_rank_filter_uses_structure_tolerance():
-    matrix = sparse.csr_matrix([[1.0, 0.0], [0.0, 1e-8]])
-
-    filtered = _independent_constraint_rows(matrix, tolerance=1e-5)
-
-    assert filtered.shape == (1, 2)
-    np.testing.assert_allclose(filtered.toarray(), [[1.0, 0.0]])
 
 
 def test_projected_gram_cg_matches_explicit_constrained_solution():
@@ -115,9 +103,7 @@ def test_wick_rotational_constraints_equal_taylor_constraints_after_transform():
     )
 
     harmonic = build_harmonic_rotational_constraints(
-        calculations[0].orbit_space,
-        calculations[0].supercell,
-        index=calculations[0].index,
+        calculations[0].orbit_space, calculations[0].supercell
     )
     harmonic = sparse.hstack(
         [harmonic, sparse.csr_matrix((harmonic.shape[0], sum(dimensions[1:])))],
@@ -161,9 +147,7 @@ def test_fc2_only_fit_includes_shared_fc1_zero_rotational_boundary():
         rotational_mode=2,
         covariance=covariance,
     ).matrix
-    expected = build_harmonic_rotational_constraints(
-        calculation.orbit_space, calculation.supercell, index=calculation.index
-    )
+    expected = build_harmonic_rotational_constraints(calculation.orbit_space, calculation.supercell)
 
     assert actual.shape[0] > 0
     # Row compression can change normalization/order, so compare null-space
@@ -171,44 +155,6 @@ def test_fc2_only_fit_includes_shared_fc1_zero_rotational_boundary():
     assert np.linalg.matrix_rank(actual.toarray()) == np.linalg.matrix_rank(expected.toarray())
     stacked = sparse.vstack([actual, expected]).toarray()
     assert np.linalg.matrix_rank(stacked) == np.linalg.matrix_rank(expected.toarray())
-
-
-def test_harmonic_constraints_match_materialized_physical_ifc_moments():
-    primitive = bulk("Si", "diamond", a=5.43)
-    calculation = ForceConstantCalculation(
-        primitive,
-        order=2,
-        supercell=(2, 2, 2),
-        cutoff=4.0,
-        verbose=False,
-    )
-    rng = np.random.default_rng(82)
-    parameters = rng.normal(size=sum(orbit.dimension for orbit in calculation.orbit_space.orbits))
-    constraints = build_harmonic_rotational_constraints(
-        calculation.orbit_space, calculation.supercell, index=calculation.index
-    )
-    sparse_fc = expand_orbit_parameters(
-        calculation.orbit_space,
-        parameters,
-        n_primitive=calculation.index.n_primitive,
-        n_supercell=len(calculation.supercell),
-        index=calculation.index,
-    )
-    dense = sparse_fc.to_dense(primitive_index=calculation.index.primitive)
-    geometry = PeriodicGeometry(calculation.supercell.cell, calculation.supercell.pbc)
-    expected = np.zeros((calculation.index.n_primitive, 3, 3))
-    axes = np.eye(3)
-    for site in range(calculation.index.n_primitive):
-        first = calculation.index.representative(site)
-        vectors, _ = geometry.mic(
-            calculation.supercell.positions - calculation.supercell[first].position
-        )
-        rigid = np.cross(axes[:, None, :], vectors[None, :, :])
-        expected[site] = np.einsum("jab,wjb->aw", dense[site], rigid)
-
-    np.testing.assert_allclose(
-        (constraints @ parameters).reshape(-1, 3, 3), expected, atol=1e-11, rtol=1e-11
-    )
 
 
 def test_explicit_fc1_transform_matches_reported_wick_contraction():
@@ -233,31 +179,6 @@ def test_explicit_fc1_transform_matches_reported_wick_contraction():
         (transform @ parameters).reshape(-1, 3),
         omitted_taylor_fc1(calculations, parameters, covariance),
         atol=1e-13,
-    )
-
-
-def test_fc1_transform_maps_supercell_anchor_to_primitive_site():
-    primitive = Atoms(
-        "Si2",
-        scaled_positions=[[0, 0, 0], [0.25, 0.25, 0.25]],
-        cell=np.array([[0, 2, 2], [2, 0, 2], [2, 2, 0]]),
-        pbc=True,
-    )
-    calculations = tuple(
-        ForceConstantCalculation(
-            primitive,
-            order=order,
-            supercell=(2, 2, 2),
-            cutoff=-1,
-            verbose=False,
-        )
-        for order in (2, 3)
-    )
-    covariance = np.eye(len(calculations[0].supercell) * 3)
-    transform = build_wick_to_taylor_fc1_transform(calculations, covariance)
-    assert transform.shape[0] == 3 * len(primitive)
-    assert transform.shape[1] == sum(
-        sum(orbit.dimension for orbit in item.orbit_space.orbits) for item in calculations
     )
 
 

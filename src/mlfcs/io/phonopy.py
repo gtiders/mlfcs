@@ -17,11 +17,12 @@ def write_phonopy(
 
     The input uses mlfcs' compact ``(n_primitive, n_supercell, 3, 3)``
     representation. The file uses phonopy's full supercell representation
-    while preserving the explicit reference-supercell atom order.
+    and primitive-atom-grouped supercell ordering.
     """
     compact = np.asarray(force_constants)
     n_supercell = len(supercell)
     primitive = np.asarray(supercell.arrays["primitive_index"], dtype=np.int64)
+    translations = np.asarray(supercell.arrays["cell_translation"], dtype=np.int64)
     n_primitive = int(primitive.max()) + 1
     expected = (n_primitive, n_supercell, 3, 3)
     if compact.shape != expected:
@@ -29,10 +30,9 @@ def write_phonopy(
 
     full_internal = expand_compact_fc2(compact, supercell)
 
-    # Atom axes retain the explicit reference-supercell order. Phonopy does
-    # not require primitive-site grouping; its structure and FC2 labels only
-    # have to use the same order.
-    full = full_internal
+    # Phonopy groups all translated images of each primitive atom together.
+    grouped = np.lexsort((translations[:, 0], translations[:, 1], translations[:, 2], primitive))
+    full = full_internal[grouped][:, grouped]
     lines = [f"{n_supercell:4d} {n_supercell:4d}"]
     for first in range(n_supercell):
         for second in range(n_supercell):

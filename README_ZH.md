@@ -330,12 +330,6 @@ fc2 = calculation.reap(
 单阶 API 只允许在二阶设置 `rotational_sum_rule=True`。详见
 [求和规则](docs/SUM_RULES_ZH.md)。
 
-旋转约束的数值条件处理目前仍是已知限制。MLFCS 当前先按结构容差判断 FC1–FC2
-边界的数值秩，再把保留方向作为严格零空间约束；这不等价于 hiphive 使用岭正则的
-Huang/Born–Huang 软投影。接近零的奇异方向可能因单位、尺度和截断而得到不同处理。
-在无量纲条件判据与独立软投影完成前，不应把 `rotational_invariance=2` 理解为
-hiphive 的 Huang + Born–Huang 组合修正。详见[路线图](docs/ROADMAP_ZH.md)。
-
 ## 输出格式
 
 输出格式必须显式指定：
@@ -345,6 +339,7 @@ fc2.write("FORCE_CONSTANTS", format="phonopy")
 fc2.write("fc2.hdf5", format="phonopy_hdf5")
 fc3.write("fc3.h5", format="hdf5")
 fc3.write("fc3.hdf5", format="phono3py_hdf5")
+fc3.write("fc3.npz", format="numpy")
 fc3.write("FORCE_CONSTANTS_3RD", format="shengbte")
 fc4.write("FORCE_CONSTANTS_4TH", format="shengbte")
 fc234.write("force_constants.xml", format="alamode")
@@ -361,6 +356,7 @@ fc234 = read_hdf5("fc3.h5")
 | 格式 | 阶数 | 表示 |
 |---|---|---|
 | `hdf5` | 任意阶 | 原生 v2 晶格标记稀疏 IFC（`sites`、平移代表与笛卡尔张量） |
+| `numpy` / `npz` | 任意阶 | 物化后的 NumPy 数组 |
 | `shengbte` | 3、4 | 对称闭合、基于晶格平移的文本块 |
 | `phonopy` | 2 | 完整稠密超胞 FC2 文本 |
 | `phonopy_hdf5` | 2 | phonopy 兼容的完整超胞 `force_constants` HDF5 |
@@ -370,7 +366,7 @@ fc234 = read_hdf5("fc3.h5")
 ShengBTE 严格写出重建后稀疏结果携带的对称闭合团簇支撑域，并把晶格 residue 解析为
 联合相容的最近周期像。
 
-phonopy 和 phono3py HDF5 保持显式 reference 超胞顺序，并逐个第一原子 slab
+phonopy 和 phono3py HDF5 使用按原胞原子分组的超胞顺序，并逐个第一原子 slab
 流式写入，因此不会在内存中构造完整 FC3。原生 `hdf5` 使用 v2 schema，保存 primitive、
 reference、经验证映射和晶格标记稀疏 IFC；旧原生 schema 被明确拒绝。
 
@@ -474,4 +470,4 @@ hiphive 和 phono3py 仅作为开发验证依赖。CI 中的 AlN 三阶基准先
 ## 许可证
 
 MLFCS 使用 [GNU 通用公共许可证第 3 版或更高版本](LICENSE)发布。改编的第三方组件和
-ALAMODE 适配器的第三方来源与许可条款直接保留在其源码模块顶部。
+再分发参考数据见[第三方来源说明](THIRD_PARTY_ZH.md)。
