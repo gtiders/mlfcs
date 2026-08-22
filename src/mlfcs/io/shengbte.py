@@ -6,9 +6,9 @@ from pathlib import Path
 import numpy as np
 from ase import Atoms
 
-from mlfcs.core.geometry import PeriodicGeometry, PeriodicIndex
 from mlfcs.ifc.model import SparseOrderForceConstants
 from mlfcs.io._text import zero_small_scalar
+from mlfcs.structure.geometry import PeriodicGeometry, PeriodicIndex
 
 _TEXT_ZERO_TOLERANCE = 1e-8
 

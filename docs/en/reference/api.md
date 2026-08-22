@@ -11,9 +11,9 @@ are the normative usage guide; generated signatures document accepted arguments 
 
 ::: mlfcs.ifc.model.ForceConstants
 
-::: mlfcs.core.geometry.StructureRelation
+::: mlfcs.structure.geometry.StructureRelation
 
-::: mlfcs.core.geometry.PeriodicGeometry
+::: mlfcs.structure.geometry.PeriodicGeometry
 
 ## Fitting, SSCHA, and SCPH workflows
 

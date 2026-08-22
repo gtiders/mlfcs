@@ -3,7 +3,7 @@ import pytest
 from ase import Atoms, units
 
 from mlfcs.anharmonic.common.ensemble import HarmonicEnsemble
-from mlfcs.core.geometry import make_supercell
+from mlfcs.structure.geometry import make_supercell
 
 
 def _chain(spring=1.0):

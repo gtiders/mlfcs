@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import numpy as np
 
-from mlfcs.core.geometry import PeriodicIndex
-from mlfcs.core.orbits import OrbitSpace
+from mlfcs.clusters.orbits import OrbitSpace
 from mlfcs.ifc.model import SparseOrderForceConstants
+from mlfcs.structure.geometry import PeriodicIndex
 
 
 def expand_orbit_parameters(

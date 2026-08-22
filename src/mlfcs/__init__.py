@@ -9,15 +9,15 @@ from mlfcs.constraints.harmonic import (
     HarmonicConstraintResult,
     enforce_harmonic_constraints,
 )
-from mlfcs.core.geometry import (
+from mlfcs.finite_difference.stencil import CentralDifferenceStencil
+from mlfcs.ifc.model import ForceConstants, SparseOrderForceConstants
+from mlfcs.public.io import read_hdf5, write_force_constants
+from mlfcs.structure.geometry import (
     PeriodicIndex,
     StructureRelation,
     align_structures,
     build_supercell,
 )
-from mlfcs.finite_difference.stencil import CentralDifferenceStencil
-from mlfcs.ifc.model import ForceConstants, SparseOrderForceConstants
-from mlfcs.public.io import read_hdf5, write_force_constants
 
 __all__ = [
     "SSCHA",

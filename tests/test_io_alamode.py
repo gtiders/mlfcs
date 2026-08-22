@@ -6,9 +6,9 @@ from ase import Atoms
 from ase.geometry import minkowski_reduce
 from ase.units import Bohr, Rydberg
 
-from mlfcs.core.geometry import StructureRelation, make_supercell
 from mlfcs.ifc.model import ForceConstants, SparseOrderForceConstants
 from mlfcs.io.alamode import AlamodeMirrorImageError, write_alamode
+from mlfcs.structure.geometry import StructureRelation, make_supercell
 
 
 def _sparse(order, n_primitive, n_supercell, cluster, component, value):
@@ -130,7 +130,7 @@ def test_alamode_sparse_entries_follow_reordered_reference_labels(tmp_path):
     primitive = Atoms("Si", positions=[[0, 0, 0]], cell=np.eye(3) * 4, pbc=True)
     supercell, _ = make_supercell(primitive, [[2, 1, 0], [0, 1, 0], [0, 0, 1]])
     supercell = supercell[[1, 0]]
-    from mlfcs.core.geometry import PeriodicIndex
+    from mlfcs.structure.geometry import PeriodicIndex
 
     index = PeriodicIndex(
         supercell.arrays["primitive_index"],

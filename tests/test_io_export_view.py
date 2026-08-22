@@ -3,9 +3,9 @@ import pytest
 from ase import Atoms
 
 from mlfcs.api import ForceConstantCalculation
-from mlfcs.core.geometry import make_supercell
 from mlfcs.io.export import build_export_view
 from mlfcs.io.hdf5 import read_hdf5
+from mlfcs.structure.geometry import make_supercell
 
 
 def _result():

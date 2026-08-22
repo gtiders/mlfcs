@@ -6,8 +6,8 @@ from pathlib import Path
 import h5py
 import numpy as np
 
-from mlfcs.core.geometry import PeriodicIndex
 from mlfcs.ifc.model import ForceConstants
+from mlfcs.structure.geometry import PeriodicIndex
 
 
 def write_phonon_hdf5(

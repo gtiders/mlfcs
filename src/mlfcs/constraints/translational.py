@@ -6,7 +6,7 @@ import numpy as np
 from scipy import sparse
 from scipy.sparse.linalg import lsmr
 
-from mlfcs.core.orbits import OrbitSpace
+from mlfcs.clusters.orbits import OrbitSpace
 
 
 def build_translational_constraints(

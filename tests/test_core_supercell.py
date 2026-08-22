@@ -3,7 +3,7 @@ from ase import Atoms
 from ase.build import bulk
 
 from mlfcs import build_supercell
-from mlfcs.core.geometry import make_supercell
+from mlfcs.structure.geometry import make_supercell
 
 
 def test_supercell_index_roundtrip():

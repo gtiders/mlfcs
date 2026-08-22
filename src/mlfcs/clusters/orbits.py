@@ -6,8 +6,8 @@ from itertools import permutations
 import numpy as np
 from ase import Atoms
 
-from mlfcs.core.geometry import PeriodicGeometry, PeriodicIndex
 from mlfcs.core.symmetry import SymmetryOperations
+from mlfcs.structure.geometry import PeriodicGeometry, PeriodicIndex
 
 
 @dataclass(frozen=True, slots=True)

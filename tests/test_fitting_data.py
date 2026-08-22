@@ -3,8 +3,8 @@ import pytest
 from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
 
-from mlfcs.core.geometry import StructureRelation
 from mlfcs.fitting import FitDataset
+from mlfcs.structure.geometry import StructureRelation
 
 
 def _with_forces(atoms, forces):

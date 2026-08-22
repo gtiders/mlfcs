@@ -55,8 +55,8 @@ def _imports(module: str) -> set[str]:
 
 def test_low_level_packages_do_not_depend_on_workflow_or_writer_modules():
     for module in (
-        "core.geometry",
-        "core.orbits",
+        "structure.geometry",
+        "clusters.orbits",
         "constraints.harmonic",
         "constraints.translational",
     ):
