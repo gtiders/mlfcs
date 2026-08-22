@@ -35,22 +35,14 @@ def write_force_constants(
         write_numpy(target, force_constants)
         return
     if normalized in {"alamode", "alamode_xml", "fcsxml"}:
-        from mlfcs.io.alamode import AlamodeMirrorImageError, write_alamode
-        from mlfcs.io.export import alamode_reduced_export_view
+        from mlfcs.io.alamode import write_alamode
 
         selected_orders = (
             tuple(value for value in force_constants.orders if value in {2, 3, 4})
             if order is None
             else (order,)
         )
-        try:
-            write_alamode(target, force_constants, orders=selected_orders)
-        except AlamodeMirrorImageError as original_error:
-            try:
-                reduced = alamode_reduced_export_view(force_constants)
-            except ValueError:
-                raise original_error
-            write_alamode(target, reduced.force_constants, orders=selected_orders)
+        write_alamode(target, force_constants, orders=selected_orders)
         return
     if normalized == "phonopy":
         from mlfcs.io.phonopy import write_phonopy

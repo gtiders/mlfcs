@@ -27,10 +27,6 @@ _MIRROR_SHIFTS = np.asarray(
 _MIRROR_TOLERANCE_BOHR = 1.0e-3
 
 
-class AlamodeMirrorImageError(ValueError):
-    """The physical MIC cannot be represented by ALAMODE's 27 images."""
-
-
 def write_alamode(
     target: str | Path,
     force_constants: ForceConstants,
@@ -145,7 +141,7 @@ class _AlamodeGeometry:
 
         _, general_distance = PeriodicGeometry(cell, self.supercell.pbc).mic(delta)
         if not np.isclose(minimum * Bohr, general_distance, atol=1.0e-8, rtol=1.0e-10):
-            raise AlamodeMirrorImageError(
+            raise ValueError(
                 "ALAMODE XML's 27-image convention cannot represent the minimum image "
                 f"between supercell atoms {first} and {second}"
             )
@@ -296,4 +292,4 @@ def _vector_text(vector: np.ndarray) -> str:
     return " " + " ".join(f"{float(value):.15e}" for value in vector)
 
 
-__all__ = ["AlamodeMirrorImageError", "write_alamode"]
+__all__ = ["write_alamode"]
