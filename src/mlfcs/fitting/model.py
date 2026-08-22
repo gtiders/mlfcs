@@ -72,7 +72,6 @@ class FittingResult:
     parameter_scale: np.ndarray
     covariance: np.ndarray
     diagnostics: FittingDiagnostics
-    cache_directory: Path | None = None
 
 
 @partial(jax.jit, donate_argnums=(0, 1))
@@ -458,7 +457,6 @@ class ForceConstantFitter:
             parameter_scale,
             covariance,
             diagnostics,
-            gram_system.cache_directory,
         )
         return result
 
