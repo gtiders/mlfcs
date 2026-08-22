@@ -3,7 +3,6 @@ import numpy as np
 import pytest
 from ase import Atoms
 
-from mlfcs import read_hdf5 as public_read_hdf5
 from mlfcs.api import ForceConstantCalculation
 from mlfcs.io.hdf5 import read_hdf5
 
@@ -15,7 +14,7 @@ def test_native_hdf5_v2_roundtrip_preserves_lattice_labelled_sparse_ifcs(tmp_pat
     result = calculation.reap(np.zeros((len(calculation.plan), len(reference), 3)))
     target = tmp_path / "fc-v2.h5"
     result.write(target, format="hdf5")
-    restored = public_read_hdf5(target)
+    restored = read_hdf5(target)
 
     assert restored.relation is not None
     assert restored.orders == result.orders

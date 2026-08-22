@@ -363,14 +363,6 @@ fc4.write("FORCE_CONSTANTS_4TH", format="shengbte")
 fc234.write("force_constants.xml", format="alamode")
 ```
 
-Read the native sparse HDF5 format through the matching public API:
-
-```python
-from mlfcs import read_hdf5
-
-fc234 = read_hdf5("fc3.h5")
-```
-
 | Format | Orders | Representation |
 |---|---|---|
 | `hdf5` | Any | Native v2 lattice-labelled sparse IFCs (`sites`, translation representatives, Cartesian tensors) |
