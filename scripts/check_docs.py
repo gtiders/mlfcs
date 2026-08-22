@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / "docs"
 LEGACY_MATH = re.compile(r"(?<!\\)\\(?:\(|\)|\[|\])")
 VALID_STATUS = {"stable", "experimental", "planned", "research", "deprecated"}
+MIN_PAGE_CONTENT_CHARACTERS = 220
 
 
 def _markdown_paths(language: str) -> set[Path]:
@@ -63,6 +64,14 @@ def main() -> int:
                 errors.append(f"missing audience: {path.relative_to(ROOT)}")
             if not re.search(r"^code_verified:\s*\S+\s*$", front_matter, re.MULTILINE):
                 errors.append(f"missing code_verified: {path.relative_to(ROOT)}")
+            body = text[text.find("\n---\n", 4) + 5 :]
+            content_size = len("".join(body.split()))
+            if content_size < MIN_PAGE_CONTENT_CHARACTERS:
+                errors.append(
+                    "documentation page is still a short stub "
+                    f"({content_size} < {MIN_PAGE_CONTENT_CHARACTERS} characters): "
+                    f"{path.relative_to(ROOT)}"
+                )
 
     for relative in sorted(english & chinese):
         en_front = _front_matter((DOCS / "en" / relative).read_text(encoding="utf-8"))
