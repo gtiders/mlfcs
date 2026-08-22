@@ -38,7 +38,6 @@ jobs:
 
       - name: Place English site at Pages root
         run: |
-          cp -a site/zh/zh/. site/zh/
           cp -a site/en/. site/
           test -f site/index.html
           test -f site/zh/index.html
