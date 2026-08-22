@@ -50,6 +50,7 @@ fitter = ForceConstantFitter(
 )
 result = fitter.fit(
     read("train.xyz", index=":"),
+    solver="gram",
     batch_size=4,
     validation_split=0.1,
     tolerance=1e-7,
@@ -62,15 +63,25 @@ result.force_constants.write("FORCE_CONSTANTS_3RD", format="shengbte", order=3)
 result.force_constants.write("FORCE_CONSTANTS_4TH", format="shengbte", order=4)
 ```
 
-The fitter has one solver path. It streams each design batch into the sufficient statistics
-`A.T @ A` and `A.T @ F`
+The default solver is matrix-free LSMR. It evaluates `A @ x` and `A.T @ r` in bounded JAX batches
+instead of materializing the force design matrix. Per-parameter column-norm preconditioning puts
+features from all fitted orders on comparable numerical scales. `verbose=True` prints
+column-estimation and
+operator progress plus LSMR iteration diagnostics.
+
+Set `solver="cached_lsmr"` when repeated matrix-free evaluations dominate runtime. MLFCS then
+constructs the exact linear force-design matrix in JAX batches, stores it in an automatically
+managed temporary disk mapping, and reuses it throughout LSMR. The cache path, storage precision,
+and internal matrix blocks are intentionally not API options; the cache is deleted after fitting.
+This backend trades temporary storage and operating-system page cache for speed. `batch_size` is
+limited to 1--4 for both backends and controls only the number of structures processed together.
+
+`solver="gram"` streams each design batch into the sufficient statistics `A.T @ A` and `A.T @ F`
 without storing the full snapshot-dependent design matrix. Orbit tensors are grouped automatically
 by their exact image count and independent-parameter dimension; these internal buckets are not API
 settings. On CPU, JAX constructs each design batch and mature OpenBLAS/SciPy routines accumulate
 and solve the Gram system. When a JAX GPU backend is active, design construction and Gram
 accumulation remain on the GPU and only the completed Gram matrix is transferred once.
-Per-parameter exact column-norm preconditioning is obtained from the Gram diagonal. `batch_size`
-is limited to 1--4 and controls only how many structures contribute to a design batch.
 
 Equality constraints are enforced through an implicit null-space projector based on a
 rank-revealing pseudoinverse of `C @ C.T`; projected conjugate gradient therefore remains in
@@ -86,7 +97,7 @@ relative force error = ||F_reference - F_model||₂ / ||F_reference||₂
 ```
 
 It is printed as a percentage together with force RMSE in eV/angstrom, validation error,
-order-resolved force-contribution RMS, projected normal residual, and constraint drift.
+order-resolved force-contribution RMS, LSMR residuals, condition estimate, and constraint drift.
 
 `rotational_invariance=2` follows ALAMODE `ICONST=2`: Cartesian adjacent-order rotational
 constraints are imposed while the maximum-order/next-order boundary is omitted.

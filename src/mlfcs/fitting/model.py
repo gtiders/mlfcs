@@ -6,6 +6,7 @@ from functools import partial
 from hashlib import sha256
 from math import factorial
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from time import perf_counter
 
 import jax
@@ -16,13 +17,17 @@ from ase.geometry import find_mic
 from scipy import sparse
 from scipy.linalg import pinvh
 from scipy.linalg.blas import dsyrk
-from scipy.sparse.linalg import LinearOperator, cg
+from scipy.sparse.linalg import LinearOperator, cg, lsmr, minres
 
 from mlfcs.api import ForceConstantCalculation
 from mlfcs.fitting.constraints import build_joint_constraints, build_wick_to_taylor_transform
 from mlfcs.fitting.data import FitDataset, ReferenceSupercell
 from mlfcs.model import ForceConstants, SparseOrderForceConstants
-from mlfcs.reconstruction.asr import _project_parameters
+from mlfcs.reconstruction.asr import (
+    _project_parameters,
+    maximum_acoustic_sum_rule_drift,
+    project_acoustic_sum_rule,
+)
 from mlfcs.runtime import JaxPlatform, configure_jax
 
 
@@ -88,9 +93,7 @@ class ForceConstantFitter:
         if not self.orders or self.orders[0] < 2:
             raise ValueError("orders must contain integers greater than or equal to 2")
         if self.orders != tuple(range(self.orders[0], self.orders[-1] + 1)):
-            raise ValueError(
-                "orders must be consecutive so adjacent-order effects are identifiable"
-            )
+            raise ValueError("orders must be consecutive so adjacent-order effects are identifiable")
         self.cutoffs = dict(cutoffs or {})
         self.symprec = symprec
         self.jax_platform = jax_platform
@@ -129,6 +132,7 @@ class ForceConstantFitter:
         self,
         structures: list[Atoms] | tuple[Atoms, ...],
         *,
+        solver: str = "lsmr",
         batch_size: int = 1,
         validation_split: float = 0.1,
         tolerance: float = 1e-8,
@@ -138,15 +142,19 @@ class ForceConstantFitter:
         acoustic_sum_rule: bool = True,
         rotational_invariance: int = 0,
         precondition: bool = True,
+        precondition_probes: int = 16,
+        dense_dtype: str = "float64",
     ) -> FittingResult:
         if not 0 <= validation_split < 1:
             raise ValueError("validation_split must be in [0, 1)")
         if batch_size < 1 or batch_size > 4:
             raise ValueError("batch_size must be between 1 and 4")
-        if max_iterations < 1:
-            raise ValueError("max_iterations must be positive")
+        if max_iterations < 1 or precondition_probes < 1:
+            raise ValueError("batch_size, max_iterations, and precondition_probes must be positive")
         if tolerance <= 0 or damping < 0:
             raise ValueError("tolerance must be positive and damping must be non-negative")
+        if solver not in {"dense", "lsmr", "cached_lsmr", "gram"}:
+            raise ValueError("solver must be 'dense', 'lsmr', 'cached_lsmr', or 'gram'")
         dataset = FitDataset.from_atoms(self.geometry, structures)
         permutation = self.geometry.internal_permutation
         displacements = dataset.displacements[:, permutation]
@@ -167,14 +175,31 @@ class ForceConstantFitter:
             batch_size,
             reporter=self._report if self.verbose else None,
         )
+        cached_operator = None
+        gram_system = None
+        solve_operator = operator
+        if solver == "cached_lsmr":
+            cached_operator = _CachedForceOperator.from_operator(operator)
+            solve_operator = cached_operator
         target = forces[training].reshape(-1)
-        gram_system = _StreamingGramSystem.from_operator(operator, target)
+        if solver == "gram":
+            gram_system = _StreamingGramSystem.from_operator(operator, target)
         if precondition:
-            parameter_scale = gram_system.exact_column_scale()
-            self._report_parameter_scale(parameter_scale)
+            if gram_system is not None:
+                parameter_scale = gram_system.exact_column_scale()
+                scale_probes = "exact streamed"
+            elif cached_operator is not None:
+                parameter_scale = cached_operator.exact_column_scale()
+                scale_probes = "exact cached"
+            else:
+                parameter_scale = operator.estimate_column_scale(precondition_probes, rng)
+                scale_probes = str(precondition_probes)
+                parameter_scale = self._stabilize_parameter_scale(parameter_scale)
+            self._report_parameter_scale(parameter_scale, scale_probes)
         else:
             parameter_scale = np.ones(self.n_parameters)
             self._report("- Parameter preconditioning disabled")
+        scaled_operator = solve_operator.scaled(parameter_scale)
         constraints = build_joint_constraints(
             self.calculations,
             acoustic=acoustic_sum_rule,
@@ -186,34 +211,68 @@ class ForceConstantFitter:
             f"({constraints.translational_rows} ASR, "
             f"{constraints.rotational_rows} rotational before compression)"
         )
-        self._report("Solving the force-only least-squares problem with streamed Gram")
+        self._report(f"Solving the force-only least-squares problem with {solver}")
         self._report(f"- Equations: {len(target)}, unknowns: {self.n_parameters}")
         scaled_constraints = constraints.matrix @ sparse.diags(parameter_scale)
         solve_constraints = _normalize_constraint_rows(scaled_constraints)
-        solution = gram_system.solve(
-            parameter_scale,
-            solve_constraints,
-            tolerance=tolerance,
-            max_iterations=max_iterations,
-            damping=damping,
-            verbose=self.verbose,
-        )
-        scaled_parameters, stop_code, iterations, residual_norm, normal_residual, condition = (
-            solution
-        )
+        if solver == "gram":
+            solution = gram_system.solve(
+                parameter_scale,
+                solve_constraints,
+                tolerance=tolerance,
+                max_iterations=max_iterations,
+                damping=damping,
+                verbose=self.verbose,
+            )
+            scaled_parameters, stop_code, iterations, residual_norm, normal_residual, condition = solution
+        elif solver == "dense":
+            solution = _solve_dense(
+                scaled_operator,
+                solve_constraints,
+                target,
+                dtype=np.dtype(dense_dtype),
+                tolerance=tolerance,
+                reporter=self._report if self.verbose else None,
+            )
+            scaled_parameters, stop_code, iterations, residual_norm, normal_residual, condition = solution
+        elif constraints.matrix.shape[0]:
+            solution = _solve_constrained_lsmr(
+                scaled_operator,
+                solve_constraints,
+                target,
+                tolerance=tolerance,
+                max_iterations=max_iterations,
+                damping=damping,
+                verbose=self.verbose,
+            )
+            scaled_parameters, stop_code, iterations, residual_norm, normal_residual, condition = solution
+        else:
+            raw = lsmr(
+                scaled_operator, target, damp=damping, atol=tolerance, btol=tolerance,
+                maxiter=max_iterations, show=self.verbose,
+            )
+            scaled_parameters, stop_code, iterations = raw[:3]
+            residual_norm, normal_residual, condition = raw[3], raw[4], raw[6]
         if solve_constraints.shape[0]:
             # Krylov stopping criteria control the full KKT residual and can
             # leave a visible equality-constraint tail.  Finish in null(C)
             # before converting back to physical FC parameters.
-            projection_tolerance = tolerance / max(float(np.linalg.norm(scaled_parameters)), 1.0)
+            projection_tolerance = tolerance / max(
+                float(np.linalg.norm(scaled_parameters)), 1.0
+            )
             scaled_parameters = _project_parameters(
                 solve_constraints,
                 np.asarray(scaled_parameters),
                 tolerance=projection_tolerance,
             )
+        if cached_operator is not None:
+            cached_operator.close()
         parameters_numpy = np.asarray(scaled_parameters) * parameter_scale
         drifts = self._constraint_drifts(parameters_numpy, constraints)
-        training_metrics = gram_system.force_metrics(parameters_numpy, target)
+        if gram_system is not None:
+            training_metrics = gram_system.force_metrics(parameters_numpy, target)
+        else:
+            training_metrics = _force_metrics(operator.matvec(parameters_numpy), target)
         if n_validation:
             validation_operator = _BatchedForceOperator(
                 displacements[validation],
@@ -228,13 +287,16 @@ class ForceConstantFitter:
             )
         else:
             validation_metrics = training_metrics
-        counts = [
-            sum(orbit.dimension for orbit in calculation.orbit_space.orbits)
-            for calculation in self.calculations
-        ]
-        order_force_rms = gram_system.order_force_rms(
-            parameters_numpy, self.orders, counts, len(target)
-        )
+        if gram_system is not None:
+            counts = [
+                sum(orbit.dimension for orbit in calculation.orbit_space.orbits)
+                for calculation in self.calculations
+            ]
+            order_force_rms = gram_system.order_force_rms(
+                parameters_numpy, self.orders, counts, len(target)
+            )
+        else:
+            order_force_rms = self._order_force_rms(operator, parameters_numpy)
         self._report("Force fitting summary")
         self._report(f"- Training relative error: {100 * training_metrics[1]:.6f} %")
         self._report(f"- Validation relative error: {100 * validation_metrics[1]:.6f} %")
@@ -243,7 +305,14 @@ class ForceConstantFitter:
         for order, rms in order_force_rms.items():
             self._report(f"- FC{order} force contribution RMS: {rms:.10e} eV/Å")
         self._report(
-            f"- Solver iterations={iterations}, stop_code={stop_code}, condition≈{condition:.6e}"
+            f"- Solver iterations={iterations}, stop_code={stop_code}, "
+            f"condition≈{condition:.6e}"
+        )
+        sparse_values = _expand_sparse(
+            parameters_numpy,
+            self.calculations,
+            self.index.n_primitive,
+            len(self.canonical_supercell),
         )
         taylor_transform = build_wick_to_taylor_transform(self.calculations, covariance)
         taylor_parameters = np.asarray(taylor_transform @ parameters_numpy)
@@ -258,7 +327,7 @@ class ForceConstantFitter:
             self.canonical_supercell.copy(),
             metadata={
                 "method": "joint_force_fit",
-                "solver": "gram",
+                "solver": solver,
                 "fitting_basis": "wick",
                 "force_constants_basis": "taylor",
                 "cutoff_angstrom": self.calculations[-1].cutoff,
@@ -292,7 +361,8 @@ class ForceConstantFitter:
             covariance,
             diagnostics,
         )
-        gram_system.close()
+        if gram_system is not None:
+            gram_system.close()
         return result
 
     def _constraint_drifts(self, parameters, constraints):
@@ -301,8 +371,12 @@ class ForceConstantFitter:
         self._report(f"- Maximum joint constraint residual: {maximum:.6e}")
         return {"joint": (maximum, maximum)}
 
-    def _report_parameter_scale(self, parameter_scale):
-        self._report("Column-norm preconditioning (exact from streamed Gram matrix)")
+    def _report_parameter_scale(self, parameter_scale, probes):
+        if probes in {"exact cached", "exact streamed"}:
+            source = "disk cache" if probes == "exact cached" else "streamed Gram matrix"
+            self._report(f"Column-norm preconditioning (exact from {source})")
+        else:
+            self._report(f"Column-norm preconditioning ({probes} Hutchinson probes)")
         offset = 0
         for calculation in self.calculations:
             count = sum(orbit.dimension for orbit in calculation.orbit_space.orbits)
@@ -314,10 +388,64 @@ class ForceConstantFitter:
             )
             offset += count
 
+    def _stabilize_parameter_scale(self, parameter_scale):
+        """Limit stochastic column-estimation outliers independently by order."""
+        result = np.asarray(parameter_scale).copy()
+        offset = 0
+        for calculation in self.calculations:
+            count = sum(orbit.dimension for orbit in calculation.orbit_space.orbits)
+            values = result[offset : offset + count]
+            active = values[values > 0]
+            if len(active):
+                lower, upper = np.quantile(active, (0.01, 0.99))
+                values[values > 0] = np.clip(values[values > 0], lower, upper)
+            offset += count
+        return result
+
+    def _order_force_rms(self, operator, parameters):
+        result = {}
+        offset = 0
+        for calculation in self.calculations:
+            count = sum(orbit.dimension for orbit in calculation.orbit_space.orbits)
+            selected = np.zeros_like(parameters)
+            selected[offset : offset + count] = parameters[offset : offset + count]
+            force = operator.matvec(selected)
+            result[calculation.config.order] = float(np.sqrt(np.mean(force**2)))
+            offset += count
+        return result
+
+    def _apply_asr(self, parameters, *, enabled):
+        if not enabled:
+            self._report("- ASR disabled; constraint matrices were not constructed")
+            return parameters.copy(), {
+                calculation.config.order: (float("nan"), float("nan"))
+                for calculation in self.calculations
+            }
+        output = parameters.copy()
+        drifts = {}
+        offset = 0
+        for calculation in self.calculations:
+            values = []
+            for orbit in calculation.orbit_space.orbits:
+                values.append(output[offset : offset + orbit.dimension])
+                offset += orbit.dimension
+            before = maximum_acoustic_sum_rule_drift(calculation.orbit_space, values)
+            projected = project_acoustic_sum_rule(calculation.orbit_space, values) if enabled else values
+            after = maximum_acoustic_sum_rule_drift(calculation.orbit_space, projected)
+            begin = offset - sum(map(len, projected))
+            for value in projected:
+                output[begin : begin + len(value)] = value
+                begin += len(value)
+            drifts[calculation.config.order] = (before, after)
+            self._report(f"- Max drift of FC{calculation.config.order}: {before:.6e} -> {after:.6e}")
+        return output, drifts
+
     def _validate_internal_order(self):
         internal = self.reference[self.geometry.internal_permutation]
         canonical = self.calculations[0].supercell
-        _, lengths = find_mic(internal.positions - canonical.positions, canonical.cell, pbc=True)
+        _, lengths = find_mic(
+            internal.positions - canonical.positions, canonical.cell, pbc=True
+        )
         if not np.array_equal(internal.numbers, canonical.numbers) or np.max(lengths) > 1e-4:
             raise ValueError("reference atom mapping does not match MLFCS internal geometry")
 
@@ -389,6 +517,31 @@ class _BatchedForceOperator(LinearOperator):
         self._report_operator("Aᵀ·r", self.transpose_calls, started)
         return output
 
+    def scaled(self, parameter_scale):
+        scale = np.asarray(parameter_scale)
+        return LinearOperator(
+            self.shape,
+            matvec=lambda values: self.matvec(scale * np.asarray(values).reshape(-1)),
+            rmatvec=lambda residual: scale * self.rmatvec(residual),
+            dtype=np.float64,
+        )
+
+    def estimate_column_scale(self, probes, rng):
+        squared_norm = np.zeros(self.n_parameters)
+        if self.reporter is not None:
+            self.reporter(f"Estimating column norms with {probes} stochastic probes")
+        for probe_index in range(probes):
+            probe = rng.choice((-1.0, 1.0), size=self.shape[0])
+            squared_norm += self.rmatvec(probe) ** 2
+            if self.reporter is not None:
+                self.reporter(f"- Column-norm probe: {probe_index + 1}/{probes}")
+        column_norm = np.sqrt(squared_norm / probes)
+        threshold = max(float(np.max(column_norm)) * 1e-12, np.finfo(float).tiny)
+        scale = np.zeros_like(column_norm)
+        identified = column_norm > threshold
+        scale[identified] = 1.0 / column_norm[identified]
+        return scale
+
     def batch_normal(self, physical_parameters, selected):
         batch = jnp.asarray(self.displacements[selected])
         predicted = self._forward(jnp.asarray(physical_parameters), batch)
@@ -401,6 +554,153 @@ class _BatchedForceOperator(LinearOperator):
                 f"- {name} call {call}: {len(self.displacements)} structures in "
                 f"{perf_counter() - started:.2f} s"
             )
+
+
+class _CachedForceOperator(LinearOperator):
+    """Disk-backed design matrix built automatically in bounded JAX batches."""
+
+    def __init__(self, matrix, temporary_directory, reporter=None):
+        self.matrix = matrix
+        self._temporary_directory = temporary_directory
+        self.reporter = reporter
+        super().__init__(dtype=np.dtype(np.float64), shape=matrix.shape)
+
+    @classmethod
+    def from_operator(cls, operator):
+        # Prefer a real writable filesystem over a potentially memory-backed
+        # system /tmp. The private directory is still fully automatic and is
+        # removed by close().
+        cache_parent = Path.cwd()
+        temporary_directory = TemporaryDirectory(prefix=".mlfcs-design-", dir=cache_parent)
+        path = f"{temporary_directory.name}/force-design.dat"
+        matrix = np.memmap(path, mode="w+", dtype=np.float64, shape=operator.shape)
+        started = perf_counter()
+
+        builders = []
+        maximum_order = max(tensor.order for tensor in operator.tensors)
+        orbit_block = 4 if maximum_order >= 4 else 16
+        effective_batch_size = 1 if maximum_order >= 4 else operator.batch_size
+        kernels = {}
+        for tensor in operator.tensors:
+            for orbit_begin in range(0, len(tensor.parameter_indices), orbit_block):
+                chunk, column_begin, column_end = _slice_order_tensor(
+                    tensor,
+                    orbit_begin,
+                    min(orbit_begin + orbit_block, len(tensor.parameter_indices)),
+                )
+                image_basis = _image_parameter_basis(chunk)
+                capacity = len(chunk.parameter_indices) * chunk.parameter_indices.shape[1]
+                kernel_key = (tensor.order, len(chunk.parameter_indices), capacity)
+                if kernel_key not in kernels:
+                    order = tensor.order
+
+                    def design_batch(
+                        displacements,
+                        parameter_indices,
+                        parameter_mask,
+                        representative,
+                        rotations,
+                        permutations,
+                        coordinates,
+                        image_mask,
+                        image_basis,
+                        *,
+                        order=order,
+                        capacity=capacity,
+                    ):
+                        dynamic = _OrderTensor(
+                            order,
+                            parameter_indices,
+                            parameter_mask,
+                            representative,
+                            rotations,
+                            permutations,
+                            coordinates,
+                            image_mask,
+                        )
+                        return _force_design_batch(
+                            displacements,
+                            operator.covariance,
+                            (dynamic,),
+                            (image_basis,),
+                            capacity,
+                        )
+
+                    kernels[kernel_key] = jax.jit(design_batch)
+                builders.append(
+                    (
+                        column_begin,
+                        column_end,
+                        capacity,
+                        kernels[kernel_key],
+                        (
+                            chunk.parameter_indices,
+                            chunk.parameter_mask,
+                            chunk.representative_from_pivots,
+                            chunk.rotations,
+                            chunk.component_permutations,
+                            chunk.coordinates,
+                            chunk.image_mask,
+                            image_basis,
+                        ),
+                    )
+                )
+        rows_per_structure = int(np.prod(operator.force_shape[1:]))
+        if operator.reporter is not None:
+            gib = matrix.nbytes / 1024**3
+            operator.reporter(
+                f"Building automatic disk cache: {matrix.shape[0]} x {matrix.shape[1]} "
+                f"({gib:.2f} GiB), effective_batch_size={effective_batch_size}"
+            )
+        for begin in range(0, len(operator.displacements), effective_batch_size):
+            end = min(begin + effective_batch_size, len(operator.displacements))
+            displacement_batch = jnp.asarray(operator.displacements[begin:end])
+            force_rows = (end - begin) * rows_per_structure
+            row_begin = begin * rows_per_structure
+            for column_begin, column_end, capacity, build_design, arguments in builders:
+                matrix[
+                    row_begin : row_begin + force_rows, column_begin:column_end
+                ] = np.asarray(
+                    build_design(displacement_batch, *map(jnp.asarray, arguments))
+                ).reshape(force_rows, capacity)[:, : column_end - column_begin]
+            if operator.reporter is not None and (
+                begin == 0 or end == len(operator.displacements) or end % 20 == 0
+            ):
+                operator.reporter(
+                    f"- Cached structures: {end}/{len(operator.displacements)}"
+                )
+        matrix.flush()
+        if operator.reporter is not None:
+            operator.reporter(f"- Design cache ready in {perf_counter() - started:.2f} s")
+        return cls(matrix, temporary_directory, operator.reporter)
+
+    def _matvec(self, parameters):
+        return np.asarray(self.matrix @ np.asarray(parameters).reshape(-1))
+
+    def _rmatvec(self, residual):
+        return np.asarray(self.matrix.T @ np.asarray(residual).reshape(-1))
+
+    def scaled(self, parameter_scale):
+        scale = np.asarray(parameter_scale)
+        return LinearOperator(
+            self.shape,
+            matvec=lambda values: self.matvec(scale * np.asarray(values).reshape(-1)),
+            rmatvec=lambda residual: scale * self.rmatvec(residual),
+            dtype=np.float64,
+        )
+
+    def exact_column_scale(self):
+        column_norm = np.sqrt(np.einsum("ij,ij->j", self.matrix, self.matrix))
+        threshold = max(float(np.max(column_norm)) * 1e-12, np.finfo(float).tiny)
+        scale = np.zeros_like(column_norm)
+        active = column_norm > threshold
+        scale[active] = 1.0 / column_norm[active]
+        return scale
+
+    def close(self):
+        self.matrix.flush()
+        del self.matrix
+        self._temporary_directory.cleanup()
 
 
 class _StreamingGramSystem:
@@ -431,13 +731,19 @@ class _StreamingGramSystem:
                     f"Recovered completed streamed Gram system from internal cache "
                     f"({perf_counter() - started:.2f} s)"
                 )
-            return cls(gram, rhs, target_norm, operator.reporter, cache_directory)
+            return cls(
+                gram, rhs, target_norm, operator.reporter, cache_directory
+            )
         use_gpu = jax.default_backend() == "gpu"
         if use_gpu:
-            gram = jnp.zeros((operator.n_parameters, operator.n_parameters), dtype=jnp.float64)
+            gram = jnp.zeros(
+                (operator.n_parameters, operator.n_parameters), dtype=jnp.float64
+            )
             rhs = jnp.zeros(operator.n_parameters, dtype=jnp.float64)
         else:
-            gram = np.zeros((operator.n_parameters, operator.n_parameters), dtype=float, order="F")
+            gram = np.zeros(
+                (operator.n_parameters, operator.n_parameters), dtype=float, order="F"
+            )
             rhs = np.zeros(operator.n_parameters, dtype=float)
         target_shaped = np.asarray(target).reshape(operator.force_shape)
         builders, effective_batch_size = _prepare_fused_design_builders(operator)
@@ -479,15 +785,12 @@ class _StreamingGramSystem:
                     )
             force = target_shaped[begin:end].reshape(-1)
             if use_gpu:
-                gram, rhs = update_device_statistics(gram, rhs, design, jnp.asarray(force))
+                gram, rhs = update_device_statistics(
+                    gram, rhs, design, jnp.asarray(force)
+                )
             else:
                 gram = dsyrk(
-                    1.0,
-                    a=design,
-                    c=gram,
-                    beta=1.0,
-                    trans=1,
-                    lower=0,
+                    1.0, a=design, c=gram, beta=1.0, trans=1, lower=0,
                     overwrite_c=1,
                 )
                 rhs += design.T @ force
@@ -514,8 +817,12 @@ class _StreamingGramSystem:
             np.save(cache_directory / "gram.npy", gram)
             np.save(cache_directory / "rhs.npy", rhs)
             np.save(cache_directory / "target_norm.npy", np.asarray(target_norm))
-            (cache_directory / "complete").write_text("mlfcs streamed Gram recovery cache\n")
-        return cls(gram, rhs, target_norm, operator.reporter, cache_directory)
+            (cache_directory / "complete").write_text(
+                "mlfcs streamed Gram recovery cache\n"
+            )
+        return cls(
+            gram, rhs, target_norm, operator.reporter, cache_directory
+        )
 
     def exact_column_scale(self):
         norm = np.sqrt(np.maximum(np.diag(self.gram), 0.0))
@@ -528,7 +835,9 @@ class _StreamingGramSystem:
     def force_metrics(self, parameters, target):
         residual_squared = max(
             float(
-                parameters @ self.gram @ parameters - 2 * parameters @ self.rhs + self.target_norm
+                parameters @ self.gram @ parameters
+                - 2 * parameters @ self.rhs
+                + self.target_norm
             ),
             0.0,
         )
@@ -543,7 +852,9 @@ class _StreamingGramSystem:
         for order, count in zip(orders, counts, strict=True):
             values = parameters[offset : offset + count]
             block = self.gram[offset : offset + count, offset : offset + count]
-            result[order] = float(np.sqrt(max(float(values @ block @ values), 0.0) / n_equations))
+            result[order] = float(
+                np.sqrt(max(float(values @ block @ values), 0.0) / n_equations)
+            )
             offset += count
         return result
 
@@ -602,7 +913,6 @@ class _StreamingGramSystem:
             parameters = projector.project(parameters)
             stationarity = projector.project(normal @ parameters - rhs)
         else:
-
             def callback(_values):
                 nonlocal iterations
                 iterations += 1
@@ -641,15 +951,9 @@ def _gram_recovery_key(operator, target):
     arrays = [operator.displacements, np.asarray(operator.covariance), np.asarray(target)]
     for tensor in operator.tensors:
         arrays.extend(
-            [
-                tensor.parameter_indices,
-                tensor.parameter_mask,
-                tensor.representative_from_pivots,
-                tensor.rotations,
-                tensor.component_permutations,
-                tensor.coordinates,
-                tensor.image_mask,
-            ]
+            [tensor.parameter_indices, tensor.parameter_mask,
+             tensor.representative_from_pivots, tensor.rotations,
+             tensor.component_permutations, tensor.coordinates, tensor.image_mask]
         )
     for array in arrays:
         value = np.ascontiguousarray(array)
@@ -666,7 +970,9 @@ class _ConstraintNullSpace:
         self.constraints = sparse.csr_matrix(constraints)
         row_gram = (self.constraints @ self.constraints.T).toarray()
         row_gram = (row_gram + row_gram.T) * 0.5
-        self.row_gram_inverse, self.rank = pinvh(row_gram, return_rank=True, check_finite=False)
+        self.row_gram_inverse, self.rank = pinvh(
+            row_gram, return_rank=True, check_finite=False
+        )
         if reporter is not None:
             reporter(
                 f"Implicit constraint null space: numerical rank={self.rank}/"
@@ -691,8 +997,7 @@ def _prepare_design_builders(operator):
     for tensor in operator.tensors:
         for orbit_begin in range(0, len(tensor.parameter_indices), orbit_block):
             chunk, column_begin, column_end = _slice_order_tensor(
-                tensor,
-                orbit_begin,
+                tensor, orbit_begin,
                 min(orbit_begin + orbit_block, len(tensor.parameter_indices)),
             )
             image_basis = _image_parameter_basis(chunk)
@@ -704,32 +1009,18 @@ def _prepare_design_builders(operator):
                 def design_batch(displacements, *arguments, order=order, capacity=capacity):
                     dynamic = _OrderTensor(order, *arguments[:-1])
                     return _force_design_batch(
-                        displacements,
-                        operator.covariance,
-                        (dynamic,),
-                        (arguments[-1],),
-                        capacity,
+                        displacements, operator.covariance, (dynamic,),
+                        (arguments[-1],), capacity,
                     )
 
                 kernels[key] = jax.jit(design_batch)
-            builders.append(
-                (
-                    column_begin,
-                    column_end,
-                    capacity,
-                    kernels[key],
-                    (
-                        chunk.parameter_indices,
-                        chunk.parameter_mask,
-                        chunk.representative_from_pivots,
-                        chunk.rotations,
-                        chunk.component_permutations,
-                        chunk.coordinates,
-                        chunk.image_mask,
-                        image_basis,
-                    ),
-                )
-            )
+            builders.append((
+                column_begin, column_end, capacity, kernels[key],
+                (chunk.parameter_indices, chunk.parameter_mask,
+                 chunk.representative_from_pivots, chunk.rotations,
+                 chunk.component_permutations, chunk.coordinates,
+                 chunk.image_mask, image_basis),
+            ))
     return builders, effective_batch_size
 
 
@@ -769,56 +1060,31 @@ def _prepare_fused_design_builders(operator):
                 def orbit_step(design, values):
                     indices, mask, rep, rotation, permutation, coordinate, images, basis = values
                     orbit = _OrderTensor(
-                        order,
-                        indices[None, :],
-                        mask[None, :],
-                        rep[None, :, :],
-                        rotation[None, :, :, :],
-                        permutation[None, :, :],
-                        coordinate[None, :, :, :, :],
-                        images[None, :],
+                        order, indices[None, :], mask[None, :], rep[None, :, :],
+                        rotation[None, :, :, :], permutation[None, :, :],
+                        coordinate[None, :, :, :, :], images[None, :],
                     )
                     contribution = _force_design_batch(
-                        displacements,
-                        operator.covariance,
-                        (orbit,),
-                        (basis[None, :, :, :],),
-                        operator.n_parameters,
+                        displacements, operator.covariance, (orbit,),
+                        (basis[None, :, :, :],), operator.n_parameters,
                     )
                     return design + contribution, None
 
                 result, _ = jax.lax.scan(
-                    orbit_step,
-                    initial,
-                    (
-                        parameter_indices,
-                        parameter_mask,
-                        representative,
-                        rotations,
-                        permutations,
-                        coordinates,
-                        image_mask,
-                        image_basis,
-                    ),
+                    orbit_step, initial,
+                    (parameter_indices, parameter_mask, representative, rotations,
+                     permutations, coordinates, image_mask, image_basis),
                 )
                 return result
 
-            builders.append(
-                (
-                    order,
-                    jax.jit(design_bucket),
-                    (
-                        bucket.parameter_indices,
-                        bucket.parameter_mask,
-                        bucket.representative_from_pivots,
-                        bucket.rotations,
-                        bucket.component_permutations,
-                        bucket.coordinates,
-                        bucket.image_mask,
-                        image_basis,
-                    ),
-                )
-            )
+            builders.append((
+                order,
+                jax.jit(design_bucket),
+                (bucket.parameter_indices, bucket.parameter_mask,
+                 bucket.representative_from_pivots, bucket.rotations,
+                 bucket.component_permutations, bucket.coordinates,
+                 bucket.image_mask, image_basis),
+            ))
     return builders, operator.batch_size
 
 
@@ -855,6 +1121,122 @@ def _normalize_constraint_rows(constraints):
     return sparse.diags(scale) @ constraints
 
 
+def _solve_constrained_lsmr(
+    operator,
+    constraints,
+    target,
+    *,
+    tolerance,
+    max_iterations,
+    damping,
+    verbose,
+):
+    """Solve the equality-constrained least-squares KKT system matrix-free."""
+    n_parameters = operator.shape[1]
+    n_constraints = constraints.shape[0]
+
+    def matvec(values):
+        parameters = values[:n_parameters]
+        multipliers = values[n_parameters:]
+        normal = operator.rmatvec(operator.matvec(parameters))
+        if damping:
+            normal = normal + damping**2 * parameters
+        return np.concatenate(
+            [normal + constraints.T @ multipliers, constraints @ parameters]
+        )
+
+    kkt = LinearOperator(
+        (n_parameters + n_constraints,) * 2,
+        matvec=matvec,
+        rmatvec=matvec,
+        dtype=np.float64,
+    )
+    rhs = np.concatenate([operator.rmatvec(target), np.zeros(n_constraints)])
+    counter = 0
+    solve_started = perf_counter()
+    previous_iteration = solve_started
+
+    def callback(values):
+        nonlocal counter, previous_iteration
+        counter += 1
+        now = perf_counter()
+        if verbose and (counter <= 5 or counter % 10 == 0):
+            constraint_residual = np.linalg.norm(
+                constraints @ values[:n_parameters], ord=np.inf
+            )
+            print(
+                f"KKT iteration {counter}: max constraint residual="
+                f"{constraint_residual:.6e}, step={now - previous_iteration:.3f} s, "
+                f"elapsed={now - solve_started:.2f} s",
+                flush=True,
+            )
+        previous_iteration = now
+
+    solution, info = minres(
+        kkt,
+        rhs,
+        rtol=tolerance,
+        maxiter=max_iterations,
+        callback=callback,
+        show=False,
+        check=False,
+    )
+    parameters = solution[:n_parameters]
+    force_residual = operator.matvec(parameters) - target
+    stationarity = operator.rmatvec(force_residual) + constraints.T @ solution[n_parameters:]
+    return (
+        parameters,
+        int(info),
+        counter,
+        float(np.linalg.norm(force_residual)),
+        float(np.linalg.norm(stationarity)),
+        float("nan"),
+    )
+
+
+def _project_scaled_constraints(parameters, constraints, tolerance):
+    if constraints.shape[0] == 0:
+        return parameters
+    return _project_parameters(constraints, np.asarray(parameters), tolerance=tolerance)
+
+
+def _solve_dense(operator, constraints, target, *, dtype, tolerance, reporter):
+    """Materialize the design matrix and solve an exact dense least-squares problem."""
+    started = perf_counter()
+    matrix = np.empty(operator.shape, dtype=dtype)
+    n_parameters = operator.shape[1]
+    basis = np.zeros(n_parameters)
+    for column in range(n_parameters):
+        basis[column] = 1.0
+        matrix[:, column] = operator.matvec(basis)
+        basis[column] = 0.0
+        if reporter is not None and (column < 5 or (column + 1) % 100 == 0):
+            reporter(f"- Dense design columns: {column + 1}/{operator.n_parameters}")
+    matrix64 = np.asarray(matrix, dtype=np.float64)
+    if constraints.shape[0]:
+        # Dense backend uses a KKT solve; intended only for small problems.
+        normal = matrix64.T @ matrix64
+        kkt = np.block(
+            [[normal, constraints.T.toarray()],
+             [constraints.toarray(), np.zeros((constraints.shape[0], constraints.shape[0]))]]
+        )
+        rhs = np.concatenate([matrix64.T @ target, np.zeros(constraints.shape[0])])
+        solution = np.linalg.lstsq(kkt, rhs, rcond=tolerance)[0][:n_parameters]
+    else:
+        solution = np.linalg.lstsq(matrix64, target, rcond=tolerance)[0]
+    residual = matrix64 @ solution - target
+    if reporter is not None:
+        reporter(f"- Dense solve completed in {perf_counter() - started:.2f} s")
+    return (
+        solution,
+        0,
+        1,
+        float(np.linalg.norm(residual)),
+        float(np.linalg.norm(matrix64.T @ residual)),
+        float(np.linalg.cond(matrix64)),
+    )
+
+
 def _pack_order(calculation, offset):
     orbit_space = calculation.orbit_space
     order = orbit_space.order
@@ -869,13 +1251,7 @@ def _pack_order(calculation, offset):
     rotations = np.zeros((n_orbits, max_images, 3, 3))
     permutations = np.zeros((n_orbits, max_images, 3**order), dtype=np.int32)
     coordinates = np.zeros(
-        (
-            n_orbits,
-            max_images,
-            len(calculation.index.translations) // calculation.index.n_primitive,
-            3**order,
-            order,
-        ),
+        (n_orbits, max_images, len(calculation.index.translations) // calculation.index.n_primitive, 3**order, order),
         dtype=np.int32,
     )
     image_mask = np.zeros((n_orbits, max_images), dtype=bool)
@@ -896,7 +1272,8 @@ def _pack_order(calculation, offset):
             ).ravel()
             for translation_index, translation in enumerate(translations):
                 atoms = [
-                    calculation.index.translate_atom(atom, translation) for atom in image.cluster
+                    calculation.index.translate_atom(atom, translation)
+                    for atom in image.cluster
                 ]
                 coordinates[orbit_index, image_index, translation_index] = (
                     np.asarray(atoms)[None, :] * 3 + components
@@ -979,11 +1356,17 @@ def _force_design_batch(displacements, covariance, tensors, image_bases, n_param
             basis = jnp.asarray(image_basis)[:, :, None, :, :]
             for axis in range(order):
                 remaining = np.delete(np.arange(order), axis)
-                lower = _wick(displacement, covariance, coordinates[..., remaining], order - 1)
-                contribution = -lower[..., None] * basis * coefficient_mask / factorial(order)
+                lower = _wick(
+                    displacement, covariance, coordinates[..., remaining], order - 1
+                )
+                contribution = (
+                    -lower[..., None] * basis * coefficient_mask / factorial(order)
+                )
                 force_coordinates = coordinates[..., axis, None]
                 parameter_coordinates = parameter_indices[:, None, None, None, :]
-                design = design.at[force_coordinates, parameter_coordinates].add(contribution)
+                design = design.at[
+                    force_coordinates, parameter_coordinates
+                ].add(contribution)
         return design
 
     return jax.vmap(one_structure)(displacements)
@@ -999,7 +1382,9 @@ def _predict_force(parameters, displacements, covariance, tensors):
             representative = jnp.einsum(
                 "ocd,od->oc", jnp.asarray(tensor.representative_from_pivots), local_parameters
             ).reshape((-1,) + (3,) * order)
-            rotated = _rotate_images(representative, jnp.asarray(tensor.rotations), order)
+            rotated = _rotate_images(
+                representative, jnp.asarray(tensor.rotations), order
+            )
             image_tensors = jnp.take_along_axis(
                 rotated, jnp.asarray(tensor.component_permutations), axis=2
             )
@@ -1007,14 +1392,18 @@ def _predict_force(parameters, displacements, covariance, tensors):
             mask = jnp.asarray(tensor.image_mask)
             for axis in range(order):
                 remaining = np.delete(np.arange(order), axis)
-                lower = _wick(displacement, covariance, coordinates[..., remaining], order - 1)
+                lower = _wick(
+                    displacement, covariance, coordinates[..., remaining], order - 1
+                )
                 contribution = (
                     -lower
                     * image_tensors[:, :, None, :]
                     * mask[:, :, None, None]
                     / factorial(order)
                 )
-                force = force.at[coordinates[..., axis].reshape(-1)].add(contribution.reshape(-1))
+                force = force.at[coordinates[..., axis].reshape(-1)].add(
+                    contribution.reshape(-1)
+                )
         return force.reshape(displacement.shape)
 
     return jax.vmap(one_structure)(displacements)
@@ -1028,7 +1417,9 @@ def _wick(displacement, covariance, coordinates, order):
     if order == 1:
         return values[..., 0]
     first = coordinates[..., 0]
-    result = values[..., 0] * _wick(displacement, covariance, coordinates[..., 1:], order - 1)
+    result = values[..., 0] * _wick(
+        displacement, covariance, coordinates[..., 1:], order - 1
+    )
     for partner in range(1, order):
         remaining = np.delete(np.arange(order), (0, partner))
         result -= covariance[first, coordinates[..., partner]] * _wick(
@@ -1047,7 +1438,9 @@ def _rotate(tensor, rotation, order):
 
 def _rotate_images(tensors, rotations, order):
     def one_tensor(tensor, operations):
-        return jax.vmap(lambda operation: _rotate(tensor, operation, order).reshape(-1))(operations)
+        return jax.vmap(
+            lambda operation: _rotate(tensor, operation, order).reshape(-1)
+        )(operations)
 
     return jax.vmap(one_tensor)(tensors, rotations)
 
@@ -1061,10 +1454,7 @@ def _symmetrized_covariance(displacements, calculation):
     translations = np.unique(calculation.index.translations, axis=0)
     for shift in translations:
         translated = np.asarray(
-            [
-                calculation.index.translate_atom(atom, shift)
-                for atom in range(len(calculation.supercell))
-            ]
+            [calculation.index.translate_atom(atom, shift) for atom in range(len(calculation.supercell))]
         )
         translation_inverse = np.argsort(translated)
         translated_covariance = covariance[translation_inverse][:, :, translation_inverse, :]
@@ -1097,7 +1487,9 @@ def _expand_sparse(parameters, calculations, n_primitive, n_supercell):
                 clusters.append(image.cluster)
                 tensor = representative.reshape((3,) * calculation.config.order)
                 for axis in range(calculation.config.order):
-                    tensor = np.tensordot(image.action.rotation, tensor, axes=((1,), (axis,)))
+                    tensor = np.tensordot(
+                        image.action.rotation, tensor, axes=((1,), (axis,))
+                    )
                     tensor = np.moveaxis(tensor, 0, axis)
                 tensors.append(np.transpose(tensor, image.action.permutation))
         result[calculation.config.order] = SparseOrderForceConstants(
@@ -1170,10 +1562,9 @@ def _wick_to_taylor_sparse(force_constants, covariance):
                         optimize=True,
                     )
                 key = tuple(map(int, cluster[:target_order]))
-                tensors_by_cluster[key] = (
-                    tensors_by_cluster.get(key, np.zeros((3,) * target_order))
-                    + coefficient * contracted
-                )
+                tensors_by_cluster[key] = tensors_by_cluster.get(
+                    key, np.zeros((3,) * target_order)
+                ) + coefficient * contracted
         # Dict insertion order preserves the existing reconstruction/export
         # contract. Contraction-only clusters are appended deterministically as
         # source orders are traversed; unaffected orders remain byte-stable.

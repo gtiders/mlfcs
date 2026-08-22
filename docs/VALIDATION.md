@@ -34,27 +34,10 @@ A separate FC3 test compares strict MLFCS ASR with phono3py
 `5.53e-14 eV/Angstrom^3`, respectively. The projected tensors have relative L2 difference
 `0.0527%` and correlation `0.9999998627` on their shared support.
 
-## Native SSCHA references
-
-Analytic harmonic models independently check classical covariance, quantum zero-point variance,
-imaginary-mode handling, optional displacement clipping, and native FC2 recovery from sampled
-forces. A development-only phonopy oracle additionally compares commensurate-q frequencies and
-the sampled quantum covariance. Phonopy is used only by this reference test, not by the SSCHA
-implementation or the base runtime environment.
-
-An end-to-end KCl reference additionally uses phonopy's own 120-structure pypolymlp potential,
-eight-atom conventional cell, 2x2x2 supercell, 300 K temperature, and seed 42. The serial CI
-variant uses ten snapshots and one canonical iteration: its K self block is about
-`2.1625 eV/Angstrom^2`, inside phonopy's official `2.1 +/- 0.1` acceptance range. Its normalized
-free energy is about `-0.0949 eV` per primitive cell, within `3.7 meV` of phonopy's dense-mesh
-three-iteration reference. The remaining difference includes sampling noise and the deliberate
-commensurate-q versus dense-mesh harmonic-free-energy convention.
-
 ## CI layers
 
 - `unit-and-api`: Ruff, formatting, and all non-reference tests on Python 3.12 and 3.13;
-- `scientific-reference`: provenance checks and independent FC2/FC3 and harmonic-sampling
-  comparisons, run serially;
+- `scientific-reference`: provenance checks and independent FC2/FC3 comparisons, run serially;
 - `package`: source-distribution and wheel builds.
 
 BLAS, OpenMP, and the JAX CPU backend are restricted to one thread in CI to keep memory use

@@ -23,11 +23,6 @@ the hiphive representation adapter, and checks fixture provenance. The separate
 FC2, FC3, ASR, a packaged pypolymlp potential, official HDF5 readers, and faithful ShengBTE
 roundtrips.
 
-`reference/sscha/KCl_phonopy/` runs phonopy's official KCl pypolymlp potential through the native
-MLFCS SSCHA workflow and checks FC2 and free-energy scales against phonopy's test expectations.
-The analytic q-space test in the parent directory independently compares sampling frequencies
-and covariance with phonopy.
-
 `reference/shengbte/Si_FC3/` freezes the 3x3x3, `cutoff=-6` VASP sow order and reconstructs
 ShengBTE FC3 from 168 external force calculations. The external comparison explicitly uses
 `compatibility="thirdorder"`; default faithful support is tested separately.
@@ -44,7 +39,6 @@ uv run pytest tests/reference/analytic/Morse_FCC_FC4/test_morse_fc4.py
 uv run pytest tests/reference/phono3py/AlN_FC3
 uv run pytest tests/reference/phonopy/AlN_FC2
 uv run pytest tests/reference/phono3py/K4As4Pt2_FC23
-uv run pytest tests/reference/sscha
 uv run pytest tests/reference/shengbte/Si_FC3
 ```
 

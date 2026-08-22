@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from itertools import permutations, product
+from itertools import combinations, permutations, product
 
 import jax
 import jax.numpy as jnp
@@ -104,29 +104,22 @@ def build_orbit_space(
         np.flatnonzero(distances[atom] < cutoff).tolist() for atom in range(index.n_primitive)
     ]
     axis_permutations = tuple(permutations(range(order)))
+    seen: set[tuple[int, ...]] = set()
     orbits: list[ClusterOrbit] = []
 
     for first in range(index.n_primitive):
-        for tail in _compatible_sorted_tails(
-            neighbors[first], order - 1, tail_compatibility[first]
-        ):
+        for tail in product(neighbors[first], repeat=order - 1):
             cluster = (first, *tail)
-            # Candidate tails are generated as multisets.  Before constructing
-            # the expensive full tensor orbit, reject every candidate that is
-            # not the lexicographically canonical anchored image of its space-
-            # group orbit.  This replaces the N**(order-1) ordered product and
-            # the global set containing every already-seen permutation.
-            if cluster != _canonical_cluster(cluster, index, symmetry):
+            if not _inside_cluster_cutoff(cluster, tail_compatibility):
                 continue
+            images = _orbit_images(cluster, index, symmetry, axis_permutations, order)
+            if cluster in seen:
+                continue
+            seen.update(images)
             representative = cluster
             action_by_image: dict[tuple[int, ...], TensorAction] = {}
-            # Impose exchanges of axes carrying the same atomic label up
-            # front.  This is the label-symmetric tensor basis used by
-            # hiPhive: repeated-site FC6 clusters can have tens rather than
-            # 729 working components.  Space-group stabilizers are then
-            # accumulated directly in this reduced coordinate system.
-            label_basis = _label_symmetric_basis(representative)
-            constraint_gram = np.zeros((label_basis.shape[1],) * 2)
+            identity = np.eye(3**order)
+            constraint_gram = np.zeros_like(identity)
             for operation in range(symmetry.size):
                 transformed = tuple(
                     int(symmetry.atom_permutations[operation, atom]) for atom in representative
@@ -142,18 +135,11 @@ def build_orbit_space(
                     # stabilizer, so either acts identically on the invariant basis.
                     action_by_image.setdefault(candidate, action)
                     if candidate == representative:
-                        constraint = _apply_action_columns_numpy(action, label_basis) - label_basis
+                        constraint = action.as_matrix() - identity
                         constraint_gram += constraint.T @ constraint
-            reduced_basis, _ = _null_space_from_gram(constraint_gram, tolerance)
-            basis = label_basis @ reduced_basis
+            basis, pivots = _null_space_from_gram(constraint_gram, tolerance)
             if basis.shape[1] == 0:
                 continue
-            pivots = _independent_basis_rows(basis, tolerance)
-            # Express the invariant subspace in its deterministic pivot-value
-            # coordinates.  Besides matching the finite-difference contract
-            # (the parameters are actual selected tensor components), this
-            # avoids carrying the arbitrary normalization of the label basis.
-            basis = basis @ np.linalg.inv(basis[pivots])
             orbit_images = tuple(
                 OrbitImage(key, action) for key, action in sorted(action_by_image.items())
             )
@@ -161,132 +147,12 @@ def build_orbit_space(
     return OrbitSpace(order, tuple(orbits), cutoff)
 
 
-def _compatible_sorted_tails(
-    neighbors: list[int],
-    length: int,
-    compatibility: np.ndarray,
-):
-    """Yield compatible neighbor multisets with prefix pruning.
-
-    The old ordered Cartesian product generated every permutation and tested
-    pair compatibility only after a complete tail existed.  IFC label
-    permutation symmetry means that one nondecreasing tail is sufficient for
-    orbit discovery.  Checking a new atom against the current prefix prevents
-    an invalid partial clique from spawning any descendants.
-    """
-    values = tuple(sorted(int(atom) for atom in neighbors))
-    prefix: list[int] = []
-
-    def extend(start: int):
-        if len(prefix) == length:
-            yield tuple(prefix)
-            return
-        for position in range(start, len(values)):
-            atom = values[position]
-            if all(compatibility[atom, previous] for previous in prefix):
-                prefix.append(atom)
-                yield from extend(position)
-                prefix.pop()
-
-    yield from extend(0)
-
-
-def _canonical_cluster(
+def _inside_cluster_cutoff(
     cluster: tuple[int, ...],
-    index: SupercellIndex,
-    symmetry: SymmetryOperations,
-) -> tuple[int, ...]:
-    """Return the smallest anchored, tail-sorted space-group image.
-
-    Only the choice of anchor is required here.  Sorting the remaining atoms
-    represents all their label permutations, reducing the canonical check
-    from ``order!`` mappings per symmetry operation to at most ``order``.
-    Full ordered images are constructed only for accepted orbit prototypes.
-    """
-    best: tuple[int, ...] | None = None
-    for operation in range(symmetry.size):
-        transformed = tuple(int(symmetry.atom_permutations[operation, atom]) for atom in cluster)
-        for anchor_axis in range(len(cluster)):
-            anchored = index.anchor(
-                (transformed[anchor_axis],)
-                + transformed[:anchor_axis]
-                + transformed[anchor_axis + 1 :]
-            )
-            candidate = (anchored[0], *sorted(anchored[1:]))
-            if best is None or candidate < best:
-                best = candidate
-    assert best is not None
-    return best
-
-
-def _label_symmetric_basis(cluster: tuple[int, ...]) -> np.ndarray:
-    """Return an orthonormal basis invariant under equal-site axis swaps."""
-    groups: list[np.ndarray] = []
-    values = np.asarray(cluster)
-    for atom in dict.fromkeys(cluster):
-        positions = np.flatnonzero(values == atom)
-        if len(positions) > 1:
-            groups.append(positions)
-
-    size = 3 ** len(cluster)
-    if not groups:
-        return np.eye(size)
-    classes: dict[tuple[int, ...], list[int]] = {}
-    for flat, component in enumerate(np.ndindex((3,) * len(cluster))):
-        canonical = list(component)
-        for positions in groups:
-            ordered = sorted(canonical[int(position)] for position in positions)
-            for position, direction in zip(positions, ordered, strict=True):
-                canonical[int(position)] = direction
-        classes.setdefault(tuple(canonical), []).append(flat)
-    basis = np.zeros((size, len(classes)))
-    for column, members in enumerate(classes.values()):
-        basis[members, column] = 1.0 / np.sqrt(len(members))
-    return basis
-
-
-def _apply_action_columns_numpy(action: TensorAction, values: np.ndarray) -> np.ndarray:
-    """Apply one tensor action without constructing a ``3**order`` square matrix.
-
-    Orbit construction is host-side and calls this only for stabilizers.  A
-    NumPy contraction over the already compressed label basis avoids the large
-    XLA intermediates produced by vmapping hundreds of sixth-order tensors.
-    """
-    tensors = values.T.reshape((-1,) + (3,) * action.order)
-    transformed = tensors
-    for axis in range(action.order):
-        transformed = np.tensordot(action.rotation, transformed, axes=((1,), (axis + 1,)))
-        transformed = np.moveaxis(transformed, 0, axis + 1)
-    axes = (0,) + tuple(axis + 1 for axis in action.permutation)
-    return np.transpose(transformed, axes).reshape(len(values.T), -1).T
-
-
-def _independent_basis_rows(basis: np.ndarray, tolerance: float) -> np.ndarray:
-    """Select deterministic independent tensor components for reconstruction."""
-    matrix = basis.T.copy()
-    n_rows, n_columns = matrix.shape
-    selected: list[int] = []
-    pivot_row = 0
-    threshold = tolerance * max(float(np.max(np.abs(matrix))), 1.0)
-    # Prefer high flattened Cartesian components, matching the free-column
-    # convention of the historical full-space RREF while operating on the
-    # compressed label-symmetric basis.
-    for column in range(n_columns - 1, -1, -1):
-        if pivot_row == n_rows:
-            break
-        candidate = pivot_row + int(np.argmax(np.abs(matrix[pivot_row:, column])))
-        if abs(matrix[candidate, column]) <= threshold:
-            continue
-        matrix[[pivot_row, candidate]] = matrix[[candidate, pivot_row]]
-        matrix[pivot_row] /= matrix[pivot_row, column]
-        for row in range(pivot_row + 1, n_rows):
-            if abs(matrix[row, column]) > threshold:
-                matrix[row] -= matrix[row, column] * matrix[pivot_row]
-        selected.append(column)
-        pivot_row += 1
-    if len(selected) != basis.shape[1]:
-        raise RuntimeError("failed to select independent invariant tensor components")
-    return np.asarray(sorted(selected), dtype=np.int32)
+    tail_compatibility: np.ndarray,
+) -> bool:
+    first = cluster[0]
+    return all(tail_compatibility[first, a, b] for a, b in combinations(cluster[1:], 2))
 
 
 def _joint_periodic_cluster_geometry(
@@ -339,6 +205,22 @@ def _joint_periodic_cluster_geometry(
                 compatible[first, left, right] = value
                 compatible[first, right, left] = value
     return distances, compatible
+
+
+def _orbit_images(
+    cluster: tuple[int, ...],
+    index: SupercellIndex,
+    symmetry: SymmetryOperations,
+    axis_permutations: tuple[tuple[int, ...], ...],
+    order: int,
+) -> set[tuple[int, ...]]:
+    del order
+    images: set[tuple[int, ...]] = set()
+    for operation in range(symmetry.size):
+        transformed = tuple(int(symmetry.atom_permutations[operation, atom]) for atom in cluster)
+        for permutation in axis_permutations:
+            images.add(index.anchor(tuple(transformed[axis] for axis in permutation)))
+    return images
 
 
 def tensor_action_matrix(

@@ -45,6 +45,7 @@ fitter = ForceConstantFitter(
 )
 result = fitter.fit(
     read("train.xyz", index=":"),
+    solver="gram",
     batch_size=4,
     validation_split=0.1,
     tolerance=1e-7,
@@ -57,12 +58,20 @@ result.force_constants.write("FORCE_CONSTANTS_3RD", format="shengbte", order=3)
 result.force_constants.write("FORCE_CONSTANTS_4TH", format="shengbte", order=4)
 ```
 
-拟合器只保留一条求解路径：将每个设计批次流式累积为 `A.T @ A` 和 `A.T @ F`，不保存随快照数增长
+默认求解器是矩阵无关 LSMR。它以受控 JAX 批次计算 `A @ x` 和 `A.T @ r`，不物化完整
+力设计矩阵。逐参数列范数预条件使各拟合阶数的特征处于可比较的数值尺度。`verbose=True`
+会打印列尺度估计、算子调用进度以及 LSMR 逐次迭代诊断。
+
+当矩阵无关算子的重复计算成为主要耗时时，可指定 `solver="cached_lsmr"`。MLFCS 会按
+JAX 小批次解析构造精确的线性力设计矩阵，将其保存到自动管理的临时磁盘映射，并在
+LSMR 全部迭代中复用。缓存路径、存储精度和内部矩阵分块不作为 API 参数暴露，拟合结束
+后缓存自动删除。该后端用临时存储和操作系统页缓存换取速度。两种后端的 `batch_size`
+均限制为 1--4，它只表示同时处理的结构数。
+
+`solver="gram"` 将每个设计批次流式累积为 `A.T @ A` 和 `A.T @ F`，不保存随快照数增长
 的完整设计矩阵。程序按轨道真实的对称图像数和独立参数维数自动精确分组，尺寸桶不是
 公开 API 参数。CPU 模式由 JAX 构建设计批次，成熟的 OpenBLAS/SciPy 负责 Gram 累积与
 求解；JAX GPU 可用时，设计构建与 Gram 累积都保留在 GPU，完成后只传回一次 Gram。
-逐参数精确列范数预条件直接由 Gram 对角元得到。`batch_size` 限制为 1--4，只控制每个
-设计批次同时处理的结构数。
 
 等式约束通过 `C @ C.T` 的秩揭示伪逆构造隐式零空间投影器，投影共轭梯度始终位于
 `null(C)` 内，不再求解不定 KKT 系统后再补偿。`max_iterations` 只是安全上限：求解状态
@@ -75,7 +84,7 @@ result.force_constants.write("FORCE_CONSTANTS_4TH", format="shengbte", order=4)
 ```
 
 终端以百分比输出，并同时报告单位为 eV/Å 的力 RMSE、验证误差、各阶力贡献 RMS、
-投影法方程残差以及约束 drift。
+LSMR 残差和条件数估计，以及约束 drift。
 
 `rotational_invariance=2` 对应 ALAMODE `ICONST=2`：在笛卡尔坐标中施加已有相邻阶的
 旋转约束，但忽略最高阶与下一阶的边界。`rotational_invariance=3` 进一步假定未表示的

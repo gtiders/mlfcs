@@ -19,8 +19,8 @@ CUDA 版 JAX 后可将高阶笛卡尔张量旋转与批处理变换放到 GPU。
 体系、阶数和硬件，GPU 不会替代仍在 CPU 上执行的团簇枚举与稀疏求解。
 
 基础包不规定力由什么程序产生。用户可以使用任意 ASE Calculator，也可以把位移结构
-交给外部任务系统计算。原生 SSCHA 模块结合 q 空间量子谐波采样与 MLFCS Gram 拟合器，
-计算温度相关的有效二阶力常数。
+交给外部任务系统计算。独立的可选模块使用 phonopy 和 symfc，通过随机自洽谐波近似
+（SSCHA）计算温度相关的有效二阶力常数。
 
 MLFCS 只提供 Python API，不提供 CLI。
 
@@ -90,7 +90,7 @@ Born–Huang 旋转求和规则，详见[求和规则](docs/SUM_RULES_ZH.md)。
 - 任意阶通用稀疏 HDF5；
 - 三阶、四阶 ShengBTE 输出；
 - 二阶完整 phonopy 文本输出；
-- 原生量子/经典 SSCHA，并支持任意 ASE Calculator。
+- 可选 phonopy/symfc SSCHA，并支持任意 ASE Calculator。
 
 ## 安装
 
@@ -107,6 +107,12 @@ uv sync
   `sow`、力收集和 `reap` 工作流；
 - [`nep89_orders.py`](examples/nep89_orders.py) 通过 calorine ASE calculator，使用用户提供的
   NEP89 模型计算一个或多个阶数。
+
+需要 SSCHA 时安装可选依赖：
+
+```bash
+uv sync --extra sscha
+```
 
 calorine、MACE 等势函数包不是基础依赖，请根据实际任务单独安装。
 
@@ -385,7 +391,7 @@ dense = fc5.materialize(5)
 dense = fc5.materialize(5, max_bytes=None)  # 显式关闭警告预算
 ```
 
-## 原生 SSCHA
+## 可选 SSCHA
 
 独立的 `mlfcs.sscha` 模块根据热位移上的原子力拟合温度相关有效 FC2：
 
@@ -396,7 +402,6 @@ sscha = SSCHA(
     atoms,
     supercell=(3, 3, 3),
     temperature=300,
-    statistics="quantum",
     snapshots=1000,
     max_iterations=10,
     random_seed=42,
@@ -407,9 +412,8 @@ sscha.use_average(last=5)
 sscha.write("fc2-300K.hdf5", format="hdf5")
 ```
 
-第零轮通过小随机笛卡尔位移拟合初始 FC2。后续每轮直接在 compact FC2 的 q 空间采样
-谐振子正则系综，再由原生流式 Gram 拟合器重拟合 FC2。因此 `max_iterations=10` 表示
-一次初始化加十次更新。
+第零轮通过小随机笛卡尔位移拟合初始 FC2。后续每轮由 phonopy 采样谐振子正则系综，
+再由 symfc 拟合完整 FC2。因此 `max_iterations=10` 表示一次初始化加十次更新。
 
 也支持逐轮外部计算：
 
@@ -422,8 +426,9 @@ result = sscha.reap(
 )
 ```
 
-拟合 FC2 只需要力；只有估计自由能时才需要能量。已完成轮次和采样诊断保存在
-`sscha.history`。phonopy 兼容文本和 HDF5 由公共 MLFCS writer 写出，运行时无需 phonopy。
+拟合 FC2 只需要力；只有估计自由能时才需要能量。已完成轮次保存在
+`sscha.history`，`sscha.phonopy` 暴露底层 Phonopy 对象，可继续计算网格、能带、
+DOS 和热力学性质。
 
 该方法是随机有效谐波方法，不是显式 FC3 bubble 或 FC4 loop 计算。详见
 [SSCHA 文档](docs/SSCHA_ZH.md)。
@@ -452,7 +457,7 @@ result = sscha.reap(
 所有命令使用 uv，测试串行运行：
 
 ```bash
-uv sync
+uv sync --extra sscha
 uv run pytest
 uv run pytest -m "not reference"
 uv run ruff check src tests reference_tools examples

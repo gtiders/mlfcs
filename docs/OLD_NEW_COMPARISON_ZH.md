@@ -424,7 +424,7 @@ ShengBTE 只有三阶和四阶 writer，不限制内部计算阶数；更高阶�
 
 ### 新版 `mlfcs.sscha.SSCHA`
 
-新版以原生 q 空间采样和 MLFCS Gram FC2 拟合器替换 phonopy/symfc 后端：
+新版将 phonopy/symfc 隔离为可选模块：
 
 - 构造阶段不调用势函数；
 - 直接接受用户的 ASE Calculator；
@@ -433,7 +433,7 @@ ShengBTE 只有三阶和四阶 writer，不限制内部计算阶数；更高阶�
 - 每轮返回不可变 `SSCHAIteration`；
 - 保存 FC2、自由能、标准误差和能量均值历史；
 - 平均和写出由用户显式调用，不产生隐式文件副作用；
-- 记录 q 点、有效模态、虚频、低频排除和可选位移裁剪诊断。
+- 暴露底层 `sscha.phonopy` 用于声子后处理。
 
 两版都采用随机热位移重新拟合有效 FC2，而不是显式计算 FC3 bubble 或 FC4 loop。
 
@@ -468,7 +468,7 @@ ShengBTE 只有三阶和四阶 writer，不限制内部计算阶数；更高阶�
 - JAX CPU/GPU 选择；
 - 内存估算警告；
 - phonopy 完整 FC2 writer；
-- 原生 q 空间 SSCHA 模块。
+- 独立、可选的 SSCHA 模块。
 
 ## 13. 当前建议
 

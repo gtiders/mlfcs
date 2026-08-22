@@ -70,10 +70,9 @@ order; NumPy requires materialization. Phonopy text/HDF5 are provided for FC2, p
 FC3, and ShengBTE text for FC3/FC4. Higher-order exchange should use sparse HDF5 because there is
 no generally adopted ShengBTE text format above FC4.
 
-The native SSCHA module is separate from the finite-difference workflow but reuses the MLFCS FC2
-orbit parameterization and streamed-Gram fitter. It samples quantum or classical harmonic
-ensembles directly in compact-FC2 q space without phonopy or symfc at runtime; it does not
-implement explicit FC3 bubble or FC4 loop diagrams.
+The optional SSCHA module is separate from the finite-difference pipeline. It samples thermal
+structures with phonopy and fits effective FC2 with symfc; it does not reuse the previous
+`MLPSSCHA` workflow or implement explicit FC3 bubble/FC4 loop diagrams.
 
 ## Compatibility policy
 

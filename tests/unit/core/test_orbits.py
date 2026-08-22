@@ -3,9 +3,7 @@ from ase import Atoms
 
 from mlfcs.core.geometry import make_supercell
 from mlfcs.core.orbits import (
-    _compatible_sorted_tails,
     _joint_periodic_cluster_geometry,
-    _label_symmetric_basis,
     tensor_action_matrix,
 )
 
@@ -25,23 +23,3 @@ def test_periodic_triangle_requires_compatible_joint_images():
     # one periodic triangle within the 1.1 cutoff.
     np.testing.assert_allclose(distances[0], [0, 1, 1])
     assert not compatible[0, 1, 2]
-
-
-def test_sorted_tail_generator_prunes_incompatible_prefixes():
-    compatibility = np.ones((4, 4), dtype=bool)
-    compatibility[1, 3] = compatibility[3, 1] = False
-    actual = list(_compatible_sorted_tails([0, 1, 2, 3], 3, compatibility))
-    expected = [
-        tail
-        for tail in np.ndindex((4, 4, 4))
-        if tuple(sorted(tail)) == tail
-        and all(compatibility[left, right] for left in tail for right in tail)
-    ]
-    assert actual == expected
-    assert all(not ({1, 3} <= set(tail)) for tail in actual)
-
-
-def test_sixth_order_onsite_label_basis_has_28_components():
-    basis = _label_symmetric_basis((0,) * 6)
-    assert basis.shape == (3**6, 28)
-    np.testing.assert_allclose(basis.T @ basis, np.eye(28), atol=1e-14)

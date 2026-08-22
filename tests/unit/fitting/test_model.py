@@ -1,8 +1,10 @@
 import numpy as np
 from scipy import sparse
+from scipy.sparse.linalg import lsmr
 
 from mlfcs.fitting.model import (
     _BatchedForceOperator,
+    _CachedForceOperator,
     _force_metrics,
     _OrderTensor,
     _StreamingGramSystem,
@@ -46,6 +48,24 @@ def test_matrix_free_force_operator_has_consistent_adjoint():
     )
 
 
+def test_scaled_lsmr_recovers_force_constant_and_alamode_error():
+    rng = np.random.default_rng(8)
+    displacement = rng.normal(size=(12, 1, 3))
+    operator = _BatchedForceOperator(
+        displacement, np.eye(3), (_one_parameter_fc2_tensor(),), 1, batch_size=4
+    )
+    expected = np.array([4.25])
+    force = operator.matvec(expected)
+    scale = operator.estimate_column_scale(32, rng)
+    solution = lsmr(operator.scaled(scale), force, atol=1e-12, btol=1e-12)
+    actual = solution[0] * scale
+
+    np.testing.assert_allclose(actual, expected, rtol=1e-11, atol=1e-11)
+    rmse, relative = _force_metrics(operator.matvec(actual), force)
+    assert rmse < 1e-12
+    assert 100 * relative < 1e-9
+
+
 def test_wick_recursion_supports_arbitrary_degree():
     displacement = np.array([[2.0, 3.0, 5.0]])
     covariance = np.diag([0.5, 0.7, 1.1])
@@ -59,9 +79,7 @@ def test_wick_recursion_supports_arbitrary_degree():
 
 def test_wick_sparse_coefficients_are_converted_to_taylor_coefficients():
     fc3 = SparseOrderForceConstants(3, 1, 1, np.zeros((1, 3), dtype=int), np.ones((1, 3, 3, 3)))
-    fc5 = SparseOrderForceConstants(
-        5, 1, 1, np.zeros((1, 5), dtype=int), np.ones((1, 3, 3, 3, 3, 3))
-    )
+    fc5 = SparseOrderForceConstants(5, 1, 1, np.zeros((1, 5), dtype=int), np.ones((1, 3, 3, 3, 3, 3)))
     covariance = np.diag([2.0, 3.0, 5.0])
 
     converted = _wick_to_taylor_sparse({3: fc3, 5: fc5}, covariance)
@@ -95,7 +113,25 @@ def test_wick_to_taylor_conversion_preserves_polynomial_force():
         np.testing.assert_allclose(taylor_force, wick_force_without_constant)
 
 
-def test_streaming_gram_recovers_force_constant_and_force_error():
+def test_cached_operator_matches_matrix_free_operator():
+    rng = np.random.default_rng(9)
+    displacement = rng.normal(size=(7, 1, 3))
+    covariance = np.eye(3)
+    tensor = _one_parameter_fc2_tensor()
+    operator = _BatchedForceOperator(displacement, covariance, (tensor,), 1, batch_size=4)
+    cached = _CachedForceOperator.from_operator(operator)
+    try:
+        parameters = np.array([3.5])
+        residual = rng.normal(size=operator.shape[0])
+        np.testing.assert_allclose(cached.matvec(parameters), operator.matvec(parameters))
+        np.testing.assert_allclose(cached.rmatvec(residual), operator.rmatvec(residual))
+        expected_scale = 1.0 / np.linalg.norm(operator.matvec(np.ones(1)))
+        np.testing.assert_allclose(cached.exact_column_scale(), expected_scale)
+    finally:
+        cached.close()
+
+
+def test_streaming_gram_matches_lsmr():
     rng = np.random.default_rng(12)
     displacement = rng.normal(size=(9, 1, 3))
     covariance = np.eye(3)
@@ -105,18 +141,12 @@ def test_streaming_gram_recovers_force_constant_and_force_error():
     target = operator.matvec(expected)
     gram = _StreamingGramSystem.from_operator(operator, target)
     scale = gram.exact_column_scale()
-    actual = (
-        gram.solve(
-            scale,
-            sparse.csr_matrix((0, 1)),
-            tolerance=1e-12,
-            max_iterations=100,
-            damping=0.0,
-            verbose=False,
-        )[0]
-        * scale
-    )
+    actual = gram.solve(
+        scale,
+        sparse.csr_matrix((0, 1)),
+        tolerance=1e-12,
+        max_iterations=100,
+        damping=0.0,
+        verbose=False,
+    )[0] * scale
     np.testing.assert_allclose(actual, expected, rtol=1e-12, atol=1e-12)
-    rmse, relative = _force_metrics(operator.matvec(actual), target)
-    assert rmse < 1e-12
-    assert 100 * relative < 1e-9
