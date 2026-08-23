@@ -10,134 +10,107 @@ examples:
 
 # Minimal FC2 Finite-Supercell Observable Closure Study
 
-This study asks only whether the current transferable FC2 realization map
+This study asks whether the transferable FC2 realization map
 
 $$
 M:\Theta_{\mathrm{primitive}}\rightarrow\mathcal H_{\mathrm{SC}}
 $$
 
-can satisfy
+can be completed by a strictly orthogonal, source-only closure on the $2\times2\times2$ KCl
+reference. Closure means only:
+
+> finite-supercell harmonic response not represented by the current transferable FC2 basis
+
+It is neither a long-range FC2 model nor a unique infinite-lattice interaction.
+
+## Phase one: unconstrained observable space
+
+Finite FC2 is represented by translation-reduced compact Hessian blocks
 
 $$
-\dim\ker M=0,
-\qquad
-\dim\operatorname{im}M<\dim\mathcal H_{\mathrm{SC}}.
+\Phi_{ab}([R])\in\mathbb R^{3\times3},
 $$
 
-The result has two layers. KCl does reach this sweet spot at the representation level, but the
-prescribed center-of-mass-free data do not identify the complete transferable-plus-closure space.
-The overall outcome is therefore **No-Go**, with no production architecture work started.
+with compatible space-group and Hessian-permutation symmetry. The transferable dimension is four,
+$\operatorname{rank}(M)=4$, $\dim\ker M=0$, and $\dim\mathcal H_{\mathrm{SC}}=13$, leaving a
+nine-dimensional orthogonal closure. Thus the representation sweet spot is real.
 
-## Finite observable space
+For 100 center-of-mass-free Gaussian snapshots with $0.01$ Å standard deviation and random seed 42,
+however, the joint design has rank 12/13. Its unique null direction has centered-design residual
+$1.37\times10^{-16}$, ASR maximum 2.10, uniform-displacement force norm 14.56, and relative
+projection into the ASR-allowed space of only $1.31\times10^{-15}$. It is therefore precisely the
+ASR-forbidden uniform-translation response hidden by center-of-mass removal.
 
-The case uses the two-atom KCl primitive and a $2\times2\times2$, 16-atom reference. Finite FC2
-is first represented by a translation-reduced compact Hessian,
+## Phase two: ASR inside the representation
 
-$$
-\Phi_{ab}([R])\in\mathbb R^{3\times3}.
-$$
-
-Primitive translation covariance is inherent in these coordinates. Averaging the compatible
-finite space-group actions and imposing
+ASR is imposed as a defining subspace, not as a post-hoc correction:
 
 $$
-\Phi_{ab}([R])=\Phi_{ba}([-R])^T
+\mathcal H_{\mathrm{SC}}^{\mathrm{ASR}}=\ker C_{\mathrm{ASR}}.
 $$
 
-gives an orthogonal projector $P_{\rm SC}$ whose image defines $\mathcal H_{\rm SC}$. ASR,
-Born–Huang, and Huang conditions are deliberately absent in this phase. Idempotence and symmetry
-of the projector are checked to $10^{-9}$ so an atom-permutation or Cartesian convention error
-cannot silently produce a plausible dimension.
+Observable and production transferable null spaces are constructed independently, followed by
 
-## Transferable realization map
+$$
+M_{\mathrm{ASR}}=Z_{\mathrm{SC}}^T M Z_\theta.
+$$
 
-Each current `PrimitiveInteractionSpace` FC2 parameter is expanded into exact-$R$ tensors, folded
-onto the reference, and projected into the orthonormal observable coordinates:
+No one-dimensional reduction is assumed. The observable ASR constraint actually has rank two:
 
 | Metric | Value |
 |---|---:|
-| Primitive transferable parameter dimension | 4 |
-| $\operatorname{rank}(M)$ | 4 |
-| $\dim\ker M$ | 0 |
-| $\dim\mathcal H_{\rm SC}$ | 13 |
-| Closure dimension | 9 |
+| Observable dimension | $13\rightarrow11$ |
+| Transferable dimension | $4\rightarrow2$ |
+| $\operatorname{rank}(M_{\mathrm{ASR}})$ | 2 |
+| $\dim\ker M_{\mathrm{ASR}}$ | 0 |
+| ASR-constrained closure dimension | 9 |
+| $\operatorname{rank}[M_{\mathrm{ASR}}\ N_{\mathrm{ASR}}]$ | 11/11 |
+| $\|M_{\mathrm{ASR}}^TN_{\mathrm{ASR}}\|_2$ | $1.02\times10^{-15}$ |
 
-The singular values are
+The production ASR basis and direct Hessian ASR null space differ by a maximum principal angle of
+$4.48\times10^{-16}$. A random allowed Hessian is reconstructed with relative error
+$4.39\times10^{-16}$; its ASR, permutation, and symmetry residuals remain below
+$7.58\times10^{-15}$, $1.08\times10^{-15}$, and $8.01\times10^{-15}$.
 
-$$
-(4.89897949,\ 3.46410162,\ 1.73205081,\ 1.73205081),
-$$
+Projecting the old closure first happens to give the same nine-dimensional subspace in this case,
+with maximum principal angle $2.27\times10^{-15}$ to the rebuilt closure. Rebuilding directly in
+the allowed space remains the correct definition because it does not inherit an unconstrained gauge.
 
-against a rank tolerance of $1.41\times10^{-14}$. The projection residual is
-$2.01\times10^{-15}$. Thus the real KCl case strictly demonstrates an identifiable transferable
-FC2 representation that does not span the complete finite Hessian space.
+## Dataset controls
 
-## Orthogonal closure
+| Displacement treatment | Representation | Design rank | Nullity |
+|---|---|---:|---:|
+| COM removed | Unconstrained | 12/13 | 1 |
+| COM retained | Unconstrained | 13/13 | 0 |
+| COM removed | ASR constrained | 11/11 | 0 |
+| COM retained | ASR constrained | 11/11 | 0 |
 
-A single SVD supplies the left orthogonal complement $N$:
+The centered and uncentered ASR-constrained singular values agree term by term. Once ASR is built
+into the model, a uniform displacement produces no force and COM removal no longer changes the
+identifiable information. Transferable, closure, and joint ranks are 2/2, 9/9, and 11/11. The joint
+condition number is 4.02 and the minimum block principal angle is 1.491 radians.
 
-| Check | Value |
-|---|---:|
-| $\operatorname{rank}[M\ N]$ | 13/13 |
-| $\|M^TN\|_2$ | $1.07\times10^{-32}$ |
-| Minimum representation principal angle | $\pi/2$ |
-| Random observable-coordinate relative error | $1.51\times10^{-16}$ |
-| Random full-Hessian relative error | $1.57\times10^{-16}$ |
+## Force reconstruction
 
-At the representation level every $\phi\in\mathcal H_{\rm SC}$ therefore has a unique
-decomposition
+| Model | Rank | RMSE (eV/Å) | ASR maximum | Unique |
+|---|---:|---:|---:|---:|
+| A. Transferable only | 4/4 | $5.87\times10^{-3}$ | $7.94\times10^{-1}$ | Yes |
+| B. Transferable + unconstrained closure | 12/13 | $6.46\times10^{-4}$ | $9.76\times10^{-2}$ | No |
+| C. ASR transferable + closure | 11/11 | $6.46\times10^{-4}$ | $1.27\times10^{-14}$ | Yes |
 
-$$
-\phi=M\theta+N\eta.
-$$
+Model C preserves the reconstruction accuracy of B while removing its gauge and satisfying ASR.
+The closure Hessian norm ratio is 0.303, but this is only a representation-residual ratio and must
+not be interpreted as a long-range-force fraction.
 
-The closure means only finite-supercell harmonic response absent from the current transferable
-FC2 basis. It is neither a unique infinite-lattice interaction nor a long-range FC2 model.
+## Decision and scope
 
-## Dataset identifiability
+Phase two is **GO**: the ASR-constrained closure is complete, stably separated from the transferable
+span, and identifiable from the center-of-mass-free dataset in this real case. This only licenses a
+future architecture discussion. No production fitter, IFC schema, SCPH, SSCHA, or export code was
+changed.
 
-The actual data use the case PolyMLP, 100 Gaussian Cartesian snapshots with $0.01$ Å standard
-deviation, random seed 42, and center-of-mass displacement removed from every frame. The design is
+The one-atom aliasing negative control remains three primitive parameters with realization rank one
+and a two-dimensional kernel, correctly rejected by the production check. Closure must never hide a
+kernel in the transferable representation.
 
-$$
-X=\left[X_{\rm SC}M\quad X_{\rm SC}N\right].
-$$
-
-| Metric | Value |
-|---|---:|
-| Transferable dataset rank | 4/4 |
-| Closure dataset rank | 9/9 |
-| Joint dataset rank | 12/13 |
-| Joint nullity | 1 |
-| Condition number on the nonzero subspace | 6.26 |
-| Minimum dataset principal angle | 0 |
-
-The joint null vector has a design residual of $1.37\times10^{-16}$ but a maximum Hessian ASR
-residual of $2.10$. It belongs to the uniform-translation sector that center-of-mass-free sampling
-cannot observe, rather than to an error in the representation completion. Each block is full rank
-alone, but the two blocks share one indistinguishable direction on this dataset.
-
-The transferable-only force RMSE is $5.87\times10^{-3}$ eV/Å, while a minimum-norm joint fit lowers
-it to $6.46\times10^{-4}$ eV/Å. A smaller residual does not remove the joint parameter gauge and
-is not sufficient justification for a production feature.
-
-## Aliasing negative control
-
-The existing one-atom, $4.1$ Å cutoff, $1\times1\times1$ reference model has three primitive
-parameters but realization rank one, giving $\dim\ker M=2$. The production
-`validate_realization_identifiability()` correctly raises `InteractionAliasingError`. The prototype
-does not disable that check or conceal primitive aliasing with closure parameters.
-
-## Decision
-
-The experiment establishes that the representation sweet spot is real and that its SVD complement
-is numerically stable. It also establishes that the unconstrained full observable closure is not
-jointly identifiable from the prescribed center-of-mass-free data.
-
-Under the locked acceptance criteria, the decision is **No-Go**. No fitter, IFC schema, SCPH,
-SSCHA, or export changes follow from this study. A future investigation would have to start as a
-separate ASR-constrained observable-space study rather than integrating the present 13-dimensional
-unconstrained result.
-
-The complete prototype and machine-readable output are under
-`research/fc2_observable_closure/`.
+The complete prototype and machine-readable results are in `research/fc2_observable_closure/`.

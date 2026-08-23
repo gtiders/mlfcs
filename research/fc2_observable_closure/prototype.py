@@ -22,6 +22,7 @@ if str(CASE) not in sys.path:
 
 from common import HARMONIC_PATH, POTENTIAL_PATH, ase_from_phonopy
 
+from mlfcs.constraints.translational import build_translational_constraints
 from mlfcs.force_constants.dense import compact_fc2, expand_compact_fc2
 from mlfcs.force_constants.expansion import expand_primitive_parameters
 from mlfcs.interactions.enumerate import build_primitive_interaction_space
@@ -46,6 +47,24 @@ def numerical_rank(values: np.ndarray) -> RankResult:
     largest = float(singular[0]) if len(singular) else 0.0
     tolerance = np.finfo(float).eps * max(values.shape, default=0) * largest
     return RankResult(int(np.count_nonzero(singular > tolerance)), tolerance, singular)
+
+
+def null_space(values: np.ndarray) -> tuple[np.ndarray, RankResult]:
+    """Return an orthonormal null-space basis using the shared rank convention."""
+    matrix = np.asarray(values, dtype=float)
+    _left, singular, right = np.linalg.svd(matrix, full_matrices=True)
+    rank = numerical_rank(matrix)
+    return right[rank.rank :].T, RankResult(rank.rank, rank.tolerance, singular)
+
+
+def rank_stability(values: np.ndarray) -> dict[str, int]:
+    singular = np.linalg.svd(np.asarray(values, dtype=float), compute_uv=False)
+    largest = float(singular[0]) if len(singular) else 0.0
+    base = np.finfo(float).eps * max(values.shape, default=0) * largest
+    return {
+        str(multiplier): int(np.count_nonzero(singular > multiplier * base))
+        for multiplier in (0.1, 1.0, 10.0, 100.0)
+    }
 
 
 def compact_from_sparse(space, parameters, relation) -> np.ndarray:
@@ -136,6 +155,12 @@ def full_hessian_basis(observable: np.ndarray, relation) -> np.ndarray:
     return np.asarray(full).T
 
 
+def asr_constraint_matrix(hessian_basis: np.ndarray, n_atoms: int) -> np.ndarray:
+    """Map Hessian-basis coordinates to sum_j Phi[i,a,j,b]."""
+    hessians = hessian_basis.T.reshape((-1, n_atoms, n_atoms, 3, 3))
+    return np.sum(hessians, axis=2).reshape((len(hessians), -1)).T
+
+
 def design_from_hessian_basis(displacements: np.ndarray, hessian_basis: np.ndarray) -> np.ndarray:
     n_atoms = displacements.shape[1]
     hessians = hessian_basis.T.reshape((-1, n_atoms, n_atoms, 3, 3))
@@ -143,23 +168,31 @@ def design_from_hessian_basis(displacements: np.ndarray, hessian_basis: np.ndarr
     return forces.reshape((-1, len(hessians)))
 
 
-def kcl_structures(snapshots: int) -> tuple[Atoms, Atoms, np.ndarray, np.ndarray]:
-    phonon = load(HARMONIC_PATH)
-    primitive = ase_from_phonopy(phonon.primitive)
-    reference = build_supercell(primitive, (2, 2, 2))
-    rng = np.random.default_rng(42)
-    displacements = rng.normal(scale=0.01, size=(snapshots, len(reference), 3))
-    displacements -= displacements.mean(axis=1, keepdims=True)
-    from pypolymlp.calculator.utils.ase_calculator import PolymlpASECalculator
-
-    calculator = PolymlpASECalculator(pot=POTENTIAL_PATH)
+def evaluate_forces(reference: Atoms, displacements: np.ndarray, calculator) -> np.ndarray:
     forces = np.empty_like(displacements)
     for snapshot, displacement in enumerate(displacements):
         atoms = reference.copy()
         atoms.positions += displacement
         atoms.calc = calculator
         forces[snapshot] = atoms.get_forces()
-    return primitive, reference, displacements, forces
+    return forces
+
+
+def kcl_structures(
+    snapshots: int,
+) -> tuple[Atoms, Atoms, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    phonon = load(HARMONIC_PATH)
+    primitive = ase_from_phonopy(phonon.primitive)
+    reference = build_supercell(primitive, (2, 2, 2))
+    rng = np.random.default_rng(42)
+    uncentered = rng.normal(scale=0.01, size=(snapshots, len(reference), 3))
+    centered = uncentered - uncentered.mean(axis=1, keepdims=True)
+    from pypolymlp.calculator.utils.ase_calculator import PolymlpASECalculator
+
+    calculator = PolymlpASECalculator(pot=POTENTIAL_PATH)
+    centered_forces = evaluate_forces(reference, centered, calculator)
+    uncentered_forces = evaluate_forces(reference, uncentered, calculator)
+    return primitive, reference, centered, centered_forces, uncentered, uncentered_forces
 
 
 def aliasing_negative_control() -> dict[str, object]:
@@ -196,7 +229,14 @@ def aliasing_negative_control() -> dict[str, object]:
 
 
 def run(snapshots: int) -> dict[str, object]:
-    primitive, reference, displacements, forces = kcl_structures(snapshots)
+    (
+        primitive,
+        reference,
+        centered_displacements,
+        centered_forces,
+        uncentered_displacements,
+        _uncentered_forces,
+    ) = kcl_structures(snapshots)
     frame = ReferenceFrame.from_atoms(primitive, reference, symprec=1e-5)
     # Resolve cutoff=None through the same public interaction-space semantics.
     from mlfcs.interactions.enumerate import resolve_primitive_cutoff
@@ -235,6 +275,7 @@ def run(snapshots: int) -> dict[str, object]:
         "mapping_rank_tolerance": map_rank.tolerance,
         "transferable_projection_residual": map_residual,
         "observable_projector_rank_tolerance": projector_rank.tolerance,
+        "mapping_rank_stability": rank_stability(mapping),
     }
     if kernel_dimension != 0 or closure_dimension <= 0:
         result["decision"] = "NO-GO"
@@ -246,88 +287,376 @@ def run(snapshots: int) -> dict[str, object]:
         result["negative_control"] = aliasing_negative_control()
         return result
 
-    image, closure = closure_basis(mapping, map_rank.rank)
+    _image, closure = closure_basis(mapping, map_rank.rank)
     combined = np.column_stack((mapping, closure))
     combined_rank = numerical_rank(combined)
-    orthogonality = float(np.linalg.norm(mapping.T @ closure, ord=2))
-    intersection_angle = float(np.min(subspace_angles(image, closure)))
+    hessian_basis = full_hessian_basis(finite_basis, frame.relation)
+
+    # Define the physical observable space first, then take null(C_ASR).
+    observable_asr = asr_constraint_matrix(hessian_basis, len(reference))
+    observable_asr_basis, observable_asr_rank = null_space(observable_asr)
+    constrained_observable_dimension = observable_asr_basis.shape[1]
+    constrained_finite_basis = finite_basis @ observable_asr_basis
+    constrained_hessian_basis = hessian_basis @ observable_asr_basis
+
+    # Preserve the current transferable-ASR semantics by using the production
+    # primitive constraint matrix, then verify it agrees with finite-Hessian ASR.
+    transferable_asr = build_translational_constraints(space).toarray()
+    transferable_asr_basis, transferable_asr_rank = null_space(transferable_asr)
+    direct_transferable_asr_basis, _direct_transferable_asr_rank = null_space(
+        observable_asr @ mapping
+    )
+    asr_basis_angles = subspace_angles(
+        transferable_asr_basis, direct_transferable_asr_basis
+    )
+    asr_mapping_leakage = float(
+        np.linalg.norm(observable_asr @ mapping @ transferable_asr_basis)
+    )
+
+    constrained_mapping = (
+        observable_asr_basis.T @ mapping @ transferable_asr_basis
+    )
+    constrained_map_rank = numerical_rank(constrained_mapping)
+    constrained_kernel = constrained_mapping.shape[1] - constrained_map_rank.rank
+    constrained_closure_dimension = (
+        constrained_observable_dimension - constrained_map_rank.rank
+    )
+    if constrained_kernel:
+        result.update(
+            {
+                "decision": "NO-GO",
+                "reason": "ASR-constrained transferable map has a kernel",
+                "asr": {
+                    "observable_constraint_rank": observable_asr_rank.rank,
+                    "observable_dimension": constrained_observable_dimension,
+                    "transferable_dimension": constrained_mapping.shape[1],
+                    "transferable_rank": constrained_map_rank.rank,
+                    "transferable_kernel_dimension": constrained_kernel,
+                },
+                "negative_control": aliasing_negative_control(),
+            }
+        )
+        return result
+
+    constrained_image, constrained_closure = closure_basis(
+        constrained_mapping, constrained_map_rank.rank
+    )
+    constrained_combined = np.column_stack(
+        (constrained_mapping, constrained_closure)
+    )
+    constrained_combined_rank = numerical_rank(constrained_combined)
+
+    # Flow A is diagnostic only: project the old closure after construction.
+    projected_old_closure = observable_asr_basis.T @ closure
+    projected_old_closure_rank = numerical_rank(projected_old_closure)
+    flow_a_combined = np.column_stack((constrained_mapping, projected_old_closure))
+    flow_a_rank = numerical_rank(flow_a_combined)
+    flow_a_intersection = (
+        constrained_mapping.shape[1]
+        + projected_old_closure_rank.rank
+        - flow_a_rank.rank
+    )
+    flow_a_angles = subspace_angles(projected_old_closure, constrained_closure)
 
     rng = np.random.default_rng(20260823)
-    target = rng.normal(size=finite_basis.shape[1])
-    recovered, *_ = np.linalg.lstsq(combined, target, rcond=None)
-    reconstructed = combined @ recovered
-    coordinate_error = float(np.linalg.norm(reconstructed - target) / np.linalg.norm(target))
-
-    hessian_basis = full_hessian_basis(finite_basis, frame.relation)
-    target_hessian = hessian_basis @ target
-    recovered_hessian = hessian_basis @ reconstructed
-    hessian_error = float(
-        np.linalg.norm(recovered_hessian - target_hessian) / np.linalg.norm(target_hessian)
+    constrained_target = rng.normal(size=constrained_observable_dimension)
+    constrained_recovered, *_ = np.linalg.lstsq(
+        constrained_combined, constrained_target, rcond=None
+    )
+    constrained_reconstruction = constrained_combined @ constrained_recovered
+    constrained_coordinate_error = float(
+        np.linalg.norm(constrained_reconstruction - constrained_target)
+        / np.linalg.norm(constrained_target)
+    )
+    target_hessian = constrained_hessian_basis @ constrained_target
+    recovered_hessian = constrained_hessian_basis @ constrained_reconstruction
+    constrained_hessian_error = float(
+        np.linalg.norm(recovered_hessian - target_hessian)
+        / np.linalg.norm(target_hessian)
+    )
+    target_hessian_array = target_hessian.reshape(
+        (len(reference), len(reference), 3, 3)
+    )
+    random_asr_residual = float(
+        np.max(np.abs(np.sum(target_hessian_array, axis=1)))
+    )
+    random_permutation_residual = float(
+        np.linalg.norm(target_hessian_array - target_hessian_array.transpose(1, 0, 3, 2))
+    )
+    random_symmetry_residual = float(
+        np.linalg.norm(symmetrize_full_fc2(target_hessian_array, frame) - target_hessian_array)
     )
 
-    finite_design = design_from_hessian_basis(displacements, hessian_basis)
-    transferable_design = finite_design @ mapping
-    closure_design = finite_design @ closure
-    joint_design = np.column_stack((transferable_design, closure_design))
-    transferable_rank = numerical_rank(transferable_design)
-    closure_rank = numerical_rank(closure_design)
-    joint_rank = numerical_rank(joint_design)
-    fitted, *_ = np.linalg.lstsq(joint_design, forces.reshape(-1), rcond=None)
-    prediction = joint_design @ fitted
-    force_rmse = float(np.sqrt(np.mean(np.square(prediction - forces.reshape(-1)))))
-    transferable_fit, *_ = np.linalg.lstsq(
-        transferable_design, forces.reshape(-1), rcond=None
+    centered_finite_design = design_from_hessian_basis(
+        centered_displacements, hessian_basis
     )
-    transferable_prediction = transferable_design @ transferable_fit
-    transferable_force_rmse = float(
-        np.sqrt(np.mean(np.square(transferable_prediction - forces.reshape(-1))))
+    uncentered_finite_design = design_from_hessian_basis(
+        uncentered_displacements, hessian_basis
     )
-    dataset_angles = subspace_angles(transferable_design, closure_design)
-    minimum_angle = float(np.min(dataset_angles)) if len(dataset_angles) else float("nan")
-    condition = (
-        float(joint_rank.singular_values[0] / joint_rank.singular_values[joint_rank.rank - 1])
-        if joint_rank.rank
-        else float("inf")
+    centered_unconstrained = centered_finite_design @ combined
+    uncentered_unconstrained = uncentered_finite_design @ combined
+    constrained_coordinate_map = observable_asr_basis @ constrained_combined
+    centered_constrained = centered_finite_design @ constrained_coordinate_map
+    uncentered_constrained = uncentered_finite_design @ constrained_coordinate_map
+
+    centered_transferable = centered_finite_design @ mapping
+    centered_constrained_transferable = (
+        centered_finite_design
+        @ observable_asr_basis
+        @ constrained_mapping
     )
-    _left, _singular, right = np.linalg.svd(joint_design, full_matrices=False)
-    dataset_nullity = joint_design.shape[1] - joint_rank.rank
-    null_design_residual = 0.0
-    null_asr_maximum = 0.0
-    if dataset_nullity:
-        null_parameters = right[joint_rank.rank :].T[:, 0]
-        null_coordinates = combined @ null_parameters
-        null_hessian = (hessian_basis @ null_coordinates).reshape(
+    centered_constrained_closure = (
+        centered_finite_design
+        @ observable_asr_basis
+        @ constrained_closure
+    )
+
+    control_designs = {
+        "com_removed_unconstrained": centered_unconstrained,
+        "com_retained_unconstrained": uncentered_unconstrained,
+        "com_removed_asr_constrained": centered_constrained,
+        "com_retained_asr_constrained": uncentered_constrained,
+    }
+    control = {}
+    for label, design in control_designs.items():
+        rank = numerical_rank(design)
+        condition = (
+            float(rank.singular_values[0] / rank.singular_values[rank.rank - 1])
+            if rank.rank
+            else float("inf")
+        )
+        control[label] = {
+            "columns": design.shape[1],
+            "rank": rank.rank,
+            "nullity": design.shape[1] - rank.rank,
+            "rank_tolerance": rank.tolerance,
+            "condition_number_nonzero_subspace": condition,
+            "singular_values": rank.singular_values.tolist(),
+            "rank_stability": rank_stability(design),
+        }
+
+    # Reconstruct the previous phase's deterministic null vector and test its
+    # projection into the newly defined ASR-constrained observable space.
+    _left, previous_singular, previous_right = np.linalg.svd(
+        centered_unconstrained, full_matrices=False
+    )
+    previous_rank = numerical_rank(centered_unconstrained)
+    previous_null_parameters = previous_right[previous_rank.rank :].T[:, 0]
+    previous_null_coordinates = combined @ previous_null_parameters
+    previous_null_norm = float(np.linalg.norm(previous_null_coordinates))
+    previous_null_projection = (
+        observable_asr_basis @ observable_asr_basis.T @ previous_null_coordinates
+    )
+    previous_projection_ratio = float(
+        np.linalg.norm(previous_null_projection) / previous_null_norm
+    )
+    previous_null_hessian = (hessian_basis @ previous_null_coordinates).reshape(
+        (len(reference), len(reference), 3, 3)
+    )
+    uniform_displacements = np.zeros((3, len(reference), 3))
+    for direction in range(3):
+        uniform_displacements[direction, :, direction] = 1.0
+    uniform_response = -np.einsum(
+        "ijab,sjb->sia", previous_null_hessian, uniform_displacements, optimize=True
+    )
+
+    def fit_metrics(design, forces, coordinate_map):
+        rank = numerical_rank(design)
+        parameters, *_ = np.linalg.lstsq(design, forces.reshape(-1), rcond=None)
+        prediction = design @ parameters
+        coordinates = coordinate_map @ parameters
+        hessian = (hessian_basis @ coordinates).reshape(
             (len(reference), len(reference), 3, 3)
         )
-        null_design_residual = float(np.linalg.norm(joint_design @ null_parameters))
-        null_asr_maximum = float(np.max(np.abs(np.sum(null_hessian, axis=1))))
+        return {
+            "columns": design.shape[1],
+            "rank": rank.rank,
+            "nullity": design.shape[1] - rank.rank,
+            "force_rmse_eV_per_angstrom": float(
+                np.sqrt(np.mean(np.square(prediction - forces.reshape(-1))))
+            ),
+            "hessian_asr_maximum": float(np.max(np.abs(np.sum(hessian, axis=1)))),
+            "minimum_norm_is_unique": rank.rank == design.shape[1],
+            "parameters": parameters,
+            "observable_coordinates": coordinates,
+        }
 
-    full_column_rank = joint_rank.rank == joint_design.shape[1]
+    fit_a = fit_metrics(centered_transferable, centered_forces, mapping)
+    fit_b = fit_metrics(centered_unconstrained, centered_forces, combined)
+    fit_c = fit_metrics(
+        centered_constrained,
+        centered_forces,
+        constrained_coordinate_map,
+    )
+    constrained_parameters = fit_c.pop("parameters")
+    fit_c.pop("observable_coordinates")
+    transferable_count = constrained_mapping.shape[1]
+    fitted_transferable_coordinates = observable_asr_basis @ (
+        constrained_mapping @ constrained_parameters[:transferable_count]
+    )
+    fitted_closure_coordinates = observable_asr_basis @ (
+        constrained_closure @ constrained_parameters[transferable_count:]
+    )
+    fitted_total_hessian = hessian_basis @ (
+        fitted_transferable_coordinates + fitted_closure_coordinates
+    )
+    fitted_closure_hessian = hessian_basis @ fitted_closure_coordinates
+    closure_norm_ratio = float(
+        np.linalg.norm(fitted_closure_hessian) / np.linalg.norm(fitted_total_hessian)
+    )
+    fit_a.pop("parameters")
+    fit_a.pop("observable_coordinates")
+    fit_b.pop("parameters")
+    fit_b.pop("observable_coordinates")
+
+    constrained_transferable_rank = numerical_rank(centered_constrained_transferable)
+    constrained_closure_rank = numerical_rank(centered_constrained_closure)
+    constrained_joint_rank = numerical_rank(centered_constrained)
+    constrained_dataset_angles = subspace_angles(
+        centered_constrained_transferable, centered_constrained_closure
+    )
+    observable_asr_rank_stability = rank_stability(observable_asr)
+    transferable_rank_stability = rank_stability(constrained_mapping)
+    representation_rank_stability = rank_stability(constrained_combined)
+    dataset_rank_stability = rank_stability(centered_constrained)
+    all_go = (
+        np.linalg.norm(observable_asr @ observable_asr_basis) < 1e-12
+        and np.linalg.norm(
+            constrained_finite_basis.T @ constrained_finite_basis
+            - np.eye(constrained_observable_dimension)
+        )
+        < 1e-12
+        and constrained_kernel == 0
+        and constrained_combined_rank.rank == constrained_observable_dimension
+        and flow_a_intersection == 0
+        and constrained_joint_rank.rank == centered_constrained.shape[1]
+        and previous_projection_ratio < 1e-12
+        and random_asr_residual < 1e-12
+        and random_permutation_residual < 1e-12
+        and random_symmetry_residual < 1e-12
+        and fit_c["minimum_norm_is_unique"]
+        and fit_c["hessian_asr_maximum"] < 1e-12
+        and len(set(observable_asr_rank_stability.values())) == 1
+        and len(set(transferable_rank_stability.values())) == 1
+        and len(set(representation_rank_stability.values())) == 1
+        and len(set(dataset_rank_stability.values())) == 1
+    )
     result.update(
         {
-            "combined_rank": combined_rank.rank,
-            "combined_columns": combined.shape[1],
-            "mapping_closure_orthogonality_2norm": orthogonality,
-            "minimum_representation_principal_angle_radians": intersection_angle,
-            "random_coordinate_reconstruction_relative_error": coordinate_error,
-            "random_hessian_reconstruction_relative_error": hessian_error,
-            "transferable_dataset_rank": transferable_rank.rank,
-            "closure_dataset_rank": closure_rank.rank,
-            "joint_dataset_rank": joint_rank.rank,
-            "joint_dataset_columns": joint_design.shape[1],
-            "joint_dataset_nullity": dataset_nullity,
-            "joint_dataset_rank_tolerance": joint_rank.tolerance,
-            "joint_dataset_condition_number": condition,
-            "minimum_dataset_principal_angle_radians": minimum_angle,
-            "dataset_null_design_residual": null_design_residual,
-            "dataset_null_hessian_asr_maximum": null_asr_maximum,
-            "transferable_only_force_fit_rmse_eV_per_angstrom": transferable_force_rmse,
-            "actual_force_fit_rmse_eV_per_angstrom": force_rmse,
-            "decision": "GO" if full_column_rank else "NO-GO",
+            "unconstrained": {
+                "combined_rank": combined_rank.rank,
+                "combined_columns": combined.shape[1],
+                "mapping_closure_orthogonality_2norm": float(
+                    np.linalg.norm(mapping.T @ closure, ord=2)
+                ),
+            },
+            "asr": {
+                "observable_constraint_rows": observable_asr.shape[0],
+                "observable_constraint_rank": observable_asr_rank.rank,
+                "observable_constraint_singular_values": observable_asr_rank.singular_values.tolist(),
+                "observable_constraint_rank_stability": observable_asr_rank_stability,
+                "observable_dimension_before": finite_basis.shape[1],
+                "observable_dimension_after": constrained_observable_dimension,
+                "observable_basis_orthogonality": float(
+                    np.linalg.norm(
+                        constrained_finite_basis.T @ constrained_finite_basis
+                        - np.eye(constrained_observable_dimension)
+                    )
+                ),
+                "observable_basis_asr_residual": float(
+                    np.linalg.norm(observable_asr @ observable_asr_basis)
+                ),
+                "observable_null_space_basis": observable_asr_basis.tolist(),
+                "transferable_parameter_dimension_before": mapping.shape[1],
+                "transferable_constraint_rank": transferable_asr_rank.rank,
+                "transferable_parameter_dimension_after": constrained_mapping.shape[1],
+                "transferable_map_rank": constrained_map_rank.rank,
+                "transferable_kernel_dimension": constrained_kernel,
+                "transferable_smallest_retained_singular_value": float(
+                    constrained_map_rank.singular_values[constrained_map_rank.rank - 1]
+                ),
+                "transferable_rank_tolerance": constrained_map_rank.tolerance,
+                "transferable_rank_stability": transferable_rank_stability,
+                "production_vs_direct_asr_max_principal_angle": float(
+                    np.max(asr_basis_angles) if len(asr_basis_angles) else 0.0
+                ),
+                "transferable_asr_mapping_residual": asr_mapping_leakage,
+                "transferable_null_space_basis": transferable_asr_basis.tolist(),
+                "closure_dimension": constrained_closure_dimension,
+                "combined_rank": constrained_combined_rank.rank,
+                "combined_columns": constrained_combined.shape[1],
+                "mapping_closure_orthogonality_2norm": float(
+                    np.linalg.norm(constrained_mapping.T @ constrained_closure, ord=2)
+                ),
+                "minimum_representation_principal_angle_radians": float(
+                    np.min(subspace_angles(constrained_image, constrained_closure))
+                ),
+                "random_coordinate_reconstruction_relative_error": constrained_coordinate_error,
+                "random_hessian_reconstruction_relative_error": constrained_hessian_error,
+                "random_hessian_asr_maximum": random_asr_residual,
+                "random_hessian_permutation_residual": random_permutation_residual,
+                "random_hessian_symmetry_residual": random_symmetry_residual,
+                "combined_rank_stability": representation_rank_stability,
+            },
+            "flow_a_post_projected_old_closure": {
+                "projected_closure_rank": projected_old_closure_rank.rank,
+                "combined_rank": flow_a_rank.rank,
+                "intersection_dimension": flow_a_intersection,
+                "mapping_closure_orthogonality_2norm": float(
+                    np.linalg.norm(constrained_mapping.T @ projected_old_closure, ord=2)
+                ),
+                "maximum_principal_angle_to_rebuilt_closure_radians": float(
+                    np.max(flow_a_angles) if len(flow_a_angles) else 0.0
+                ),
+            },
+            "previous_unconstrained_null": {
+                "source": "deterministically reconstructed from the phase-one design because the earlier JSON did not store the vector",
+                "parameter_vector": previous_null_parameters.tolist(),
+                "observable_vector": previous_null_coordinates.tolist(),
+                "singular_values": previous_singular.tolist(),
+                "asr_projection_relative_norm": previous_projection_ratio,
+                "hessian_asr_maximum": float(
+                    np.max(np.abs(np.sum(previous_null_hessian, axis=1)))
+                ),
+                "uniform_displacement_force_response_norm": float(
+                    np.linalg.norm(uniform_response)
+                ),
+                "centered_design_residual": float(
+                    np.linalg.norm(centered_unconstrained @ previous_null_parameters)
+                ),
+            },
+            "dataset_control": control,
+            "constrained_dataset": {
+                "transferable_rank": constrained_transferable_rank.rank,
+                "transferable_columns": centered_constrained_transferable.shape[1],
+                "closure_rank": constrained_closure_rank.rank,
+                "closure_columns": centered_constrained_closure.shape[1],
+                "joint_rank": constrained_joint_rank.rank,
+                "joint_columns": centered_constrained.shape[1],
+                "joint_nullity": centered_constrained.shape[1] - constrained_joint_rank.rank,
+                "singular_values": constrained_joint_rank.singular_values.tolist(),
+                "rank_tolerance": constrained_joint_rank.tolerance,
+                "rank_stability": dataset_rank_stability,
+                "condition_number": float(
+                    constrained_joint_rank.singular_values[0]
+                    / constrained_joint_rank.singular_values[-1]
+                ),
+                "minimum_principal_angle_radians": float(
+                    np.min(constrained_dataset_angles)
+                ),
+            },
+            "force_reconstruction": {
+                "transferable_only": fit_a,
+                "transferable_plus_unconstrained_closure": fit_b,
+                "asr_constrained_transferable_plus_closure": fit_c,
+                "constrained_closure_hessian_norm_ratio": closure_norm_ratio,
+                "closure_ratio_interpretation": "representation residual only; not a long-range-force fraction",
+            },
+            "decision": "GO" if all_go else "NO-GO",
             "reason": (
-                "sweet spot exists and the sampled joint design has full column rank"
-                if full_column_rank
-                else "actual displacement data do not identify the combined basis"
+                "ASR-constrained representation and COM-removed dataset are both identifiable"
+                if all_go
+                else "one or more ASR-constrained representation or dataset criteria failed"
             ),
             "negative_control": aliasing_negative_control(),
         }
