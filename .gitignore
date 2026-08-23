@@ -64,3 +64,11 @@ sscha.h5
 /tutorial/**/metadata.json
 /tutorial/**/phonon-band.png
 /tutorial/**/phonon-band.json
+
+# Keep the published phonon-band example referenced by the Chinese tutorial.
+!/tutorial/Si/finite-difference-ase/phonon-band.png
+/tutorial/**/SPOSCAR-extrapolation
+/tutorial/**/FORCE_CONSTANTS*EXTRAPOLATION
+/tutorial/**/fc*-extrapolation.h5
+/tutorial/**/force_constants-extrapolation.hdf5
+/tutorial/**/metadata-extrapolation.json
