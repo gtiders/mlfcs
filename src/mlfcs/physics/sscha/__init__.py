@@ -1,7 +1,7 @@
 """Stochastic self-consistent harmonic approximation."""
 
 from mlfcs.physics.sscha.ensemble import EnsembleDiagnostics, HarmonicEnsemble
-from mlfcs.physics.sscha.solver import SSCHA, SSCHAIteration, SSCHAResult
+from mlfcs.physics.sscha.solver import SSCHA, SSCHAIteration, SSCHAResult, perturb_structures
 
 __all__ = [
     "SSCHA",
@@ -9,4 +9,5 @@ __all__ = [
     "HarmonicEnsemble",
     "SSCHAIteration",
     "SSCHAResult",
+    "perturb_structures",
 ]

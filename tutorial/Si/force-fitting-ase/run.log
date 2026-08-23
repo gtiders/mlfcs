@@ -1,0 +1,42 @@
+Preparing independent FC2 fitting parameterization
+Creating reference supercell with matrix [[4, 0, 0], [0, 4, 0], [0, 0, 4]]
+- 2 primitive atoms, 128 supercell atoms
+Resolving the interaction cutoff
+- Cutoff radius: 7.7237404951 Å
+Analyzing crystal symmetries
+- Space group Fd-3m
+- 48 symmetry operations
+Finding symmetry-inequivalent order-2 interaction clusters
+- 9 cluster equivalence classes
+- 28 independent tensor parameters
+- FC2: 9 orbits, 28 parameters
+- Joint parameter count: 28
+Training-data diagnostics (inputs are not recentered)
+- Maximum reference force: 0.0000000000e+00 eV/Å
+- Maximum snapshot net force: 5.0990194651e-08 eV/Å
+- Maximum center-of-mass displacement: 4.7834941724e-10 Å
+Constraint system: 1 rows after duplicate removal (18 ASR before compression)
+Explicit constraint parameterization: 28 -> 27 parameters in 14 blocks, rank=1, nnz=41
+- Prepared JAX feature program: 5 signatures, 5 tiles, 1.3 MiB static buffers
+Recovered completed streamed Gram system from cache (0.00 s)
+Column-norm preconditioning in constrained coordinates
+- Inverse column scale: 7.246287e-01 to 2.945778e+00
+Solving the force-only least-squares problem with streamed Gram
+- Equations: 1152, unknowns: 27
+- Maximum joint constraint residual: 9.714451e-17
+Force fitting summary
+- Training relative error: 3.428678 %
+- Validation relative error: 3.428678 %
+- Training force RMSE: 4.9958528508e-03 eV/Å
+- Validation force RMSE: 4.9958528508e-03 eV/Å
+- FC2 force contribution RMS: 1.4562218832e-01 eV/Å
+- JAX execution guard: 1 prepared program, 5 signatures, 5 tiles, Gram passes=0, prediction passes=0
+- Solver iterations=12, stop_code=0
+- Omitted Taylor FC1: maximum=0.0000000000e+00 eV/Å, net=0.0000000000e+00 eV/Å
+Expanding fitted Taylor parameters into sparse physical IFCs
+- Expanded 174 sparse tensors in 0.00 s
+MLFCS export view: cache miss; constructing new view
+MLFCS export view: constructed in 0.044359 s
+MLFCS export view: cache hit; reusing existing view
+MLFCS export view: cache hit; reusing existing view
+wrote SPOSCAR, train.extxyz, fitted FC2 files, and fit-metrics.json

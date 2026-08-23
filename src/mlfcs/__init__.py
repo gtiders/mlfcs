@@ -39,6 +39,7 @@ __all__ = [
     "RotationalSumRuleResult",
     "SSCHAIteration",
     "SSCHAResult",
+    "perturb_structures",
     "SparseOrderForceConstants",
     "StructureRelation",
     "TemperatureSeriesResult",
@@ -64,6 +65,7 @@ def __getattr__(name: str):
         "SSCHA",
         "SSCHAIteration",
         "SSCHAResult",
+        "perturb_structures",
     }:
         return getattr(import_module("mlfcs.physics.sscha.solver"), name)
     raise AttributeError(name)

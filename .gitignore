@@ -72,3 +72,11 @@ sscha.h5
 /tutorial/**/fc*-extrapolation.h5
 /tutorial/**/force_constants-extrapolation.hdf5
 /tutorial/**/metadata-extrapolation.json
+/tutorial/**/fit-cache/
+/tutorial/**/fc2-fit-mlfcs.h5
+/tutorial/**/FORCE_CONSTANTS_2ND_FIT
+/tutorial/**/force_constants-fit.hdf5
+/tutorial/**/fit-metrics.json
+/tutorial/**/fit-diagnostics.png
+/tutorial/**/fit-phonon-band.png
+/tutorial/**/fit-phonon-band.json

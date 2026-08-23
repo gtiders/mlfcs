@@ -155,6 +155,11 @@ class SSCHA:
     def current_iteration(self) -> int:
         return len(self.history)
 
+    def sample(self) -> list[Atoms]:
+        """Generate one displacement ensemble without evaluating forces."""
+        structures, _, _, _ = self._sample_structures()
+        return structures
+
     def _sample_structures(
         self,
     ) -> tuple[
@@ -458,6 +463,7 @@ class SSCHA:
         sequence = np.random.SeedSequence([self.random_seed, schedule_index])
         return int(sequence.generate_state(1, dtype=np.uint32)[0])
 
+
     def _require_single_temperature(self) -> None:
         if len(self.temperatures) != 1:
             raise RuntimeError(
@@ -483,4 +489,29 @@ class SSCHA:
             )
 
 
-__all__ = ["SSCHA", "SSCHAIteration", "SSCHAResult"]
+def perturb_structures(
+    atoms: Atoms,
+    *,
+    reference: Atoms,
+    snapshots: int,
+    displacement: float = 0.01,
+    random_seed: int | None = None,
+) -> list[Atoms]:
+    """Generate center-of-mass-free Gaussian perturbation structures.
+
+    This is the initial SSCHA sampling path used when no initial FC2 is
+    available. It only creates structures and does not evaluate forces.
+    """
+    sampler = SSCHA(
+        atoms,
+        reference=reference,
+        cutoff=None,
+        snapshots=snapshots,
+        max_iterations=0,
+        initial_displacement=displacement,
+        random_seed=random_seed,
+    )
+    return sampler.sample()
+
+
+__all__ = ["SSCHA", "SSCHAIteration", "SSCHAResult", "perturb_structures"]
