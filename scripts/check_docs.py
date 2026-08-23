@@ -40,10 +40,15 @@ def main() -> int:
     errors: list[str] = []
     english = _markdown_paths("en")
     chinese = _chinese_markdown_paths()
-    if len(english) != len(chinese):
+    localized_only = []
+    for path in sorted(chinese):
+        front_matter = _front_matter((DOCS / "zh" / path).read_text(encoding="utf-8"))
+        if front_matter is not None and _field(front_matter, "localized_only") == "true":
+            localized_only.append(path)
+    if len(chinese) != len(english) + len(localized_only):
         errors.append(
-            f"English and Chinese documentation page counts differ: "
-            f"{len(english)} != {len(chinese)}"
+            f"English and Chinese documentation page counts differ after localized-only pages: "
+            f"{len(english)} != {len(chinese) - len(localized_only)}"
         )
 
     if (ROOT / "README_ZH.md").exists():
