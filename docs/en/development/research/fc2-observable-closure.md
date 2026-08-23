@@ -114,3 +114,88 @@ and a two-dimensional kernel, correctly rejected by the production check. Closur
 kernel in the transferable representation.
 
 The complete prototype and machine-readable results are in `research/fc2_observable_closure/`.
+
+## Phase three: structure and architecture boundary
+
+Phase three explains the $13\rightarrow11$, $4\rightarrow2$, and $9\rightarrow9$ dimensions.
+The ASR restriction has rank two on both the transferable span and the old closure, giving
+
+$$
+\dim(T\cap\ker A)=2,
+\qquad
+\dim(C\cap\ker A)=7.
+$$
+
+Constraining the old blocks separately spans only nine dimensions, while the complete allowed space
+has dimension eleven. The missing two dimensions mix ASR-violating transferable and closure vectors
+whose violations cancel. The old and rebuilt closure share seven dimensions; the other principal
+angles are 0.848 and 1.209 radians. The allowed space must therefore be built first and complemented
+inside it.
+
+The two independent constraints on the four transferable parameters are
+
+$$
+\theta_0+4\theta_1+2\theta_2=0,
+$$
+
+$$
+4\theta_1+2\theta_2+\theta_3=0.
+$$
+
+Thus 4→2 constrains linear combinations across orbit parameters rather than deleting two physical
+IFCs. The production pivoted-QR map, the prototype SVD map, and an explicit simple map span the same
+null space, while exact-$R$ site and translation semantics remain unchanged.
+
+The compact observable Euclidean metric expands to exactly eight times the full-Hessian Frobenius
+metric. The symmetry/permutation and raw ASR projectors nevertheless do not commute: their
+commutator 2-norm is 0.5. The implementation must construct their subspace intersection directly
+rather than apply projections sequentially.
+
+### Reference and cutoff behavior
+
+At a fixed $4.4391$ Å cutoff:
+
+| Reference | $\dim\mathcal H^{\rm ASR}_{\rm SC}$ | Transferable | Closure | Target closure ratio |
+|---|---:|---:|---:|---:|
+| $2^3$ | 11 | 2 | 9 | 0.3027 |
+| $3^3$ | 22 | 2 | 20 | 0.2674 |
+
+The closure dimension grows with the source quotient. There is no canonical injection from a small
+reference closure into a larger one because each small-cell residue has multiple exact-$R$ lifts and
+closure supplies no rule for selecting one. The current column-wise dense projector was not extended
+to $4^3$: its 2304-dimensional raw compact space makes that research construction unsuitable as a
+future production algorithm.
+
+On the fixed $2^3$ reference, increasing the cutoff from 2.5 Å to 4.8 Å reduces closure dimension
+from eleven to three and the target closure norm ratio from 1.0 to 0.0718. At 5.5 Å the constrained
+transferable space develops a one-dimensional kernel and the production alias check rejects it.
+Closure must not hide that kernel.
+
+### Data and canonicality
+
+All 36 combinations of three seeds, four frame counts, and three displacement scales have rank
+11/11, with condition numbers from 3.95 to 5.51. Force noise of $10^{-4}$ eV/Å changes parameters
+by only $3.82\times10^{-4}$ relatively, showing no exceptional amplification.
+
+The SVD coefficient $\eta$ is not canonical. Any $N\rightarrow NQ$ accompanied by
+$\eta\rightarrow Q^T\eta$ represents the same Hessian. A random basis rotation changes the closure
+projector by only $1.21\times10^{-15}$ and the reconstructed Hessian by
+$3.82\times10^{-16}$. Stable semantics belong to the source fingerprint, closure projector, and
+reconstructed finite Hessian—not to backend-dependent coordinates.
+
+### Architecture decision
+
+Closure should not enter `OrderParameterization`, `SparseOrderForceConstants`, or canonical HDF5.
+The recommended next prototype is a source-specific `FiniteHarmonicResponse` plus a lightweight
+harmonic design block. Its columns would be solved jointly with existing orbit columns while reusing
+the streamed Gram and solver. Transferable `ForceConstants` remain unchanged, and the source
+residual cannot be realized or exported to a different reference.
+
+The phase-three decision is
+
+$$
+\boxed{\text{Mathematical GO + Prototype Recommended}}.
+$$
+
+It is not yet Architectural GO, and Production GO is explicitly not granted. Detailed derivations
+and data are in `research/fc2_observable_closure/phase3-report.md` and `results-phase3.json`.

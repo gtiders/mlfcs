@@ -1,0 +1,1167 @@
+{
+  "scope": "research prototype only; no production implementation",
+  "base_cutoff_angstrom": 4.439115867225757,
+  "dimension_structure": {
+    "rank_A_restricted_to_transferable": 2,
+    "rank_A_restricted_to_unconstrained_closure": 2,
+    "dimension_kernel_A_intersect_transferable": 2,
+    "dimension_kernel_A_intersect_unconstrained_closure": 7,
+    "separately_constrained_sum_rank": 9,
+    "separately_constrained_intersection_dimension": 0,
+    "asr_observable_dimension": 11,
+    "mixed_cancellation_dimensions_missing_from_separate_constraints": 2,
+    "old_vs_constrained_closure_principal_angles_radians": [
+      1.209429202888188,
+      0.8480620789814812,
+      4.265275658190512e-16,
+      1.0463169402407338e-16,
+      4.295995119233472e-17,
+      2.475598489684913e-17,
+      6.880174081804272e-18,
+      0.0,
+      0.0
+    ],
+    "old_vs_constrained_closure_intersection_dimension": 7
+  },
+  "metric_and_operator_compatibility": {
+    "compact_basis_orthogonality_residual": 1.0079805445238843e-15,
+    "full_hessian_gram_diagonal_min": 7.9999999999999964,
+    "full_hessian_gram_diagonal_max": 8.000000000000004,
+    "full_hessian_gram_off_diagonal_norm": 5.822298281191652e-16,
+    "full_to_compact_metric_is_scalar_multiple": true,
+    "full_to_compact_metric_scale": 8.0,
+    "transferable_closure_compact_metric_orthogonality": 3.57424138029264e-15,
+    "transferable_closure_full_frobenius_metric_orthogonality": 2.96462170526819e-14,
+    "symmetry_asr_projector_commutator_2norm": 0.5000000000000001,
+    "rank_symmetry_projector": 13,
+    "rank_raw_asr_projector": 270,
+    "rank_intersection": 11
+  },
+  "closure_canonicality": {
+    "closure_dimension": 9,
+    "subspace_projector_rotation_residual": 1.2114950691038431e-15,
+    "coordinate_compensated_hessian_relative_residual": 3.817939702100521e-16,
+    "coordinate_statement": "eta is basis-dependent; the source Hessian and closure projector carry stable semantics",
+    "svd_ambiguity": "the zero-singular-value complement is degenerate, so signs and internal rotations are backend-dependent"
+  },
+  "transferable_asr_map": {
+    "constraint_matrix": [
+      [
+        1.0000000000000009,
+        4.0,
+        2.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        1.0,
+        4.0,
+        2.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        1.0,
+        4.0,
+        2.0,
+        0.0
+      ],
+      [
+        0.0,
+        4.0,
+        2.0,
+        1.0000000000000009
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        4.0,
+        2.0,
+        1.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        4.0,
+        2.0,
+        1.0
+      ]
+    ],
+    "reduced_coordinate_map_theta_equals_Rz": [
+      [
+        0.4690699895531608,
+        -0.5174729200155097
+      ],
+      [
+        -0.4251583375472783,
+        -0.19685675791291965
+      ],
+      [
+        0.615781680317976,
+        0.6524499758335943
+      ],
+      [
+        0.4690699895531607,
+        -0.5174729200155099
+      ]
+    ],
+    "production_qr_parameter_map": [
+      [
+        1.0,
+        0.0
+      ],
+      [
+        -0.25000000000000017,
+        -0.5000000000000002
+      ],
+      [
+        0.0,
+        1.0
+      ],
+      [
+        1.0000000000000004,
+        0.0
+      ]
+    ],
+    "production_vs_svd_max_principal_angle_radians": 4.551922593742759e-16,
+    "production_constraint_residual": 2.4924445086331347e-15,
+    "simple_equivalent_map_using_z_equals_theta_1_theta_2": [
+      [
+        -4.0,
+        -2.0
+      ],
+      [
+        1.0,
+        0.0
+      ],
+      [
+        0.0,
+        1.0
+      ],
+      [
+        -4.0,
+        -2.0
+      ]
+    ],
+    "simple_map_constraint_residual": 5.617333549722722e-15,
+    "simple_vs_production_max_principal_angle_radians": 7.217887851245179e-16,
+    "independent_constraint_equations": [
+      "theta_0 + 4 theta_1 + 2 theta_2 = 0",
+      "4 theta_1 + 2 theta_2 + theta_3 = 0"
+    ],
+    "orbit_descriptions": [
+      {
+        "representative_labels": [
+          [
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            0,
+            0,
+            0,
+            0
+          ]
+        ],
+        "dimension": 1,
+        "pivots": [
+          8
+        ],
+        "invariant_basis_columns": [
+          [
+            1.0000000000000009
+          ],
+          [
+            0.0
+          ],
+          [
+            0.0
+          ],
+          [
+            0.0
+          ],
+          [
+            1.0
+          ],
+          [
+            0.0
+          ],
+          [
+            0.0
+          ],
+          [
+            0.0
+          ],
+          [
+            1.0
+          ]
+        ]
+      },
+      {
+        "representative_labels": [
+          [
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            1,
+            -1,
+            -1,
+            0
+          ]
+        ],
+        "dimension": 2,
+        "pivots": [
+          4,
+          8
+        ],
+        "invariant_basis_columns": [
+          [
+            1.0000000000000002,
+            -0.0
+          ],
+          [
+            0.0,
+            -0.0
+          ],
+          [
+            0.0,
+            -0.0
+          ],
+          [
+            0.0,
+            -0.0
+          ],
+          [
+            1.0,
+            -0.0
+          ],
+          [
+            0.0,
+            -0.0
+          ],
+          [
+            0.0,
+            -0.0
+          ],
+          [
+            0.0,
+            -0.0
+          ],
+          [
+            0.0,
+            1.0
+          ]
+        ]
+      },
+      {
+        "representative_labels": [
+          [
+            1,
+            0,
+            0,
+            0
+          ],
+          [
+            1,
+            0,
+            0,
+            0
+          ]
+        ],
+        "dimension": 1,
+        "pivots": [
+          8
+        ],
+        "invariant_basis_columns": [
+          [
+            1.0000000000000009
+          ],
+          [
+            0.0
+          ],
+          [
+            0.0
+          ],
+          [
+            0.0
+          ],
+          [
+            1.0
+          ],
+          [
+            0.0
+          ],
+          [
+            0.0
+          ],
+          [
+            0.0
+          ],
+          [
+            1.0
+          ]
+        ]
+      }
+    ],
+    "exact_r_reconstruction": {
+      "sparse_rows": 14,
+      "site_translation_key_sha256": "b716686364af9ffa00efd18944b2c99f7fb7688e294c19209ca5e58e2de3db82",
+      "constraint_residual": 5.523289809442722e-16,
+      "semantics": "ASR changes only reduced coordinates; exact-R sites and translations remain those of the current transferable space"
+    }
+  },
+  "reference_sweep": {
+    "rows": [
+      {
+        "size": [
+          2,
+          2,
+          2
+        ],
+        "reference_atoms": 16,
+        "raw_compact_dimension": 288,
+        "observable_dimension": 13,
+        "observable_asr_constraint_rank": 2,
+        "observable_asr_dimension": 11,
+        "transferable_dimension": 4,
+        "transferable_asr_constraint_rank": 2,
+        "transferable_asr_dimension": 2,
+        "transferable_asr_rank": 2,
+        "transferable_asr_kernel": 0,
+        "closure_asr_dimension": 9,
+        "transferable_projection_residual": 2.013688493302177e-15,
+        "production_alias_check": "passed",
+        "production_alias_message": null,
+        "observable_projector_seconds": 2.2915998109965585,
+        "full_hessian_basis_mib": 0.228515625
+      },
+      {
+        "size": [
+          3,
+          3,
+          3
+        ],
+        "reference_atoms": 54,
+        "raw_compact_dimension": 972,
+        "observable_dimension": 24,
+        "observable_asr_constraint_rank": 2,
+        "observable_asr_dimension": 22,
+        "transferable_dimension": 4,
+        "transferable_asr_constraint_rank": 2,
+        "transferable_asr_dimension": 2,
+        "transferable_asr_rank": 2,
+        "transferable_asr_kernel": 0,
+        "closure_asr_dimension": 20,
+        "transferable_projection_residual": 3.912081044183404e-15,
+        "production_alias_check": "passed",
+        "production_alias_message": null,
+        "observable_projector_seconds": 52.965708183008246,
+        "full_hessian_basis_mib": 4.805419921875
+      }
+    ],
+    "four_by_four": {
+      "status": "not materialized",
+      "reason": "the current dense research projector scales poorly and is not a production requirement",
+      "reference_atoms": 128,
+      "raw_compact_dimension": 2304,
+      "dense_projector_mib": 40.5
+    },
+    "target_hessian": {
+      "2x2x2": {
+        "target_full_frobenius_norm": 14.43707191078057,
+        "target_allowed_frobenius_norm": 14.43707191078056,
+        "projection_relative_residual": 4.347552240278766e-09,
+        "transferable_frobenius_norm": 13.75965177723846,
+        "closure_frobenius_norm": 4.370472323009005,
+        "closure_to_allowed_target_norm_ratio": 0.3027256738775023,
+        "allowed_norm_per_sqrt_atom": 3.60926797769514,
+        "closure_norm_per_sqrt_atom": 1.0926180807522512,
+        "decomposition_relative_residual": 4.329254395928543e-16
+      },
+      "3x3x3": {
+        "target_full_frobenius_norm": 27.8406222592272,
+        "target_allowed_frobenius_norm": 27.84062225922718,
+        "projection_relative_residual": 6.3018327039771576e-09,
+        "transferable_frobenius_norm": 26.826802853625626,
+        "closure_frobenius_norm": 7.444655561789235,
+        "closure_to_allowed_target_norm_ratio": 0.26740262816223015,
+        "allowed_norm_per_sqrt_atom": 3.7886288142598894,
+        "closure_norm_per_sqrt_atom": 1.0130893020642482,
+        "decomposition_relative_residual": 6.757327300549482e-16
+      }
+    },
+    "canonical_injection": {
+      "exists": false,
+      "reason": "a finite residue class has multiple exact-R lifts; choosing one requires extra real-space semantics not contained in the closure"
+    }
+  },
+  "cutoff_sweep": [
+    {
+      "cutoff_angstrom": 2.5,
+      "transferable_dimension": 2,
+      "transferable_asr_dimension": 0,
+      "transferable_constraint_rank": 2,
+      "transferable_asr_rank": 0,
+      "transferable_asr_kernel": 0,
+      "production_alias_check_rejected": false,
+      "status": "usable",
+      "closure_dimension": 11,
+      "target_transferable_hessian_norm": 0.0,
+      "target_closure_hessian_norm": 14.43707191078056,
+      "target_closure_norm_ratio": 1.0,
+      "joint_design_rank": 11,
+      "joint_design_columns": 11,
+      "joint_design_condition_number": 1.1290594427039111,
+      "force_rmse_eV_per_angstrom": 0.0006460277400780804
+    },
+    {
+      "cutoff_angstrom": 3.2,
+      "transferable_dimension": 4,
+      "transferable_asr_dimension": 2,
+      "transferable_constraint_rank": 2,
+      "transferable_asr_rank": 2,
+      "transferable_asr_kernel": 0,
+      "production_alias_check_rejected": false,
+      "status": "usable",
+      "closure_dimension": 9,
+      "target_transferable_hessian_norm": 13.75965177723846,
+      "target_closure_hessian_norm": 4.370472323009005,
+      "target_closure_norm_ratio": 0.3027256738775021,
+      "joint_design_rank": 11,
+      "joint_design_columns": 11,
+      "joint_design_condition_number": 4.022518195720812,
+      "force_rmse_eV_per_angstrom": 0.0006460277400780802
+    },
+    {
+      "cutoff_angstrom": 3.8,
+      "transferable_dimension": 4,
+      "transferable_asr_dimension": 2,
+      "transferable_constraint_rank": 2,
+      "transferable_asr_rank": 2,
+      "transferable_asr_kernel": 0,
+      "production_alias_check_rejected": false,
+      "status": "usable",
+      "closure_dimension": 9,
+      "target_transferable_hessian_norm": 13.75965177723846,
+      "target_closure_hessian_norm": 4.370472323009005,
+      "target_closure_norm_ratio": 0.3027256738775021,
+      "joint_design_rank": 11,
+      "joint_design_columns": 11,
+      "joint_design_condition_number": 4.022518195720812,
+      "force_rmse_eV_per_angstrom": 0.0006460277400780802
+    },
+    {
+      "cutoff_angstrom": 4.2,
+      "transferable_dimension": 4,
+      "transferable_asr_dimension": 2,
+      "transferable_constraint_rank": 2,
+      "transferable_asr_rank": 2,
+      "transferable_asr_kernel": 0,
+      "production_alias_check_rejected": false,
+      "status": "usable",
+      "closure_dimension": 9,
+      "target_transferable_hessian_norm": 13.75965177723846,
+      "target_closure_hessian_norm": 4.370472323009005,
+      "target_closure_norm_ratio": 0.3027256738775021,
+      "joint_design_rank": 11,
+      "joint_design_columns": 11,
+      "joint_design_condition_number": 4.022518195720812,
+      "force_rmse_eV_per_angstrom": 0.0006460277400780802
+    },
+    {
+      "cutoff_angstrom": 4.439115867225757,
+      "transferable_dimension": 4,
+      "transferable_asr_dimension": 2,
+      "transferable_constraint_rank": 2,
+      "transferable_asr_rank": 2,
+      "transferable_asr_kernel": 0,
+      "production_alias_check_rejected": false,
+      "status": "usable",
+      "closure_dimension": 9,
+      "target_transferable_hessian_norm": 13.75965177723846,
+      "target_closure_hessian_norm": 4.370472323009005,
+      "target_closure_norm_ratio": 0.3027256738775021,
+      "joint_design_rank": 11,
+      "joint_design_columns": 11,
+      "joint_design_condition_number": 4.022518195720812,
+      "force_rmse_eV_per_angstrom": 0.0006460277400780802
+    },
+    {
+      "cutoff_angstrom": 4.8,
+      "transferable_dimension": 10,
+      "transferable_asr_dimension": 8,
+      "transferable_constraint_rank": 2,
+      "transferable_asr_rank": 8,
+      "transferable_asr_kernel": 0,
+      "production_alias_check_rejected": false,
+      "status": "usable",
+      "closure_dimension": 3,
+      "target_transferable_hessian_norm": 14.399839428862926,
+      "target_closure_hessian_norm": 1.036180380056399,
+      "target_closure_norm_ratio": 0.07177219774618243,
+      "joint_design_rank": 11,
+      "joint_design_columns": 11,
+      "joint_design_condition_number": 7.182473157997177,
+      "force_rmse_eV_per_angstrom": 0.0006460277400780804
+    },
+    {
+      "cutoff_angstrom": 5.5,
+      "transferable_dimension": 12,
+      "transferable_asr_dimension": 10,
+      "transferable_constraint_rank": 2,
+      "transferable_asr_rank": 9,
+      "transferable_asr_kernel": 1,
+      "production_alias_check_rejected": true,
+      "status": "rejected: constrained transferable alias"
+    },
+    {
+      "cutoff_angstrom": 6.0,
+      "transferable_dimension": 12,
+      "transferable_asr_dimension": 10,
+      "transferable_constraint_rank": 2,
+      "transferable_asr_rank": 9,
+      "transferable_asr_kernel": 1,
+      "production_alias_check_rejected": true,
+      "status": "rejected: constrained transferable alias"
+    }
+  ],
+  "target_hessian_pair_distance_distribution": {
+    "0.000000": 0.1811815534138706,
+    "3.146000": 0.38755249356672467,
+    "4.449116": 1.4399936422972142,
+    "5.449032": 0.10179329399924908,
+    "6.292000": 0.3473633337682637
+  },
+  "dataset_robustness": {
+    "rows": [
+      {
+        "rank": 11,
+        "columns": 11,
+        "smallest_singular_value": 0.02100776874397008,
+        "condition_number": 4.275359567481823,
+        "force_rmse_eV_per_angstrom": 4.683033519980025e-05,
+        "maximum_covariance_proxy_diagonal": 1947.1702951592163,
+        "maximum_absolute_parameter_correlation": 0.5758624098996202,
+        "seed": 7,
+        "sigma_angstrom": 0.003,
+        "frames": 10,
+        "transferable_parameter_norm": 2.5827778114450566,
+        "closure_parameter_norm": 1.5451353748409713
+      },
+      {
+        "rank": 11,
+        "columns": 11,
+        "smallest_singular_value": 0.03410071156774467,
+        "condition_number": 4.2642350694987705,
+        "force_rmse_eV_per_angstrom": 5.2863742701210325e-05,
+        "maximum_covariance_proxy_diagonal": 799.3669575740593,
+        "maximum_absolute_parameter_correlation": 0.5561698449033561,
+        "seed": 7,
+        "sigma_angstrom": 0.003,
+        "frames": 25,
+        "transferable_parameter_norm": 2.5815521828111048,
+        "closure_parameter_norm": 1.5430159504068766
+      },
+      {
+        "rank": 11,
+        "columns": 11,
+        "smallest_singular_value": 0.05452087831721788,
+        "condition_number": 4.029180539611126,
+        "force_rmse_eV_per_angstrom": 5.3827754918887044e-05,
+        "maximum_covariance_proxy_diagonal": 323.77338349534733,
+        "maximum_absolute_parameter_correlation": 0.5855542411155445,
+        "seed": 7,
+        "sigma_angstrom": 0.003,
+        "frames": 50,
+        "transferable_parameter_norm": 2.5828366802754172,
+        "closure_parameter_norm": 1.5427238297740458
+      },
+      {
+        "rank": 11,
+        "columns": 11,
+        "smallest_singular_value": 0.07926654073076093,
+        "condition_number": 3.9454318328839886,
+        "force_rmse_eV_per_angstrom": 5.4872699486734545e-05,
+        "maximum_covariance_proxy_diagonal": 151.58388580150117,
+        "maximum_absolute_parameter_correlation": 0.5898817946343251,
+        "seed": 7,
+        "sigma_angstrom": 0.003,
+        "frames": 100,
+        "transferable_parameter_norm": 2.5833420796171875,
+        "closure_parameter_norm": 1.5442446729083144
+      },
+      {
+        "rank": 11,
+        "columns": 11,
+        "smallest_singular_value": 0.07002589581323358,
+        "condition_number": 4.275359567481825,
+        "force_rmse_eV_per_angstrom": 0.0005187902009585054,
+        "maximum_covariance_proxy_diagonal": 175.24532656432953,
+        "maximum_absolute_parameter_correlation": 0.5758624098996202,
+        "seed": 7,
+        "sigma_angstrom": 0.01,
+        "frames": 10,
+        "transferable_parameter_norm": 2.5831814836856113,
+        "closure_parameter_norm": 1.5452239078105414
+      },
+      {
+        "rank": 11,
+        "columns": 11,
+        "smallest_singular_value": 0.11366903855914895,
+        "condition_number": 4.26423506949877,
+        "force_rmse_eV_per_angstrom": 0.0005843233164452491,
+        "maximum_covariance_proxy_diagonal": 71.94302618166529,
+        "maximum_absolute_parameter_correlation": 0.5561698449033562,
+        "seed": 7,
+        "sigma_angstrom": 0.01,
+        "frames": 25,
+        "transferable_parameter_norm": 2.5795641189662857,
+        "closure_parameter_norm": 1.53809452074546
+      },
+      {
+        "rank": 11,
+        "columns": 11,
+        "smallest_singular_value": 0.18173626105739302,
+        "condition_number": 4.029180539611124,
+        "force_rmse_eV_per_angstrom": 0.0005976548895197889,
+        "maximum_covariance_proxy_diagonal": 29.139604514581258,
+        "maximum_absolute_parameter_correlation": 0.5855542411155447,
+        "seed": 7,
+        "sigma_angstrom": 0.01,
+        "frames": 50,
+        "transferable_parameter_norm": 2.583927967869575,
+        "closure_parameter_norm": 1.536934653726083
+      },
+      {
+        "rank": 11,
+        "columns": 11,
+        "smallest_singular_value": 0.2642218024358698,
+        "condition_number": 3.945431832883988,
+        "force_rmse_eV_per_angstrom": 0.0006110819827153031,
+        "maximum_covariance_proxy_diagonal": 13.642549722135112,
+        "maximum_absolute_parameter_correlation": 0.589881794634325,
+        "seed": 7,
+        "sigma_angstrom": 0.01,
+        "frames": 100,
+        "transferable_parameter_norm": 2.5857302080473676,
+        "closure_parameter_norm": 1.5421008528929578
+      },
+      {
+        "rank": 11,
+        "columns": 11,
+        "smallest_singular_value": 0.2100776874397007,
+        "condition_number": 4.275359567481824,
+        "force_rmse_eV_per_angstrom": 0.004674291911074892,
+        "maximum_covariance_proxy_diagonal": 19.47170295159217,
+        "maximum_absolute_parameter_correlation": 0.5758624098996207,
+        "seed": 7,
+        "sigma_angstrom": 0.03,
+        "frames": 10,
+        "transferable_parameter_norm": 2.598598672084557,
+        "closure_parameter_norm": 1.547316249709649
+      },
+      {
+        "rank": 11,
+        "columns": 11,
+        "smallest_singular_value": 0.34100711567744674,
+        "condition_number": 4.26423506949877,
+        "force_rmse_eV_per_angstrom": 0.005248515605219241,
+        "maximum_covariance_proxy_diagonal": 7.993669575740594,
+        "maximum_absolute_parameter_correlation": 0.5561698449033563,
+        "seed": 7,
+        "sigma_angstrom": 0.03,
+        "frames": 25,
+        "transferable_parameter_norm": 2.5915072937537382,
+        "closure_parameter_norm": 1.525050114323784
+      },
+      {
+        "rank": 11,
+        "columns": 11,
+        "smallest_singular_value": 0.5452087831721789,
+        "condition_number": 4.029180539611125,
+        "force_rmse_eV_per_angstrom": 0.005439248870029531,
+        "maximum_covariance_proxy_diagonal": 3.237733834953473,
+        "maximum_absolute_parameter_correlation": 0.585554241115545,
+        "seed": 7,
+        "sigma_angstrom": 0.03,
+        "frames": 50,
+        "transferable_parameter_norm": 2.6055240459319187,
+        "closure_parameter_norm": 1.519957675694393
+      },
+      {
+        "rank": 11,
+        "columns": 11,
+        "smallest_singular_value": 0.7926654073076094,
+        "condition_number": 3.945431832883988,
+        "force_rmse_eV_per_angstrom": 0.00561268086156003,
+        "maximum_covariance_proxy_diagonal": 1.5158388580150128,
+        "maximum_absolute_parameter_correlation": 0.5898817946343252,
+        "seed": 7,
+        "sigma_angstrom": 0.03,
+        "frames": 100,
+        "transferable_parameter_norm": 2.6120264365263717,
+        "closure_parameter_norm": 1.5364380960640063
+      },
+      {
+        "rank": 11,
+        "columns": 11,
+        "smallest_singular_value": 0.01717205569613342,
+        "condition_number": 5.506942026215081,
+        "force_rmse_eV_per_angstrom": 5.3381594962823165e-05,
+        "maximum_covariance_proxy_diagonal": 2169.20403771648,
+        "maximum_absolute_parameter_correlation": 0.6564330264205346,
+        "seed": 42,
+        "sigma_angstrom": 0.003,
+        "frames": 10,
+        "transferable_parameter_norm": 2.5852373004744824,
+        "closure_parameter_norm": 1.5459316915764614
+      },
+      {
+        "rank": 11,
+        "columns": 11,
+        "smallest_singular_value": 0.0365870294473602,
+        "condition_number": 4.222346566057583,
+        "force_rmse_eV_per_angstrom": 5.6368642923726145e-05,
+        "maximum_covariance_proxy_diagonal": 662.2767040475103,
+        "maximum_absolute_parameter_correlation": 0.6112987046543731,
+        "seed": 42,
+        "sigma_angstrom": 0.003,
+        "frames": 25,
+        "transferable_parameter_norm": 2.5832981405371744,
+        "closure_parameter_norm": 1.5467800772044107
+      },
+      {
+        "rank": 11,
+        "columns": 11,
+        "smallest_singular_value": 0.056336108306731254,
+        "condition_number": 4.006621948450002,
+        "force_rmse_eV_per_angstrom": 5.9686496315809324e-05,
+        "maximum_covariance_proxy_diagonal": 302.61376079162864,
+        "maximum_absolute_parameter_correlation": 0.6086974823769306,
+        "seed": 42,
+        "sigma_angstrom": 0.003,
+        "frames": 50,
+        "transferable_parameter_norm": 2.5832122636510464,
+        "closure_parameter_norm": 1.5455815114514129
+      },
+      {
+        "rank": 11,
+        "columns": 11,
+        "smallest_singular_value": 0.07957825621546172,
+        "condition_number": 4.022518195720813,
+        "force_rmse_eV_per_angstrom": 5.8068832967865006e-05,
+        "maximum_covariance_proxy_diagonal": 153.06078500918474,
+        "maximum_absolute_parameter_correlation": 0.6127912812436073,
+        "seed": 42,
+        "sigma_angstrom": 0.003,
+        "frames": 100,
+        "transferable_parameter_norm": 2.5834538949167727,
+        "closure_parameter_norm": 1.5454477425565742
+      },
+      {
+        "rank": 11,
+        "columns": 11,
+        "smallest_singular_value": 0.057240185653778065,
+        "condition_number": 5.506942026215084,
+        "force_rmse_eV_per_angstrom": 0.0005953296956548338,
+        "maximum_covariance_proxy_diagonal": 195.22836339448327,
+        "maximum_absolute_parameter_correlation": 0.6564330264205346,
+        "seed": 42,
+        "sigma_angstrom": 0.01,
+        "frames": 10,
+        "transferable_parameter_norm": 2.5919656800386575,
+        "closure_parameter_norm": 1.5477535289198843
+      },
+      {
+        "rank": 11,
+        "columns": 11,
+        "smallest_singular_value": 0.12195676482453391,
+        "condition_number": 4.222346566057586,
+        "force_rmse_eV_per_angstrom": 0.0006266435144706081,
+        "maximum_covariance_proxy_diagonal": 59.60490336427591,
+        "maximum_absolute_parameter_correlation": 0.611298704654373,
+        "seed": 42,
+        "sigma_angstrom": 0.01,
+        "frames": 25,
+        "transferable_parameter_norm": 2.58566629975902,
+        "closure_parameter_norm": 1.5503516776571338
+      },
+      {
+        "rank": 11,
+        "columns": 11,
+        "smallest_singular_value": 0.18778702768910419,
+        "condition_number": 4.006621948450001,
+        "force_rmse_eV_per_angstrom": 0.0006632384273879883,
+        "maximum_covariance_proxy_diagonal": 27.235238471246582,
+        "maximum_absolute_parameter_correlation": 0.608697482376931,
+        "seed": 42,
+        "sigma_angstrom": 0.01,
+        "frames": 50,
+        "transferable_parameter_norm": 2.585588530383758,
+        "closure_parameter_norm": 1.5463982212199288
+      },
+      {
+        "rank": 11,
+        "columns": 11,
+        "smallest_singular_value": 0.2652608540515391,
+        "condition_number": 4.022518195720812,
+        "force_rmse_eV_per_angstrom": 0.0006460277400780802,
+        "maximum_covariance_proxy_diagonal": 13.775470650826625,
+        "maximum_absolute_parameter_correlation": 0.6127912812436075,
+        "seed": 42,
+        "sigma_angstrom": 0.01,
+        "frames": 100,
+        "transferable_parameter_norm": 2.586376069275811,
+        "closure_parameter_norm": 1.5459875020382947
+      },
+      {
+        "rank": 11,
+        "columns": 11,
+        "smallest_singular_value": 0.17172055696133418,
+        "condition_number": 5.506942026215081,
+        "force_rmse_eV_per_angstrom": 0.005486399095171137,
+        "maximum_covariance_proxy_diagonal": 21.69204037716483,
+        "maximum_absolute_parameter_correlation": 0.6564330264205351,
+        "seed": 42,
+        "sigma_angstrom": 0.03,
+        "frames": 10,
+        "transferable_parameter_norm": 2.6298865581249706,
+        "closure_parameter_norm": 1.5539957532067488
+      },
+      {
+        "rank": 11,
+        "columns": 11,
+        "smallest_singular_value": 0.36587029447360175,
+        "condition_number": 4.222346566057585,
+        "force_rmse_eV_per_angstrom": 0.005730281842102604,
+        "maximum_covariance_proxy_diagonal": 6.622767040475102,
+        "maximum_absolute_parameter_correlation": 0.6112987046543731,
+        "seed": 42,
+        "sigma_angstrom": 0.03,
+        "frames": 25,
+        "transferable_parameter_norm": 2.6123452328181354,
+        "closure_parameter_norm": 1.5596861360084586
+      },
+      {
+        "rank": 11,
+        "columns": 11,
+        "smallest_singular_value": 0.5633610830673121,
+        "condition_number": 4.006621948450005,
+        "force_rmse_eV_per_angstrom": 0.006068115923707687,
+        "maximum_covariance_proxy_diagonal": 3.026137607916286,
+        "maximum_absolute_parameter_correlation": 0.6086974823769308,
+        "seed": 42,
+        "sigma_angstrom": 0.03,
+        "frames": 50,
+        "transferable_parameter_norm": 2.613885378039324,
+        "closure_parameter_norm": 1.5480406983973525
+      },
+      {
+        "rank": 11,
+        "columns": 11,
+        "smallest_singular_value": 0.7957825621546175,
+        "condition_number": 4.02251819572081,
+        "force_rmse_eV_per_angstrom": 0.00593317578112023,
+        "maximum_covariance_proxy_diagonal": 1.5306078500918474,
+        "maximum_absolute_parameter_correlation": 0.6127912812436074,
+        "seed": 42,
+        "sigma_angstrom": 0.03,
+        "frames": 100,
+        "transferable_parameter_norm": 2.6161609181995567,
+        "closure_parameter_norm": 1.5472536579745064
+      },
+      {
+        "rank": 11,
+        "columns": 11,
+        "smallest_singular_value": 0.02344940244611048,
+        "condition_number": 4.546368003449829,
+        "force_rmse_eV_per_angstrom": 6.966029204894505e-05,
+        "maximum_covariance_proxy_diagonal": 1643.7452660122808,
+        "maximum_absolute_parameter_correlation": 0.611668235916154,
+        "seed": 2026,
+        "sigma_angstrom": 0.003,
+        "frames": 10,
+        "transferable_parameter_norm": 2.578424828432052,
+        "closure_parameter_norm": 1.5463698038441256
+      },
+      {
+        "rank": 11,
+        "columns": 11,
+        "smallest_singular_value": 0.040411902864958965,
+        "condition_number": 3.94913189609844,
+        "force_rmse_eV_per_angstrom": 6.447746009449558e-05,
+        "maximum_covariance_proxy_diagonal": 589.0814671141135,
+        "maximum_absolute_parameter_correlation": 0.5964644028090867,
+        "seed": 2026,
+        "sigma_angstrom": 0.003,
+        "frames": 25,
+        "transferable_parameter_norm": 2.5814961947725052,
+        "closure_parameter_norm": 1.5459156558122125
+      },
+      {
+        "rank": 11,
+        "columns": 11,
+        "smallest_singular_value": 0.055451172298607444,
+        "condition_number": 4.044466319122308,
+        "force_rmse_eV_per_angstrom": 6.152738744826467e-05,
+        "maximum_covariance_proxy_diagonal": 291.31523098307224,
+        "maximum_absolute_parameter_correlation": 0.5867948168626359,
+        "seed": 2026,
+        "sigma_angstrom": 0.003,
+        "frames": 50,
+        "transferable_parameter_norm": 2.5822643742948594,
+        "closure_parameter_norm": 1.5457417601592554
+      },
+      {
+        "rank": 11,
+        "columns": 11,
+        "smallest_singular_value": 0.08069987452703375,
+        "condition_number": 4.0328733011673465,
+        "force_rmse_eV_per_angstrom": 5.9318131542098574e-05,
+        "maximum_covariance_proxy_diagonal": 140.43587851061724,
+        "maximum_absolute_parameter_correlation": 0.6046969876990869,
+        "seed": 2026,
+        "sigma_angstrom": 0.003,
+        "frames": 100,
+        "transferable_parameter_norm": 2.583861741392585,
+        "closure_parameter_norm": 1.5460085842696865
+      },
+      {
+        "rank": 11,
+        "columns": 11,
+        "smallest_singular_value": 0.07816467482036824,
+        "condition_number": 4.546368003449831,
+        "force_rmse_eV_per_angstrom": 0.0007580298978263438,
+        "maximum_covariance_proxy_diagonal": 147.93707394110515,
+        "maximum_absolute_parameter_correlation": 0.6116682359161548,
+        "seed": 2026,
+        "sigma_angstrom": 0.01,
+        "frames": 10,
+        "transferable_parameter_norm": 2.5703319775631006,
+        "closure_parameter_norm": 1.5491923202431461
+      },
+      {
+        "rank": 11,
+        "columns": 11,
+        "smallest_singular_value": 0.13470634288319655,
+        "condition_number": 3.9491318960984407,
+        "force_rmse_eV_per_angstrom": 0.0007098555933796768,
+        "maximum_covariance_proxy_diagonal": 53.0173320402702,
+        "maximum_absolute_parameter_correlation": 0.5964644028090872,
+        "seed": 2026,
+        "sigma_angstrom": 0.01,
+        "frames": 25,
+        "transferable_parameter_norm": 2.580101213121848,
+        "closure_parameter_norm": 1.5476903585927289
+      },
+      {
+        "rank": 11,
+        "columns": 11,
+        "smallest_singular_value": 0.1848372409953582,
+        "condition_number": 4.044466319122307,
+        "force_rmse_eV_per_angstrom": 0.000680984287321665,
+        "maximum_covariance_proxy_diagonal": 26.21837078847649,
+        "maximum_absolute_parameter_correlation": 0.5867948168626359,
+        "seed": 2026,
+        "sigma_angstrom": 0.01,
+        "frames": 50,
+        "transferable_parameter_norm": 2.5825490002954203,
+        "closure_parameter_norm": 1.5471176893689669
+      },
+      {
+        "rank": 11,
+        "columns": 11,
+        "smallest_singular_value": 0.2689995817567791,
+        "condition_number": 4.032873301167347,
+        "force_rmse_eV_per_angstrom": 0.0006590387309590215,
+        "maximum_covariance_proxy_diagonal": 12.63922906595555,
+        "maximum_absolute_parameter_correlation": 0.6046969876990871,
+        "seed": 2026,
+        "sigma_angstrom": 0.01,
+        "frames": 100,
+        "transferable_parameter_norm": 2.587716712282286,
+        "closure_parameter_norm": 1.547943529820369
+      },
+      {
+        "rank": 11,
+        "columns": 11,
+        "smallest_singular_value": 0.2344940244611047,
+        "condition_number": 4.546368003449831,
+        "force_rmse_eV_per_angstrom": 0.006597749279188699,
+        "maximum_covariance_proxy_diagonal": 16.43745266012282,
+        "maximum_absolute_parameter_correlation": 0.6116682359161545,
+        "seed": 2026,
+        "sigma_angstrom": 0.03,
+        "frames": 10,
+        "transferable_parameter_norm": 2.5724383412447196,
+        "closure_parameter_norm": 1.5576620894540967
+      },
+      {
+        "rank": 11,
+        "columns": 11,
+        "smallest_singular_value": 0.4041190286495896,
+        "condition_number": 3.949131896098441,
+        "force_rmse_eV_per_angstrom": 0.006352063059598221,
+        "maximum_covariance_proxy_diagonal": 5.890814671141139,
+        "maximum_absolute_parameter_correlation": 0.5964644028090871,
+        "seed": 2026,
+        "sigma_angstrom": 0.03,
+        "frames": 25,
+        "transferable_parameter_norm": 2.5988444699159015,
+        "closure_parameter_norm": 1.553310350416786
+      },
+      {
+        "rank": 11,
+        "columns": 11,
+        "smallest_singular_value": 0.5545117229860748,
+        "condition_number": 4.0444663191223045,
+        "force_rmse_eV_per_angstrom": 0.006177854244882799,
+        "maximum_covariance_proxy_diagonal": 2.913152309830724,
+        "maximum_absolute_parameter_correlation": 0.5867948168626358,
+        "seed": 2026,
+        "sigma_angstrom": 0.03,
+        "frames": 50,
+        "transferable_parameter_norm": 2.60558802078668,
+        "closure_parameter_norm": 1.5516207888062163
+      },
+      {
+        "rank": 11,
+        "columns": 11,
+        "smallest_singular_value": 0.8069987452703377,
+        "condition_number": 4.0328733011673465,
+        "force_rmse_eV_per_angstrom": 0.006029230395862835,
+        "maximum_covariance_proxy_diagonal": 1.4043587851061725,
+        "maximum_absolute_parameter_correlation": 0.6046969876990871,
+        "seed": 2026,
+        "sigma_angstrom": 0.03,
+        "frames": 100,
+        "transferable_parameter_norm": 2.6200103822805025,
+        "closure_parameter_norm": 1.5536838206736285
+      }
+    ]
+  },
+  "conditioning_and_noise": {
+    "baseline": {
+      "rank": 11,
+      "columns": 11,
+      "smallest_singular_value": 0.2652608540515391,
+      "condition_number": 4.022518195720812,
+      "force_rmse_eV_per_angstrom": 0.0006460277400780802,
+      "maximum_covariance_proxy_diagonal": 13.775470650826625,
+      "maximum_absolute_parameter_correlation": 0.6127912812436075
+    },
+    "transferable_closure_normalized_cross_block_2norm": 0.05632601332102647,
+    "rows": [
+      {
+        "force_noise_sigma_eV_per_angstrom": 1e-08,
+        "relative_parameter_change": 3.815143412738232e-08,
+        "absolute_parameter_change": 1.1495818168823695e-07,
+        "fit_rmse_eV_per_angstrom": 0.0006460279395276949
+      },
+      {
+        "force_noise_sigma_eV_per_angstrom": 1e-07,
+        "relative_parameter_change": 3.815143438093316e-07,
+        "absolute_parameter_change": 1.1495818245223818e-06,
+        "fit_rmse_eV_per_angstrom": 0.0006460297414956681
+      },
+      {
+        "force_noise_sigma_eV_per_angstrom": 1e-06,
+        "relative_parameter_change": 3.815143439296397e-06,
+        "absolute_parameter_change": 1.1495818248848953e-05,
+        "fit_rmse_eV_per_angstrom": 0.0006460484463764581
+      },
+      {
+        "force_noise_sigma_eV_per_angstrom": 1e-05,
+        "relative_parameter_change": 3.8151434394015903e-05,
+        "absolute_parameter_change": 0.00011495818249165921,
+        "fit_rmse_eV_per_angstrom": 0.00064630398964985
+      },
+      {
+        "force_noise_sigma_eV_per_angstrom": 0.0001,
+        "relative_parameter_change": 0.0003815143439415416,
+        "absolute_parameter_change": 0.001149581824920758,
+        "fit_rmse_eV_per_angstrom": 0.0006556434972360721
+      }
+    ]
+  },
+  "degenerate_conditions": {
+    "primitive_alias": "reject with InteractionAliasingError",
+    "constrained_transferable_alias": "reject",
+    "zero_closure_dimension": "reduce exactly to current transferable FC2",
+    "joint_dataset_rank_deficient": "reject without regularization",
+    "source_reference_mismatch": "closure is not interpretable or exportable"
+  }
+}

@@ -38,3 +38,14 @@ design 均为 11/11 满列秩，condition number 为 4.02。第一阶段唯一�
 
 它不是 long-range FC2，也不对应唯一的无限晶格 interaction。完整矩阵、null vector、
 奇异值和拟合诊断保存在 `results.json`。
+
+第三阶段进一步研究维数结构、metric、reference/cutoff dependence、真实 PolyMLP Hessian、
+数据稳健性和正式架构边界：
+
+```bash
+uv run --with phonopy --with pypolymlp python research/fc2_observable_closure/phase3.py
+```
+
+完整结论见 `phase3-report.md`，机器结果见 `results-phase3.json`。第三阶段确认
+**Mathematical GO + Prototype Recommended**，但没有给出 Production GO，也没有把 closure
+提升为 transferable exact-$R$ IFC。

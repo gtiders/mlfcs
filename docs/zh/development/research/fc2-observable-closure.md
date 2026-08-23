@@ -133,3 +133,83 @@ transferable span 可稳定分离，并可由去质心数据唯一辨识。这�
 并被生产检查正确拒绝。closure 不得用于掩盖 transferable representation 自身的 kernel。
 
 完整原型和机器可读数值位于 `research/fc2_observable_closure/`。
+
+## 第三阶段：结构与架构边界
+
+第三阶段解释了 $13\rightarrow11$、$4\rightarrow2$、$9\rightarrow9$ 的来源。ASR 在
+transferable span 和旧 closure 上的 restricted rank 都是 2，因此：
+
+$$
+\dim(T\cap\ker A)=2,
+\qquad
+\dim(C\cap\ker A)=7.
+$$
+
+分别约束旧分块只能得到 9 维，而整个允许空间为 11 维。缺少的两维是 $T$ 与 $C$ 的
+ASR violation 相互抵消的 mixed directions。旧 closure 与新 closure 只有 7 维交集，
+另外两个 principal angles 为 0.848 和 1.209 rad。因此必须先构造
+$\mathcal H_{\rm SC}^{\rm ASR}$，再在其中重建 closure，不能分别投影旧分块。
+
+当前四个 transferable 参数的两个独立 ASR 方程为
+
+$$
+\theta_0+4\theta_1+2\theta_2=0,
+$$
+
+$$
+4\theta_1+2\theta_2+\theta_3=0.
+$$
+
+所以 4→2 是多个 orbit parameter 的线性约束，不是删除两个独立物理 IFC。正式
+pivoted-QR map、prototype SVD map 和一个显式简单 map 张成相同 null space；exact-$R$
+site/translation 语义保持不变。
+
+compact observable Euclidean metric 展开到 full Hessian 后恰为 8 倍 Frobenius metric。
+但是 symmetry/permutation projector 与 raw ASR projector 不交换，commutator 2-norm 为
+0.5，因此应直接构造 subspace intersection，而不是顺序投影。
+
+### Reference 和 cutoff
+
+固定 $4.4391$ Å cutoff：
+
+| reference | $\dim\mathcal H^{\rm ASR}_{\rm SC}$ | transferable | closure | target closure ratio |
+|---|---:|---:|---:|---:|
+| $2^3$ | 11 | 2 | 9 | 0.3027 |
+| $3^3$ | 22 | 2 | 20 | 0.2674 |
+
+closure dimension 随 source quotient 增长，并不存在从小 reference closure 到大 reference
+closure 的 canonical injection。小胞 residue class 具有多个 exact-$R$ lifts，而 closure
+没有提供选择某个 lift 的物理信息。$4^3$ 没有使用当前逐列 dense projector 构造：该路径
+需要 2304 维 dense projector，实测缩放表明不适合作为未来正式算法。
+
+固定 $2^3$ reference 时，cutoff 从 2.5 Å 增至 4.8 Å，closure dimension 从 11 降到 3，
+target closure norm ratio 从 1.0 降到 0.0718。到 5.5 Å 时 constrained transferable
+space 已出现一维 kernel，并被正式 alias check 拒绝。closure 不得掩盖该 kernel。
+
+### 数据与 canonicality
+
+3 个 seeds、4 个 frame 数和 3 个位移尺度组成的 36 组数据全部为 11/11 满秩，condition
+number 为 3.95–5.51。$10^{-4}$ eV/Å force noise 只产生 $3.82\times10^{-4}$ 的相对
+parameter change，没有异常噪声放大。
+
+SVD coefficient $\eta$ 不是 canonical parameter。任意
+$N\rightarrow NQ$、$\eta\rightarrow Q^T\eta$ 都表示同一 Hessian。随机 basis rotation
+下 closure projector residual 为 $1.21\times10^{-15}$，Hessian residual 为
+$3.82\times10^{-16}$。稳定对象应是 source fingerprint、closure projector 和重建后的
+finite Hessian，而不是某个 backend 产生的 $\eta$。
+
+### 架构判定
+
+closure 不应进入 `OrderParameterization`、`SparseOrderForceConstants` 或 canonical HDF5。
+推荐下一阶段研究 source-specific `FiniteHarmonicResponse` 与轻量 harmonic design block：
+它和现有 orbit design 联合产生 columns，并复用现有 streamed Gram 和 solver。transferable
+`ForceConstants` 保持不变，source residual 不能 realization 或导出到不同 reference。
+
+第三阶段判定为：
+
+$$
+\boxed{\text{Mathematical GO + Prototype Recommended}}
+$$
+
+尚不提升为 Architectural GO；Production GO 本轮明确未给出。详细数据和推导见
+`research/fc2_observable_closure/phase3-report.md` 与 `results-phase3.json`。
