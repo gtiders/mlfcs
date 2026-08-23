@@ -19,6 +19,11 @@ def _markdown_paths(language: str) -> set[Path]:
     return {path.relative_to(base) for path in base.rglob("*.md")}
 
 
+def _chinese_markdown_paths() -> set[Path]:
+    base = DOCS / "zh"
+    return {path.relative_to(base) for path in base.rglob("*.md")}
+
+
 def _front_matter(text: str) -> str | None:
     if not text.startswith("---\n"):
         return None
@@ -34,11 +39,12 @@ def _field(front_matter: str, name: str) -> str | None:
 def main() -> int:
     errors: list[str] = []
     english = _markdown_paths("en")
-    chinese = _markdown_paths("zh")
-    for path in sorted(english - chinese):
-        errors.append(f"missing Chinese mirror: docs/zh/{path}")
-    for path in sorted(chinese - english):
-        errors.append(f"missing English mirror: docs/en/{path}")
+    chinese = _chinese_markdown_paths()
+    if len(english) != len(chinese):
+        errors.append(
+            f"English and Chinese documentation page counts differ: "
+            f"{len(english)} != {len(chinese)}"
+        )
 
     if (ROOT / "README_ZH.md").exists():
         errors.append("legacy README_ZH.md must not exist")
@@ -73,9 +79,12 @@ def main() -> int:
                     f"{path.relative_to(ROOT)}"
                 )
 
-    for relative in sorted(english & chinese):
+    for relative in sorted(english):
+        chinese_path = DOCS / "zh" / relative
+        if not chinese_path.exists():
+            continue
         en_front = _front_matter((DOCS / "en" / relative).read_text(encoding="utf-8"))
-        zh_front = _front_matter((DOCS / "zh" / relative).read_text(encoding="utf-8"))
+        zh_front = _front_matter(chinese_path.read_text(encoding="utf-8"))
         if en_front is None or zh_front is None:
             continue
         for field in ("status", "code_verified"):

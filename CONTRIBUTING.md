@@ -46,7 +46,7 @@ Run only the reference affected by a change locally; CI performs the complete se
 ## Test expectations
 
 New or migrated validation content must follow the
-[tests and examples policy](docs/TESTS_AND_EXAMPLES.md). Numerical material comparisons against
+[tests and examples policy](docs/en/development/examples-policy.md). Numerical material comparisons against
 external programs belong in `examples`, not new pytest oracles.
 
 - Unit tests cover deterministic mathematical and I/O behavior.

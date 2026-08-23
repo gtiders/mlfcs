@@ -21,4 +21,4 @@ uv run python research/direct_gram/prototype.py --case snse --orders 2 3 4 --fra
 平方级临时内存。
 
 完整数学推导、成本估计、数值结果和 No-Go 判定见
-`docs/zh/methods/direct-gram.md`。
+`docs/zh/开发/研究/Direct-Gram与matrix-freedesign研究.md`。

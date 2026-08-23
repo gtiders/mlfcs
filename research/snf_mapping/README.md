@@ -19,4 +19,4 @@ uv run python research/snf_mapping/prototype.py
 - 对角、非对角和高剪切矩阵的大批量 lookup 时间；
 - 等价 supercell 行基变化后 SNF transformation 是否保持 canonical。
 
-数学推导和架构结论见 `docs/zh/methods/snf-mapping.md`。
+数学推导和架构结论见 `docs/zh/开发/研究/完整SNF能否统一有限超胞平移映射.md`。

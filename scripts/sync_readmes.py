@@ -13,7 +13,7 @@ from urllib.parse import urlsplit, urlunsplit
 ROOT = Path(__file__).resolve().parents[1]
 PAIRS = {
     Path("docs/en/index.md"): Path("README.md"),
-    Path("docs/zh/index.md"): Path("README.zh-CN.md"),
+    Path("docs/zh/首页.md"): Path("README.zh-CN.md"),
 }
 H1_RE = re.compile(r"^# (.+)$", re.MULTILINE)
 LINK_RE = re.compile(r"(!?\[[^\]]*\]\()(<[^>]+>|[^)\s]+)([^)]*)(\))")

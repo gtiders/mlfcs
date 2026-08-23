@@ -41,7 +41,7 @@ write_force_constants(force_constants, "mlfcs.h5", format="hdf5")
 
 ## 结果与解释
 
-`mlfcs.h5` 包含原生 HDF5 v3 稀疏 exact-$R$ FC2。下游工作流需要稠密 phonopy 输出时，应使用[显式 writer](../how-to/read-and-write-ifcs.md)。
+`mlfcs.h5` 包含原生 HDF5 v3 稀疏 exact-$R$ FC2。下游工作流需要稠密 phonopy 输出时，应使用[显式 writer](../操作指南/读写力常数.md)。
 
 ## 常见问题
 
@@ -49,4 +49,4 @@ primitive 和 reference 必须构成严格整数超胞关系。真实 calculator
 
 ## 下一步
 
-仓库中的 [Si 谐性案例](../examples/si-finite-difference.md)从已归档 VASP 输出重建 FC2，并绘制声子谱。
+仓库中的 [Si 谐性案例](../示例/Si有限差分.md)从已归档 VASP 输出重建 FC2，并绘制声子谱。

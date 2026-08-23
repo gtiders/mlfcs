@@ -3,6 +3,6 @@
 Choose a language / 选择语言：
 
 - [English documentation](en/index.md)
-- [中文文档](zh/index.md)
+- [中文文档](zh/首页.md)
 
-The two documentation trees use the same paths and information architecture.
+The two documentation trees share the same information architecture, while the Chinese tree uses Chinese directory and file names.

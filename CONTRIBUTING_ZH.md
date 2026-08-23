@@ -44,7 +44,7 @@ uv run pytest tests/reference/analytic/Morse_FCC_FC4/test_morse_fc4.py
 
 ## 测试要求
 
-新增或迁移验证内容前必须遵循[测试与案例设计原则](docs/TESTS_AND_EXAMPLES_ZH.md)。
+新增或迁移验证内容前必须遵循[测试与案例设计原则](docs/zh/开发/案例维护规范.md)。
 外部软件的材料数值对比属于 `examples`，不应新增为普通 pytest oracle。
 
 - 单元测试覆盖确定性的数学和 I/O 行为；
