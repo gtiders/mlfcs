@@ -3,20 +3,39 @@ site_description: ASE-first symmetry-reduced force constants from second to arbi
 site_url: https://gtiders.github.io/mlfcs/
 site_dir: site
 repo_url: https://github.com/gtiders/mlfcs
+repo_name: gtiders/mlfcs
+edit_uri: edit/dev/docs/
+copyright: MLFCS contributors
 
 theme:
   name: material
   language: en
+  logo: material/atom
+  favicon: material/atom
   features:
+    - navigation.tabs
     - navigation.indexes
     - navigation.sections
     - navigation.top
+    - navigation.tracking
     - search.suggest
+    - search.highlight
+    - search.share
     - content.code.copy
+    - content.action.edit
   palette:
     - scheme: default
       primary: teal
       accent: blue
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - scheme: slate
+      primary: teal
+      accent: light blue
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
 
 plugins:
   - search
@@ -35,3 +54,15 @@ markdown_extensions:
 
 extra_javascript:
   - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+
+extra:
+  alternate:
+    - name: English
+      link: /mlfcs/en/
+      lang: en
+    - name: 简体中文
+      link: /mlfcs/zh/首页/
+      lang: zh
+
+extra_css:
+  - stylesheets/extra.css

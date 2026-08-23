@@ -43,7 +43,7 @@ jobs:
         run: |
           test -f site/index.html
           test -f site/en/index.html
-          test -f site/zh/index.html
+          test -f site/zh/首页/index.html
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
