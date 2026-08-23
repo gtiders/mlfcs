@@ -1,0 +1,69 @@
+{
+  "case": "KCl primitive 2 atoms, 2x2x2 reference",
+  "primitive_atoms": 2,
+  "reference_atoms": 16,
+  "supercell_matrix": [
+    [
+      2,
+      0,
+      0
+    ],
+    [
+      0,
+      2,
+      0
+    ],
+    [
+      0,
+      0,
+      2
+    ]
+  ],
+  "cutoff_angstrom": 4.439115867225757,
+  "snapshots": 100,
+  "primitive_parameter_dimension": 4,
+  "realization_rank": 4,
+  "kernel_dimension": 0,
+  "observable_dimension": 13,
+  "closure_dimension": 9,
+  "mapping_singular_values": [
+    4.898979485566358,
+    3.464101615137755,
+    1.7320508075688776,
+    1.7320508075688774
+  ],
+  "mapping_rank_tolerance": 1.4141295537309398e-14,
+  "transferable_projection_residual": 2.013688493302177e-15,
+  "observable_projector_rank_tolerance": 6.394884621840903e-14,
+  "combined_rank": 13,
+  "combined_columns": 13,
+  "mapping_closure_orthogonality_2norm": 1.0740425729697696e-32,
+  "minimum_representation_principal_angle_radians": 1.5707963267948966,
+  "random_coordinate_reconstruction_relative_error": 1.5127645519037027e-16,
+  "random_hessian_reconstruction_relative_error": 1.565044310377625e-16,
+  "transferable_dataset_rank": 4,
+  "closure_dataset_rank": 9,
+  "joint_dataset_rank": 12,
+  "joint_dataset_columns": 13,
+  "joint_dataset_nullity": 1,
+  "joint_dataset_rank_tolerance": 1.2826385747613372e-12,
+  "joint_dataset_condition_number": 6.262562084908683,
+  "minimum_dataset_principal_angle_radians": 0.0,
+  "dataset_null_design_residual": 1.3698594786420697e-16,
+  "dataset_null_hessian_asr_maximum": 2.100902925755561,
+  "transferable_only_force_fit_rmse_eV_per_angstrom": 0.005870929173361186,
+  "actual_force_fit_rmse_eV_per_angstrom": 0.0006460277400780805,
+  "decision": "NO-GO",
+  "reason": "actual displacement data do not identify the combined basis",
+  "negative_control": {
+    "primitive_parameter_dimension": 3,
+    "realization_rank": 1,
+    "kernel_dimension": 2,
+    "production_check_rejected": true,
+    "singular_values": [
+      7.937253933193772,
+      5.664409252039193e-16,
+      3.039038225654554e-16
+    ]
+  }
+}
