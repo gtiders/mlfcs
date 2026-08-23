@@ -49,3 +49,30 @@ uv run --with phonopy --with pypolymlp python research/fc2_observable_closure/ph
 完整结论见 `phase3-report.md`，机器结果见 `results-phase3.json`。第三阶段确认
 **Mathematical GO + Prototype Recommended**，但没有给出 Production GO，也没有把 closure
 提升为 transferable exact-$R$ IFC。
+
+## 第四阶段：最小架构原型
+
+运行：
+
+```bash
+uv run --with phonopy --with pypolymlp python research/fc2_observable_closure/architecture_prototype.py
+```
+
+第四阶段用有限 pair-label 群轨道和 $3\times3$ tensor stabilizer invariant 直接构造
+`FiniteObservableSpace`，不再构造 dense full projector。$2^3$、$3^3$、$4^3$ KCl
+reference 的 observable dimension 分别为 13、24、52；$4^3$ 构造约需 1.9 秒，原型新增
+Python 内存峰值约 0.8 MiB。
+
+原型以统一 `DesignBlock` 接口把 transferable orbit columns 和 source-only finite harmonic
+columns 同时送入现有 streamed Gram 与 solver。KCl $2^3$ 的联合 design 为 11/11 满列秩，
+Gram、RHS 与显式参考的相对误差分别为 $4.30\times10^{-16}$ 和
+$5.48\times10^{-16}$，总 Hessian 与第三阶段 dense 参考的相对差异为
+$4.26\times10^{-13}$。
+
+`FiniteHarmonicResponse` 严格绑定 source primitive 与 translation sublattice：允许 reference
+原子重排和同一子晶格的整数幺模换基，拒绝不同 source supercell；它不会写入 canonical
+exact-$R$ IFC、HDF5 或外部格式。
+
+第四阶段结论为 **Architectural GO**，但 `production_go=false`。完整说明见
+`phase4-report.md`，机器结果见 `results-phase4.json`。本目录仍是独立研究原型，没有修改
+`src/mlfcs` 或公共 API。

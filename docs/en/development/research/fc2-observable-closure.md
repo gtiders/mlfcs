@@ -199,3 +199,42 @@ $$
 
 It is not yet Architectural GO, and Production GO is explicitly not granted. Detailed derivations
 and data are in `research/fc2_observable_closure/phase3-report.md` and `results-phase3.json`.
+
+## Phase four: Minimal Architecture Prototype
+
+Phase four replaces the dense-projector research path with finite pair-label group orbits. A
+$3\times3$ tensor stabilizer invariant basis is computed once for each finite pair orbit, and ASR is
+then imposed in the generated observable coordinates. The algorithm generates only allowed columns
+instead of enumerating every column of a dense projector.
+
+| KCl reference | Finite pair orbits | Observable dimension | ASR dimension | Closure dimension | Build time | Added prototype peak |
+|---|---:|---:|---:|---:|---:|---:|
+| $2^3$ | 8 | 13 | 11 | 9 | 0.22 s | 0.11 MiB |
+| $3^3$ | 12 | 24 | 22 | 20 | 0.79 s | 0.31 MiB |
+| $4^3$ | 22 | 52 | 50 | 48 | 1.88 s | 0.79 MiB |
+
+For $2^3$ and $3^3$, the new column space agrees with the old dense reference projector to relative
+error below $9\times10^{-16}$. Closure is not inserted into canonical IFCs. Instead, a shared
+internal `DesignBlock` protocol lets the existing orbit design and the source-only finite harmonic
+design enter the same batches of the existing streamed Gram and solver.
+
+The end-to-end KCl $2^3$ joint design has rank 11/11. Relative Gram and RHS differences are
+$4.30\times10^{-16}$ and $5.48\times10^{-16}$; the total Hessian differs from the phase-three dense
+reference by $4.26\times10^{-13}$, with maximum ASR residual $1.87\times10^{-15}$. The fitted force
+RMSE is $6.46\times10^{-4}$ eV/Å.
+
+Source ownership is defined by a primitive fingerprint and the HNF translation sublattice. Atom
+reordering and a unimodular basis change of the same sublattice both round-trip with zero error,
+while a different source supercell is rejected. Zero-dimensional closure creates no design block,
+transferable aliasing remains rejected by the existing check, and joint dataset rank deficiency is
+rejected before solving.
+
+The phase-four decision is therefore
+
+$$
+\boxed{\text{Architectural GO, but not Production GO}}.
+$$
+
+This establishes a viable minimal architecture boundary; it does not approve a public API or a
+production integration. The prototype, report, and machine-readable results are
+`architecture_prototype.py`, `phase4-report.md`, and `results-phase4.json`.

@@ -213,3 +213,38 @@ $$
 
 尚不提升为 Architectural GO；Production GO 本轮明确未给出。详细数据和推导见
 `research/fc2_observable_closure/phase3-report.md` 与 `results-phase3.json`。
+
+## 第四阶段：Minimal Architecture Prototype
+
+第四阶段把 dense projector 原型替换为有限 pair-label 群轨道构造。每个 finite pair orbit
+只求一次 $3\times3$ tensor stabilizer invariant，随后在生成的 observable coordinates 中
+施加 ASR。该算法直接生成允许的列空间，不枚举 dense projector 的全部列。
+
+| KCl reference | finite pair orbits | observable dimension | ASR dimension | closure dimension | 构造时间 | 原型新增内存峰值 |
+|---|---:|---:|---:|---:|---:|---:|
+| $2^3$ | 8 | 13 | 11 | 9 | 0.22 s | 0.11 MiB |
+| $3^3$ | 12 | 24 | 22 | 20 | 0.79 s | 0.31 MiB |
+| $4^3$ | 22 | 52 | 50 | 48 | 1.88 s | 0.79 MiB |
+
+$2^3$ 和 $3^3$ 的新列空间与旧 dense 参考 projector 的相对差异均小于
+$9\times10^{-16}$。原型没有把 closure 接入 canonical IFC，而是定义统一的内部
+`DesignBlock`：现有 orbit design 和 source-only finite harmonic design 在同一个 batch 中
+共同进入现有 streamed Gram 和 solver。
+
+KCl $2^3$ 的端到端联合 design 为 11/11 满列秩。Gram 和 RHS 相对差异分别为
+$4.30\times10^{-16}$ 和 $5.48\times10^{-16}$；总 Hessian 相对第三阶段 dense 参考的差异为
+$4.26\times10^{-13}$，ASR 最大残差为 $1.87\times10^{-15}$。拟合 RMSE 为
+$6.46\times10^{-4}$ eV/Å。
+
+source ownership 通过 primitive fingerprint 与 HNF translation sublattice 定义。原子重排和
+同一子晶格的整数幺模换基往返误差均为零，不同 source supercell 被拒绝。closure dimension
+为零时不创建 design block；transferable alias 仍由原有检查拒绝；联合数据秩亏在求解前拒绝。
+
+因此第四阶段结论为
+
+$$
+\boxed{\text{Architectural GO, but not Production GO}}.
+$$
+
+它只证明最小架构边界可行，尚未批准公共 API 或正式源码接入。原型、报告和机器结果分别位于
+`architecture_prototype.py`、`phase4-report.md` 和 `results-phase4.json`。
