@@ -32,4 +32,4 @@ jobs:
         run: |
           test -f site/index.html
           test -f site/en/index.html
-          test -f site/zh/首页/index.html
+          test -f site/zh/index/index.html

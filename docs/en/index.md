@@ -6,6 +6,10 @@ status: stable
 code_verified: 4.0.0a4
 ---
 
+<p align="center">
+  <img src="../assets/images/logo.png" alt="MLFCS" width="560">
+</p>
+
 # MLFCS
 
 MLFCS is an ASE-first Python library for constructing symmetry-reduced harmonic and anharmonic force constants from atomic forces. It provides finite differences, force-only fitting, physical constraints, sparse primitive real-space storage, temperature-dependent effective harmonic workflows, and explicit export to downstream phonon and transport software.

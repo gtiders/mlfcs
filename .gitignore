@@ -6,6 +6,7 @@ dist/
 wheels/
 *.egg-info
 .mlfcs-cache/
+.omo
 
 # Generated force-constant and cache artifacts are reproducible and stay local.
 # MD trajectories are intentionally trackable as reusable example data.

@@ -61,7 +61,7 @@ extra:
       link: /mlfcs/en/
       lang: en
     - name: 简体中文
-      link: /mlfcs/zh/首页/
+      link: /mlfcs/zh/
       lang: zh
 
 extra_css:
