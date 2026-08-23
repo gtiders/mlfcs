@@ -30,4 +30,4 @@ write_force_constants(result, "fc2.h5", format="hdf5")
 
 For expensive calculators, use [`sow()` and `reap()`](../tutorials/external-calculator.md)
 and store a manifest alongside the returned files. See [installation](installation.md),
-[the first FC2](../tutorials/first-fc2-finite-difference.md), and [structure conventions](../how-to/choose-primitive-and-reference.md).
+[the first FC2](../tutorials/first-fc2-finite-difference.md), and structure conventions.

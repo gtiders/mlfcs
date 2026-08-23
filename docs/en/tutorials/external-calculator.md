@@ -56,4 +56,4 @@ The force at `forces[i]` must belong to `structures[i]`. For out-of-order comple
 
 ## Results and next steps
 
-Keep the structure manifest, calculator inputs, and raw outputs with the calculation provenance. The [Si harmonic case](../examples/si-finite-difference.md) demonstrates this separation using archived outputs, a force-collection script, a reconstruction script, and an independent plotting script.
+Keep the structure manifest, calculator inputs, and raw outputs with the calculation provenance. The Si harmonic case demonstrates this separation using archived outputs, a force-collection script, a reconstruction script, and an independent plotting script.

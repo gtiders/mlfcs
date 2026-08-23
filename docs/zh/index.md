@@ -7,7 +7,7 @@ code_verified: 4.0.0a4
 ---
 
 <p align="center">
-  <img src="../assets/images/logo.png" alt="MLFCS" width="560">
+  <img src="https://gtiders.github.io/mlfcs/assets/images/logo.png" alt="MLFCS" width="560">
 </p>
 
 # MLFCS

@@ -7,7 +7,7 @@ code_verified: 4.0.0a4
 ---
 
 <p align="center">
-  <img src="../assets/images/logo.png" alt="MLFCS" width="560">
+  <img src="https://gtiders.github.io/mlfcs/assets/images/logo.png" alt="MLFCS" width="560">
 </p>
 
 # MLFCS
@@ -61,7 +61,7 @@ See the [first finite-difference FC2 tutorial](tutorials/first-fc2-finite-differ
 | Apply FC2 rotational conditions | [Rotational constraints](tutorials/rotational-constraints.md) |
 | Calculate an FC4 loop correction | [SCPH workflow](tutorials/scph-workflow.md) |
 | Calculate a stochastic effective FC2 | [SSCHA workflow](tutorials/sscha-workflow.md) |
-| Export to another program or supercell | [Interoperability](interoperability/index.md) |
+| Export to another program or supercell | Interoperability |
 
 ## Choose structures before calculation
 
@@ -86,7 +86,7 @@ Start with the [theory](theory/index.md) for derivations and numerical conventio
 
 ### Concepts
 
-Use the [core concepts](concepts/index.md) to understand structures, translations, interactions, orbits, parameters, bases, and realizations.
+Use the core concepts to understand structures, translations, interactions, orbits, parameters, bases, and realizations.
 
 ### Tutorials
 
@@ -94,19 +94,19 @@ Follow the [tutorial learning paths](tutorials/index.md) for complete, executabl
 
 ### How-to guides
 
-Use the [task guides](how-to/choose-cutoff.md) to complete focused tasks.
+Use the task guides to complete focused tasks.
 
 ### Interoperability
 
-Read [formats and structure conventions](interoperability/index.md) before exporting.
+Read formats and structure conventions before exporting.
 
 ### Examples
 
-The [material cases](examples/index.md) connect scripts, reference data, results, and figures.
+The material cases connect scripts, reference data, results, and figures.
 
 ### Q&A
 
-The [questions and answers](qa/index.md) route common problems to authoritative pages.
+The questions and answers route common problems to authoritative pages.
 
 ### API reference
 
@@ -118,4 +118,4 @@ The [roadmap](roadmap/index.md) separates stable, planned, research, and No-Go w
 
 ### Developer documentation
 
-The [developer guide](development/index.md) covers architecture, testing, validation, and maintenance.
+The developer guide covers architecture, testing, validation, and maintenance.

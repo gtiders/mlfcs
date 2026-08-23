@@ -13,7 +13,6 @@ theme:
   logo: assets/images/logo.png
   favicon: assets/images/logo.png
   features:
-    - navigation.tabs
     - navigation.indexes
     - navigation.sections
     - navigation.top

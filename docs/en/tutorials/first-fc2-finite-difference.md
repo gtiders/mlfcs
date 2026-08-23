@@ -41,7 +41,7 @@ write_force_constants(force_constants, "mlfcs.h5", format="hdf5")
 
 ## Results and interpretation
 
-`mlfcs.h5` contains native HDF5 v3 sparse exact-$R$ FC2. Use an [explicit writer](../how-to/read-and-write-ifcs.md) to create dense phonopy output when a downstream workflow requires it.
+`mlfcs.h5` contains native HDF5 v3 sparse exact-$R$ FC2. Use an explicit writer to create dense phonopy output when a downstream workflow requires it.
 
 ## Common problems
 
@@ -49,4 +49,4 @@ The primitive and reference must describe one exact integer-supercell relation. 
 
 ## Next steps
 
-The repository's [Si harmonic case](../examples/si-finite-difference.md) reconstructs FC2 from archived VASP outputs and plots the resulting phonon bands.
+The repository's Si harmonic case reconstructs FC2 from archived VASP outputs and plots the resulting phonon bands.

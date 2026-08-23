@@ -9,6 +9,12 @@ English | [简体中文](README.zh-CN.md)
 
 <!-- BEGIN GENERATED: docs/en/index.md -->
 
+<p align="center">
+  <img src="https://gtiders.github.io/mlfcs/assets/images/logo.png" alt="MLFCS" width="560">
+</p>
+
+
+
 MLFCS is an ASE-first Python library for constructing symmetry-reduced harmonic and anharmonic force constants from atomic forces. It provides finite differences, force-only fitting, physical constraints, sparse primitive real-space storage, temperature-dependent effective harmonic workflows, and explicit export to downstream phonon and transport software.
 
 ## Why MLFCS
@@ -58,7 +64,7 @@ See the [first finite-difference FC2 tutorial](docs/en/tutorials/first-fc2-finit
 | Apply FC2 rotational conditions | [Rotational constraints](docs/en/tutorials/rotational-constraints.md) |
 | Calculate an FC4 loop correction | [SCPH workflow](docs/en/tutorials/scph-workflow.md) |
 | Calculate a stochastic effective FC2 | [SSCHA workflow](docs/en/tutorials/sscha-workflow.md) |
-| Export to another program or supercell | [Interoperability](docs/en/interoperability/index.md) |
+| Export to another program or supercell | Interoperability |
 
 ## Choose structures before calculation
 
@@ -83,7 +89,7 @@ Start with the [theory](docs/en/theory/index.md) for derivations and numerical c
 
 ### Concepts
 
-Use the [core concepts](docs/en/concepts/index.md) to understand structures, translations, interactions, orbits, parameters, bases, and realizations.
+Use the core concepts to understand structures, translations, interactions, orbits, parameters, bases, and realizations.
 
 ### Tutorials
 
@@ -91,19 +97,19 @@ Follow the [tutorial learning paths](docs/en/tutorials/index.md) for complete, e
 
 ### How-to guides
 
-Use the [task guides](docs/en/how-to/choose-cutoff.md) to complete focused tasks.
+Use the task guides to complete focused tasks.
 
 ### Interoperability
 
-Read [formats and structure conventions](docs/en/interoperability/index.md) before exporting.
+Read formats and structure conventions before exporting.
 
 ### Examples
 
-The [material cases](docs/en/examples/index.md) connect scripts, reference data, results, and figures.
+The material cases connect scripts, reference data, results, and figures.
 
 ### Q&A
 
-The [questions and answers](docs/en/qa/index.md) route common problems to authoritative pages.
+The questions and answers route common problems to authoritative pages.
 
 ### API reference
 
@@ -115,7 +121,7 @@ The [roadmap](docs/en/roadmap/index.md) separates stable, planned, research, and
 
 ### Developer documentation
 
-The [developer guide](docs/en/development/index.md) covers architecture, testing, validation, and maintenance.
+The developer guide covers architecture, testing, validation, and maintenance.
 
 <!-- END GENERATED: docs/en/index.md -->
 

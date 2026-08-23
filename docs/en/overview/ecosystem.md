@@ -68,4 +68,4 @@ A reproducible calculation retains structures, calculator settings, raw forces a
 
 If the final consumer is phonopy, phono3py, ShengBTE, or ALAMODE, establish its primitive, supercell, and units before creating the MLFCS reference. Starting from the consumer's structures reduces ambiguity at export.
 
-Continue with [structures and reference frames](../concepts/structures.md), the [interoperability overview](../interoperability/index.md), and [structure conventions](../interoperability/structure-conventions.md).
+Continue with structures and reference frames, the interoperability overview, and structure conventions.
