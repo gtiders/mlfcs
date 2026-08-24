@@ -1,18 +1,23 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import jax.numpy as jnp
 import numpy as np
 import pytest
 from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
 
-from mlfcs import ForceConstantFitter
+from mlfcs import ForceConstantFitter, enforce_rotational_sum_rules
+from mlfcs.constraints.translational import project_parameters
 from mlfcs.fitting.backends.factory import create_fitting_backend
 from mlfcs.fitting.backends.interface import FittingBasisBackend
 from mlfcs.fitting.backends.result import BasisDiagnostics, BasisLoweringResult
 from mlfcs.fitting.backends.taylor.backend import TaylorFittingBackend
 from mlfcs.fitting.backends.taylor.features import taylor_axis_derivatives
+from mlfcs.fitting.backends.wick.backend import WickFittingBackend
 from mlfcs.fitting.backends.wick.features import wick_axis_derivatives
+from mlfcs.fitting.constraints import build_joint_constraints
 
 
 def test_backend_result_objects_are_basis_independent():
@@ -89,3 +94,49 @@ def test_fitter_backends_share_result_interface_and_fc2_prediction():
         atol=1e-12,
         rtol=1e-12,
     )
+
+    corrected = {
+        basis: enforce_rotational_sum_rules(
+            result.force_constants,
+            born_huang=True,
+            huang=True,
+        )
+        for basis, result in results.items()
+    }
+    np.testing.assert_allclose(
+        corrected["taylor"].force_constants.sparse[2].tensors,
+        corrected["wick"].force_constants.sparse[2].tensors,
+        atol=1e-12,
+        rtol=1e-12,
+    )
+    assert corrected["taylor"].diagnostics.acoustic_after < 1e-12
+    assert corrected["wick"].diagnostics.acoustic_after < 1e-12
+
+
+def test_wick_lowering_preserves_per_order_acoustic_null_spaces():
+    primitive = Atoms("Ar", cell=np.eye(3) * 4.0, scaled_positions=[[0, 0, 0]], pbc=True)
+    reference = primitive.repeat((3, 3, 3))
+    fitter = ForceConstantFitter(
+        primitive,
+        reference,
+        orders=(2, 3, 4),
+        cutoffs={2: 4.1, 3: 4.1, 4: 4.1},
+        max_body_orders={2: 2, 3: 2, 4: 2},
+        fitting_basis="wick",
+        verbose=False,
+    )
+    constraints = build_joint_constraints(fitter.calculations, acoustic=True).matrix
+    rng = np.random.default_rng(12)
+    wick_parameters = project_parameters(
+        constraints,
+        rng.normal(size=fitter.n_parameters),
+        tolerance=1e-10,
+    )
+    prepared = SimpleNamespace(
+        calculations=tuple(fitter.calculations),
+        covariance=np.eye(3 * len(reference)) * 0.01,
+    )
+    taylor_parameters = WickFittingBackend().lower(prepared, wick_parameters).taylor_parameters
+
+    assert np.max(np.abs(constraints @ wick_parameters)) < 1e-10
+    assert np.max(np.abs(constraints @ taylor_parameters)) < 1e-10

@@ -25,7 +25,14 @@ def build_joint_constraints(
     *,
     acoustic: bool,
 ) -> JointConstraints:
-    """Build only translational constraints in the fitting parameter basis.
+    """Build per-order translational constraints in the fitting coordinates.
+
+    Taylor uses these constraints directly.  Wick lowering contracts pairs of
+    Cartesian indices with the reference covariance.  Such contractions
+    commute with the translational sum over every uncontracted site index, so
+    an ASR-satisfying Wick tensor lowers to ASR-satisfying Taylor tensors.  The
+    same per-order null spaces are therefore sufficient for both backends and
+    no covariance-dependent constraint branch is required.
 
     Born--Huang and Huang conditions deliberately live in the explicit FC2
     postprocessor. Applying them here would couple fitted FC2 to higher orders.
