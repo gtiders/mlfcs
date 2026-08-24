@@ -72,7 +72,7 @@ def main() -> None:
         order=2,
     )
     Path("fit-metrics.json").write_text(
-        json.dumps(asdict(result.diagnostics), indent=2) + "\n",
+        json.dumps(asdict(result), indent=2) + "\n",
         encoding="utf-8",
     )
 

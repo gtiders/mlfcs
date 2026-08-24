@@ -64,7 +64,6 @@ def _operator(name: str, orders: tuple[int, ...], frames: int):
         cutoffs={order: cutoffs[order] for order in orders},
         max_body_orders={order: bodies[order] for order in orders},
         symprec=1e-4 if name == "snse" else 1e-5,
-        verbose=False,
     )
     dataset = FitDataset.from_atoms(fitter.geometry, snapshots)
     covariance = symmetrized_covariance(dataset.displacements, fitter.calculations[0])

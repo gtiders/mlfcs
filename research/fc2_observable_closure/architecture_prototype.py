@@ -464,7 +464,6 @@ def solve_streamed_joint(
         empty,
         tolerance=1e-12,
         max_iterations=5000,
-        verbose=False,
     )
     reduced = np.asarray(solution[0]) * scale
     return reduced, gram, operator, gram_seconds, int(solution[1])

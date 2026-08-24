@@ -20,7 +20,8 @@ from mlfcs.fitting.backends.wick.lowering import (
     lowered_fc1,
 )
 from mlfcs.fitting import ForceConstantFitter
-from mlfcs.fitting.backends.wick.prediction import predict_wick_force as predict_force
+from mlfcs.fitting.backends.wick.features import wick_axis_derivatives
+from mlfcs.fitting.design_operator import predict_force as _predict_force
 from mlfcs.force_constants.representation import ForceConstants
 from mlfcs.force_constants.expansion import expand_fitted_orders
 from mlfcs.force_constants.realization import realize_force_constants
@@ -30,6 +31,12 @@ from mlfcs.structure.supercell import build_supercell
 
 ROOT = Path(__file__).resolve().parents[2]
 RESULTS = Path(__file__).with_name("results.json")
+
+
+def predict_force(parameters, displacements, covariance, parameterizations):
+    return _predict_force(
+        parameters, displacements, covariance, parameterizations, wick_axis_derivatives
+    )
 
 
 @dataclass(slots=True)
@@ -159,7 +166,6 @@ def wick_equivalence() -> dict:
         orders=(2, 3, 4),
         cutoffs={2: 4.1, 3: 4.1, 4: 4.1},
         max_body_orders={2: 2, 3: 2, 4: 2},
-        verbose=False,
     )
     rng = np.random.default_rng(8147)
     parameters = rng.normal(scale=0.2, size=fitter.n_parameters)
@@ -239,7 +245,6 @@ def folded_covariance_counterexample() -> dict:
         orders=(2, 3, 4),
         cutoffs={2: 4.1, 3: 4.1, 4: 4.1},
         max_body_orders={2: 2, 3: 2, 4: 2},
-        verbose=False,
     )
     from mlfcs.fitting.constraints import build_joint_constraints
     from mlfcs.fitting.linear_solvers import explicit_constraint_null_space
@@ -292,7 +297,6 @@ def fc1_equivalence() -> dict:
         primitive.copy(),
         orders=(3,),
         cutoffs={3: 3.0},
-        verbose=False,
     )
     rng = np.random.default_rng(4)
     parameters = rng.normal(scale=0.2, size=fitter.n_parameters)

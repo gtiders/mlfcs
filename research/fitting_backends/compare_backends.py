@@ -79,7 +79,6 @@ def fit_case(name: str, case: Case, basis: str, output: Path):
         max_body_orders=case.body_orders,
         symprec=case.symprec,
         fitting_basis=basis,
-        verbose=True,
     )
     result = fitter.fit(
         read(case.snapshots, index=":"),
@@ -93,7 +92,7 @@ def fit_case(name: str, case: Case, basis: str, output: Path):
     )
     write_force_constants(result.force_constants, destination / "mlfcs.h5", format="hdf5")
     (destination / "metrics.json").write_text(
-        json.dumps(asdict(result.diagnostics), indent=2, sort_keys=True) + "\n",
+        json.dumps(asdict(result), indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
     return result
@@ -121,14 +120,14 @@ def compare(name: str, results: dict[str, object]) -> dict[str, object]:
     return {
         "case": name,
         "taylor": {
-            "training_force_rmse": taylor.diagnostics.training_force_rmse,
-            "validation_force_rmse": taylor.diagnostics.validation_force_rmse,
-            "maximum_constraint_residual": taylor.diagnostics.maximum_constraint_residual,
+            "training_force_rmse": taylor.training_force_rmse,
+            "validation_force_rmse": taylor.validation_force_rmse,
+            "maximum_constraint_residual": taylor.maximum_constraint_residual,
         },
         "wick": {
-            "training_force_rmse": wick.diagnostics.training_force_rmse,
-            "validation_force_rmse": wick.diagnostics.validation_force_rmse,
-            "maximum_constraint_residual": wick.diagnostics.maximum_constraint_residual,
+            "training_force_rmse": wick.training_force_rmse,
+            "validation_force_rmse": wick.validation_force_rmse,
+            "maximum_constraint_residual": wick.maximum_constraint_residual,
         },
         "orders": orders,
     }
