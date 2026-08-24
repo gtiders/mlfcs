@@ -17,7 +17,8 @@ from mlfcs.force_constants.representation import (
 )
 from mlfcs.force_constants.dense import expand_compact_fc2, lattice_fc2, replace_lattice_fc2
 from mlfcs.force_constants.realization import realize_force_constants
-from mlfcs.physics.sscha.ensemble import EnsembleDiagnostics, HarmonicEnsemble
+from mlfcs.sampling.harmonic import HarmonicSampler, SamplingState
+from mlfcs.sampling.structures import _sample_perturbations
 from mlfcs.physics.temperature import TemperatureSeriesResult, normalize_temperature_schedule
 
 Progress = Callable[[int, int], None]
@@ -33,7 +34,14 @@ class SSCHAIteration:
     free_energy_error: float | None
     potential_energy: float | None
     harmonic_potential_energy: float
-    ensemble: EnsembleDiagnostics | None
+    qpoints: int | None
+    total_modes: int | None
+    sampled_modes: int | None
+    excluded_modes: int | None
+    imaginary_modes: int | None
+    minimum_frequency_thz: float | None
+    maximum_sampled_displacement: float
+    clipped_atoms: int
     fitting_relative_force_error: float
     relative_force_constant_change: float | None
     raw_relative_force_constant_change: float | None
@@ -168,7 +176,7 @@ class SSCHA:
     ) -> tuple[
         list[Atoms],
         NDArray[np.float64] | None,
-        HarmonicEnsemble | None,
+        HarmonicSampler | None,
         Literal["cartesian", "canonical"],
     ]:
         """Draw one internal SSCHA ensemble in the reference atom order."""
@@ -181,16 +189,32 @@ class SSCHA:
         sampling_compact = None if self._active_compact is None else self._active_compact.copy()
         sampling_ensemble = None
         if sampling_compact is None:
-            rng = np.random.default_rng(self.random_seed)
-            displacement = rng.normal(
-                scale=self.initial_displacement,
-                size=(count, len(self._reference), 3),
+            batch = _sample_perturbations(
+                self._reference,
+                snapshots=count,
+                method="gaussian",
+                displacement=self.initial_displacement,
+                random_seed=self.random_seed,
             )
-            displacement -= displacement.mean(axis=1, keepdims=True)
+            displacement = batch.displacements
             sampling = "cartesian"
         else:
-            sampling_ensemble = self._make_ensemble(sampling_compact)
-            displacement = sampling_ensemble.sample(count, random_seed=self._sampling_seed(index))
+            assert self._force_constants is not None
+            batch = _sample_perturbations(
+                self._reference,
+                snapshots=count,
+                method="harmonic",
+                force_constants=self._force_constants,
+                temperature=self.temperature,
+                statistics=self.statistics,
+                cutoff_frequency=self.cutoff_frequency,
+                imaginary_modes=self.imaginary_modes,
+                imaginary_tolerance=self.imaginary_tolerance,
+                max_displacement=self.max_displacement,
+                random_seed=self._sampling_seed(index),
+            )
+            displacement = batch.displacements
+            sampling_ensemble = batch.harmonic_sampler
             sampling = "canonical"
 
         structures = []
@@ -206,7 +230,7 @@ class SSCHA:
         if self.log_level:
             print(f"[SSCHA {index}/{self.max_iterations}] {sampling} sampling")
             if sampling_ensemble is not None:
-                self._report_ensemble(sampling_ensemble.diagnostics)
+                self._report_ensemble(sampling_ensemble.state)
         return structures, sampling_compact, sampling_ensemble, sampling
 
     def _fit_sampled_structures(
@@ -215,7 +239,7 @@ class SSCHA:
         forces: NDArray[np.float64],
         energies: NDArray[np.float64] | None,
         sampling_compact: NDArray[np.float64] | None,
-        sampling_ensemble: HarmonicEnsemble | None,
+        sampling_ensemble: HarmonicSampler | None,
         sampling: Literal["cartesian", "canonical"],
     ) -> SSCHAIteration:
         """Fit and mix FC2 from one internally sampled ensemble."""
@@ -286,6 +310,7 @@ class SSCHA:
                     if len(correction) > 1
                     else float("nan")
                 )
+        sampling_state = None if sampling_ensemble is None else ensemble.state
         result = SSCHAIteration(
             index=self.current_iteration,
             sampling=sampling,
@@ -293,7 +318,20 @@ class SSCHA:
             free_energy_error=free_energy_error,
             potential_energy=potential_energy,
             harmonic_potential_energy=float(np.mean(harmonic_each)),
-            ensemble=None if sampling_ensemble is None else ensemble.diagnostics,
+            qpoints=None if sampling_state is None else sampling_state.qpoints,
+            total_modes=None if sampling_state is None else sampling_state.total_modes,
+            sampled_modes=None if sampling_state is None else sampling_state.sampled_modes,
+            excluded_modes=None if sampling_state is None else sampling_state.excluded_modes,
+            imaginary_modes=None if sampling_state is None else sampling_state.imaginary_modes,
+            minimum_frequency_thz=(
+                None if sampling_state is None else sampling_state.minimum_frequency_thz
+            ),
+            maximum_sampled_displacement=(
+                float(np.max(np.linalg.norm(displacement, axis=2)))
+                if sampling_state is None
+                else sampling_state.maximum_sampled_displacement
+            ),
+            clipped_atoms=0 if sampling_state is None else sampling_state.clipped_atoms,
             fitting_relative_force_error=fit.diagnostics.training_relative_force_error,
             relative_force_constant_change=relative_change,
             raw_relative_force_constant_change=raw_relative_change,
@@ -441,8 +479,8 @@ class SSCHA:
         equations = max(3 * len(self._reference) - 3, 1)
         return max(1, int(np.ceil(4 * self._fitter.n_parameters / equations)))
 
-    def _make_ensemble(self, compact: np.ndarray) -> HarmonicEnsemble:
-        return HarmonicEnsemble(
+    def _make_ensemble(self, compact: np.ndarray) -> HarmonicSampler:
+        return HarmonicSampler(
             self.primitive,
             self._reference,
             compact,
@@ -474,7 +512,7 @@ class SSCHA:
                 "step operations require one temperature; call run(calculator) for a temperature schedule"
             )
 
-    def _report_ensemble(self, diagnostics: EnsembleDiagnostics) -> None:
+    def _report_ensemble(self, diagnostics: SamplingState) -> None:
         print(f"- q points: {diagnostics.qpoints}")
         print(
             f"- sampled modes: {diagnostics.sampled_modes}/{diagnostics.total_modes}, "
@@ -492,30 +530,3 @@ class SSCHA:
                 f"affected snapshots: {diagnostics.affected_snapshots}"
             )
 
-
-def perturb_structures(
-    atoms: Atoms,
-    *,
-    reference: Atoms,
-    snapshots: int,
-    displacement: float = 0.01,
-    random_seed: int | None = None,
-) -> list[Atoms]:
-    """Generate center-of-mass-free Gaussian perturbation structures.
-
-    This is the initial SSCHA sampling path used when no initial FC2 is
-    available. It only creates structures and does not evaluate forces.
-    """
-    sampler = SSCHA(
-        atoms,
-        reference=reference,
-        cutoff=None,
-        snapshots=snapshots,
-        max_iterations=0,
-        initial_displacement=displacement,
-        random_seed=random_seed,
-    )
-    return sampler.sample()
-
-
-__all__ = ["SSCHA", "SSCHAIteration", "SSCHAResult", "perturb_structures"]

@@ -16,6 +16,7 @@ from mlfcs.io.write import write_force_constants
 from mlfcs.physics.scph.fourier import harmonic_frequencies
 from mlfcs.physics.scph.solver import LoopSCPH, LoopSCPHResult
 from mlfcs.physics.temperature import TemperatureSeriesResult
+from mlfcs.sampling import perturb_structures
 from mlfcs.structure.relation import StructureRelation, align_structures
 from mlfcs.structure.supercell import build_supercell
 from mlfcs.structure.supercell_mapping import PeriodicIndex
@@ -23,14 +24,12 @@ from mlfcs.structure.supercell_mapping import PeriodicIndex
 __all__ = [
     "SSCHA",
     "CentralDifferenceStencil",
-    "EnsembleDiagnostics",
     "FitDataset",
     "FittingDiagnostics",
     "FittingResult",
     "FiniteDifferenceCalculation",
     "ForceConstantFitter",
     "ForceConstants",
-    "HarmonicEnsemble",
     "LoopSCPH",
     "LoopSCPHResult",
     "PeriodicIndex",
@@ -59,12 +58,9 @@ def __getattr__(name: str):
     if name in {"FitDataset", "FittingDiagnostics", "FittingResult", "ForceConstantFitter"}:
         return getattr(import_module("mlfcs.fitting"), name)
     if name in {
-        "EnsembleDiagnostics",
-        "HarmonicEnsemble",
         "SSCHA",
         "SSCHAIteration",
         "SSCHAResult",
-        "perturb_structures",
     }:
         return getattr(import_module("mlfcs.physics.sscha.solver"), name)
     raise AttributeError(name)

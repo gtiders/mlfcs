@@ -18,7 +18,7 @@ _OMEGA_TO_THZ = OMEGA_TO_THZ
 
 
 @dataclass(frozen=True, slots=True)
-class EnsembleDiagnostics:
+class SamplingState:
     qpoints: int
     total_modes: int
     sampled_modes: int
@@ -42,7 +42,7 @@ class _Modes:
     included: np.ndarray
 
 
-class HarmonicEnsemble:
+class HarmonicSampler:
     """Canonical harmonic sampling directly from translation-reduced FC2."""
 
     def __init__(
@@ -105,7 +105,7 @@ class HarmonicEnsemble:
         )
         self._qgrid = reciprocal_quotient_grid(self._index.supercell_matrix)
         self._modes = self._prepare_modes()
-        self._last_diagnostics: EnsembleDiagnostics | None = None
+        self._last_state: SamplingState | None = None
 
     @property
     def qpoints(self) -> np.ndarray:
@@ -116,10 +116,10 @@ class HarmonicEnsemble:
         return tuple(modes.frequencies_thz.copy() for modes in self._modes)
 
     @property
-    def diagnostics(self) -> EnsembleDiagnostics:
-        if self._last_diagnostics is None:
-            return self._diagnostics(0.0, 0, 0)
-        return self._last_diagnostics
+    def state(self) -> SamplingState:
+        if self._last_state is None:
+            return self._state(0.0, 0, 0)
+        return self._last_state
 
     def sample(self, snapshots: int, *, random_seed: int | None = None) -> np.ndarray:
         if snapshots < 1:
@@ -162,7 +162,7 @@ class HarmonicEnsemble:
             scale = np.ones_like(norms)
             scale[clipped] = self.max_displacement / norms[clipped]
             values *= scale[..., None]
-        self._last_diagnostics = self._diagnostics(
+        self._last_state = self._state(
             maximum_sampled, clipped_atoms, affected_snapshots
         )
         return values
@@ -260,16 +260,16 @@ class HarmonicEnsemble:
             statistics=self.statistics,
         )
 
-    def _diagnostics(
+    def _state(
         self, maximum_sampled: float, clipped_atoms: int, affected_snapshots: int
-    ) -> EnsembleDiagnostics:
+    ) -> SamplingState:
         frequencies = np.concatenate([modes.frequencies_thz for modes in self._modes])
         total = sum((2 if modes.paired else 1) * len(modes.included) for modes in self._modes)
         sampled = sum(
             (2 if modes.paired else 1) * int(np.count_nonzero(modes.included))
             for modes in self._modes
         )
-        return EnsembleDiagnostics(
+        return SamplingState(
             int(self._n_cells),
             int(total),
             int(sampled),
@@ -283,4 +283,3 @@ class HarmonicEnsemble:
         )
 
 
-__all__ = ["EnsembleDiagnostics", "HarmonicEnsemble"]

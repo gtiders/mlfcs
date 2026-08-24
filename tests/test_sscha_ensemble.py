@@ -3,7 +3,7 @@ import pytest
 from ase import Atoms, units
 from supercell_helpers import make_supercell
 
-from mlfcs.physics.sscha.ensemble import HarmonicEnsemble
+from mlfcs.sampling.harmonic import HarmonicSampler
 
 
 def _chain(spring=1.0):
@@ -18,7 +18,7 @@ def _chain(spring=1.0):
 
 def test_classical_sampling_matches_analytic_variance():
     primitive, supercell, fc2 = _chain(spring=1.0)
-    ensemble = HarmonicEnsemble(primitive, supercell, fc2, temperature=300, statistics="classical")
+    ensemble = HarmonicSampler(primitive, supercell, fc2, temperature=300, statistics="classical")
     displacement = ensemble.sample(80_000, random_seed=12)
     expected = units.kB * 300 / 4
 
@@ -28,7 +28,7 @@ def test_classical_sampling_matches_analytic_variance():
 
 def test_quantum_zero_temperature_has_zero_point_motion():
     primitive, supercell, fc2 = _chain(spring=1.0)
-    ensemble = HarmonicEnsemble(primitive, supercell, fc2, temperature=0, statistics="quantum")
+    ensemble = HarmonicSampler(primitive, supercell, fc2, temperature=0, statistics="quantum")
     displacement = ensemble.sample(60_000, random_seed=8)
 
     assert np.all(np.var(displacement[:, 0], axis=0) > 0)
@@ -37,14 +37,14 @@ def test_quantum_zero_temperature_has_zero_point_motion():
 
 def test_maximum_displacement_is_optional_and_reports_clipping():
     primitive, supercell, fc2 = _chain(spring=0.01)
-    unrestricted = HarmonicEnsemble(
+    unrestricted = HarmonicSampler(
         primitive, supercell, fc2, temperature=1000, statistics="classical"
     )
     raw = unrestricted.sample(100, random_seed=4)
     assert np.max(np.linalg.norm(raw, axis=2)) > 0.05
-    assert unrestricted.diagnostics.clipped_atoms == 0
+    assert unrestricted.state.clipped_atoms == 0
 
-    limited = HarmonicEnsemble(
+    limited = HarmonicSampler(
         primitive,
         supercell,
         fc2,
@@ -54,19 +54,19 @@ def test_maximum_displacement_is_optional_and_reports_clipping():
     )
     clipped = limited.sample(100, random_seed=4)
     assert np.max(np.linalg.norm(clipped, axis=2)) <= 0.05 + 1e-14
-    assert limited.diagnostics.clipped_atoms > 0
-    assert limited.diagnostics.affected_snapshots > 0
+    assert limited.state.clipped_atoms > 0
+    assert limited.state.affected_snapshots > 0
 
 
 def test_imaginary_mode_policy_is_explicit():
     primitive, supercell, fc2 = _chain(spring=-1.0)
     with pytest.raises(ValueError, match="imaginary harmonic modes"):
-        HarmonicEnsemble(primitive, supercell, fc2, temperature=300)
-    excluded = HarmonicEnsemble(
+        HarmonicSampler(primitive, supercell, fc2, temperature=300)
+    excluded = HarmonicSampler(
         primitive, supercell, fc2, temperature=300, imaginary_modes="exclude"
     )
-    assert excluded.diagnostics.imaginary_modes == 3
-    assert excluded.diagnostics.sampled_modes == 0
+    assert excluded.state.imaginary_modes == 3
+    assert excluded.state.sampled_modes == 0
 
 
 def test_sampling_supports_nondiagonal_reordered_reference_supercells():
@@ -75,7 +75,7 @@ def test_sampling_supports_nondiagonal_reordered_reference_supercells():
     supercell = supercell[[1, 0]]
     compact = np.zeros((1, 2, 3, 3))
     compact[0, :, :, :] = np.eye(3) / 2
-    ensemble = HarmonicEnsemble(
+    ensemble = HarmonicSampler(
         primitive, supercell, compact, temperature=300, statistics="classical"
     )
 
