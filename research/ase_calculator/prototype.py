@@ -152,7 +152,7 @@ def _norm_metrics(left, right):
 
 def wick_equivalence() -> dict:
     primitive = Atoms("Ar", scaled_positions=[[0, 0, 0]], cell=np.eye(3) * 4.0, pbc=True)
-    reference = build_supercell(primitive, (4, 1, 1))
+    reference = build_supercell(primitive, (3, 3, 3))
     fitter = ForceConstantFitter(
         primitive,
         reference,
@@ -193,7 +193,7 @@ def wick_equivalence() -> dict:
     with_fc1 = PolynomialPotential.from_force_constants(base, reference, fc1)
     force_without = np.asarray([without.evaluate_displacement(u)[1] for u in displacements])
     force_complete = np.asarray([with_fc1.evaluate_displacement(u)[1] for u in displacements])
-    target_larger = build_supercell(primitive, (3, 1, 1))
+    target_larger = build_supercell(primitive, (4, 3, 3))
     with TemporaryDirectory() as directory:
         path = Path(directory) / "with-fc1.h5"
         _write_candidate_hdf5(path, base, fc1)
@@ -227,6 +227,56 @@ def wick_equivalence() -> dict:
             str(order): float(np.linalg.norm(values["forces"]))
             for order, values in order_contributions.items()
         },
+    }
+
+
+def folded_covariance_counterexample() -> dict:
+    primitive = Atoms("Ar", scaled_positions=[[0, 0, 0]], cell=np.eye(3) * 4.0, pbc=True)
+    reference = build_supercell(primitive, (4, 1, 1))
+    fitter = ForceConstantFitter(
+        primitive,
+        reference,
+        orders=(2, 3, 4),
+        cutoffs={2: 4.1, 3: 4.1, 4: 4.1},
+        max_body_orders={2: 2, 3: 2, 4: 2},
+        verbose=False,
+    )
+    from mlfcs.fitting.constraints import build_joint_constraints
+    from mlfcs.fitting.linear_solvers import explicit_constraint_null_space
+
+    constraints = build_joint_constraints(fitter.calculations, acoustic=True).matrix
+    parameter_map = explicit_constraint_null_space(constraints).toarray()
+    rng = np.random.default_rng(9)
+    parameters = parameter_map @ rng.normal(scale=0.2, size=parameter_map.shape[1])
+    covariance = np.eye(3 * len(reference)) * 0.003
+    displacement = rng.normal(scale=0.025, size=(10, len(reference), 3))
+    transform = build_wick_to_taylor_transform(fitter.calculations, covariance)
+    wick_force = np.asarray(
+        predict_force(
+            jnp.asarray(parameters), jnp.asarray(displacement),
+            jnp.asarray(covariance), fitter.order_tensors
+        )
+    )
+    taylor_force = np.asarray(
+        predict_force(
+            jnp.asarray(transform @ parameters), jnp.asarray(displacement),
+            jnp.zeros_like(jnp.asarray(covariance)), fitter.order_tensors
+        )
+    )
+    taylor_force = taylor_force - omitted_taylor_fc1(
+        fitter.calculations, parameters, covariance
+    )[None, :, :]
+    return {
+        "reference_matrix": [4, 1, 1],
+        "cutoff_angstrom": 4.1,
+        "maximum_absolute_force_difference": float(np.max(np.abs(wick_force - taylor_force))),
+        "relative_force_difference": float(
+            np.linalg.norm(wick_force - taylor_force) / np.linalg.norm(wick_force)
+        ),
+        "interpretation": (
+            "R=0 and R=+/-1 fold along the one-cell y/z directions; finite covariance "
+            "contraction contains a source-only harmonic response outside transferable FC2"
+        ),
     }
 
 
@@ -341,8 +391,9 @@ def existing_hdf5_cases() -> dict:
 
 def main() -> None:
     result = {
-        "conclusion": "SCHEMA/ARCHITECTURE CHANGE REQUIRED for exact validation serialization; small refactor for a zero-FC1 Taylor potential calculator",
+        "conclusion": "SMALL REFACTOR plus an optional FC1 schema extension; add a Wick-contraction folding guard",
         "wick_equivalence": wick_equivalence(),
+        "folded_covariance_counterexample": folded_covariance_counterexample(),
         "fc1_equivalence": fc1_equivalence(),
         "existing_hdf5_cases": existing_hdf5_cases(),
         "formal_source_modified": False,

@@ -7,10 +7,9 @@
 - 对“把当前 HDF5 解释成 $E_0=0$、FC1=0 的 canonical Taylor 多项式”而言，属于
   **Small Refactor**。HDF5 中的 FC2 及以上已经足够，核心 evaluator 不需要 fitting、训练数据、
   covariance、symmetry、JAX 或 design matrix。
-- 对“reload 后严格重现当前 Wick validation predictor”而言，属于
-  **Schema/Architecture Change Required**。当前 HDF5 没有保存 Wick→Taylor 产生的 FC1，且
-  FC2+FC3+FC4 的 intertwiner 原型还发现了一个独立的约 $3.9\times10^{-3}$ force 差异，必须
-  先审计后才能把 validation 统一到新 evaluator。
+- 对“reload 后严格重现当前 Wick validation predictor”而言，仍是 **Small Refactor + 可选
+  FC1 schema extension**。当前 HDF5 没有保存 Wick→Taylor 产生的 FC1；此外应新增 contraction
+  folding guard，拒绝不能完全表示为 transferable lower-order IFC 的 source covariance。
 
 因此本轮不应直接发布公共 `MLFCSCalculator`。独立原型证明 evaluator 与 ASE adapter 本身可行，
 也证明 FC1 可以作为 primitive-site source-independent Taylor 项保存并展开到任意合法超胞。
@@ -123,16 +122,22 @@ Wigner、residue lift 或 cutoff。
 `reference_terms/fc1`，而不是把 FC1 偷塞进现有 sparse order group。研究性 HDF5 extension 在
 primitive 和更大 target supercell 上 reload 误差均为零。
 
-### 4.2 FC4→FC2 intertwiner 差异
+### 4.2 FC4→FC2 contraction 与有限胞 folding
 
-在中心对称 Ar FC2+FC3+FC4 原型中 FC1 严格为零，但：
+最初的 $4\times1\times1$ Ar 原型中 FC1 严格为零，但 Wick 与 Taylor prediction 相差约
+$3.9\times10^{-3}$ relative。分阶检查确认误差只来自 FC4→FC2。进一步检查表明这不是
+intertwiner 的组合系数错误，而是 reference 沿 $y,z$ 方向只有一个 primitive cell：
+$R=0$ 与 $R=\pm1$ 在有限 covariance 中折叠，FC4 contraction 因此产生 source-only finite
+harmonic response，不能全部写成当前 transferable exact-$R$ FC2。
 
-- Taylor design 与 sparse evaluator 相差 $1.17\times10^{-14}$ relative；
-- Wick prediction 与当前 intertwiner 生成的 Taylor prediction 相差
-  $3.90\times10^{-3}$ relative。
+使用各方向均能区分 cutoff 内平移的 $3\times3\times3$ reference 后，Wick 与完整 Taylor
+force 的相对差异降至 $5.90\times10^{-15}$。显式枚举 FC4 的全部六种收缩轴对也得到与当前
+intertwiner 相同的 map，进一步排除了固定轴收缩系数错误。
 
-因此这不是 evaluator、factorial 或 FC1 导致，而是当前多阶 intertwiner/finite realization
-还需要单独审计。正式 Calculator 不应掩盖或平均这项差异。
+真正缺陷是当前转换只检查 contraction 是否产生未配置的 exact target key，却没有检查有限
+covariance folding 是否产生 transferable FC2 span 之外的 finite harmonic component。正式改动
+应增加 span/rank residual guard；若未来接入 `FiniteHarmonicResponse`，该 residual 可以作为
+source-only companion 保存，否则必须拒绝转换，不能静默投影。
 
 ## 5. HDF5 v3 自包含性
 
@@ -236,7 +241,7 @@ translation sublattice 匹配时叠加 finite harmonic residual。FC3/FC4 evalua
 
 ## 10. 最小正式改动计划
 
-在修复/解释 intertwiner 差异后，建议独立小提交：
+在加入 contraction folding guard 后，建议独立小提交：
 
 1. `force_constants/potential.py`：纯 NumPy `ForceConstantPotential`，缓存 realization，返回
    reference-relative energy、forces 和 order-resolved contribution；
@@ -266,7 +271,7 @@ loader 返回 physical artifact。stress 暂不实现。
 10. stress 当前没有严格定义，不应实现。
 11. 最合理抽象是与 ASE 无关的 `ForceConstantPotential`。
 12. 最小正式文件是 core potential、ASE adapter、HDF5 FC1 extension 及测试。
-13. 最终可以统一 validation，但必须先解决 FC1 序列化和 intertwiner 差异；现在直接替换不安全。
+13. 最终可以统一 validation，但必须先解决 FC1 序列化并增加 contraction folding guard。
 
-本轮结论为：**Small Refactor for the zero-FC1 Taylor artifact；Schema/Architecture Change
-Required for exact fitted-predictor serialization**。不是 No-Go。
+本轮结论为：**Small Refactor + optional FC1 schema extension**。不是 No-Go；intertwiner 本身
+通过了 alias-free reference 的 FP64 等价验证。

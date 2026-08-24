@@ -1,5 +1,5 @@
 {
-  "conclusion": "SCHEMA/ARCHITECTURE CHANGE REQUIRED for exact validation serialization; small refactor for a zero-FC1 Taylor potential calculator",
+  "conclusion": "SMALL REFACTOR plus an optional FC1 schema extension; add a Wick-contraction folding guard",
   "wick_equivalence": {
     "n_parameters": 19,
     "fc1_shape": [
@@ -8,16 +8,16 @@
     ],
     "fc1_maximum": 0.0,
     "formal_taylor_design_vs_sparse_evaluator": {
-      "maximum_absolute": 9.367506770274758e-16,
-      "relative": 1.166428234747676e-14
+      "maximum_absolute": 3.469446951953614e-16,
+      "relative": 6.483659626327495e-15
     },
     "wick_vs_current_intertwiner_taylor": {
-      "maximum_absolute": 0.00018676047342128244,
-      "relative": 0.0038977533639126378
+      "maximum_absolute": 7.077671781985373e-16,
+      "relative": 6.30439536067503e-15
     },
     "wick_vs_taylor_with_fc1": {
-      "maximum_absolute": 0.00018676047342130325,
-      "relative": 0.003897753363913585
+      "maximum_absolute": 4.371503159461554e-16,
+      "relative": 7.339953916080946e-15
     },
     "hdf5_reload_with_fc1": {
       "maximum_absolute": 0.0,
@@ -34,10 +34,21 @@
     ],
     "order_force_norms": {
       "1": 0.0,
-      "2": 0.0777526025997799,
-      "3": 0.0005771847187990036,
-      "4": 0.00013692226297640033
+      "2": 0.10973162266713551,
+      "3": 0.0032883943972463795,
+      "4": 0.00040987333231419916
     }
+  },
+  "folded_covariance_counterexample": {
+    "reference_matrix": [
+      4,
+      1,
+      1
+    ],
+    "cutoff_angstrom": 4.1,
+    "maximum_absolute_force_difference": 5.848883495456966e-05,
+    "relative_force_difference": 0.0027308842058213732,
+    "interpretation": "R=0 and R=+/-1 fold along the one-cell y/z directions; finite covariance contraction contains a source-only harmonic response outside transferable FC2"
   },
   "fc1_equivalence": {
     "fc1_shape": [
