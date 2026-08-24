@@ -11,14 +11,14 @@ from ase.calculators.calculator import Calculator
 from mlfcs.finite_difference.extrapolation import ExtrapolationBackend
 from mlfcs.finite_difference.reconstruction import reconstruct_sparse
 from mlfcs.finite_difference.sampling import DisplacementPlan, build_displacement_plan
-from mlfcs.force_constants.data import ForceConstants
+from mlfcs.force_constants.representation import ForceConstants
 from mlfcs.interactions.space import InteractionSpace
 
 Progress = Callable[[int, int], None]
 ForceInput = np.ndarray | Sequence[np.ndarray] | Mapping[int, np.ndarray]
 
 
-class ForceConstantCalculation:
+class FiniteDifferenceCalculation:
     """Symmetry-reduced finite-difference calculation defined by ASE objects."""
 
     def __init__(
@@ -326,5 +326,3 @@ class ForceConstantCalculation:
         return values
 
 
-# Short alias for interactive use.
-Calculation = ForceConstantCalculation

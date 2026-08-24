@@ -8,7 +8,7 @@ from pathlib import Path
 
 from mlfcs import (
     SSCHA,
-    ForceConstantCalculation,
+    FiniteDifferenceCalculation,
     ForceConstantFitter,
     LoopSCPH,
     align_structures,
@@ -22,7 +22,7 @@ from mlfcs import (
 
 def test_public_callables_have_explicit_documented_signatures():
     callables = (
-        ForceConstantCalculation,
+        FiniteDifferenceCalculation,
         ForceConstantFitter,
         LoopSCPH,
         SSCHA,
@@ -75,7 +75,7 @@ def test_low_level_packages_do_not_depend_on_workflow_or_writer_modules():
             for value in imports
         ), module
 
-    force_constant_imports = _imports("force_constants.data")
+    force_constant_imports = _imports("force_constants.representation")
     assert not any(
         value.startswith(("mlfcs.fitting", "mlfcs.physics", "mlfcs.io", "mlfcs.constraints"))
         for value in force_constant_imports

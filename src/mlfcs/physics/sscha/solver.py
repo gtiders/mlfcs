@@ -12,7 +12,7 @@ from ase.calculators.calculator import Calculator
 from numpy.typing import NDArray
 
 from mlfcs.fitting import ForceConstantFitter
-from mlfcs.force_constants.data import (
+from mlfcs.force_constants.representation import (
     ForceConstants,
 )
 from mlfcs.force_constants.dense import expand_compact_fc2, lattice_fc2, replace_lattice_fc2

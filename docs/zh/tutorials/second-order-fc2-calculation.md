@@ -72,7 +72,7 @@ from pathlib import Path
 from ase.io import read, write
 from calorine.calculators import CPUNEP
 
-from mlfcs import ForceConstantCalculation, build_supercell, write_force_constants
+from mlfcs import FiniteDifferenceCalculation, build_supercell, write_force_constants
 
 
 MODEL = "Si_2022_NEP3_5body.txt"
@@ -83,7 +83,7 @@ def main() -> None:
     reference = build_supercell(primitive, (4, 4, 4))
     write("SPOSCAR", reference, format="vasp", direct=True, sort=False, vasp5=True)
     calculator = CPUNEP(str(MODEL))
-    calculation = ForceConstantCalculation(
+    calculation = FiniteDifferenceCalculation(
         primitive,
         order=2,
         reference=reference,
@@ -117,7 +117,7 @@ if __name__ == "__main__":
 
 这里的 `primitive` 是从 `POSCAR.vasp` 读取的 Si 原胞，`reference` 是通过 `(4, 4, 4)` 复制得到的 128 原子参考超胞。`SPOSCAR` 保存的就是这个参考超胞，后续 phonopy 读取它来计算声子谱。
 
-`ForceConstantCalculation(order=2)` 指定计算二阶力常数。`displacement=0.01` 的单位是 Å，表示对称有限差分所使用的位移幅度；`cutoff=None` 表示由程序根据周期超胞自动选择不会产生周期像歧义的截断范围。脚本默认使用中心差分，并施加声学和规则 ASR。
+`FiniteDifferenceCalculation(order=2)` 指定计算二阶力常数。`displacement=0.01` 的单位是 Å，表示对称有限差分所使用的位移幅度；`cutoff=None` 表示由程序根据周期超胞自动选择不会产生周期像歧义的截断范围。脚本默认使用中心差分，并施加声学和规则 ASR。
 
 运行完成后会得到以下文件：
 

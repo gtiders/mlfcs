@@ -13,7 +13,7 @@ import numpy as np
 from scipy import sparse
 
 from mlfcs.fitting.parameterization import OrderParameterization, image_parameter_basis
-from mlfcs.fitting.runtime import transfer_guard
+from mlfcs.fitting.jax_runtime import transfer_guard
 
 
 @dataclass(frozen=True, slots=True)

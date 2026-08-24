@@ -8,12 +8,12 @@ code_verified: 4.0.0a4
 
 # 有限差分 API
 
-人工维护 `ForceConstantCalculation`、stencil、sow/reap、直接执行和外推的签名与契约。
+人工维护 `FiniteDifferenceCalculation`、stencil、sow/reap、直接执行和外推的签名与契约。
 
-## `ForceConstantCalculation`
+## `FiniteDifferenceCalculation`
 
 ~~~python
-ForceConstantCalculation(
+FiniteDifferenceCalculation(
     atoms: Atoms,
     *,
     order: int,

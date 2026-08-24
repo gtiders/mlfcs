@@ -10,7 +10,7 @@ from phonopy.file_IO import read_force_constants_hdf5
 from supercell_helpers import make_supercell
 
 from mlfcs import (
-    ForceConstantCalculation,
+    FiniteDifferenceCalculation,
     ForceConstants,
     SparseOrderForceConstants,
     write_force_constants,
@@ -20,7 +20,7 @@ from mlfcs.structure.relation import StructureRelation
 
 def test_reap_keeps_sparse_clusters_and_hdf5_writes_them(tmp_path):
     primitive = bulk("Si", "diamond", a=5.43)
-    calculation = ForceConstantCalculation(
+    calculation = FiniteDifferenceCalculation(
         primitive,
         order=3,
         reference=make_supercell(primitive, (2, 2, 2))[0],

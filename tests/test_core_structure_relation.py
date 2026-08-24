@@ -4,7 +4,7 @@ from ase import Atoms
 from ase.geometry import find_mic
 from supercell_helpers import make_supercell
 
-from mlfcs.finite_difference.calculation import ForceConstantCalculation
+from mlfcs.finite_difference.calculation import FiniteDifferenceCalculation
 from mlfcs.structure.periodic_geometry import PeriodicGeometry
 from mlfcs.structure.relation import StructureRelation, align_structures
 
@@ -82,8 +82,8 @@ def test_finite_difference_reap_is_invariant_to_reference_atom_permutation():
     primitive = Atoms("Si", positions=[[0, 0, 0]], cell=np.eye(3) * 4, pbc=True)
     generated, _ = make_supercell(primitive, [[2, 1, 0], [0, 1, 0], [0, 0, 1]])
     reordered = generated[[1, 0]]
-    canonical = ForceConstantCalculation(primitive, reference=generated, order=2, cutoff=3.0)
-    shuffled = ForceConstantCalculation(primitive, reference=reordered, order=2, cutoff=3.0)
+    canonical = FiniteDifferenceCalculation(primitive, reference=generated, order=2, cutoff=3.0)
+    shuffled = FiniteDifferenceCalculation(primitive, reference=reordered, order=2, cutoff=3.0)
 
     # A deterministic reference-relative harmonic oracle supplies forces in
     # each calculation's own public atom order.
@@ -103,7 +103,7 @@ def test_reference_matrix_argument_is_rejected_from_calculation_api():
     primitive = Atoms("Si", positions=[[0, 0, 0]], cell=np.eye(3) * 4, pbc=True)
     reference, _ = make_supercell(primitive, (2, 1, 1))
     with pytest.raises(TypeError, match="supercell_matrix"):
-        ForceConstantCalculation(
+        FiniteDifferenceCalculation(
             primitive,
             reference=reference,
             supercell_matrix=[[2, 0, 0], [0, 1, 0], [0, 0, 1]],
@@ -111,7 +111,7 @@ def test_reference_matrix_argument_is_rejected_from_calculation_api():
             cutoff=3.0,
         )
     with pytest.raises(TypeError, match="supercell_matrix"):
-        ForceConstantCalculation(
+        FiniteDifferenceCalculation(
             primitive,
             reference=reference,
             supercell_matrix=[[1, 0, 0], [0, 2, 0], [0, 0, 1]],

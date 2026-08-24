@@ -4,7 +4,7 @@ from ase.build import bulk
 from supercell_helpers import make_supercell
 
 from mlfcs.finite_difference.reconstruction import reconstruct_sparse
-from mlfcs.force_constants.data import ForceConstants
+from mlfcs.force_constants.representation import ForceConstants
 from mlfcs.interactions.enumerate import build_primitive_interaction_space
 from mlfcs.interactions.realization import realize_orbit_space
 from mlfcs.structure.relation import StructureRelation

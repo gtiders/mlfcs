@@ -15,7 +15,7 @@ code_verified: 4.0.0a4
 
 | 分组页 | 覆盖的导出 |
 | --- | --- |
-| [计算入口](calculation.md) | `ForceConstantCalculation`, `Calculation`, `CentralDifferenceStencil` |
+| [计算入口](calculation.md) | `FiniteDifferenceCalculation`, , `CentralDifferenceStencil` |
 | [超胞构建](supercell.md) | `build_supercell`, `PeriodicIndex` |
 | [结构与对齐](structure-relation.md) | `StructureRelation`, `align_structures` |
 | [力常数拟合](fitting.md) | `FitDataset`, `ForceConstantFitter`, `FittingResult`, `FittingDiagnostics` |
@@ -28,7 +28,7 @@ code_verified: 4.0.0a4
 ## 典型调用顺序
 
 1. 用 `build_supercell` 构造超胞，得到 `PeriodicIndex`。
-2. 用 `ForceConstantCalculation` / `Calculation` 组织有限差分位移。
+2. 用 `FiniteDifferenceCalculation` 组织有限差分位移。
 3. 用 `FitDataset` 收集力数据，交给 `ForceConstantFitter` 拟合出
    `ForceConstants`。
 4. 需要时用 `enforce_rotational_sum_rules` 施加声学求和规则。

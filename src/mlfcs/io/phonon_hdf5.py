@@ -6,7 +6,7 @@ from pathlib import Path
 import h5py
 import numpy as np
 
-from mlfcs.force_constants.data import ForceConstants
+from mlfcs.force_constants.representation import ForceConstants
 from mlfcs.structure.supercell_mapping import PeriodicIndex
 
 

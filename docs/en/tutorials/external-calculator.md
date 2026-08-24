@@ -19,9 +19,9 @@ Generate an ordered displacement plan, evaluate every structure with VASP or ano
 ~~~python
 from pathlib import Path
 from ase.io import read, write
-from mlfcs import ForceConstantCalculation
+from mlfcs import FiniteDifferenceCalculation
 
-calculation = ForceConstantCalculation(
+calculation = FiniteDifferenceCalculation(
     read("primitive.vasp"),
     reference=read("reference.vasp"),
     order=3,

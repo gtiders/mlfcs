@@ -13,7 +13,7 @@ from ase.neighborlist import neighbor_list
 from ase.optimize import BFGS
 from supercell_helpers import make_supercell
 
-from mlfcs import ForceConstantCalculation
+from mlfcs import FiniteDifferenceCalculation
 
 EPSILON = 1.0
 RHO0 = 6.0
@@ -51,9 +51,9 @@ def relaxed_primitive() -> tuple[Atoms, int]:
     return atoms, optimizer.get_number_of_steps()
 
 
-def calculation(displacement: float) -> ForceConstantCalculation:
+def calculation(displacement: float) -> FiniteDifferenceCalculation:
     primitive = analytic_primitive()
-    return ForceConstantCalculation(
+    return FiniteDifferenceCalculation(
         primitive,
         order=4,
         reference=make_supercell(primitive, SUPERCELL)[0],
@@ -77,7 +77,7 @@ def _bond_fourth_derivative(vectors: jax.Array) -> jax.Array:
 
 
 def exact_sparse_fc4(
-    calculation: ForceConstantCalculation,
+    calculation: FiniteDifferenceCalculation,
     clusters: np.ndarray,
 ) -> np.ndarray:
     """Evaluate exact FC4 on MLFCS clusters from an independent JAX energy."""

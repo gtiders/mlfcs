@@ -10,7 +10,7 @@ def test_base_and_finite_difference_imports_do_not_initialize_jax():
     code = """
 import sys
 import mlfcs
-from mlfcs import ForceConstantCalculation
+from mlfcs import FiniteDifferenceCalculation
 assert 'jax' not in sys.modules
 """
     completed = subprocess.run(

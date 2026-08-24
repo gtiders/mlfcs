@@ -12,8 +12,8 @@ import numpy as np
 from scipy import sparse
 from scipy.linalg.blas import dsyrk
 
-from mlfcs.fitting.design import accumulate_physical_design
-from mlfcs.fitting.design import prepare_design_kernel_groups as _prepare_physical_design_builders
+from mlfcs.fitting.design_operator import accumulate_physical_design
+from mlfcs.fitting.design_operator import prepare_design_kernel_groups as _prepare_physical_design_builders
 from mlfcs.fitting.linear_solvers import solve_gram_system
 
 

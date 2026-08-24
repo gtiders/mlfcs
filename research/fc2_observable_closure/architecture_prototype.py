@@ -34,13 +34,13 @@ from common import HARMONIC_PATH, POTENTIAL_PATH, ase_from_phonopy
 
 from mlfcs.fitting.backends.wick.covariance import symmetrized_covariance
 from mlfcs.fitting.backends.wick.features import wick_axis_derivatives
-from mlfcs.fitting.design import (
+from mlfcs.fitting.design_operator import (
     DesignKernelGroup,
     ForceDesignOperator,
     force_design_batch,
     image_parameter_basis,
 )
-from mlfcs.fitting.gram import _StreamingGramSystem
+from mlfcs.fitting.gram_system import _StreamingGramSystem
 from mlfcs.fitting.parameterization import pack_order
 from mlfcs.force_constants.dense import expand_compact_fc2
 from mlfcs.interactions.enumerate import resolve_primitive_cutoff

@@ -9,7 +9,7 @@ import h5py
 import numpy as np
 from ase import Atoms
 
-from mlfcs.force_constants.data import ForceConstants, SparseOrderForceConstants
+from mlfcs.force_constants.representation import ForceConstants, SparseOrderForceConstants
 from mlfcs.structure.relation import StructureRelation
 
 SCHEMA_VERSION = 3

@@ -23,7 +23,7 @@ from ase.io import read
 from mlfcs.fitting.backends.wick.covariance import symmetrized_covariance
 from mlfcs.fitting.backends.wick.features import wick_axis_derivatives
 from mlfcs.fitting.dataset import FitDataset
-from mlfcs.fitting.design import ForceDesignOperator
+from mlfcs.fitting.design_operator import ForceDesignOperator
 from mlfcs.fitting.fitter import ForceConstantFitter
 
 

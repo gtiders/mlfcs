@@ -6,7 +6,7 @@ from ase import Atoms
 from supercell_helpers import make_supercell
 
 from mlfcs import write_force_constants
-from mlfcs.force_constants.data import ForceConstants
+from mlfcs.force_constants.representation import ForceConstants
 from mlfcs.io.phonopy import write_phonopy
 
 

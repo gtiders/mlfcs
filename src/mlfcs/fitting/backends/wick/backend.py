@@ -13,7 +13,7 @@ from mlfcs.fitting.backends.wick.lowering import (
     lowered_fc1,
 )
 from mlfcs.fitting.backends.wick.features import wick_axis_derivatives
-from mlfcs.fitting.design import ForceDesignOperator
+from mlfcs.fitting.design_operator import ForceDesignOperator
 
 
 @dataclass(slots=True)

@@ -8,7 +8,7 @@ from ase.units import Bohr, Rydberg
 from supercell_helpers import make_supercell
 
 from mlfcs import write_force_constants
-from mlfcs.force_constants.data import ForceConstants, SparseOrderForceConstants
+from mlfcs.force_constants.representation import ForceConstants, SparseOrderForceConstants
 from mlfcs.io.alamode import AlamodeMirrorImageError, write_alamode
 from mlfcs.structure.relation import StructureRelation
 

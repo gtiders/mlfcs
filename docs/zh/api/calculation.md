@@ -11,7 +11,7 @@ code_verified: 4.0.0a4
 本页介绍组织有限差分计算的三个顶层导出。完整签名见
 [力常数 API 参考](../reference/force-constants-api.md)。
 
-## ForceConstantCalculation
+## FiniteDifferenceCalculation
 
 有限差分力常数计算的高层入口，负责生成位移模式、收集力数据并拟合 FC2/FC3 等。
 
@@ -24,12 +24,12 @@ code_verified: 4.0.0a4
 ### 最小示例（占位）
 
 ```python
-from mlfcs import ForceConstantCalculation
+from mlfcs import FiniteDifferenceCalculation
 ```
 
 ## Calculation
 
-底层计算描述对象（待补充：与 `ForceConstantCalculation` 的分工）。
+底层计算描述对象（待补充：与 `FiniteDifferenceCalculation` 的分工）。
 
 ```python
 from mlfcs import Calculation

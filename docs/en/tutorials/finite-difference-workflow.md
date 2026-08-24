@@ -8,13 +8,13 @@ code_verified: 4.0.0a4
 
 # Finite differences
 
-`ForceConstantCalculation` accepts an explicit primitive and reference supercell. Use
+`FiniteDifferenceCalculation` accepts an explicit primitive and reference supercell. Use
 `mlfcs.build_supercell` before constructing the calculation when a matrix-based structure
 must be prepared. `sow()` returns structures in reference order; `reap()` requires forces in
 that same order (or a configuration-ID mapping).
 
 ```python
-calculation = ForceConstantCalculation(
+calculation = FiniteDifferenceCalculation(
     primitive,
     reference=reference_supercell,
     order=3,

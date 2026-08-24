@@ -10,7 +10,7 @@ from mlfcs.fitting.backends.wick.lowering import (
     build_fc1_lowering_transform,
     lowered_fc1,
 )
-from mlfcs.finite_difference.calculation import ForceConstantCalculation
+from mlfcs.finite_difference.calculation import FiniteDifferenceCalculation
 from mlfcs.fitting.linear_solvers import ConstraintNullSpace as _ConstraintNullSpace
 from mlfcs.fitting.linear_solvers import solve_scaled_group_lasso
 from mlfcs.interactions.keys import InteractionKey
@@ -71,7 +71,7 @@ def test_explicit_fc1_transform_matches_reported_wick_contraction():
     primitive = Atoms("Si", positions=[[0, 0, 0]], cell=np.eye(3) * 4.0, pbc=True)
     reference = make_supercell(primitive, (3, 3, 3))[0]
     calculations = tuple(
-        ForceConstantCalculation(
+        FiniteDifferenceCalculation(
             primitive, order=order, reference=reference, cutoff=4.1, verbose=False
         )
         for order in (2, 3)
@@ -98,7 +98,7 @@ def test_fc1_transform_maps_supercell_anchor_to_primitive_site():
     )
     reference = make_supercell(primitive, (2, 2, 2))[0]
     calculations = tuple(
-        ForceConstantCalculation(
+        FiniteDifferenceCalculation(
             primitive, order=order, reference=reference, cutoff=-1, verbose=False
         )
         for order in (2, 3)
@@ -122,7 +122,7 @@ def test_missing_negligible_exact_wick_contraction_is_accepted():
 def test_centrosymmetric_onsite_odd_tensor_has_zero_allowed_dimension():
     primitive = Atoms("Si", positions=[[0, 0, 0]], cell=np.eye(3) * 4.0, pbc=True)
     reference = make_supercell(primitive, (3, 3, 3))[0]
-    calculation = ForceConstantCalculation(
+    calculation = FiniteDifferenceCalculation(
         primitive, order=3, reference=reference, cutoff=4.1, verbose=False
     )
     onsite = InteractionKey((0, 0, 0), ((0, 0, 0), (0, 0, 0)))

@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 from ase import Atoms
 
 if TYPE_CHECKING:
-    from mlfcs.force_constants.data import ForceConstants
+    from mlfcs.force_constants.representation import ForceConstants
 
 Writer = Callable[..., None]
 

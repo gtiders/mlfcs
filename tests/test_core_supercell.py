@@ -3,7 +3,7 @@ from ase import Atoms
 from ase.build import bulk
 from supercell_helpers import make_supercell
 
-from mlfcs import ForceConstantCalculation, build_supercell
+from mlfcs import FiniteDifferenceCalculation, build_supercell
 from mlfcs.physics.sscha.solver import SSCHA
 
 
@@ -61,7 +61,7 @@ def test_internal_reference_construction_uses_phonopy_ordering():
         pbc=True,
     )
     reference = build_supercell(primitive, (2, 1, 1))
-    calculation = ForceConstantCalculation(
+    calculation = FiniteDifferenceCalculation(
         primitive, reference=reference, order=2, cutoff=3.0, verbose=False
     )
     sscha = SSCHA(primitive, reference=reference, cutoff=3.0, snapshots=1, max_iterations=0)

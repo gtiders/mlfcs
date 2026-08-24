@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 from ase import Atoms
 
-from mlfcs.force_constants.data import ForceConstants, SparseOrderForceConstants
+from mlfcs.force_constants.representation import ForceConstants, SparseOrderForceConstants
 from mlfcs.structure.supercell_mapping import PeriodicIndex
 
 

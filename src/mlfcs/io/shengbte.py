@@ -6,8 +6,8 @@ from pathlib import Path
 import numpy as np
 from ase import Atoms
 
-from mlfcs.force_constants.data import SparseOrderForceConstants
-from mlfcs.io.text import zero_small_scalar
+from mlfcs.force_constants.representation import SparseOrderForceConstants
+from mlfcs.io.numeric_text import zero_small_scalar
 from mlfcs.structure.supercell_mapping import PeriodicIndex
 
 _TEXT_ZERO_TOLERANCE = 1e-8

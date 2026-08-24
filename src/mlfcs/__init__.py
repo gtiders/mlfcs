@@ -7,9 +7,9 @@ from mlfcs.constraints.rotational import (
     RotationalSumRuleResult,
     enforce_rotational_sum_rules,
 )
-from mlfcs.finite_difference.calculation import Calculation, ForceConstantCalculation
+from mlfcs.finite_difference.calculation import FiniteDifferenceCalculation
 from mlfcs.finite_difference.stencil import CentralDifferenceStencil
-from mlfcs.force_constants.data import ForceConstants, SparseOrderForceConstants
+from mlfcs.force_constants.representation import ForceConstants, SparseOrderForceConstants
 from mlfcs.force_constants.realization import realize_force_constants
 from mlfcs.io.hdf5 import read_hdf5
 from mlfcs.io.write import write_force_constants
@@ -22,13 +22,12 @@ from mlfcs.structure.supercell_mapping import PeriodicIndex
 
 __all__ = [
     "SSCHA",
-    "Calculation",
     "CentralDifferenceStencil",
     "EnsembleDiagnostics",
     "FitDataset",
     "FittingDiagnostics",
     "FittingResult",
-    "ForceConstantCalculation",
+    "FiniteDifferenceCalculation",
     "ForceConstantFitter",
     "ForceConstants",
     "HarmonicEnsemble",

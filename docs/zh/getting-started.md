@@ -36,7 +36,7 @@ pip install mlfcs
 ## 最短上手：有限差分计算 FC2
 
 ```python
-from mlfcs import ForceConstantCalculation
+from mlfcs import FiniteDifferenceCalculation
 
 # TODO: 补充一个可运行的最小示例（结构准备 -> 计算配置 -> 运行 -> 读取结果）
 ```

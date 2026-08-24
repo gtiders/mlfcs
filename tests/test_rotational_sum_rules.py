@@ -2,13 +2,13 @@ import numpy as np
 from ase import Atoms
 from supercell_helpers import make_supercell
 
-from mlfcs import ForceConstantCalculation, enforce_rotational_sum_rules
-from mlfcs.force_constants.data import ForceConstants, SparseOrderForceConstants
+from mlfcs import FiniteDifferenceCalculation, enforce_rotational_sum_rules
+from mlfcs.force_constants.representation import ForceConstants, SparseOrderForceConstants
 
 
 def test_strict_harmonic_projection_uses_tied_images_and_keeps_higher_orders():
     primitive = Atoms("Si", positions=[[0, 0, 0]], cell=np.eye(3) * 3.0, pbc=True)
-    calculation = ForceConstantCalculation(
+    calculation = FiniteDifferenceCalculation(
         primitive,
         order=2,
         reference=make_supercell(primitive, (2, 1, 1))[0],
@@ -51,7 +51,7 @@ def test_strict_harmonic_projection_uses_tied_images_and_keeps_higher_orders():
 
 def test_strength_zero_only_enforces_asr():
     primitive = Atoms("Si", positions=[[0, 0, 0]], cell=np.eye(3) * 3.0, pbc=True)
-    calculation = ForceConstantCalculation(
+    calculation = FiniteDifferenceCalculation(
         primitive,
         order=2,
         reference=make_supercell(primitive, (2, 1, 1))[0],

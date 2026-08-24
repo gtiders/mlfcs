@@ -42,9 +42,9 @@ from ase import Atoms
 from ase.geometry import minkowski_reduce
 from ase.units import Bohr, Rydberg
 
-from mlfcs.force_constants.data import ForceConstants, SparseOrderForceConstants
+from mlfcs.force_constants.representation import ForceConstants, SparseOrderForceConstants
 from mlfcs.force_constants.realization import ExportView, build_export_view
-from mlfcs.io.text import zero_small_scalar
+from mlfcs.io.numeric_text import zero_small_scalar
 from mlfcs.structure.periodic_geometry import PeriodicGeometry
 from mlfcs.structure.relation import StructureRelation
 from mlfcs.structure.supercell_mapping import PeriodicIndex

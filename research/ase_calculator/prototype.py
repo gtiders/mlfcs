@@ -21,7 +21,7 @@ from mlfcs.fitting.backends.wick.lowering import (
 )
 from mlfcs.fitting import ForceConstantFitter
 from mlfcs.fitting.backends.wick.prediction import predict_wick_force as predict_force
-from mlfcs.force_constants.data import ForceConstants
+from mlfcs.force_constants.representation import ForceConstants
 from mlfcs.force_constants.expansion import expand_fitted_orders
 from mlfcs.force_constants.realization import realize_force_constants
 from mlfcs.io.hdf5 import read_hdf5, write_hdf5

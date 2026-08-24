@@ -13,7 +13,7 @@ from dataclasses import dataclass
 import numpy as np
 from scipy import sparse
 
-from mlfcs.force_constants.data import ForceConstants, SparseOrderForceConstants
+from mlfcs.force_constants.representation import ForceConstants, SparseOrderForceConstants
 
 
 @dataclass(frozen=True, slots=True)

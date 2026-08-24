@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from mlfcs.force_constants.data import SparseOrderForceConstants
+from mlfcs.force_constants.representation import SparseOrderForceConstants
 from mlfcs.interactions.orbits import PrimitiveInteractionSpace
 
 

@@ -45,7 +45,7 @@ def test_reconstructs_every_orbit_from_independent_components(order):
         enforce_asr=False,
         primitive_interaction_space=primitive_space,
     )
-    from mlfcs.force_constants.data import ForceConstants
+    from mlfcs.force_constants.representation import ForceConstants
     from mlfcs.structure.relation import StructureRelation
 
     compact = ForceConstants(

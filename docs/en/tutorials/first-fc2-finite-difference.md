@@ -23,12 +23,12 @@ Install the project with `uv sync`. This small example uses ASE's EMT calculator
 ~~~python
 from ase.build import bulk
 from ase.calculators.emt import EMT
-from mlfcs import ForceConstantCalculation, build_supercell, write_force_constants
+from mlfcs import FiniteDifferenceCalculation, build_supercell, write_force_constants
 
 primitive = bulk("Al", "fcc", a=4.05)
 reference = build_supercell(primitive, (2, 2, 2))
 
-calculation = ForceConstantCalculation(
+calculation = FiniteDifferenceCalculation(
     primitive,
     reference=reference,
     order=2,

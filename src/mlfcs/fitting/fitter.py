@@ -13,7 +13,7 @@ from mlfcs.fitting.backends.factory import create_fitting_backend
 from mlfcs.fitting.backends.result import BasisDiagnostics
 from mlfcs.fitting.constraints import build_joint_constraints
 from mlfcs.fitting.dataset import FitDataset
-from mlfcs.fitting.gram import (
+from mlfcs.fitting.gram_system import (
     _force_metrics,
     _normalize_constraint_rows,
     _orbit_parameter_groups,
@@ -25,8 +25,8 @@ from mlfcs.fitting.linear_solvers import (
     solve_scaled_group_lasso,
 )
 from mlfcs.fitting.parameterization import pack_order as _pack_order
-from mlfcs.fitting.runtime import JaxPlatform, resolve_jax_device
-from mlfcs.force_constants.data import ForceConstants
+from mlfcs.fitting.jax_runtime import JaxPlatform, resolve_jax_device
+from mlfcs.force_constants.representation import ForceConstants
 from mlfcs.force_constants.expansion import expand_fitted_orders as _expand_sparse
 from mlfcs.interactions.space import InteractionSpace, ReferenceFrame
 

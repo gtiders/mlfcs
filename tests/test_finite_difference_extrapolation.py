@@ -7,7 +7,7 @@ from ase.calculators.calculator import Calculator, all_changes
 from ase.calculators.emt import EMT
 from supercell_helpers import make_supercell
 
-from mlfcs import ForceConstantCalculation
+from mlfcs import FiniteDifferenceCalculation
 from mlfcs.finite_difference.extrapolation import ExtrapolationBackend
 
 
@@ -38,7 +38,7 @@ def test_extrapolation_grid_must_remain_positive():
 
 def test_extrapolation_is_available_only_through_direct_calculator_run():
     primitive = bulk("Al", "fcc", a=4.05)
-    calculation = ForceConstantCalculation(
+    calculation = FiniteDifferenceCalculation(
         primitive,
         order=2,
         reference=make_supercell(primitive, (2, 2, 2))[0],
@@ -65,7 +65,7 @@ def test_extrapolation_is_available_only_through_direct_calculator_run():
 @pytest.mark.parametrize("backend", ["central", "extrapolate"])
 def test_direct_calculator_rejects_nonfinite_forces(backend):
     primitive = bulk("Al", "fcc", a=4.05)
-    calculation = ForceConstantCalculation(
+    calculation = FiniteDifferenceCalculation(
         primitive,
         order=2,
         reference=make_supercell(primitive, (2, 2, 2))[0],

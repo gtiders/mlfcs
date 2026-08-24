@@ -13,7 +13,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from mlfcs.force_constants.data import (
+from mlfcs.force_constants.representation import (
     ForceConstants,
 )
 from mlfcs.force_constants.dense import lattice_fc2, replace_lattice_fc2

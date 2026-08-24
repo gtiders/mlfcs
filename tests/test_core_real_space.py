@@ -2,8 +2,8 @@ import numpy as np
 import pytest
 from ase import Atoms
 
-from mlfcs import ForceConstantCalculation, build_supercell, realize_force_constants
-from mlfcs.force_constants.data import ForceConstants, SparseOrderForceConstants
+from mlfcs import FiniteDifferenceCalculation, build_supercell, realize_force_constants
+from mlfcs.force_constants.representation import ForceConstants, SparseOrderForceConstants
 from mlfcs.interactions.enumerate import (
     build_primitive_interaction_space,
 )
@@ -70,7 +70,7 @@ def test_primitive_orbit_bases_are_invariant_and_pivot_normalized(order):
 def test_exact_ifcs_realize_into_a_different_supercell_size():
     primitive = Atoms("Si", scaled_positions=[[0, 0, 0]], cell=np.eye(3) * 4, pbc=True)
     source = build_supercell(primitive, (3, 3, 3))
-    calculation = ForceConstantCalculation(
+    calculation = FiniteDifferenceCalculation(
         primitive,
         reference=source,
         order=2,

@@ -8,7 +8,7 @@ import numpy as np
 
 from mlfcs.fitting.backends.result import BasisDiagnostics, BasisLoweringResult
 from mlfcs.fitting.backends.taylor.features import taylor_axis_derivatives
-from mlfcs.fitting.design import ForceDesignOperator
+from mlfcs.fitting.design_operator import ForceDesignOperator
 
 
 @dataclass(slots=True)

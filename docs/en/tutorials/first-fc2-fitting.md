@@ -101,7 +101,7 @@ and equality constraints remain internally consistent.
 `max_body_orders` optionally limits the number of distinct atomic sites in a cluster at each
 order. For example, `(0, 0, 1, 1)` is a two-body fourth-order cluster. Omitting an order or using
 `None` retains all body orders up to that force-constant order. The same definition is available
-as `max_body_order` on `ForceConstantCalculation`, so fitting and finite differences use an
+as `max_body_order` on `FiniteDifferenceCalculation`, so fitting and finite differences use an
 identical interaction space.
 
 The reference structure defines zero displacement. If it carries forces, they are treated as

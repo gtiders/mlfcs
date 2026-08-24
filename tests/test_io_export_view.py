@@ -4,7 +4,7 @@ from ase import Atoms
 from supercell_helpers import make_supercell
 
 from mlfcs import realize_force_constants, write_force_constants
-from mlfcs.finite_difference.calculation import ForceConstantCalculation
+from mlfcs.finite_difference.calculation import FiniteDifferenceCalculation
 from mlfcs.force_constants.realization import build_export_view
 from mlfcs.io.hdf5 import read_hdf5
 
@@ -12,7 +12,7 @@ from mlfcs.io.hdf5 import read_hdf5
 def _result():
     primitive = Atoms("Si", positions=[[0, 0, 0]], cell=np.eye(3) * 4, pbc=True)
     reference = primitive.repeat((2, 1, 1))[[1, 0]]
-    calculation = ForceConstantCalculation(primitive, reference=reference, order=2, cutoff=3.0)
+    calculation = FiniteDifferenceCalculation(primitive, reference=reference, order=2, cutoff=3.0)
     return calculation.reap(np.zeros((len(calculation.plan), len(reference), 3)))
 
 
@@ -114,7 +114,7 @@ def test_export_view_rejects_cartesian_rotation():
         "NaCl", scaled_positions=[[0, 0, 0], [0.25, 0.25, 0.25]], cell=np.eye(3) * 4, pbc=True
     )
     reference = primitive.repeat((2, 1, 1))
-    calculation = ForceConstantCalculation(primitive, reference=reference, order=2, cutoff=3.0)
+    calculation = FiniteDifferenceCalculation(primitive, reference=reference, order=2, cutoff=3.0)
     result = calculation.reap(np.zeros((len(calculation.plan), len(reference), 3)))
     rotation = np.asarray([[0, -1, 0], [1, 0, 0], [0, 0, 1]])
     rotated = primitive.copy()

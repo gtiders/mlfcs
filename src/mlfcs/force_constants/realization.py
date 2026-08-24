@@ -10,7 +10,7 @@ import numpy as np
 from ase import Atoms
 from scipy.optimize import linear_sum_assignment
 
-from mlfcs.force_constants.data import ForceConstants, SparseOrderForceConstants
+from mlfcs.force_constants.representation import ForceConstants, SparseOrderForceConstants
 from mlfcs.structure.relation import StructureRelation
 
 

@@ -5,7 +5,7 @@ import pytest
 from ase import Atoms
 
 from mlfcs import write_force_constants
-from mlfcs.force_constants.data import ForceConstants, SparseOrderForceConstants
+from mlfcs.force_constants.representation import ForceConstants, SparseOrderForceConstants
 from mlfcs.io.hdf5 import read_hdf5
 from mlfcs.physics.harmonic import mode_sigma
 from mlfcs.physics.scph.fourier import _fourier_terms, harmonic_frequencies

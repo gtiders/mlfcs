@@ -14,11 +14,11 @@ from mlfcs.fitting.backends.wick.features import wick_axis_derivatives as _wick_
 from mlfcs.fitting.backends.wick.lowering import lowered_fc1
 from mlfcs.fitting import ForceConstantFitter
 from mlfcs.fitting.backends.wick.covariance import symmetrized_covariance as _symmetrized_covariance
-from mlfcs.fitting.design import ForceDesignOperator as _BatchedForceOperator
-from mlfcs.fitting.design import physical_tile_shape as _physical_tile_shape
+from mlfcs.fitting.design_operator import ForceDesignOperator as _BatchedForceOperator
+from mlfcs.fitting.design_operator import physical_tile_shape as _physical_tile_shape
 from mlfcs.fitting.backends.wick.prediction import predict_wick_force as predict_force
-from mlfcs.fitting.design import prepare_design_kernel_groups as _prepare_physical_design_builders
-from mlfcs.fitting.design import prepare_device_reduction as _prepare_device_reduction
+from mlfcs.fitting.design_operator import prepare_design_kernel_groups as _prepare_physical_design_builders
+from mlfcs.fitting.design_operator import prepare_device_reduction as _prepare_device_reduction
 from mlfcs.fitting.fitter import (
     _force_metrics,
     _order_force_rms_from_reduced_gram,
@@ -100,12 +100,12 @@ def test_reduced_wick_transform_matches_sparse_tensor_conversion():
     from ase import Atoms
 
     from mlfcs.fitting.backends.wick.lowering import build_wick_to_taylor_transform
-    from mlfcs.finite_difference.calculation import ForceConstantCalculation
+    from mlfcs.finite_difference.calculation import FiniteDifferenceCalculation
 
     primitive = Atoms("Si", positions=[[0, 0, 0]], cell=np.eye(3) * 4.0, pbc=True)
     reference = make_supercell(primitive, (3, 3, 3))[0]
     calculations = tuple(
-        ForceConstantCalculation(
+        FiniteDifferenceCalculation(
             primitive,
             order=order,
             reference=reference,
