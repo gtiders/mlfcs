@@ -7,8 +7,8 @@ from supercell_helpers import make_supercell
 from mlfcs.fitting.backends.wick.lowering import (
     _target_orbit_intertwiner,
     _validate_missing_exact_contractions,
-    build_wick_to_taylor_fc1_transform,
-    omitted_taylor_fc1,
+    build_fc1_lowering_transform,
+    lowered_fc1,
 )
 from mlfcs.finite_difference.calculation import ForceConstantCalculation
 from mlfcs.fitting.linear_solvers import ConstraintNullSpace as _ConstraintNullSpace
@@ -81,10 +81,10 @@ def test_explicit_fc1_transform_matches_reported_wick_contraction():
     parameters = rng.normal(
         size=sum(sum(orbit.dimension for orbit in item.orbit_space.orbits) for item in calculations)
     )
-    transform = build_wick_to_taylor_fc1_transform(calculations, covariance)
+    transform = build_fc1_lowering_transform(calculations, covariance)
     np.testing.assert_allclose(
         (transform @ parameters).reshape(-1, 3),
-        omitted_taylor_fc1(calculations, parameters, covariance),
+        lowered_fc1(calculations, parameters, covariance),
         atol=1e-13,
     )
 
@@ -104,7 +104,7 @@ def test_fc1_transform_maps_supercell_anchor_to_primitive_site():
         for order in (2, 3)
     )
     covariance = np.eye(len(calculations[0].supercell) * 3)
-    transform = build_wick_to_taylor_fc1_transform(calculations, covariance)
+    transform = build_fc1_lowering_transform(calculations, covariance)
     assert transform.shape[0] == 3 * len(primitive)
 
 

@@ -17,7 +17,7 @@ from ase.calculators.calculator import Calculator, all_changes
 
 from mlfcs.fitting.backends.wick.lowering import (
     build_wick_to_taylor_transform,
-    omitted_taylor_fc1,
+    lowered_fc1,
 )
 from mlfcs.fitting import ForceConstantFitter
 from mlfcs.fitting.backends.wick.prediction import predict_wick_force as predict_force
@@ -188,7 +188,7 @@ def wick_equivalence() -> dict:
         {}, reference.copy(), metadata={"force_constants_basis": "taylor"},
         sparse=sparse, relation=fitter.geometry
     )
-    fc1 = omitted_taylor_fc1(fitter.calculations, parameters, covariance)
+    fc1 = lowered_fc1(fitter.calculations, parameters, covariance)
     without = PolynomialPotential.from_force_constants(base, reference)
     with_fc1 = PolynomialPotential.from_force_constants(base, reference, fc1)
     force_without = np.asarray([without.evaluate_displacement(u)[1] for u in displacements])
@@ -263,7 +263,7 @@ def folded_covariance_counterexample() -> dict:
             jnp.zeros_like(jnp.asarray(covariance)), fitter.order_tensors
         )
     )
-    taylor_force = taylor_force - omitted_taylor_fc1(
+    taylor_force = taylor_force - lowered_fc1(
         fitter.calculations, parameters, covariance
     )[None, :, :]
     return {
@@ -306,7 +306,7 @@ def fc1_equivalence() -> dict:
             fitter.order_tensors,
         )
     )
-    fc1 = omitted_taylor_fc1(fitter.calculations, parameters, covariance)
+    fc1 = lowered_fc1(fitter.calculations, parameters, covariance)
     sparse = expand_fitted_orders(parameters, fitter.calculations)
     base = ForceConstants(
         {}, primitive.copy(), {"force_constants_basis": "taylor"}, sparse, fitter.geometry

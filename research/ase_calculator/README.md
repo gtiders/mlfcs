@@ -115,7 +115,7 @@ covariance、训练数据、Gram 和 solver 状态均不写入 HDF5，这一设�
 
 ### 4.1 被省略的 FC1
 
-`basis/wick_taylor.py::omitted_taylor_fc1()` 返回
+`fitting/backends/wick/lowering.py::lowered_fc1()` 返回
 
 $$
 \Phi^{(1)}_{a\alpha}=\left.\frac{\partial\Delta E}{\partial u_{a\alpha}}\right|_{u=0},
@@ -266,7 +266,7 @@ translation sublattice 匹配时叠加 finite harmonic residual。FC3/FC4 evalua
 2. `calculators/ase.py`：薄 `MLFCSCalculator` adapter，仅支持 energy/forces；
 3. HDF5 schema 增加可选 `reference_terms/fc1`，含 unit、Cartesian basis 和 Taylor-gradient
    semantics；不保存 $E_0$，除非以后存在可靠来源；
-4. `FittingResult` 写出当前 `omitted_taylor_fc1`，并把命名改成明确的 Taylor FC1；
+4. `FittingResult` 已将该量作为 backend-owned lowering diagnostic 返回；
 5. validation 同时计算 Wick 与完整 Taylor evaluator，先作为一致性 guard；通过后再决定是否
    删除重复 prediction 路径；
 6. 测试 FC2、FC2+FC3、FC2+FC3+FC4、有限差分 Taylor、Wick、原子重排、MIC wrapping、目标

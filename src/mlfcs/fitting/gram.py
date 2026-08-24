@@ -330,7 +330,7 @@ def _order_force_rms_from_reduced_gram(
 
     # Adjacent-order rotational identities genuinely couple orders.  In that
     # less common case, evaluate every physical order in one shared feature
-    # pass instead of regenerating the same Wick features once per order.
+    # pass instead of regenerating the same backend features once per order.
     predicted = operator.matvec_by_order(physical_parameters)
     return {
         order: float(np.linalg.norm(predicted[order]) / np.sqrt(n_equations)) for order in orders

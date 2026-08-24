@@ -11,7 +11,7 @@ from supercell_helpers import make_supercell
 
 from mlfcs.fitting.backends.wick.features import wick as _wick
 from mlfcs.fitting.backends.wick.features import wick_axis_derivatives as _wick_axis_derivatives
-from mlfcs.fitting.backends.wick.lowering import omitted_taylor_fc1
+from mlfcs.fitting.backends.wick.lowering import lowered_fc1
 from mlfcs.fitting import ForceConstantFitter
 from mlfcs.fitting.backends.wick.covariance import symmetrized_covariance as _symmetrized_covariance
 from mlfcs.fitting.design import ForceDesignOperator as _BatchedForceOperator
@@ -146,7 +146,7 @@ def test_reported_omitted_fc1_reproduces_constant_wick_force():
     )
     covariance = np.eye(6) * 0.04
     parameters = np.random.default_rng(4).normal(size=fitter.n_parameters)
-    fc1 = omitted_taylor_fc1(fitter.calculations, parameters, covariance)
+    fc1 = lowered_fc1(fitter.calculations, parameters, covariance)
     force = np.asarray(
         predict_force(
             jnp.asarray(parameters),

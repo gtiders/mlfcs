@@ -386,7 +386,7 @@ def _build_design_kernel_groups(parameterizations, batch_size, device, axis_deri
 def compile_design_tile_group(order, n_local, axis_derivatives):
     """Compile one shape-polymorphic kernel returning only local tile columns.
 
-    Large covariance and interaction arrays are dynamic arguments.  In
+    Large backend-state and interaction arrays are dynamic arguments.  In
     particular, the kernel neither captures them as XLA constants nor emits a
     full ``n_parameters``-wide matrix for every physical tile.
     """

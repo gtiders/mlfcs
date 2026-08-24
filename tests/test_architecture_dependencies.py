@@ -10,11 +10,10 @@ ROOT = Path(__file__).parents[1] / "src" / "mlfcs"
 ALLOWED = {
     "structure": set(),
     "interactions": {"structure"},
-    "basis": {"interactions"},
     "force_constants": {"interactions", "structure"},
     "constraints": {"force_constants", "interactions", "structure"},
-    "finite_difference": {"basis", "constraints", "force_constants", "interactions", "structure"},
-    "fitting": {"basis", "constraints", "force_constants", "interactions", "structure"},
+    "finite_difference": {"constraints", "force_constants", "interactions", "structure"},
+    "fitting": {"constraints", "force_constants", "interactions", "structure"},
     "physics": {"constraints", "fitting", "force_constants", "interactions", "structure"},
     "io": {"force_constants", "structure"},
 }
@@ -45,5 +44,15 @@ def test_package_dependencies_follow_the_locked_dag():
 
 
 def test_historical_ambiguous_packages_are_removed():
-    for package in ("core", "ifc", "anharmonic", "public"):
+    for package in ("core", "ifc", "anharmonic", "basis", "public"):
         assert not (ROOT / package).exists()
+
+
+def test_concrete_fitting_backends_do_not_leak_into_generic_modules():
+    backend_root = ROOT / "fitting" / "backends"
+    for path in ROOT.rglob("*.py"):
+        if path.is_relative_to(backend_root):
+            continue
+        source = path.read_text()
+        assert "mlfcs.fitting.backends.wick" not in source, path
+        assert "mlfcs.fitting.backends.taylor" not in source, path

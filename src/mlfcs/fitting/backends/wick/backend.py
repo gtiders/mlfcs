@@ -10,7 +10,7 @@ from mlfcs.fitting.backends.result import BasisDiagnostics, BasisLoweringResult
 from mlfcs.fitting.backends.wick.covariance import symmetrized_covariance
 from mlfcs.fitting.backends.wick.lowering import (
     build_wick_to_taylor_transform,
-    omitted_taylor_fc1,
+    lowered_fc1,
 )
 from mlfcs.fitting.backends.wick.features import wick_axis_derivatives
 from mlfcs.fitting.design import ForceDesignOperator
@@ -21,6 +21,13 @@ class PreparedWickBasis:
     calculations: tuple
     covariance: np.ndarray
     operator: ForceDesignOperator
+
+
+@dataclass(frozen=True, slots=True)
+class WickDiagnostics(BasisDiagnostics):
+    """Covariance and lowering diagnostics specific to Wick coordinates."""
+
+    covariance: np.ndarray | None = None
 
 
 class WickFittingBackend:
@@ -63,10 +70,10 @@ class WickFittingBackend:
 
     def lower(self, prepared, parameters) -> BasisLoweringResult:
         transform = build_wick_to_taylor_transform(prepared.calculations, prepared.covariance)
-        fc1 = omitted_taylor_fc1(prepared.calculations, parameters, prepared.covariance)
+        fc1 = lowered_fc1(prepared.calculations, parameters, prepared.covariance)
         return BasisLoweringResult(
             np.asarray(transform @ np.asarray(parameters)),
-            BasisDiagnostics(
+            WickDiagnostics(
                 covariance=prepared.covariance.copy(),
                 reference_fc1=np.asarray(fc1),
                 details={"folding_policy": "accepted_assumption"},
@@ -74,4 +81,4 @@ class WickFittingBackend:
         )
 
 
-__all__ = ["PreparedWickBasis", "WickFittingBackend"]
+__all__ = ["PreparedWickBasis", "WickDiagnostics", "WickFittingBackend"]

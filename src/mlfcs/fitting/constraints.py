@@ -28,7 +28,7 @@ def build_joint_constraints(
     """Build only translational constraints in the fitting parameter basis.
 
     Born--Huang and Huang conditions deliberately live in the explicit FC2
-    postprocessor.  Applying them here would couple Wick FC2 to FC4.
+    postprocessor. Applying them here would couple fitted FC2 to higher orders.
     """
     dimensions = [_parameter_count(calculation) for calculation in calculations]
     total = sum(dimensions)

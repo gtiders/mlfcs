@@ -40,7 +40,6 @@ def test_taylor_lowering_is_identity():
     lowered = TaylorFittingBackend().lower(None, parameters)
 
     np.testing.assert_array_equal(lowered.taylor_parameters, parameters)
-    assert lowered.diagnostics.covariance is None
     assert lowered.diagnostics.reference_fc1 is None
 
 
@@ -82,7 +81,7 @@ def test_fitter_backends_share_result_interface_and_fc2_prediction():
 
     assert results["taylor"].fitting_basis == "taylor"
     assert results["wick"].fitting_basis == "wick"
-    assert results["taylor"].basis_diagnostics.covariance is None
+    assert not hasattr(results["taylor"].basis_diagnostics, "covariance")
     assert results["wick"].basis_diagnostics.covariance is not None
     np.testing.assert_allclose(
         results["taylor"].force_constants.sparse[2].tensors,

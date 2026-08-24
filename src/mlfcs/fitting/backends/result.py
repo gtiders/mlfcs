@@ -11,7 +11,6 @@ import numpy as np
 class BasisDiagnostics:
     """Diagnostics owned by one fitting-coordinate backend."""
 
-    covariance: np.ndarray | None = None
     reference_fc1: np.ndarray | None = None
     lowering_force_maximum: float | None = None
     lowering_force_relative: float | None = None

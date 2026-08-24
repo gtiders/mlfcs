@@ -46,8 +46,8 @@ class FittingDiagnostics:
     maximum_reference_force: float
     maximum_snapshot_net_force: float
     maximum_center_of_mass_displacement: float
-    wick_lowered_fc1_maximum: float
-    wick_lowered_fc1_net: float
+    lowered_fc1_maximum: float
+    lowered_fc1_net: float
     regularization: str = "none"
     effective_noise_scale: float = 0.0
     active_orbits: int = 0
@@ -376,7 +376,7 @@ class ForceConstantFitter:
         fc1_net = float(np.linalg.norm(np.sum(fc1, axis=0))) if fc1 is not None else 0.0
         if fc1 is not None:
             self._report(
-                "- Wick-lowered FC1 diagnostic: "
+                "- Lowered FC1 diagnostic: "
                 f"maximum={fc1_maximum:.10e} eV/Å, net={fc1_net:.10e} eV/Å"
             )
         expansion_started = perf_counter()
