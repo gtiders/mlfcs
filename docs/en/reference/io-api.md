@@ -1,27 +1,13 @@
 ---
 title: I/O API
 audience:
-  - developer
+  - advanced
 status: stable
 code_verified: 4.0.0a4
 ---
 
-# I/O API
+# Versioning Policy
 
-Document native HDF5 reading and the explicit multi-format writer with target requirements.
+How MLFCS versions its public interface and stored artifacts: semantic versioning of the Python package, stability tiers of top-level exports (stable/experimental/planned), and compatibility promises for the HDF5 archive format.
 
-~~~python
-read_hdf5(source: str | Path) -> ForceConstants
-
-write_force_constants(
-    force_constants: ForceConstants,
-    target: str | Path,
-    *,
-    format: str,
-    order: int | None = None,
-    primitive: Atoms | None = None,
-    supercell: Atoms | None = None,
-) -> None
-~~~
-
-`format` is always explicit. Native HDF5 needs no target; external dense or format-limited outputs may require a validated primitive or supercell view.
+This page explains what changes may occur within patch, minor and major releases, how deprecations are announced and removed, and which file formats readers must support forever. The `code_verified` field present in the front matter of every documentation page ties each document to the last release where its contents were checked against the code.

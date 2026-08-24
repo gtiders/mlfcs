@@ -1,22 +1,13 @@
 ---
-title: Force-constant API
+title: Force Constants API
 audience:
-  - developer
+  - advanced
 status: stable
 code_verified: 4.0.0a4
 ---
 
-# Force-constant API
+# Versioning Policy
 
-Document pure force-constant data, sparse orders, materialization, and explicit target realization.
+How MLFCS versions its public interface and stored artifacts: semantic versioning of the Python package, stability tiers of top-level exports (stable/experimental/planned), and compatibility promises for the HDF5 archive format.
 
-~~~python
-realize_force_constants(
-    force_constants: ForceConstants,
-    reference: Atoms,
-    *,
-    primitive: Atoms | None = None,
-) -> ForceConstants
-~~~
-
-`ForceConstants` stores available arrays, sparse exact-$R$ orders, metadata, and the structure relation needed by current operations. Target realization is an explicit function; writing and rotational correction are not methods on the data object.
+This page explains what changes may occur within patch, minor and major releases, how deprecations are announced and removed, and which file formats readers must support forever. The `code_verified` field present in the front matter of every documentation page ties each document to the last release where its contents were checked against the code.

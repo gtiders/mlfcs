@@ -1,24 +1,13 @@
 ---
-title: API reference
+title: Reference Manual
 audience:
-  - developer
+  - advanced
 status: stable
 code_verified: 4.0.0a4
 ---
 
-# API reference
+# Versioning Policy
 
-This reference is maintained as a public contract rather than generated as a mirror of the package tree. Every callable page records its complete signature, parameter meaning, units, return type, exceptions, and a minimal example.
+How MLFCS versions its public interface and stored artifacts: semantic versioning of the Python package, stability tiers of top-level exports (stable/experimental/planned), and compatibility promises for the HDF5 archive format.
 
-- [Finite-difference API](finite-difference-api.md)
-- [Fitting API](fitting-api.md)
-- [Force-constant API](force-constants-api.md)
-- [Constraint API](constraints-api.md)
-- [SCPH API](scph-api.md)
-- [SSCHA API](sscha-api.md)
-- [Structure API](structure-api.md)
-- [I/O API](io-api.md)
-- [Units and parameters](parameters.md)
-- [Diagnostics](diagnostics.md)
-- [Exceptions](exceptions.md)
-- [Versioning policy](versioning.md)
+This page explains what changes may occur within patch, minor and major releases, how deprecations are announced and removed, and which file formats readers must support forever. The `code_verified` field present in the front matter of every documentation page ties each document to the last release where its contents were checked against the code.

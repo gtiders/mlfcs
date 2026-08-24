@@ -7,7 +7,13 @@
 
 [English](README.md) | 简体中文
 
-<!-- BEGIN GENERATED: docs/zh/首页.md -->
+<!-- BEGIN GENERATED: docs/zh/index.md -->
+
+<p align="center">
+  <img src="https://gtiders.github.io/mlfcs/assets/images/logo.png" alt="MLFCS" width="560">
+</p>
+
+
 
 MLFCS 是一个以 ASE 为公共边界、从原子力构造对称约化谐性与非谐力常数的 Python 库。它提供有限差分、仅力数据拟合、物理约束、稀疏 primitive 实空间存储、温度相关有效谐波工作流，以及面向下游声子和输运软件的显式导出。
 
@@ -28,6 +34,8 @@ MLFCS 是 Python 函数库，不是命令行应用。力的产生始终由用户
 
 ## 快速开始
 
+安装下载与最短可运行流程见[入门指南](docs/zh/getting-started.md)。
+
 ```python
 from ase.build import bulk
 from ase.calculators.emt import EMT
@@ -45,20 +53,19 @@ fc2 = calculation.run(EMT())
 write_force_constants(fc2, "mlfcs.h5", format="hdf5")
 ```
 
-在把流程用于外部 calculator 或更高阶计算前，先阅读[第一个有限差分 FC2 教程](docs/zh/教程/第一个有限差分FC2.md)。
+在把流程用于外部 calculator 或更高阶计算前，先阅读[第一个有限差分 FC2 教程](docs/zh/tutorials/first-fc2-finite-difference.md)。
 
 ## 典型工作流
 
 | 目标 | 从这里开始 |
 |---|---|
-| 使用 ASE calculator 计算力常数 | [有限差分工作流](docs/zh/教程/有限差分.md) |
-| 将位移结构交给 VASP 或其他外部程序 | [外部计算器教程](docs/zh/教程/外部计算器工作流.md) |
-| 从位移或 MD 快照拟合力常数 | [第一次拟合教程](docs/zh/教程/仅力数据的力常数拟合.md) |
-| 联合拟合 FC2、FC3 和 FC4 | [联合高阶拟合](docs/zh/教程/FC2、FC3与FC4联合拟合.md) |
-| 对 FC2 施加旋转条件 | [旋转约束](docs/zh/教程/旋转约束.md) |
-| 计算 FC4 loop 修正 | [SCPH 工作流](docs/zh/教程/SCPH工作流.md) |
-| 计算随机有效 FC2 | [SSCHA 工作流](docs/zh/教程/SSCHA工作流.md) |
-| 导出到其他软件或超胞 | [互操作](docs/zh/互操作/格式.md) |
+| 使用 ASE calculator 计算力常数 | [有限差分工作流](docs/zh/tutorials/finite-difference-workflow.md) |
+| 将位移结构交给 VASP 或其他外部程序 | [外部计算器教程](docs/zh/tutorials/external-calculator.md) |
+| 从位移或 MD 快照拟合力常数 | [第一次拟合教程](docs/zh/tutorials/first-fc2-fitting.md) |
+| 联合拟合 FC2、FC3 和 FC4 | [联合高阶拟合](docs/zh/tutorials/joint-fc2-fc3-fc4.md) |
+| 对 FC2 施加旋转条件 | [旋转约束](docs/zh/tutorials/rotational-constraints.md) |
+| 计算 FC4 loop 修正 | [SCPH 工作流](docs/zh/tutorials/scph-workflow.md) |
+| 计算随机有效 FC2 | [SSCHA 工作流](docs/zh/tutorials/sscha-workflow.md) |
 
 ## 计算前先确定结构
 
@@ -73,51 +80,39 @@ write_force_constants(fc2, "mlfcs.h5", format="hdf5")
 - 尚未实现长程静电力扣除、多极修正和显式 FC3 bubble 自能。
 - SCPH 和 SSCHA 必须显式检查收敛性。
 
-[能力状态](docs/zh/概览/能力与边界.md)和[路线图](docs/zh/路线图/路线图.md)明确区分稳定、实验、计划、研究与 No-Go 工作。
+[路线图](docs/zh/roadmap/index.md)明确区分稳定、实验、计划、研究与 No-Go 工作。
 
 ## 文档地图
 
+### 入门
+
+从[入门指南](docs/zh/getting-started.md)完成安装与最短上手流程。
+
 ### 理论
 
-从[理论](docs/zh/理论/理论.md)开始阅读完整推导和数值约定。
-
-### 核心概念
-
-通过[核心概念](docs/zh/概念/核心概念.md)理解结构、平移、interaction、orbit、参数、基底和 realization。
+从[理论](docs/zh/theory/index.md)开始阅读完整推导和数值约定。
 
 ### 教程
 
-按照[教程学习路线](docs/zh/教程/工作流.md)运行完整、可执行的工作流。
+按照[教程学习路线](docs/zh/tutorials/index.md)运行完整、可执行的工作流。
 
-### 任务指南
+### API
 
-需要完成具体任务时使用[任务指南](docs/zh/操作指南/选择截断.md)。
+查询[顶层导出总览](docs/zh/api/index.md)了解每个公开接口的用法与参数含义。
 
-### 互操作
+### 参考
 
-向外部软件导出前先阅读[格式与结构约定](docs/zh/互操作/格式.md)。
-
-### 案例
-
-[材料案例](docs/zh/示例/案例.md)连接仓库脚本、参考数据、结果和图像。
+[参考文档](docs/zh/reference/index.md)记录公共接口契约、单位约定、诊断与异常。
 
 ### 问答
 
-[问答](docs/zh/问答/问答.md)将常见问题导向权威页面。
-
-### API 参考
-
-[人工维护的 API 参考](docs/zh/参考/API参考.md)记录公共接口契约。
+[问答](docs/zh/Q&A.md)按主题归档常见问题与错误信息。
 
 ### 路线图
 
-[路线图](docs/zh/路线图/路线图.md)区分稳定、计划、研究与 No-Go 工作。
+[路线图](docs/zh/roadmap/index.md)区分稳定、计划、研究与 No-Go 工作。
 
-### 开发者文档
-
-[开发者指南](docs/zh/开发/开发者文档.md)覆盖架构、测试、验证和维护。
-
-<!-- END GENERATED: docs/zh/首页.md -->
+<!-- END GENERATED: docs/zh/index.md -->
 
 ## 文档
 

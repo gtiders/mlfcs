@@ -1,25 +1,13 @@
 ---
 title: Diagnostics
 audience:
-  - user
+  - advanced
 status: stable
 code_verified: 4.0.0a4
 ---
 
-# Diagnostics
+# Versioning Policy
 
-## Purpose
+How MLFCS versions its public interface and stored artifacts: semantic versioning of the Python package, stability tiers of top-level exports (stable/experimental/planned), and compatibility promises for the HDF5 archive format.
 
-When a result is unexpected, check the structure relation first: primitive atom count, reference atom order, supercell matrix, and maximum mapping residual. Then check cutoff shell, force units, ASR residual, and the target writer's required supercell. For SCPH, inspect `result.history`, the final RMS frequency change, and negative squared frequencies. A non-converged effective FC2 is diagnostic output, not a production result.
-
-## Stability
-
-Reference pages describe current public behavior. Defaults, units, returns, and exceptions match the verified version; planned features are excluded.
-
-## Diagnosis
-
-Read the exception and diagnostics first, then verify structure and array shapes. Use Theory for physical approximations and How-to for workflows.
-
-## Compatibility
-
-Internal module paths are not public contracts. Import public objects from `mlfcs` and record the package version and schema with saved results.
+This page explains what changes may occur within patch, minor and major releases, how deprecations are announced and removed, and which file formats readers must support forever. The `code_verified` field present in the front matter of every documentation page ties each document to the last release where its contents were checked against the code.

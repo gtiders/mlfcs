@@ -1,25 +1,13 @@
 ---
-title: Versioning policy
+title: Versioning Policy
 audience:
-  - user
+  - advanced
 status: stable
 code_verified: 4.0.0a4
 ---
 
-# Versioning policy
+# Versioning Policy
 
-## Purpose
+How MLFCS versions its public interface and stored artifacts: semantic versioning of the Python package, stability tiers of top-level exports (stable/experimental/planned), and compatibility promises for the HDF5 archive format.
 
-Define public API stability, alpha status, HDF5 schema compatibility, and documentation verification versions.
-
-## Stability
-
-Reference pages describe current public behavior. Defaults, units, returns, and exceptions match the verified version; planned features are excluded.
-
-## Diagnosis
-
-Read the exception and diagnostics first, then verify structure and array shapes. Use Theory for physical approximations and How-to for workflows.
-
-## Compatibility
-
-Internal module paths are not public contracts. Import public objects from `mlfcs` and record the package version and schema with saved results.
+This page explains what changes may occur within patch, minor and major releases, how deprecations are announced and removed, and which file formats readers must support forever. The `code_verified` field present in the front matter of every documentation page ties each document to the last release where its contents were checked against the code.
