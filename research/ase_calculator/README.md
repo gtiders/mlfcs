@@ -139,6 +139,10 @@ covariance folding 是否产生 transferable FC2 span 之外的 finite harmonic 
 应增加 span/rank residual guard；若未来接入 `FiniteHarmonicResponse`，该 residual 可以作为
 source-only companion 保存，否则必须拒绝转换，不能静默投影。
 
+当前项目决定暂不实施该 guard，并将这一现象作为可接受的建模假设独立记录在
+`research/wick_contraction_folding/README.md`。该限制适用于所有 FC$n$→FC$(n-2p)$ Wick
+contraction，不只 FC4→FC2。
+
 ## 5. HDF5 v3 自包含性
 
 当前 `io/hdf5.py` 保存：
