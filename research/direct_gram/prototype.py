@@ -20,7 +20,7 @@ from pathlib import Path
 import numpy as np
 from ase.io import read
 
-from mlfcs.basis.wick import symmetrized_covariance
+from mlfcs.fitting.backends.wick.covariance import symmetrized_covariance
 from mlfcs.fitting.dataset import FitDataset
 from mlfcs.fitting.design import ForceDesignOperator
 from mlfcs.fitting.fitter import ForceConstantFitter

@@ -1,4 +1,4 @@
-"""Covariance-orthogonalized Wick features and basis conversion helpers."""
+"""Covariance-orthogonalized Wick feature evaluation."""
 
 from __future__ import annotations
 

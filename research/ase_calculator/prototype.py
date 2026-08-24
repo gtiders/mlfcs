@@ -15,7 +15,7 @@ import numpy as np
 from ase import Atoms
 from ase.calculators.calculator import Calculator, all_changes
 
-from mlfcs.basis.wick_taylor import (
+from mlfcs.fitting.backends.wick.lowering import (
     build_wick_to_taylor_transform,
     omitted_taylor_fc1,
 )

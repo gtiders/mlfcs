@@ -9,11 +9,11 @@ from ase.calculators.singlepoint import SinglePointCalculator
 from scipy import sparse
 from supercell_helpers import make_supercell
 
-from mlfcs.basis.wick import wick as _wick
-from mlfcs.basis.wick import wick_axis_derivatives as _wick_axis_derivatives
-from mlfcs.basis.wick_taylor import omitted_taylor_fc1
+from mlfcs.fitting.backends.wick.features import wick as _wick
+from mlfcs.fitting.backends.wick.features import wick_axis_derivatives as _wick_axis_derivatives
+from mlfcs.fitting.backends.wick.lowering import omitted_taylor_fc1
 from mlfcs.fitting import ForceConstantFitter
-from mlfcs.fitting.covariance import symmetrized_covariance as _symmetrized_covariance
+from mlfcs.fitting.backends.wick.covariance import symmetrized_covariance as _symmetrized_covariance
 from mlfcs.fitting.design import ForceDesignOperator as _BatchedForceOperator
 from mlfcs.fitting.design import physical_tile_shape as _physical_tile_shape
 from mlfcs.fitting.design import predict_force
@@ -99,7 +99,7 @@ def test_shared_wick_axis_derivatives_equal_independent_recursions():
 def test_reduced_wick_transform_matches_sparse_tensor_conversion():
     from ase import Atoms
 
-    from mlfcs.basis.wick_taylor import build_wick_to_taylor_transform
+    from mlfcs.fitting.backends.wick.lowering import build_wick_to_taylor_transform
     from mlfcs.finite_difference.calculation import ForceConstantCalculation
 
     primitive = Atoms("Si", positions=[[0, 0, 0]], cell=np.eye(3) * 4.0, pbc=True)

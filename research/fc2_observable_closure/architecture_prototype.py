@@ -32,7 +32,7 @@ import phase3
 import prototype as phase2
 from common import HARMONIC_PATH, POTENTIAL_PATH, ase_from_phonopy
 
-from mlfcs.fitting.covariance import symmetrized_covariance
+from mlfcs.fitting.backends.wick.covariance import symmetrized_covariance
 from mlfcs.fitting.design import (
     DesignKernelGroup,
     ForceDesignOperator,

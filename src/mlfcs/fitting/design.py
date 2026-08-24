@@ -12,7 +12,7 @@ import jax.numpy as jnp
 import numpy as np
 from scipy import sparse
 
-from mlfcs.basis.wick import wick_axis_derivatives
+from mlfcs.fitting.backends.wick.features import wick_axis_derivatives
 from mlfcs.fitting.parameterization import OrderParameterization, image_parameter_basis
 from mlfcs.fitting.runtime import transfer_guard
 

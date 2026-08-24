@@ -1,4 +1,4 @@
-"""Exact sparse intertwiners between Wick and Taylor parameters."""
+"""Lower fitted Wick coordinates to canonical Taylor parameters."""
 
 from __future__ import annotations
 

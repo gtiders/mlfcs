@@ -4,7 +4,7 @@ from ase import Atoms
 from scipy import sparse
 from supercell_helpers import make_supercell
 
-from mlfcs.basis.wick_taylor import (
+from mlfcs.fitting.backends.wick.lowering import (
     _target_orbit_intertwiner,
     _validate_missing_exact_contractions,
     build_wick_to_taylor_fc1_transform,

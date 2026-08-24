@@ -1,4 +1,4 @@
-"""Reference-symmetrized displacement covariance."""
+"""Reference-symmetrized covariance owned by the Wick backend."""
 
 from __future__ import annotations
 

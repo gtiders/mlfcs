@@ -8,12 +8,10 @@ import numpy as np
 from ase import Atoms
 from scipy import sparse
 
-from mlfcs.basis.wick_taylor import build_wick_to_taylor_transform, omitted_taylor_fc1
 from mlfcs.constraints.translational import project_parameters
+from mlfcs.fitting.backends.wick.backend import WickFittingBackend
 from mlfcs.fitting.constraints import build_joint_constraints
-from mlfcs.fitting.covariance import symmetrized_covariance as _symmetrized_covariance
 from mlfcs.fitting.dataset import FitDataset
-from mlfcs.fitting.design import ForceDesignOperator as _BatchedForceOperator
 from mlfcs.fitting.gram import (
     _force_metrics,
     _normalize_constraint_rows,
@@ -137,6 +135,7 @@ class ForceConstantFitter:
         self.index = self.calculations[0].index
         self.canonical_supercell = self.calculations[0].supercell
         self._report(f"- Joint parameter count: {self.n_parameters}")
+        self._backend = WickFittingBackend()
 
     def fit(
         self,
@@ -189,7 +188,6 @@ class ForceConstantFitter:
         training = indices[n_validation:]
         if not len(training):
             raise ValueError("validation split leaves no training structures")
-        covariance = _symmetrized_covariance(displacements[training], self.calculations[0])
         constraints = build_joint_constraints(
             self.calculations,
             acoustic=acoustic_sum_rule,
@@ -205,16 +203,17 @@ class ForceConstantFitter:
                 tolerance=1e-11,
                 reporter=self._report if self.verbose else None,
             )
-        operator = _BatchedForceOperator(
-            displacements[training],
-            covariance,
-            self.order_tensors,
-            self.n_parameters,
-            batch_size,
+        prepared_basis = self._backend.prepare(
+            calculations=self.calculations,
+            training_displacements=displacements[training],
+            parameterizations=self.order_tensors,
+            n_parameters=self.n_parameters,
+            batch_size=batch_size,
             parameter_map=parameter_map,
             reporter=self._report if self.verbose else None,
             device=self.jax_device,
         )
+        operator = prepared_basis.operator
         target = residual_forces[training].reshape(-1)
         gram_system = _StreamingGramSystem.from_operator(
             operator,
@@ -323,9 +322,8 @@ class ForceConstantFitter:
         constraint_residual = self._constraint_drift(parameters_numpy, constraints)
         training_metrics = gram_system.force_metrics(reduced_parameters, target)
         if n_validation:
-            validation_operator = operator.with_displacements(
-                displacements[validation],
-                reporter=self._report if self.verbose else None,
+            validation_operator = self._backend.build_operator(
+                prepared_basis, displacements[validation]
             )
             validation_metrics = _force_metrics(
                 validation_operator.matvec(parameters_numpy),
@@ -368,8 +366,9 @@ class ForceConstantFitter:
         self._report(f"- Solver iterations={iterations}, stop_code={stop_code}")
         if stop_code != 0:
             self._report("- WARNING: returning an explicitly allowed unconverged solution")
-        taylor_transform = build_wick_to_taylor_transform(self.calculations, covariance)
-        fc1 = omitted_taylor_fc1(self.calculations, parameters_numpy, covariance)
+        lowering = self._backend.lower(prepared_basis, parameters_numpy)
+        fc1 = lowering.diagnostics.reference_fc1
+        assert fc1 is not None
         fc1_maximum = float(np.max(np.abs(fc1))) if fc1.size else 0.0
         fc1_net = float(np.linalg.norm(np.sum(fc1, axis=0)))
         self._report(
@@ -377,7 +376,7 @@ class ForceConstantFitter:
         )
         expansion_started = perf_counter()
         self._report("Expanding fitted Taylor parameters into sparse physical IFCs")
-        taylor_parameters = np.asarray(taylor_transform @ parameters_numpy)
+        taylor_parameters = lowering.taylor_parameters
         residual_sparse = _expand_sparse(taylor_parameters, self.calculations)
         sparse_values = dict(residual_sparse)
         self._report(
@@ -440,7 +439,7 @@ class ForceConstantFitter:
             force_constants,
             parameters_numpy,
             parameter_scale,
-            covariance,
+            prepared_basis.covariance,
             diagnostics,
             gram_system.cache_directory,
         )

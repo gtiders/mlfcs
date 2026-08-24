@@ -1,5 +1,6 @@
-"""Polynomial bases and basis transformations."""
+"""Physical polynomial-basis namespace.
 
-from mlfcs.basis.wick import wick, wick_axis_derivatives
+Fitting-coordinate implementations live under ``mlfcs.fitting.backends``.
+"""
 
-__all__ = ["wick", "wick_axis_derivatives"]
+__all__: list[str] = []
