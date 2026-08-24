@@ -3,7 +3,7 @@ title: 读写与序列化
 audience:
   - advanced
 status: stable
-code_verified: 4.0.0a4
+code_verified: 4.0.0a5
 ---
 
 # 读写与序列化

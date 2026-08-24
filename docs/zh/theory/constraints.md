@@ -3,7 +3,7 @@ title: 求和规则
 audience:
   - advanced
 status: stable
-code_verified: 4.0.0a4
+code_verified: 4.0.0a5
 ---
 
 # 求和规则
@@ -23,7 +23,7 @@ constrained = enforce_rotational_sum_rules(result,
     huang=True,
 )
 fc2 = constrained.force_constants
-print(constrained.diagnostics)
+print(constrained)
 ```
 
 默认 `strength=1.0` 是保留数值秩上的严格投影。`[0, 1]` 内的值只缩放

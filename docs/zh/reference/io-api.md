@@ -3,7 +3,7 @@ title: I/O API
 audience:
   - developer
 status: stable
-code_verified: 4.0.0a4
+code_verified: 4.0.0a5
 ---
 
 # I/O API

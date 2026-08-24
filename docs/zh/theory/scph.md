@@ -3,7 +3,7 @@ title: Loop-SCPH
 audience:
   - advanced
 status: experimental
-code_verified: 4.0.0a4
+code_verified: 4.0.0a5
 ---
 
 # Loop-SCPH
@@ -234,7 +234,6 @@ results = LoopSCPH(
     fc2=fc2, fc4=fc4, temperature=[300, 600, 900],
     interpolation_multiplier=1, scph_multiplier=2,
     max_iterations=100,
-    verbose=True,
 ).run()
 ```
 

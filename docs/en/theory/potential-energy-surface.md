@@ -3,7 +3,7 @@ title: Potential-energy surface
 audience:
   - user
 status: stable
-code_verified: 4.0.0a4
+code_verified: 4.0.0a5
 ---
 
 # Potential-energy surface

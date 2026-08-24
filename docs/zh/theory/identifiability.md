@@ -3,7 +3,7 @@ title: 可辨识性
 audience:
   - advanced
 status: stable
-code_verified: 4.0.0a4
+code_verified: 4.0.0a5
 ---
 
 # 可辨识性

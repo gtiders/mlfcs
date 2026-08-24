@@ -3,7 +3,7 @@ title: Linear force fitting
 audience:
   - advanced
 status: stable
-code_verified: 4.0.0a4
+code_verified: 4.0.0a5
 ---
 
 # Linear force fitting

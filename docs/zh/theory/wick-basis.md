@@ -3,7 +3,7 @@ title: Wick 收缩与 Taylor 跨阶污染
 audience:
   - advanced
 status: stable
-code_verified: 4.0.0a4
+code_verified: 4.0.0a5
 ---
 
 # Wick 收缩与 Taylor 跨阶污染

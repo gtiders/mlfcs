@@ -3,7 +3,7 @@ title: 性能路线
 audience:
   - developer
 status: research
-code_verified: 4.0.0a4
+code_verified: 4.0.0a5
 ---
 
 # 性能路线

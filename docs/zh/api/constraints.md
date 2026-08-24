@@ -3,9 +3,8 @@ title: 约束与求和规则
 audience:
   - advanced
 status: stable
-code_verified: 4.0.0a4
+code_verified: 4.0.0a5
 ---
-
 # 约束与求和规则
 
 本页介绍声学求和规则相关的顶层导出。完整签名见
@@ -26,13 +25,5 @@ code_verified: 4.0.0a4
 施加约束后的结果容器：修正后的力常数与误差下降情况（待补充字段）。
 
 ```python
-from mlfcs import RotationalSumRuleResult
-```
-
-## RotationalSumRuleDiagnostics
-
-约束前后求和规则违反度的诊断信息（待补充指标含义）。
-
-```python
-from mlfcs import RotationalSumRuleDiagnostics
+from mlfcs.constraints import RotationalSumRuleResult
 ```

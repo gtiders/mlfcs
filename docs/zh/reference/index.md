@@ -3,7 +3,7 @@ title: API 参考
 audience:
   - developer
 status: stable
-code_verified: 4.0.0a4
+code_verified: 4.0.0a5
 ---
 
 # API 参考
@@ -18,7 +18,7 @@ code_verified: 4.0.0a4
 - [SSCHA API](sscha-api.md)
 - [结构 API](structures-api.md)
 - [I/O API](io-api.md)
+- [日志](logging.md)
 - [单位与参数](units-and-parameters.md)
-- [诊断](diagnostics.md)
 - [异常](exceptions.md)
 - [版本策略](versioning.md)

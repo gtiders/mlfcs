@@ -3,7 +3,7 @@ title: Sum rules
 audience:
   - advanced
 status: stable
-code_verified: 4.0.0a4
+code_verified: 4.0.0a5
 ---
 
 # Sum rules
@@ -25,7 +25,7 @@ constrained = enforce_rotational_sum_rules(result,
     huang=True,
 )
 fc2 = constrained.force_constants
-print(constrained.diagnostics)
+print(constrained)
 ```
 
 `strength=1.0` is the default and denotes the strict retained-rank projection.

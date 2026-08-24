@@ -3,7 +3,7 @@ title: 原生 SSCHA 模块
 audience:
   - advanced
 status: experimental
-code_verified: 4.0.0a4
+code_verified: 4.0.0a5
 ---
 
 # 原生 SSCHA 模块
@@ -57,7 +57,6 @@ calculation = SSCHA(
     imaginary_modes="error",
     max_displacement=None,  # 默认不裁剪正则系综
     mixing=1.0,             # 直接固定点更新
-    log_level=1,
 )
 result = calculation.run(make_my_ase_calculator())
 ```
@@ -93,7 +92,7 @@ fc2_at_450K = series.at_temperature(450).force_constants
   裁剪：方向不变，只缩短向量长度。程序报告被裁剪原子数和受影响快照数，因为裁剪后
   样本不再严格服从原正则系综。
 
-`SSCHAIteration.ensemble` 保存 q 点数、模态数、虚频数、排除数和裁剪统计；
+`SSCHAIteration` 直接保存 q 点数、模态数、虚频数、排除数和裁剪统计；
 `fitting_relative_force_error` 保存原生拟合器的训练相对力误差，
 `relative_force_constant_change` 保存线性混合后相对于本轮采样 FC2 的更新幅度；
 `raw_relative_force_constant_change` 保存混合前的拟合更新幅度；初始化轮二者均为

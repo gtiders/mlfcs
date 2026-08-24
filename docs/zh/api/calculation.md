@@ -3,7 +3,7 @@ title: 计算入口
 audience:
   - advanced
 status: stable
-code_verified: 4.0.0a4
+code_verified: 4.0.0a5
 ---
 
 # 计算入口
@@ -27,18 +27,10 @@ code_verified: 4.0.0a4
 from mlfcs import FiniteDifferenceCalculation
 ```
 
-## Calculation
-
-底层计算描述对象（待补充：与 `FiniteDifferenceCalculation` 的分工）。
-
-```python
-from mlfcs import Calculation
-```
-
 ## CentralDifferenceStencil
 
 中心差分格式描述（待补充：位移方向、步长与前向/中心差分的关系）。
 
 ```python
-from mlfcs import CentralDifferenceStencil
+from mlfcs.finite_difference.stencil import CentralDifferenceStencil
 ```

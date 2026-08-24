@@ -4,7 +4,7 @@ audience:
   - beginner
   - advanced
 status: stable
-code_verified: 4.0.0a4
+code_verified: 4.0.0a5
 ---
 
 # API 导览
@@ -18,12 +18,12 @@ code_verified: 4.0.0a4
 | [计算入口](calculation.md) | `FiniteDifferenceCalculation`, , `CentralDifferenceStencil` |
 | [超胞构建](supercell.md) | `build_supercell`, `PeriodicIndex` |
 | [结构与对齐](structure-relation.md) | `StructureRelation`, `align_structures` |
-| [力常数拟合](fitting.md) | `FitDataset`, `ForceConstantFitter`, `FittingResult`, `FittingDiagnostics` |
+| [力常数拟合](fitting.md) | `FitDataset`, `ForceConstantFitter`, `FittingResult` |
 | [力常数对象](force-constants.md) | `ForceConstants`, `SparseOrderForceConstants`, `realize_force_constants` |
-| [约束与求和规则](constraints.md) | `enforce_rotational_sum_rules`, `RotationalSumRuleResult`, `RotationalSumRuleDiagnostics` |
+| [约束与求和规则](constraints.md) | `enforce_rotational_sum_rules`, `RotationalSumRuleResult` |
 | [读写与序列化](io.md) | `write_force_constants`, `read_hdf5` |
 | [SCPH 无序计算](scph.md) | `LoopSCPH`, `LoopSCPHResult`, `harmonic_frequencies`, `TemperatureSeriesResult` |
-| [SSCHA 方法](sscha.md) | `SSCHA`, `SSCHAIteration`, `SSCHAResult`, `HarmonicEnsemble`, `EnsembleDiagnostics`, `perturb_structures` |
+| [SSCHA 方法](sscha.md) | `SSCHA`、高级结果类型与公共 `perturb_structures` |
 
 ## 典型调用顺序
 

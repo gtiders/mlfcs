@@ -3,7 +3,7 @@ title: 有限差分 API
 audience:
   - developer
 status: stable
-code_verified: 4.0.0a4
+code_verified: 4.0.0a5
 ---
 
 # 有限差分 API
@@ -22,7 +22,6 @@ FiniteDifferenceCalculation(
     max_body_order: int | None = None,
     displacement: float = 0.01,
     symprec: float = 1e-5,
-    verbose: bool = True,
 )
 ~~~
 

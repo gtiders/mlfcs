@@ -3,7 +3,7 @@ title: 安装与快速上手
 audience:
   - beginner
 status: stable
-code_verified: 4.0.0a4
+code_verified: 4.0.0a5
 ---
 
 # 安装与快速上手

@@ -4,6 +4,19 @@
 
 All notable changes are documented here. Releases follow semantic versioning.
 
+## 4.0.0a5 — 2026-08-24
+
+### Changed
+
+- Renamed the finite-difference workflow to `FiniteDifferenceCalculation`; the previous names are
+  removed without compatibility aliases.
+- Added one public `perturb_structures()` entry point for Cartesian Gaussian and harmonic-mode
+  sampling. SSCHA now uses the same internal harmonic sampler.
+- Flattened fitting, rotational, and SSCHA diagnostics into their result records.
+- Standardized package reporting on the `mlfcs` logger, with `INFO` and above sent to stdout by
+  default and `DEBUG` controlled through standard Python logging.
+- Reduced the top-level namespace to the documented public workflow functions and classes.
+
 ## 4.0.0a2 — 2026-08-14
 
 ### Added
@@ -96,7 +109,7 @@ implementation with one order-parameterized API and numerical pipeline.
 
 ### Compatibility
 
-- Earlier MLFCS scripts must migrate to `ForceConstantCalculation`, `sow()`, `reap()`, or `run()`.
+- Earlier MLFCS scripts must migrate to `FiniteDifferenceCalculation`, `sow()`, `reap()`, or `run()`.
 
 ## Earlier releases
 

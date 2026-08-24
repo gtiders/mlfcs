@@ -3,7 +3,7 @@ title: Signed-displacement roadmap
 audience:
   - advanced
 status: planned
-code_verified: 4.0.0a4
+code_verified: 4.0.0a5
 ---
 
 # Signed-displacement roadmap

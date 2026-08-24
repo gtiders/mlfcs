@@ -3,7 +3,7 @@ title: 拟合 API
 audience:
   - developer
 status: stable
-code_verified: 4.0.0a4
+code_verified: 4.0.0a5
 ---
 
 # 拟合 API
@@ -23,7 +23,6 @@ ForceConstantFitter(
     fitting_basis: Literal["taylor", "wick"] = "taylor",
     symprec: float = 1e-5,
     jax_platform: Literal["auto", "cpu", "gpu"] = "auto",
-    verbose: bool = True,
 )
 ~~~
 

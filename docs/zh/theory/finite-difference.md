@@ -3,7 +3,7 @@ title: 有限差分理论
 audience:
   - user
 status: stable
-code_verified: 4.0.0a4
+code_verified: 4.0.0a5
 ---
 
 # 有限差分理论

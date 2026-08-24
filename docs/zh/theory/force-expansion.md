@@ -3,7 +3,7 @@ title: 力展开
 audience:
   - user
 status: stable
-code_verified: 4.0.0a4
+code_verified: 4.0.0a5
 ---
 
 # 力展开

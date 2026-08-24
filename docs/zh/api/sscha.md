@@ -3,7 +3,7 @@ title: SSCHA 方法
 audience:
   - advanced
 status: experimental
-code_verified: 4.0.0a4
+code_verified: 4.0.0a5
 ---
 
 # SSCHA 方法
@@ -25,7 +25,7 @@ from mlfcs import SSCHA
 单次迭代的记录：有效谐波模型与采样统计（待补充字段）。
 
 ```python
-from mlfcs import SSCHAIteration
+from mlfcs.physics.sscha import SSCHAIteration
 ```
 
 ## SSCHAResult
@@ -33,23 +33,7 @@ from mlfcs import SSCHAIteration
 自洽收敛后的最终结果（待补充字段）。
 
 ```python
-from mlfcs import SSCHAResult
-```
-
-## HarmonicEnsemble
-
-给定温度下的谐波系综，用于生成随机位移构型（待补充采样接口）。
-
-```python
-from mlfcs import HarmonicEnsemble
-```
-
-## EnsembleDiagnostics
-
-系综采样诊断（待补充指标含义）。
-
-```python
-from mlfcs import EnsembleDiagnostics
+from mlfcs.physics.sscha import SSCHAResult
 ```
 
 ## perturb_structures

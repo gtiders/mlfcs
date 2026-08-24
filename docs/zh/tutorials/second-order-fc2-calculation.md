@@ -3,7 +3,7 @@ title: 二阶力常数计算：有限差分与力拟合
 audience:
   - beginner
 status: stable
-code_verified: 4.0.0a4
+code_verified: 4.0.0a5
 localized_only: true
 examples:
   - examples/finite-difference/Si/harmonic
@@ -374,7 +374,7 @@ regularization=None
 regularization="scaled_group_lasso"
 ```
 
-使用正则化后，应结合 `result.diagnostics` 中的收敛信息和力误差判断拟合结果是否可靠。
+使用正则化后，应结合 `result` 中的收敛信息和力误差判断拟合结果是否可靠。
 
 ## 结果检查与导出
 

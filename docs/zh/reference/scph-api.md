@@ -3,7 +3,7 @@ title: SCPH API
 audience:
   - developer
 status: experimental
-code_verified: 4.0.0a4
+code_verified: 4.0.0a5
 ---
 
 # SCPH API
@@ -25,7 +25,6 @@ LoopSCPH(
     frequency_cutoff_thz: float = 0.0,
     warm_start: ForceConstants | None = None,
     continuation: bool = True,
-    verbose: bool = True,
     qpoint_workers: int = 1,
 )
 

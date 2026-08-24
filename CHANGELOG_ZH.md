@@ -4,6 +4,18 @@
 
 本文件记录面向用户的重要变化，版本遵循语义化版本约定。
 
+## 4.0.0a5 — 2026-08-24
+
+### 变化
+
+- 有限差分工作流正式更名为 `FiniteDifferenceCalculation`，旧名称及兼容别名全部删除。
+- 新增统一的公共 `perturb_structures()`，支持笛卡尔高斯采样和谐振模采样；SSCHA 复用
+  同一个内部谐振采样器。
+- 拟合、旋转修正和 SSCHA 的诊断量直接并入各自结果对象，不再维护 diagnostics 包装层。
+- 软件统一使用 `mlfcs` 标准 logger；默认将 `INFO` 及以上消息写入 stdout，`DEBUG` 通过
+  Python 标准 logging 接口开启。
+- 顶层命名空间收缩为文档明确列出的公共工作流函数与类。
+
 ## 4.0.0a2 — 2026-08-14
 
 ### 新增
@@ -89,5 +101,5 @@
 
 ### 兼容性
 
-- 旧脚本需要迁移到 `ForceConstantCalculation`、`sow()`、`reap()` 或 `run()`；
+- 旧脚本需要迁移到 `FiniteDifferenceCalculation`、`sow()`、`reap()` 或 `run()`；
 - `v3.0.0` 之前的标签属于旧实现或开发快照，仅为追溯保留，不属于 3.0 API 契约。

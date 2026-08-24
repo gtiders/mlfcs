@@ -3,7 +3,7 @@ title: Native SSCHA module
 audience:
   - advanced
 status: experimental
-code_verified: 4.0.0a4
+code_verified: 4.0.0a5
 ---
 
 # Native SSCHA module
@@ -60,7 +60,6 @@ calculation = SSCHA(
     imaginary_modes="error",
     max_displacement=None,  # canonical sampling is not clipped
     mixing=1.0,             # direct fixed-point update
-    log_level=1,
 )
 result = calculation.run(make_my_ase_calculator())
 ```
@@ -85,7 +84,7 @@ it intentionally does not expose finite-difference-style `sow()`/`reap()` interf
   The number of clipped atoms and affected snapshots is reported because clipping makes the sample
   distribution non-canonical.
 
-`SSCHAIteration.ensemble` records q-point, mode, imaginary-mode, exclusion, and clipping counts.
+`SSCHAIteration` directly records q-point, mode, imaginary-mode, exclusion, and clipping counts.
 `fitting_relative_force_error` records the native fitter's training error and
 `relative_force_constant_change` records the update relative to the FC2 that generated the current
 canonical ensemble after linear mixing. `raw_relative_force_constant_change` records the same

@@ -3,9 +3,8 @@ title: 力常数拟合
 audience:
   - advanced
 status: stable
-code_verified: 4.0.0a4
+code_verified: 4.0.0a5
 ---
-
 # 力常数拟合
 
 本页介绍线性力拟合流程的四个顶层导出。完整签名见
@@ -32,13 +31,5 @@ from mlfcs import ForceConstantFitter
 拟合结果：力常数、残差与统计指标（待补充字段）。
 
 ```python
-from mlfcs import FittingResult
-```
-
-## FittingDiagnostics
-
-拟合质量诊断：条件数、交叉验证等（待补充指标含义）。
-
-```python
-from mlfcs import FittingDiagnostics
+from mlfcs.fitting import FittingResult
 ```
