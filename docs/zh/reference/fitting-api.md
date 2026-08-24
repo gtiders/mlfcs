@@ -20,6 +20,7 @@ ForceConstantFitter(
     orders: tuple[int, ...] = (2, 3),
     cutoffs: dict[int, float | int | None] | None = None,
     max_body_orders: dict[int, int | None] | None = None,
+    fitting_basis: Literal["taylor", "wick"] = "taylor",
     symprec: float = 1e-5,
     jax_platform: Literal["auto", "cpu", "gpu"] = "auto",
     verbose: bool = True,
@@ -27,6 +28,10 @@ ForceConstantFitter(
 ~~~
 
 一个 fitter 只接受一个固定 reference supercell。所有训练结构必须保持其晶格、原子数、标签和原子顺序。
+
+`fitting_basis="taylor"` 直接以 Taylor 多项式拟合并进行恒等 lowering，是默认路径。
+`fitting_basis="wick"` 使用由训练位移协方差定义的 Wick 坐标，拟合完成后 lowering 为相同的
+canonical Taylor `ForceConstants`。协方差和 Wick 参数只属于拟合后端，不写入 HDF5 物理主体。
 
 ~~~python
 fit(

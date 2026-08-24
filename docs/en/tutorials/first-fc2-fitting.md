@@ -14,23 +14,22 @@ but both routes return the same `ForceConstants` type and use the same output wr
 
 Each training structure must use the reference-supercell atom order and provide forces through an
 ASE calculator result or a `forces` array. Energies are not used. The force model is linear in the
-irreducible force-constant parameters and uses covariance-orthogonalized Wick displacement
-features to reduce leakage between adjacent orders.
+irreducible force-constant parameters. Taylor displacement features are the default;
+covariance-orthogonalized Wick features are an explicit optional representation for joint
+high-order fits.
 
-The fitted parameter vector is expressed in the Wick basis. Public `ForceConstants` output is
-converted exactly within the exported FC2--FCn range to ordinary Taylor IFCs before serialization,
-because phonopy, ShengBTE, and
-other force-constant formats interpret tensors as Taylor derivatives. For displacement
-covariance `Sigma`, the conversion begins as
+`FittingResult.fitting_parameters` is expressed in the selected basis, while
+`FittingResult.force_constants` is always an ordinary Taylor artifact. With
+`fitting_basis="taylor"`, lowering is the identity. With `fitting_basis="wick"`, the conversion
+within the exported FC2--FCn range begins as
 
 ```text
 Phi_T[m] = Phi_W[m] - 1/2 Phi_W[m+2]:Sigma
            + 1/8 Phi_W[m+4]:Sigma:Sigma - ...
 ```
 
-This is a polynomial change of coordinates, not another fit. `FittingResult.parameters` remains
-the fitted Wick parameter vector; `FittingResult.force_constants` contains Taylor IFCs ready for
-common output formats.
+This is a polynomial change of coordinates, not another fit. External formats never interpret
+Wick parameters or covariance.
 
 Odd Wick orders also contract to a Taylor FC1 (constant-force) term. FC1 has no standard phonon or
 ShengBTE output role and is not included in `ForceConstants`; its maximum component and net force
@@ -77,6 +76,7 @@ fitter = ForceConstantFitter(
     primitive=read("POSCAR"),
     reference=read("reference.xyz"),
     orders=(2, 3, 4),
+    fitting_basis="wick",
     cutoffs={2: 8.0, 3: 12 * 0.529177210903, 4: 8 * 0.529177210903},
     max_body_orders={2: 2, 3: 3, 4: 3},
 )
