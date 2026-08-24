@@ -20,7 +20,7 @@ from mlfcs.fitting.backends.wick.lowering import (
     omitted_taylor_fc1,
 )
 from mlfcs.fitting import ForceConstantFitter
-from mlfcs.fitting.design import predict_force
+from mlfcs.fitting.backends.wick.prediction import predict_wick_force as predict_force
 from mlfcs.force_constants.data import ForceConstants
 from mlfcs.force_constants.expansion import expand_fitted_orders
 from mlfcs.force_constants.realization import realize_force_constants

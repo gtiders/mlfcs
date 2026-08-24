@@ -21,6 +21,7 @@ import numpy as np
 from ase.io import read
 
 from mlfcs.fitting.backends.wick.covariance import symmetrized_covariance
+from mlfcs.fitting.backends.wick.features import wick_axis_derivatives
 from mlfcs.fitting.dataset import FitDataset
 from mlfcs.fitting.design import ForceDesignOperator
 from mlfcs.fitting.fitter import ForceConstantFitter
@@ -73,6 +74,7 @@ def _operator(name: str, orders: tuple[int, ...], frames: int):
         fitter.order_tensors,
         fitter.n_parameters,
         batch_size=4,
+        axis_derivatives=wick_axis_derivatives,
     )
     return case, fitter, dataset, operator
 
@@ -88,7 +90,7 @@ def collect_tiles(operator: ForceDesignOperator, target: np.ndarray) -> tuple[li
         for group in operator.program.groups:
             contributions = group.kernel(
                 displacement_batch,
-                operator.covariance,
+                operator.basis_state,
                 *group.device_arguments,
             )
             contributions = np.asarray(contributions)

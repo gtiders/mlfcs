@@ -12,6 +12,7 @@ from mlfcs.fitting.backends.wick.lowering import (
     build_wick_to_taylor_transform,
     omitted_taylor_fc1,
 )
+from mlfcs.fitting.backends.wick.features import wick_axis_derivatives
 from mlfcs.fitting.design import ForceDesignOperator
 
 
@@ -50,6 +51,7 @@ class WickFittingBackend:
             parameter_map=parameter_map,
             reporter=reporter,
             device=device,
+            axis_derivatives=wick_axis_derivatives,
         )
         return PreparedWickBasis(calculations, covariance, operator)
 

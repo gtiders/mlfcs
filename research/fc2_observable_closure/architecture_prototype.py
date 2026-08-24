@@ -33,6 +33,7 @@ import prototype as phase2
 from common import HARMONIC_PATH, POTENTIAL_PATH, ase_from_phonopy
 
 from mlfcs.fitting.backends.wick.covariance import symmetrized_covariance
+from mlfcs.fitting.backends.wick.features import wick_axis_derivatives
 from mlfcs.fitting.design import (
     DesignKernelGroup,
     ForceDesignOperator,
@@ -321,6 +322,7 @@ class OrbitDesignBlock:
             self.parameterizations,
             self.image_bases,
             self.parameter_count,
+            wick_axis_derivatives,
         )
         return np.asarray(values).reshape((-1, self.parameter_count))
 
@@ -446,6 +448,7 @@ def solve_streamed_joint(
         parameter_map=parameter_map,
         device_gram=False,
         device=jax.devices("cpu")[0],
+        axis_derivatives=wick_axis_derivatives,
     )
     closure_group = closure_block.as_kernel_group(
         parameterization.n_parameters, operator.program.device

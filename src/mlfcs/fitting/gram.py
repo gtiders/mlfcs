@@ -120,7 +120,7 @@ class _StreamingGramSystem:
                 columns = group.columns
                 contributions = group.kernel(
                     displacement_batch,
-                    operator.covariance,
+                    operator.basis_state,
                     *group.device_arguments,
                 )
                 # A physical tile contains only its local parameter columns.
@@ -264,7 +264,7 @@ class _StreamingGramSystem:
 def _gram_recovery_key(operator, target):
     """Fingerprint every numerical input needed to safely reuse a failed run."""
     digest = sha256(b"mlfcs-streaming-gram-v3-compact-coordinates-null-space")
-    arrays = [operator.displacements, np.asarray(operator.covariance), np.asarray(target)]
+    arrays = [operator.displacements, np.asarray(operator.basis_state), np.asarray(target)]
     if operator.parameter_map is not None:
         parameter_map = sparse.csc_matrix(operator.parameter_map)
         arrays.extend([parameter_map.data, parameter_map.indices, parameter_map.indptr])

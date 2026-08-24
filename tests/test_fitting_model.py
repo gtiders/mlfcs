@@ -16,7 +16,7 @@ from mlfcs.fitting import ForceConstantFitter
 from mlfcs.fitting.backends.wick.covariance import symmetrized_covariance as _symmetrized_covariance
 from mlfcs.fitting.design import ForceDesignOperator as _BatchedForceOperator
 from mlfcs.fitting.design import physical_tile_shape as _physical_tile_shape
-from mlfcs.fitting.design import predict_force
+from mlfcs.fitting.backends.wick.prediction import predict_wick_force as predict_force
 from mlfcs.fitting.design import prepare_design_kernel_groups as _prepare_physical_design_builders
 from mlfcs.fitting.design import prepare_device_reduction as _prepare_device_reduction
 from mlfcs.fitting.fitter import (
@@ -276,7 +276,14 @@ def test_streaming_gram_recovers_force_constant_and_force_error():
     displacement = rng.normal(size=(9, 1, 3))
     covariance = np.eye(3)
     tensor = _one_parameter_fc2_tensor()
-    operator = _BatchedForceOperator(displacement, covariance, (tensor,), 1, batch_size=4)
+    operator = _BatchedForceOperator(
+        displacement,
+        covariance,
+        (tensor,),
+        1,
+        batch_size=4,
+        axis_derivatives=_wick_axis_derivatives,
+    )
     expected = np.array([2.75])
     target = operator.matvec(expected)
     gram = _StreamingGramSystem.from_operator(operator, target)
@@ -314,7 +321,14 @@ def test_physical_design_tiles_equal_matrix_free_operator():
         image_mask=np.repeat(base.image_mask, n_orbits, axis=0),
     )
     displacements = rng.normal(size=(5, 1, 3))
-    operator = _BatchedForceOperator(displacements, np.eye(3), (tensor,), n_orbits, batch_size=4)
+    operator = _BatchedForceOperator(
+        displacements,
+        np.eye(3),
+        (tensor,),
+        n_orbits,
+        batch_size=4,
+        axis_derivatives=_wick_axis_derivatives,
+    )
     builders, _ = _prepare_physical_design_builders(operator)
     assert builders
 
@@ -322,7 +336,7 @@ def test_physical_design_tiles_equal_matrix_free_operator():
     design = np.zeros((rows, n_orbits))
     displacement_batch = jnp.asarray(displacements)
     for group in builders:
-        tiles = group.kernel(displacement_batch, operator.covariance, *group.device_arguments)
+        tiles = group.kernel(displacement_batch, operator.basis_state, *group.device_arguments)
         for tile, columns in zip(tiles, group.columns, strict=True):
             design[:, columns] += np.asarray(tile).reshape(rows, -1)
 
@@ -379,7 +393,14 @@ def test_device_gram_pipeline_matches_cpu_with_a_sparse_null_space_map():
     )
     displacements = rng.normal(size=(5, 1, 3))
     parameter_map = sparse.csc_matrix([[1.0], [-0.5]])
-    physical = _BatchedForceOperator(displacements, np.eye(3), (tensor,), 2, batch_size=2)
+    physical = _BatchedForceOperator(
+        displacements,
+        np.eye(3),
+        (tensor,),
+        2,
+        batch_size=2,
+        axis_derivatives=_wick_axis_derivatives,
+    )
     target = physical.matvec(np.asarray(parameter_map @ np.array([1.75])).reshape(-1))
     cpu = _BatchedForceOperator(
         displacements,
@@ -388,6 +409,7 @@ def test_device_gram_pipeline_matches_cpu_with_a_sparse_null_space_map():
         2,
         batch_size=2,
         parameter_map=parameter_map,
+        axis_derivatives=_wick_axis_derivatives,
     )
     device = _BatchedForceOperator(
         displacements,
@@ -397,6 +419,7 @@ def test_device_gram_pipeline_matches_cpu_with_a_sparse_null_space_map():
         batch_size=2,
         parameter_map=parameter_map,
         device_gram=True,
+        axis_derivatives=_wick_axis_derivatives,
     )
     expected = _StreamingGramSystem.from_operator(cpu, target)
     actual = _StreamingGramSystem.from_operator(device, target)

@@ -12,7 +12,6 @@ import jax.numpy as jnp
 import numpy as np
 from scipy import sparse
 
-from mlfcs.fitting.backends.wick.features import wick_axis_derivatives
 from mlfcs.fitting.parameterization import OrderParameterization, image_parameter_basis
 from mlfcs.fitting.runtime import transfer_guard
 
@@ -36,21 +35,23 @@ class DesignKernelGroup:
 class PreparedDesignProgram:
     """One immutable, reusable compiled representation of an interaction space.
 
-    Parameterization arrays and covariance are host data while this object is
+    Parameterization arrays and backend state are host data while this object is
     prepared, then transferred to the selected JAX device once.  Training,
     validation, and post-fit diagnostics can subsequently change only the
     displacement batch and the parameter vector.
     """
 
-    def __init__(self, covariance, parameterizations, batch_size, device):
+    def __init__(self, basis_state, parameterizations, batch_size, device, axis_derivatives):
         self.device = jax.devices()[0] if device is None else device
-        self.covariance = jax.device_put(np.asarray(covariance, dtype=float), self.device)
+        self.basis_state = jax.device_put(np.asarray(basis_state, dtype=float), self.device)
         self.batch_size = batch_size
         # Retain the compact host parameterization for reproducible Gram-cache
         # fingerprints.  It is also reused by validation operators, so this is
         # metadata rather than an additional physical-design allocation.
         self.parameterizations = tuple(parameterizations)
-        self.groups = _build_design_kernel_groups(self.parameterizations, batch_size, self.device)
+        self.groups = _build_design_kernel_groups(
+            self.parameterizations, batch_size, self.device, axis_derivatives
+        )
         self.gram_feature_passes = 0
         self.prediction_feature_passes = 0
 
@@ -61,7 +62,7 @@ class PreparedDesignProgram:
     @property
     def static_device_bytes(self) -> int:
         return int(
-            self.covariance.nbytes
+            self.basis_state.nbytes
             + sum(
                 group.columns.nbytes + sum(argument.nbytes for argument in group.arguments)
                 for group in self.groups
@@ -144,7 +145,7 @@ class ForceDesignOperator:
     def __init__(
         self,
         displacements,
-        covariance,
+        basis_state,
         parameterizations,
         n_parameters,
         batch_size,
@@ -153,6 +154,7 @@ class ForceDesignOperator:
         program: PreparedDesignProgram | None = None,
         device=None,
         device_gram: bool | None = None,
+        axis_derivatives=None,
     ):
         self.displacements = np.asarray(displacements)
         self.n_parameters = n_parameters
@@ -165,11 +167,13 @@ class ForceDesignOperator:
         self.reporter = reporter
         self._device_reductions = {}
         self.program = (
-            PreparedDesignProgram(covariance, parameterizations, batch_size, device)
+            PreparedDesignProgram(
+                basis_state, parameterizations, batch_size, device, axis_derivatives
+            )
             if program is None
             else program
         )
-        self.covariance = self.program.covariance
+        self.basis_state = self.program.basis_state
         self.device_gram = (
             self.program.device.platform == "gpu" if device_gram is None else bool(device_gram)
         )
@@ -231,7 +235,7 @@ class ForceDesignOperator:
                 for group in groups:
                     contributions = group.kernel(
                         displacement_batch,
-                        self.covariance,
+                        self.basis_state,
                         *group.device_arguments,
                     )
                     predicted += predict_group(contributions, group.device_columns, parameters)
@@ -268,7 +272,7 @@ class ForceDesignOperator:
                 }
                 for group in self.program.groups:
                     contributions = group.kernel(
-                        displacement_batch, self.covariance, *group.device_arguments
+                        displacement_batch, self.basis_state, *group.device_arguments
                     )
                     predicted[group.order] += predict_group(
                         contributions, group.device_columns, parameters
@@ -294,7 +298,7 @@ def prepare_design_kernel_groups(operator):
     return operator.program.groups, operator.program.batch_size
 
 
-def _build_design_kernel_groups(parameterizations, batch_size, device):
+def _build_design_kernel_groups(parameterizations, batch_size, device, axis_derivatives):
     """Pack and upload bounded orbit/image/parameter tiles exactly once."""
     tiles_by_shape = {}
     for parameterization in parameterizations:
@@ -368,7 +372,7 @@ def _build_design_kernel_groups(parameterizations, batch_size, device):
         groups.append(
             DesignKernelGroup(
                 order=order,
-                kernel=compile_design_tile_group(order, key[-1]),
+                kernel=compile_design_tile_group(order, key[-1], axis_derivatives),
                 columns=columns,
                 device_columns=jax.device_put(columns, device),
                 arguments=arguments,
@@ -379,7 +383,7 @@ def _build_design_kernel_groups(parameterizations, batch_size, device):
 
 
 @cache
-def compile_design_tile_group(order, n_local):
+def compile_design_tile_group(order, n_local, axis_derivatives):
     """Compile one shape-polymorphic kernel returning only local tile columns.
 
     Large covariance and interaction arrays are dynamic arguments.  In
@@ -387,7 +391,7 @@ def compile_design_tile_group(order, n_local):
     full ``n_parameters``-wide matrix for every physical tile.
     """
 
-    def design_tile_group(displacements, covariance, *tile_arguments):
+    def design_tile_group(displacements, basis_state, *tile_arguments):
         def one_tile(values):
             (
                 parameter_indices,
@@ -410,7 +414,12 @@ def compile_design_tile_group(order, n_local):
                 image_mask,
             )
             return force_design_batch(
-                displacements, covariance, (dynamic,), (image_basis,), n_local
+                displacements,
+                basis_state,
+                (dynamic,),
+                (image_basis,),
+                n_local,
+                axis_derivatives,
             )
 
         return jax.lax.map(one_tile, tile_arguments)
@@ -443,7 +452,14 @@ def tile_parameterization(parameterization, selected, images, dimensions):
     )
 
 
-def force_design_batch(displacements, covariance, parameterizations, image_bases, n_parameters):
+def force_design_batch(
+    displacements,
+    basis_state,
+    parameterizations,
+    image_bases,
+    n_parameters,
+    axis_derivatives,
+):
     """Construct exact force-design rows directly from the linear FC basis."""
 
     def one_structure(displacement):
@@ -459,7 +475,7 @@ def force_design_batch(displacements, covariance, parameterizations, image_bases
                 * jnp.asarray(parameterization.parameter_mask)[:, None, None, None, :]
             )
             basis = jnp.asarray(image_basis)[:, :, None, :, :]
-            lowers = wick_axis_derivatives(displacement, covariance, coordinates, order)
+            lowers = axis_derivatives(displacement, basis_state, coordinates, order)
             for axis, lower in enumerate(lowers):
                 contribution = -lower[..., None] * basis * coefficient_mask / factorial(order)
                 force_coordinates = coordinates[..., axis, None]
@@ -470,7 +486,7 @@ def force_design_batch(displacements, covariance, parameterizations, image_bases
     return jax.vmap(one_structure)(displacements)
 
 
-def predict_force(parameters, displacements, covariance, parameterizations):
+def predict_force(parameters, displacements, basis_state, parameterizations, axis_derivatives):
     """Evaluate model forces without materializing the design matrix."""
 
     def one_structure(displacement):
@@ -492,7 +508,7 @@ def predict_force(parameters, displacements, covariance, parameterizations):
             components = jnp.asarray(tuple(np.ndindex((3,) * order)), dtype=jnp.int32)
             coordinates = coordinates[..., None, :] * 3 + components
             mask = jnp.asarray(parameterization.image_mask)
-            lowers = wick_axis_derivatives(displacement, covariance, coordinates, order)
+            lowers = axis_derivatives(displacement, basis_state, coordinates, order)
             for axis, lower in enumerate(lowers):
                 contribution = (
                     -lower
