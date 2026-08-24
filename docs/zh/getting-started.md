@@ -44,5 +44,5 @@ from mlfcs import FiniteDifferenceCalculation
 ## 下一步
 
 - 阅读[教程总览](tutorials/index.md)选择一个完整工作流。
-- 查看 [API 导览](api/index.md)了解各顶层导出的用法。
+- 查看 [API 参考](reference/index.md)了解各顶层导出的用法。
 - 有疑问请看[问答](Q%26A.md)。

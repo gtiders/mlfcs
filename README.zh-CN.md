@@ -100,7 +100,7 @@ write_force_constants(fc2, "mlfcs.h5", format="hdf5")
 
 ### API
 
-查询[顶层导出总览](docs/zh/api/index.md)了解每个公开接口的用法与参数含义。
+查询[API 参考](docs/zh/reference/index.md)了解每个公开接口的完整签名、参数与语义。
 
 ### 参考
 
