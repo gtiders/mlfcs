@@ -1,0 +1,138 @@
+{
+  "conclusion": "SCHEMA/ARCHITECTURE CHANGE REQUIRED for exact validation serialization; small refactor for a zero-FC1 Taylor potential calculator",
+  "wick_equivalence": {
+    "n_parameters": 19,
+    "fc1_shape": [
+      1,
+      3
+    ],
+    "fc1_maximum": 0.0,
+    "formal_taylor_design_vs_sparse_evaluator": {
+      "maximum_absolute": 9.367506770274758e-16,
+      "relative": 1.166428234747676e-14
+    },
+    "wick_vs_current_intertwiner_taylor": {
+      "maximum_absolute": 0.00018676047342128244,
+      "relative": 0.0038977533639126378
+    },
+    "wick_vs_taylor_with_fc1": {
+      "maximum_absolute": 0.00018676047342130325,
+      "relative": 0.003897753363913585
+    },
+    "hdf5_reload_with_fc1": {
+      "maximum_absolute": 0.0,
+      "relative": 0.0
+    },
+    "larger_supercell_reload": {
+      "maximum_absolute": 0.0,
+      "relative": 0.0
+    },
+    "orders_after_reload": [
+      2,
+      3,
+      4
+    ],
+    "order_force_norms": {
+      "1": 0.0,
+      "2": 0.0777526025997799,
+      "3": 0.0005771847187990036,
+      "4": 0.00013692226297640033
+    }
+  },
+  "fc1_equivalence": {
+    "fc1_shape": [
+      2,
+      3
+    ],
+    "fc1_maximum": 0.006666820971582726,
+    "wick_minus_no_fc1_equals_minus_fc1": {
+      "maximum_absolute": 4.336808689942018e-18,
+      "relative": 2.992791816601301e-16
+    },
+    "wick_vs_complete_taylor": {
+      "maximum_absolute": 4.336808689942018e-18,
+      "relative": 2.97857313745507e-16
+    },
+    "candidate_hdf5_reload": {
+      "maximum_absolute": 0.0,
+      "relative": 0.0
+    },
+    "candidate_hdf5_larger_supercell": {
+      "maximum_absolute": 0.0,
+      "relative": 0.0
+    }
+  },
+  "existing_hdf5_cases": {
+    "fc2": {
+      "orders": [
+        2
+      ],
+      "energy_eV": 5.0144864852168064e-05,
+      "force_norm": 0.051048490234745114,
+      "ase_energy_difference": 3.916680348103885e-18,
+      "ase_force": {
+        "maximum_absolute": 1.3808398868775384e-15,
+        "relative": 5.4094852331773285e-14
+      },
+      "energy_gradient_force_x_atom_0_absolute_difference": 7.710845850716908e-15,
+      "order_energy": {
+        "2": 5.0144864852168064e-05
+      }
+    },
+    "fc234_wick_fit": {
+      "orders": [
+        2,
+        3,
+        4
+      ],
+      "energy_eV": 3.67820834677999e-05,
+      "force_norm": 0.04317772512692178,
+      "ase_energy_difference": 3.882799030213713e-18,
+      "ase_force": {
+        "maximum_absolute": 1.2524703496552547e-15,
+        "relative": 5.401199123758659e-14
+      },
+      "energy_gradient_force_x_atom_0_absolute_difference": 6.591949208711867e-15,
+      "order_energy": {
+        "2": 3.684693727384855e-05,
+        "3": -6.485321992729036e-08,
+        "4": -5.86121363529366e-13
+      }
+    },
+    "fc23_wick_fit": {
+      "orders": [
+        2,
+        3
+      ],
+      "energy_eV": 0.00013329885423246066,
+      "force_norm": 0.08264199340572846,
+      "ase_energy_difference": 1.6805133673525319e-18,
+      "ase_force": {
+        "maximum_absolute": 8.326672684688674e-16,
+        "relative": 1.4488291364740144e-14
+      },
+      "energy_gradient_force_x_atom_0_absolute_difference": 3.824718319833664e-14,
+      "order_energy": {
+        "2": 0.00013281433931098982,
+        "3": 4.845149214708349e-07
+      }
+    },
+    "fc23_finite_difference": {
+      "orders": [
+        3
+      ],
+      "energy_eV": -2.256265289754209e-07,
+      "force_norm": 0.0002838845005107223,
+      "ase_energy_difference": 2.0752307207730358e-20,
+      "ase_force": {
+        "maximum_absolute": 1.081152853875389e-17,
+        "relative": 6.957500698741098e-14
+      },
+      "energy_gradient_force_x_atom_0_absolute_difference": 9.38173692378863e-18,
+      "order_energy": {
+        "3": -2.256265289754209e-07
+      }
+    }
+  },
+  "formal_source_modified": false
+}
