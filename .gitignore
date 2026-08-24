@@ -53,6 +53,8 @@ site/
 !/tutorial/**/*.json
 !/tutorial/**/*.vasp
 !/tutorial/**/*.extxyz
+!/tutorial/**/*.xyz
+!/tutorial/**/BORN
 
 /tests/**/*
 !/tests/**/*.py

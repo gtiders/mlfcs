@@ -1,0 +1,14 @@
+{
+  "cutoff_angstrom": 11.0,
+  "direct_total": {
+    "force_rmse_ev_per_angstrom": 2.6519393543682293e-05,
+    "relative_force_error": 0.045556394169415086
+  },
+  "frames": 2,
+  "numpy_requirement": "numpy<2.5 (hiPhive/numba compatibility)",
+  "parameters": 74,
+  "short_range": {
+    "force_rmse_ev_per_angstrom": 1.4842226109978366e-05,
+    "relative_force_error": 0.024691623576379346
+  }
+}

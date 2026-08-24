@@ -3,7 +3,7 @@ title: 第一个有限差分 FC2
 audience:
   - beginner
 status: stable
-code_verified: 4.0.0a5
+code_verified: 4.0.0a6
 ---
 
 # Versioning Policy

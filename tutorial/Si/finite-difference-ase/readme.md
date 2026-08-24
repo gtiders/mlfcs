@@ -19,6 +19,14 @@ cd tutorial/Si/finite-difference-ase
 uv run python run.py
 ```
 
+可选的零步长外推路线使用同一个 `FiniteDifferenceCalculation`，在五个位移步长上重建导数：
+
+```bash
+uv run python run_extrapolation.py
+```
+
+普通中心差分的完整日志固定写入 `run.log`，外推路线固定写入 `extrapolation.log`；重复执行会覆盖旧日志。
+
 普通 Python 用户可以使用：
 
 ```bash
@@ -28,7 +36,7 @@ python run.py
 第二步绘制声子谱。必须先完成第一步，因为 `plot.py` 读取上一步生成的 `SPOSCAR` 和 `force_constants.hdf5`。它使用 seekpath 生成高对称路径、phonopy 计算声子频率，并输出 `phonon-band.png` 与路径信息 `phonon-band.json`：
 
 ```bash
-uv run python plot.py
+uv run --with phonopy --with seekpath --with matplotlib python plot.py
 ```
 
 普通 Python 用户可以使用：
@@ -50,7 +58,7 @@ uv pip install calorine phonopy seekpath matplotlib
 ```bash
 cd /home/gwins/codespace/mlfcs-new/tutorial/Si/finite-difference-ase
 uv run python run.py
-uv run python plot.py
+uv run --with phonopy --with seekpath --with matplotlib python plot.py
 ```
 
 不使用 `uv` 时，可以用当前 Python 环境的 pip 安装同样的依赖：

@@ -3,7 +3,7 @@ title: Performance roadmap
 audience:
   - developer
 status: research
-code_verified: 4.0.0a5
+code_verified: 4.0.0a6
 ---
 
 # Performance roadmap

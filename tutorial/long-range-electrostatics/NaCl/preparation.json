@@ -1,0 +1,70 @@
+{
+  "born_effective_charges": [
+    [
+      [
+        1.09328,
+        7.315160090020796e-34,
+        1.8296007228721974e-34
+      ],
+      [
+        -5.485559367148599e-34,
+        1.09328,
+        -1.8296007228721974e-34
+      ],
+      [
+        0.0,
+        0.0,
+        1.09328
+      ]
+    ],
+    [
+      [
+        -1.09328,
+        -7.315160090020796e-34,
+        -1.8296007228721974e-34
+      ],
+      [
+        5.485559367148599e-34,
+        -1.09328,
+        1.8296007228721974e-34
+      ],
+      [
+        0.0,
+        0.0,
+        -1.09328
+      ]
+    ]
+  ],
+  "conventional_atoms": 8,
+  "dielectric": [
+    [
+      2.419776,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      2.419776,
+      0.0
+    ],
+    [
+      0.0,
+      0.0,
+      2.419776
+    ]
+  ],
+  "force_decomposition_maximum_error": 8.673617379884035e-19,
+  "frames": 2,
+  "input_sha256": {
+    "BORN": "94a07d307bf95184660c3dc075d0ea1c888b8932a84cf4f76f2fd9aa783ee63c",
+    "NaCl_unitcell.xyz": "f66603147fe419be86b25add51fb0d6f6ba9fc00cb555328ce9c856178580966",
+    "supercells_with_forces.xyz": "4e3203eaaa1e2f4fb4552126a114ca489adbe8004c2b0e29d437465439745dda"
+  },
+  "maximum_displacement_angstrom": 0.009999910000000334,
+  "maximum_long_range_force_ev_per_angstrom": 0.005383519116242342,
+  "maximum_short_range_force_ev_per_angstrom": 0.02129673368735341,
+  "maximum_total_force_ev_per_angstrom": 0.02257669,
+  "primitive_atoms": 2,
+  "reference_atoms": 512,
+  "source": "hiPhive official NaCl long-range-corrections example"
+}

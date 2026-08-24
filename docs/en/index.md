@@ -3,7 +3,7 @@ title: MLFCS
 audience:
   - beginner
 status: stable
-code_verified: 4.0.0a5
+code_verified: 4.0.0a6
 ---
 
 <p align="center">
@@ -25,6 +25,7 @@ High-order force constants combine rapidly growing interaction spaces, Cartesian
 - Primitive-site plus exact integer-translation force constants with sparse native HDF5 v3 storage.
 - Translational constraints and explicit FC2 Born–Huang/Huang post-processing.
 - Target-supercell realization and writers for phonopy, phono3py, ShengBTE, and ALAMODE.
+- An ASE Calculator for reference-relative energies and forces from canonical Taylor IFCs.
 - FC4 loop SCPH and stochastic effective-harmonic SSCHA workflows.
 
 MLFCS is a Python library, not a command-line application. Force generation remains under the user's ASE calculator or external electronic-structure workflow.
@@ -61,6 +62,7 @@ See the [first finite-difference FC2 tutorial](tutorials/first-fc2-finite-differ
 | Apply FC2 rotational conditions | [Rotational constraints](tutorials/rotational-constraints.md) |
 | Calculate an FC4 loop correction | [SCPH workflow](tutorials/scph-workflow.md) |
 | Calculate a stochastic effective FC2 | [SSCHA workflow](tutorials/sscha-workflow.md) |
+| Use fitted Taylor IFCs as an ASE potential | [ASE Calculator API](reference/calculator-api.md) |
 | Export to another program or supercell | Interoperability |
 
 ## Choose structures before calculation

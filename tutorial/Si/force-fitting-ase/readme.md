@@ -7,7 +7,8 @@
 ```bash
 cd tutorial/Si/force-fitting-ase
 uv run python run.py
-uv run python plot.py
+uv run --with phonopy --with seekpath --with matplotlib python plot.py
+uv run python calculator.py
 ```
 
 脚本会依次完成：
@@ -18,14 +19,17 @@ uv run python plot.py
 4. 重新读取 `train.extxyz`，使用 `ForceConstantFitter` 拟合 FC2。
 5. 输出 `SPOSCAR`、拟合力常数和 `fit-metrics.json`。
 6. 运行 `plot.py`，读取 `SPOSCAR` 和 `force_constants-fit.hdf5`，输出 `fit-phonon-band.png` 与 `fit-phonon-band.json`。
+7. 运行 `calculator.py`，从 native HDF5 构造 `MLFCSCalculator`，并用数值能量梯度验证解析力。
 
-这里的 `perturb_structures()` 只负责生成结构，不计算力，也不执行 SSCHA 自洽迭代。由于没有提供初始 FC2，采样使用去质心的笛卡尔高斯位移；如果提供初始 FC2，SSCHA 才会切换到谐系综采样。
+这里的 `perturb_structures()` 只负责生成结构，不计算力，也不执行 SSCHA 自洽迭代。本教程显式使用
+`method="gaussian"`；若要按 FC2 与温度生成谐系综，必须显式改用 `method="harmonic"` 并同时提供
+`force_constants` 和 `temperature`。运行日志固定覆盖写入 `fit.log`。
 
 生成的 `train.extxyz` 包含每个结构的原子力，因此可以独立读取并用于拟合：
 
 ```python
 from ase.io import read
-from mlfcs.fitting import ForceConstantFitter
+from mlfcs import ForceConstantFitter
 
 training = read("train.extxyz", index=":")
 fitter = ForceConstantFitter(

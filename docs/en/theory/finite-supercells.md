@@ -3,7 +3,7 @@ title: Finite supercells and integer lattices
 audience:
   - advanced
 status: stable
-code_verified: 4.0.0a5
+code_verified: 4.0.0a6
 ---
 
 # Finite supercells and integer lattices

@@ -3,7 +3,7 @@ title: 二阶力常数计算：有限差分与力拟合
 audience:
   - beginner
 status: stable
-code_verified: 4.0.0a5
+code_verified: 4.0.0a6
 localized_only: true
 examples:
   - examples/finite-difference/Si/harmonic

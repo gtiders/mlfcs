@@ -3,7 +3,7 @@ title: Wick contractions and Taylor cross-order leakage
 audience:
   - advanced
 status: stable
-code_verified: 4.0.0a5
+code_verified: 4.0.0a6
 ---
 
 # Wick contractions and Taylor cross-order leakage

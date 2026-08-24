@@ -3,7 +3,7 @@ title: 原生 SSCHA 模块
 audience:
   - advanced
 status: experimental
-code_verified: 4.0.0a5
+code_verified: 4.0.0a6
 ---
 
 # 原生 SSCHA 模块

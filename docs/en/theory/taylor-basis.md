@@ -3,7 +3,7 @@ title: Taylor basis
 audience:
   - advanced
 status: stable
-code_verified: 4.0.0a5
+code_verified: 4.0.0a6
 ---
 
 # Taylor basis

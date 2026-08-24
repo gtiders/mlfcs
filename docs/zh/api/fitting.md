@@ -3,7 +3,7 @@ title: 力常数拟合
 audience:
   - advanced
 status: stable
-code_verified: 4.0.0a5
+code_verified: 4.0.0a6
 ---
 # 力常数拟合
 

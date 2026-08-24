@@ -3,7 +3,7 @@ title: Taylor 阶数与体数
 audience:
   - user
 status: stable
-code_verified: 4.0.0a5
+code_verified: 4.0.0a6
 ---
 
 # Taylor 阶数与体数

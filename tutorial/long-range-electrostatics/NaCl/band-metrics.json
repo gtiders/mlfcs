@@ -1,0 +1,40 @@
+{
+  "MLFCS short-force fit + restored LR + NAC": {
+    "maximum_frequency_difference_thz": 0.11648212566861105,
+    "rms_frequency_difference_thz": 0.02648013487933804
+  },
+  "MLFCS total-force fit + NAC": {
+    "maximum_frequency_difference_thz": 0.5897835693106286,
+    "rms_frequency_difference_thz": 0.1224411272072444
+  },
+  "Phonopy finite difference + NAC": {
+    "maximum_frequency_difference_thz": 0.0,
+    "rms_frequency_difference_thz": 0.0
+  },
+  "correction_assessment": {
+    "corrected_is_closer": true,
+    "rms_improvement_fraction": 0.7837316963399263
+  },
+  "hiPhive short-force fit + restored LR + NAC": {
+    "maximum_frequency_difference_thz": 0.1164821254595414,
+    "rms_frequency_difference_thz": 0.026480135087225937
+  },
+  "hiPhive total-force fit + NAC": {
+    "maximum_frequency_difference_thz": 0.5897835685557791,
+    "rms_frequency_difference_thz": 0.12244112704274686
+  },
+  "mlfcs_vs_hiphive_fc2": {
+    "restored": {
+      "maximum_absolute_difference_ev_per_angstrom2": 8.795173478404195e-10,
+      "relative_frobenius_difference": 4.273495670329369e-10
+    },
+    "short": {
+      "maximum_absolute_difference_ev_per_angstrom2": 8.795160155727899e-10,
+      "relative_frobenius_difference": 4.1387320458856925e-10
+    },
+    "total": {
+      "maximum_absolute_difference_ev_per_angstrom2": 9.3342089613202e-10,
+      "relative_frobenius_difference": 4.159516160526783e-10
+    }
+  }
+}

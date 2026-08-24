@@ -1,0 +1,13 @@
+{
+  "fitting_basis": "taylor",
+  "iterations": 12,
+  "maximum_center_of_mass_displacement_A": 4.783494172430996e-10,
+  "maximum_constraint_residual": 9.71445146547012e-17,
+  "maximum_snapshot_net_force_eV_per_A": 5.099019465116989e-08,
+  "order_force_rms_eV_per_A": {
+    "2": 0.14562218831943496
+  },
+  "stop_code": 0,
+  "training_force_rmse_eV_per_A": 0.00499585285078316,
+  "training_relative_force_error": 0.03428677679457567
+}

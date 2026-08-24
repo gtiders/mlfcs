@@ -1,0 +1,108 @@
+An NVIDIA GPU may be present on this machine, but a CUDA-enabled jaxlib is not installed. Falling back to cpu.
+INFO mlfcs.fitting.fitter: Preparing independent FC2 fitting parameterization
+INFO mlfcs.interactions.space: Creating reference supercell with matrix [[-4, 4, 4], [4, -4, 4], [4, 4, -4]]
+INFO mlfcs.interactions.space: 2 primitive atoms, 512 supercell atoms
+INFO mlfcs.interactions.space: Resolving the interaction cutoff
+INFO mlfcs.interactions.space: Cutoff radius: 11.0000000000 Å
+INFO mlfcs.interactions.space: Analyzing crystal symmetries
+INFO mlfcs.interactions.space: Space group Fm-3m
+INFO mlfcs.interactions.space: 48 symmetry operations
+INFO mlfcs.interactions.space: Finding symmetry-inequivalent order-2 interaction clusters
+INFO mlfcs.interactions.space: 23 cluster equivalence classes
+INFO mlfcs.interactions.space: 76 independent tensor parameters
+INFO mlfcs.interactions.space: Maximum body order: 2
+INFO mlfcs.fitting.fitter: - FC2: 23 orbits, 76 parameters
+INFO mlfcs.fitting.fitter: - Joint parameter count: 76
+INFO mlfcs.fitting.fitter: Training-data diagnostics (inputs are not recentered)
+INFO mlfcs.fitting.fitter: - Maximum reference force: 0.0000000000e+00 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum snapshot net force: 5.9999999997e-08 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum center-of-mass displacement: 1.9529310872e-05 Å
+INFO mlfcs.fitting.fitter: Constraint system: 2 rows after duplicate removal (18 ASR before compression)
+INFO mlfcs.fitting.linear_solvers: Explicit constraint parameterization: 76 -> 74 parameters in 30 blocks, rank=2, nnz=135
+INFO mlfcs.fitting.design_operator: - Prepared JAX feature program: 9 signatures, 9 tiles, 1.2 MiB static buffers
+INFO mlfcs.fitting.gram_system: Accumulating streamed Gram system: 74 x 74 (0.0 MiB), effective_batch_size=1, backend=SciPy/OpenBLAS CPU
+INFO mlfcs.fitting.gram_system: - Physical design kernel groups: 9, 9 bounded tiles
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.12 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.09 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.08 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.09 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.09 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.08 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.10 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.11 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.10 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 1/2, elapsed=0.86 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 2/2, elapsed=0.90 s
+INFO mlfcs.fitting.gram_system: - Streamed Gram system ready in 0.90 s
+INFO mlfcs.fitting.gram_system: - Gram phase timing: kernel=0.89 s, transfer=0.00 s, scatter=0.00 s, constraint reduction=0.00 s, BLAS=0.00 s
+INFO mlfcs.fitting.fitter: Column-norm preconditioning in constrained coordinates
+INFO mlfcs.fitting.fitter: - Inverse column scale: 1.250010e+01 to 9.701519e+01
+INFO mlfcs.fitting.fitter: Solving the force-only least-squares problem with streamed Gram
+INFO mlfcs.fitting.fitter: - Equations: 3072, unknowns: 74
+INFO mlfcs.fitting.fitter: - Maximum joint constraint residual: 1.301043e-18
+INFO mlfcs.fitting.fitter: Force fitting summary
+INFO mlfcs.fitting.fitter: - Training relative error: 4.555639 %
+INFO mlfcs.fitting.fitter: - Validation relative error: 4.555639 %
+INFO mlfcs.fitting.fitter: - Training force RMSE: 2.6519393544e-05 eV/Å
+INFO mlfcs.fitting.fitter: - Validation force RMSE: 2.6519393544e-05 eV/Å
+INFO mlfcs.fitting.fitter: - FC2 force contribution RMS: 5.8151793524e-04 eV/Å
+INFO mlfcs.fitting.fitter: - JAX execution guard: 1 prepared program, 9 signatures, 9 tiles, Gram passes=1, prediction passes=0
+INFO mlfcs.fitting.fitter: - Solver iterations=19, stop_code=0
+INFO mlfcs.fitting.fitter: Expanding fitted Taylor parameters into sparse physical IFCs
+INFO mlfcs.fitting.fitter: - Expanded 502 sparse tensors in 0.01 s
+INFO mlfcs.force_constants.realization: Export view cache miss; constructing new view
+INFO mlfcs.force_constants.realization: Export view cache hit; reusing existing view
+INFO mlfcs.fitting.fitter: Preparing independent FC2 fitting parameterization
+INFO mlfcs.interactions.space: Creating reference supercell with matrix [[-4, 4, 4], [4, -4, 4], [4, 4, -4]]
+INFO mlfcs.interactions.space: 2 primitive atoms, 512 supercell atoms
+INFO mlfcs.interactions.space: Resolving the interaction cutoff
+INFO mlfcs.interactions.space: Cutoff radius: 11.0000000000 Å
+INFO mlfcs.interactions.space: Analyzing crystal symmetries
+INFO mlfcs.interactions.space: Space group Fm-3m
+INFO mlfcs.interactions.space: 48 symmetry operations
+INFO mlfcs.interactions.space: Finding symmetry-inequivalent order-2 interaction clusters
+INFO mlfcs.interactions.space: 23 cluster equivalence classes
+INFO mlfcs.interactions.space: 76 independent tensor parameters
+INFO mlfcs.interactions.space: Maximum body order: 2
+INFO mlfcs.fitting.fitter: - FC2: 23 orbits, 76 parameters
+INFO mlfcs.fitting.fitter: - Joint parameter count: 76
+INFO mlfcs.fitting.fitter: Training-data diagnostics (inputs are not recentered)
+INFO mlfcs.fitting.fitter: - Maximum reference force: 0.0000000000e+00 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum snapshot net force: 4.7780749262e-07 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum center-of-mass displacement: 1.9529310872e-05 Å
+INFO mlfcs.fitting.fitter: Constraint system: 2 rows after duplicate removal (18 ASR before compression)
+INFO mlfcs.fitting.linear_solvers: Explicit constraint parameterization: 76 -> 74 parameters in 30 blocks, rank=2, nnz=135
+INFO mlfcs.fitting.design_operator: - Prepared JAX feature program: 9 signatures, 9 tiles, 1.2 MiB static buffers
+INFO mlfcs.fitting.gram_system: Accumulating streamed Gram system: 74 x 74 (0.0 MiB), effective_batch_size=1, backend=SciPy/OpenBLAS CPU
+INFO mlfcs.fitting.gram_system: - Physical design kernel groups: 9, 9 bounded tiles
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.01 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.01 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.02 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.01 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 1/2, elapsed=0.07 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 2/2, elapsed=0.10 s
+INFO mlfcs.fitting.gram_system: - Streamed Gram system ready in 0.10 s
+INFO mlfcs.fitting.gram_system: - Gram phase timing: kernel=0.09 s, transfer=0.00 s, scatter=0.00 s, constraint reduction=0.00 s, BLAS=0.00 s
+INFO mlfcs.fitting.fitter: Column-norm preconditioning in constrained coordinates
+INFO mlfcs.fitting.fitter: - Inverse column scale: 1.250010e+01 to 9.701519e+01
+INFO mlfcs.fitting.fitter: Solving the force-only least-squares problem with streamed Gram
+INFO mlfcs.fitting.fitter: - Equations: 3072, unknowns: 74
+INFO mlfcs.fitting.fitter: - Maximum joint constraint residual: 1.496199e-17
+INFO mlfcs.fitting.fitter: Force fitting summary
+INFO mlfcs.fitting.fitter: - Training relative error: 2.469162 %
+INFO mlfcs.fitting.fitter: - Validation relative error: 2.469162 %
+INFO mlfcs.fitting.fitter: - Training force RMSE: 1.4842226110e-05 eV/Å
+INFO mlfcs.fitting.fitter: - Validation force RMSE: 1.4842226110e-05 eV/Å
+INFO mlfcs.fitting.fitter: - FC2 force contribution RMS: 6.0092042541e-04 eV/Å
+INFO mlfcs.fitting.fitter: - JAX execution guard: 1 prepared program, 9 signatures, 9 tiles, Gram passes=1, prediction passes=0
+INFO mlfcs.fitting.fitter: - Solver iterations=19, stop_code=0
+INFO mlfcs.fitting.fitter: Expanding fitted Taylor parameters into sparse physical IFCs
+INFO mlfcs.fitting.fitter: - Expanded 502 sparse tensors in 0.01 s
+INFO mlfcs.force_constants.realization: Export view cache miss; constructing new view
+INFO mlfcs.force_constants.realization: Export view cache hit; reusing existing view
+wrote direct, short-range, and restored MLFCS FC2 to /home/gwins/codespace/mlfcs-new/tutorial/long-range-electrostatics/NaCl

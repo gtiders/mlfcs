@@ -1,23 +1,46 @@
 """Run the complete Si FC2 finite-difference tutorial with a NEP calculator."""
 
+from __future__ import annotations
+
 import json
+import logging
+import sys
+import traceback
 from pathlib import Path
 
 from ase.io import read, write
 from calorine.calculators import CPUNEP
 
-from mlfcs import ForceConstantCalculation, build_supercell, write_force_constants
-
+from mlfcs import (
+    FiniteDifferenceCalculation,
+    build_supercell,
+    write_force_constants,
+)
 
 MODEL = "Si_2022_NEP3_5body.txt"
+ROOT = Path(__file__).resolve().parent
 
 
-def main() -> None:
+class _Tee:
+    def __init__(self, terminal, log_file) -> None:
+        self._terminal, self._log_file = terminal, log_file
+
+    def write(self, text: str) -> int:
+        self._terminal.write(text)
+        self._log_file.write(text)
+        return len(text)
+
+    def flush(self) -> None:
+        self._terminal.flush()
+        self._log_file.flush()
+
+
+def _run() -> None:
     primitive = read("POSCAR.vasp")
     reference = build_supercell(primitive, (4, 4, 4))
     write("SPOSCAR", reference, format="vasp", direct=True, sort=False, vasp5=True)
     calculator = CPUNEP(str(MODEL))
-    calculation = ForceConstantCalculation(
+    calculation = FiniteDifferenceCalculation(
         primitive,
         order=2,
         reference=reference,
@@ -45,6 +68,24 @@ def main() -> None:
         json.dumps(force_constants.metadata, indent=2, default=str) + "\n",
         encoding="utf-8",
     )
+
+
+def main() -> None:
+    with (ROOT / "run.log").open("w", encoding="utf-8") as log_file:
+        handler = logging.StreamHandler(log_file)
+        handler.setFormatter(logging.Formatter("%(levelname)s %(name)s: %(message)s"))
+        package_logger = logging.getLogger("mlfcs")
+        package_logger.addHandler(handler)
+        stdout, stderr = sys.stdout, sys.stderr
+        sys.stdout, sys.stderr = _Tee(stdout, log_file), _Tee(stderr, log_file)
+        try:
+            _run()
+        except BaseException:
+            traceback.print_exc()
+            raise
+        finally:
+            sys.stdout, sys.stderr = stdout, stderr
+            package_logger.removeHandler(handler)
 
 
 if __name__ == "__main__":

@@ -3,7 +3,7 @@ title: Long-range electrostatics
 audience:
   - advanced
 status: planned
-code_verified: 4.0.0a5
+code_verified: 4.0.0a6
 ---
 
 # Long-range electrostatics

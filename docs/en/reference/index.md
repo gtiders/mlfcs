@@ -3,7 +3,7 @@ title: Reference Manual
 audience:
   - advanced
 status: stable
-code_verified: 4.0.0a5
+code_verified: 4.0.0a6
 ---
 
 # API Reference
@@ -14,6 +14,7 @@ exceptions, and minimal examples. It does not mirror the package directory autom
 - [Finite-difference API](finite-difference-api.md)
 - [Fitting API](fitting-api.md)
 - [Force-constant API](force-constants-api.md)
+- [ASE Calculator](calculator-api.md)
 - [Constraint API](constraints-api.md)
 - [SCPH API](scph-api.md)
 - [SSCHA and sampling API](sscha-api.md)

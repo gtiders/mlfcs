@@ -1,45 +1,44 @@
-Preparing order-2 force-constant calculation
-Creating reference supercell with matrix [[4, 0, 0], [0, 4, 0], [0, 0, 4]]
-- 2 primitive atoms, 128 supercell atoms
-Resolving the interaction cutoff
-- Cutoff radius: 7.7237404951 Å
-Analyzing crystal symmetries
-- Space group Fd-3m
-- 48 symmetry operations
-Finding symmetry-inequivalent order-2 interaction clusters
-- 9 cluster equivalence classes
-- 28 independent tensor parameters
-Derivative backend: zero-step extrapolation
-- Displacement grid: 0.0060000000, 0.0080000000, 0.0100000000, 0.0120000000, 0.0140000000 Å
-- Polynomial degree in h^2: 1
-- 5 central-difference subplans
-- 30 force calculations required
-Evaluating displacement step 0.0060000000 Å
-- Forces: 1/30 (3%)
-- Forces: 3/30 (10%)
-- Forces: 6/30 (20%)
-Evaluating displacement step 0.0080000000 Å
-- Forces: 9/30 (30%)
-- Forces: 12/30 (40%)
-Evaluating displacement step 0.0100000000 Å
-- Forces: 15/30 (50%)
-- Forces: 18/30 (60%)
-Evaluating displacement step 0.0120000000 Å
-- Forces: 21/30 (70%)
-- Forces: 24/30 (80%)
-Evaluating displacement step 0.0140000000 Å
-- Forces: 27/30 (90%)
-- Forces: 30/30 (100%)
-Zero-step derivative extrapolation
-- Maximum correction from central displacement: 5.2314864027e-04 eV/angstrom^2
-- Relative L2 correction: 4.9890348191e-05
-- Maximum polynomial fit residual: 4.1060470579e-08 eV/angstrom^2
-Reconstructing symmetry-expanded force constants (ASR enabled)
-- Max drift of fc2: 1.1205313957e-01 -> 7.1054273576e-15 eV/angstrom^2
-- ASR parameter correction: maximum=2.5870854735e-03 eV/angstrom^2, relative L2=3.2648476983e-04
-- Reconstructed 174 sparse cluster tensors
-MLFCS export view: cache miss; constructing new view
-MLFCS export view: constructed in 0.080400 s
-MLFCS export view: cache hit; reusing existing view
-MLFCS export view: cache hit; reusing existing view
+INFO mlfcs.finite_difference.calculation: Preparing order-2 finite-difference calculation
+INFO mlfcs.interactions.space: Creating reference supercell with matrix [[4, 0, 0], [0, 4, 0], [0, 0, 4]]
+INFO mlfcs.interactions.space: 2 primitive atoms, 128 supercell atoms
+INFO mlfcs.interactions.space: Resolving the interaction cutoff
+INFO mlfcs.interactions.space: Cutoff radius: 7.7237404951 Å
+INFO mlfcs.interactions.space: Analyzing crystal symmetries
+INFO mlfcs.interactions.space: Space group Fd-3m
+INFO mlfcs.interactions.space: 48 symmetry operations
+INFO mlfcs.interactions.space: Finding symmetry-inequivalent order-2 interaction clusters
+INFO mlfcs.interactions.space: 9 cluster equivalence classes
+INFO mlfcs.interactions.space: 28 independent tensor parameters
+INFO mlfcs.finite_difference.calculation: Derivative backend: zero-step extrapolation
+INFO mlfcs.finite_difference.calculation: Displacement grid: 0.0060000000, 0.0080000000, 0.0100000000, 0.0120000000, 0.0140000000 Å
+INFO mlfcs.finite_difference.calculation: Polynomial degree in h^2: 1
+INFO mlfcs.finite_difference.calculation: 5 central-difference subplans
+INFO mlfcs.finite_difference.calculation: 30 force calculations required
+INFO mlfcs.finite_difference.calculation: Evaluating displacement step 0.0060000000 Å
+INFO mlfcs.finite_difference.calculation: Forces: 1/30 (3%)
+INFO mlfcs.finite_difference.calculation: Forces: 3/30 (10%)
+INFO mlfcs.finite_difference.calculation: Forces: 6/30 (20%)
+INFO mlfcs.finite_difference.calculation: Evaluating displacement step 0.0080000000 Å
+INFO mlfcs.finite_difference.calculation: Forces: 9/30 (30%)
+INFO mlfcs.finite_difference.calculation: Forces: 12/30 (40%)
+INFO mlfcs.finite_difference.calculation: Evaluating displacement step 0.0100000000 Å
+INFO mlfcs.finite_difference.calculation: Forces: 15/30 (50%)
+INFO mlfcs.finite_difference.calculation: Forces: 18/30 (60%)
+INFO mlfcs.finite_difference.calculation: Evaluating displacement step 0.0120000000 Å
+INFO mlfcs.finite_difference.calculation: Forces: 21/30 (70%)
+INFO mlfcs.finite_difference.calculation: Forces: 24/30 (80%)
+INFO mlfcs.finite_difference.calculation: Evaluating displacement step 0.0140000000 Å
+INFO mlfcs.finite_difference.calculation: Forces: 27/30 (90%)
+INFO mlfcs.finite_difference.calculation: Forces: 30/30 (100%)
+INFO mlfcs.finite_difference.calculation: Zero-step derivative extrapolation
+INFO mlfcs.finite_difference.calculation: - Maximum correction from central displacement: 5.2314864027e-04 eV/angstrom^2
+INFO mlfcs.finite_difference.calculation: Relative L2 correction: 4.9890348191e-05
+INFO mlfcs.finite_difference.calculation: - Maximum polynomial fit residual: 4.1060470579e-08 eV/angstrom^2
+INFO mlfcs.finite_difference.calculation: Reconstructing symmetry-expanded force constants (ASR enabled)
+INFO mlfcs.finite_difference.calculation: - Max drift of fc2: 1.1205313957e-01 -> 5.3290705182e-15 eV/angstrom^2
+INFO mlfcs.finite_difference.calculation: - ASR parameter correction: maximum=2.5870854735e-03 eV/angstrom^2, relative L2=3.2648476983e-04
+INFO mlfcs.finite_difference.calculation: Reconstructed 174 sparse cluster tensors
+INFO mlfcs.force_constants.realization: Export view cache miss; constructing new view
+INFO mlfcs.force_constants.realization: Export view cache hit; reusing existing view
+INFO mlfcs.force_constants.realization: Export view cache hit; reusing existing view
 wrote extrapolation.log

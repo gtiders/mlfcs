@@ -3,7 +3,7 @@ title: MLFCS
 audience:
   - beginner
 status: stable
-code_verified: 4.0.0a5
+code_verified: 4.0.0a6
 ---
 
 <p align="center">
@@ -25,6 +25,7 @@ MLFCS 是一个以 ASE 为公共边界、从原子力构造对称约化谐性与
 - 使用 primitive site 与精确整数平移表示力常数，并以原生 HDF5 v3 稀疏存储。
 - 平移约束，以及显式的 FC2 Born–Huang/Huang 后处理。
 - 目标超胞 realization，以及 phonopy、phono3py、ShengBTE 和 ALAMODE writer。
+- 从 canonical Taylor IFC 构造 ASE Calculator，计算固定晶格上的相对能量与原子力。
 - FC4 loop SCPH 和随机有效谐波 SSCHA 工作流。
 
 MLFCS 是 Python 函数库，不是命令行应用。力的产生始终由用户自己的 ASE calculator 或外部电子结构工作流控制。
@@ -63,6 +64,7 @@ write_force_constants(fc2, "mlfcs.h5", format="hdf5")
 | 对 FC2 施加旋转条件 | [旋转约束](tutorials/rotational-constraints.md) |
 | 计算 FC4 loop 修正 | [SCPH 工作流](tutorials/scph-workflow.md) |
 | 计算随机有效 FC2 | [SSCHA 工作流](tutorials/sscha-workflow.md) |
+| 将拟合后的 Taylor IFC 用作 ASE 势 | [ASE Calculator API](reference/calculator-api.md) |
 
 ## 计算前先确定结构
 

@@ -1,0 +1,20 @@
+{
+  "order": 2,
+  "cutoff_angstrom": 7.723740495133356,
+  "displacement_angstrom": 0.01,
+  "spacegroup": "Fd-3m",
+  "acoustic_sum_rule": true,
+  "derivative_backend": "extrapolate",
+  "configurations": 30,
+  "extrapolation_grid_angstrom": [
+    0.006,
+    0.008,
+    0.01,
+    0.012,
+    0.014
+  ],
+  "extrapolation_degree": 1,
+  "extrapolation_maximum_correction": 0.0005231486402692553,
+  "extrapolation_relative_l2_correction": 4.989034819055332e-05,
+  "extrapolation_maximum_fit_residual": 4.1060470579168395e-08
+}

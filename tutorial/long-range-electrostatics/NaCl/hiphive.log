@@ -1,0 +1,37 @@
+Primitive cell:
+    Formula: ClNa
+    Cell:
+        [  0.00000   2.84515   2.84515]
+        [  2.84515   0.00000   2.84515]
+        [  2.84515   2.84515   0.00000]
+    Basis:
+        Na  [  0.00000   0.00000   0.00000]
+        Cl  [  0.50000   0.50000   0.50000]
+
+Crystal symmetry:
+    Spacegroup:          Fm-3m (225)
+    Unique site:         2
+    Symmetry operations: 48
+    symprec:             1.00e-05
+
+Cutoffs:
+    Maximum cutoff: 11.0
+    Found 2 center atoms with 334 images totaling 336 atoms
+
+Clusters:
+    Clusters: {2: 501}
+    Total number of clusters: 501
+
+Orbits:
+    Orbits: {2: 23}
+    Total number of orbits: 23
+
+Eigentensors:
+    Eigentensors: {2: 76}
+    Total number of parameters: 76
+
+Constraints:
+    Acoustic: True
+    Number of degrees of freedom: {2: 74}
+    Total number of degrees of freedom: 74
+wrote official-style hiPhive direct and corrected FC2 to /home/gwins/codespace/mlfcs-new/tutorial/long-range-electrostatics/NaCl

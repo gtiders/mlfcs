@@ -3,7 +3,7 @@ title: Joint FC2 and FC3 fitting
 audience:
   - user
 status: stable
-code_verified: 4.0.0a5
+code_verified: 4.0.0a6
 ---
 
 # Joint FC2 and FC3 fitting

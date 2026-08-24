@@ -1,0 +1,1539 @@
+An NVIDIA GPU may be present on this machine, but a CUDA-enabled jaxlib is not installed. Falling back to cpu.
+INFO mlfcs.fitting.fitter: Preparing independent FC2 fitting parameterization
+INFO mlfcs.interactions.space: Creating reference supercell with matrix [[2, 0, 0], [0, 2, 0], [0, 0, 3]]
+INFO mlfcs.interactions.space: 10 primitive atoms, 120 supercell atoms
+INFO mlfcs.interactions.space: Resolving the interaction cutoff
+INFO mlfcs.interactions.space: Cutoff radius: 6.0000000000 Å
+INFO mlfcs.interactions.space: Analyzing crystal symmetries
+INFO mlfcs.interactions.space: Space group Cmcm
+INFO mlfcs.interactions.space: 8 symmetry operations
+INFO mlfcs.interactions.space: Finding symmetry-inequivalent order-2 interaction clusters
+INFO mlfcs.interactions.space: 32 cluster equivalence classes
+INFO mlfcs.interactions.space: 188 independent tensor parameters
+INFO mlfcs.fitting.fitter: - FC2: 32 orbits, 188 parameters
+INFO mlfcs.fitting.fitter: - Joint parameter count: 188
+INFO mlfcs.sampling.structures: Generated 100 gaussian perturbation structures
+INFO mlfcs.physics.sscha.solver: SSCHA iteration 0/30: cartesian sampling
+INFO mlfcs.fitting.fitter: Training-data diagnostics (inputs are not recentered)
+INFO mlfcs.fitting.fitter: - Maximum reference force: 0.0000000000e+00 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum snapshot net force: 2.1054483971e-15 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum center-of-mass displacement: 5.7884738811e-16 Å
+INFO mlfcs.fitting.fitter: Constraint system: 16 rows after duplicate removal (90 ASR before compression)
+INFO mlfcs.fitting.linear_solvers: Explicit constraint parameterization: 188 -> 172 parameters in 49 blocks, rank=16, nnz=446
+INFO mlfcs.fitting.design_operator: - Prepared JAX feature program: 7 signatures, 7 tiles, 0.2 MiB static buffers
+INFO mlfcs.fitting.gram_system: Accumulating streamed Gram system: 172 x 172 (0.2 MiB), effective_batch_size=1, backend=SciPy/OpenBLAS CPU
+INFO mlfcs.fitting.gram_system: - Physical design kernel groups: 7, 7 bounded tiles
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.44 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.44 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.46 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.41 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.58 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.29 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.50 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 1/100, elapsed=3.17 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 20/100, elapsed=3.95 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 40/100, elapsed=4.65 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 60/100, elapsed=5.27 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 80/100, elapsed=5.91 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 100/100, elapsed=6.55 s
+INFO mlfcs.fitting.gram_system: - Streamed Gram system ready in 6.55 s
+INFO mlfcs.fitting.gram_system: - Gram phase timing: kernel=3.94 s, transfer=0.02 s, scatter=0.12 s, constraint reduction=0.05 s, BLAS=2.32 s
+INFO mlfcs.fitting.fitter: Column-norm preconditioning in constrained coordinates
+INFO mlfcs.fitting.fitter: - Inverse column scale: 3.545539e-01 to 1.749126e+00
+INFO mlfcs.fitting.fitter: Solving the force-only least-squares problem with streamed Gram
+INFO mlfcs.fitting.fitter: - Equations: 36000, unknowns: 172
+INFO mlfcs.fitting.fitter: - Maximum joint constraint residual: 3.885781e-16
+INFO mlfcs.fitting.fitter: Force fitting summary
+INFO mlfcs.fitting.fitter: - Training relative error: 5.286301 %
+INFO mlfcs.fitting.fitter: - Validation relative error: 5.286301 %
+INFO mlfcs.fitting.fitter: - Training force RMSE: 4.3571711668e-03 eV/Å
+INFO mlfcs.fitting.fitter: - Validation force RMSE: 4.3571711668e-03 eV/Å
+INFO mlfcs.fitting.fitter: - FC2 force contribution RMS: 8.2308576040e-02 eV/Å
+INFO mlfcs.fitting.fitter: - JAX execution guard: 1 prepared program, 7 signatures, 7 tiles, Gram passes=1, prediction passes=0
+INFO mlfcs.fitting.fitter: - Solver iterations=30, stop_code=0
+INFO mlfcs.fitting.fitter: Expanding fitted Taylor parameters into sparse physical IFCs
+INFO mlfcs.fitting.fitter: - Expanded 286 sparse tensors in 0.02 s
+WARNING mlfcs.sampling.harmonic: Imaginary harmonic modes use policy 'absolute'; frequencies below 1.000e-06 THz will not raise an exception
+INFO mlfcs.physics.sscha.solver: - Fitting relative force error: 5.286301 %
+INFO mlfcs.force_constants.realization: Export view cache miss; constructing new view
+WARNING mlfcs.sampling.harmonic: Imaginary harmonic modes use policy 'absolute'; frequencies below 1.000e-06 THz will not raise an exception
+INFO mlfcs.sampling.structures: Generated 100 harmonic perturbation structures
+INFO mlfcs.sampling.structures: Harmonic sampling: qpoints=12, sampled_modes=357/357, minimum_frequency=0.46550299 THz
+INFO mlfcs.physics.sscha.solver: SSCHA iteration 1/30: canonical sampling
+INFO mlfcs.physics.sscha.solver: q points: 12
+INFO mlfcs.physics.sscha.solver: - sampled modes: 357/357, imaginary=0, excluded=0
+INFO mlfcs.physics.sscha.solver: - maximum sampled atomic displacement: 0.91890211 Å
+INFO mlfcs.physics.sscha.solver: maximum displacement limit: disabled
+INFO mlfcs.fitting.fitter: Training-data diagnostics (inputs are not recentered)
+INFO mlfcs.fitting.fitter: - Maximum reference force: 0.0000000000e+00 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum snapshot net force: 4.8192503966e-15 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum center-of-mass displacement: 2.9773405093e-02 Å
+INFO mlfcs.fitting.fitter: Constraint system: 16 rows after duplicate removal (90 ASR before compression)
+INFO mlfcs.fitting.linear_solvers: Explicit constraint parameterization: 188 -> 172 parameters in 49 blocks, rank=16, nnz=446
+INFO mlfcs.fitting.design_operator: - Prepared JAX feature program: 7 signatures, 7 tiles, 0.2 MiB static buffers
+INFO mlfcs.fitting.gram_system: Accumulating streamed Gram system: 172 x 172 (0.2 MiB), effective_batch_size=1, backend=SciPy/OpenBLAS CPU
+INFO mlfcs.fitting.gram_system: - Physical design kernel groups: 7, 7 bounded tiles
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 1/100, elapsed=0.01 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 20/100, elapsed=0.15 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 40/100, elapsed=0.29 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 60/100, elapsed=0.42 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 80/100, elapsed=0.56 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 100/100, elapsed=0.70 s
+INFO mlfcs.fitting.gram_system: - Streamed Gram system ready in 0.70 s
+INFO mlfcs.fitting.gram_system: - Gram phase timing: kernel=0.51 s, transfer=0.01 s, scatter=0.08 s, constraint reduction=0.03 s, BLAS=0.03 s
+INFO mlfcs.fitting.fitter: Column-norm preconditioning in constrained coordinates
+INFO mlfcs.fitting.fitter: - Inverse column scale: 1.935948e-02 to 2.012679e-01
+INFO mlfcs.fitting.fitter: Solving the force-only least-squares problem with streamed Gram
+INFO mlfcs.fitting.fitter: - Equations: 36000, unknowns: 172
+INFO mlfcs.fitting.fitter: - Maximum joint constraint residual: 4.718448e-16
+INFO mlfcs.fitting.fitter: Force fitting summary
+INFO mlfcs.fitting.fitter: - Training relative error: 52.012097 %
+INFO mlfcs.fitting.fitter: - Validation relative error: 52.012097 %
+INFO mlfcs.fitting.fitter: - Training force RMSE: 1.8935324285e-01 eV/Å
+INFO mlfcs.fitting.fitter: - Validation force RMSE: 1.8935324285e-01 eV/Å
+INFO mlfcs.fitting.fitter: - FC2 force contribution RMS: 3.1093767011e-01 eV/Å
+INFO mlfcs.fitting.fitter: - JAX execution guard: 1 prepared program, 7 signatures, 7 tiles, Gram passes=1, prediction passes=0
+INFO mlfcs.fitting.fitter: - Solver iterations=86, stop_code=0
+INFO mlfcs.fitting.fitter: Expanding fitted Taylor parameters into sparse physical IFCs
+INFO mlfcs.fitting.fitter: - Expanded 286 sparse tensors in 0.03 s
+INFO mlfcs.physics.sscha.solver: - Fitting relative force error: 52.012097 %
+INFO mlfcs.physics.sscha.solver: Relative FC2 change: 6.460655e-02
+INFO mlfcs.physics.sscha.solver: - Variational free-energy estimate: -5.6252221608e-01 +/- 2.808e-03 eV/primitive cell
+INFO mlfcs.force_constants.realization: Export view cache miss; constructing new view
+WARNING mlfcs.sampling.harmonic: Imaginary harmonic modes use policy 'absolute'; frequencies below 1.000e-06 THz will not raise an exception
+INFO mlfcs.sampling.structures: Generated 100 harmonic perturbation structures
+INFO mlfcs.sampling.structures: Harmonic sampling: qpoints=12, sampled_modes=357/357, minimum_frequency=0.64559451 THz
+INFO mlfcs.physics.sscha.solver: SSCHA iteration 2/30: canonical sampling
+INFO mlfcs.physics.sscha.solver: q points: 12
+INFO mlfcs.physics.sscha.solver: - sampled modes: 357/357, imaginary=0, excluded=0
+INFO mlfcs.physics.sscha.solver: - maximum sampled atomic displacement: 0.57898894 Å
+INFO mlfcs.physics.sscha.solver: maximum displacement limit: disabled
+INFO mlfcs.fitting.fitter: Training-data diagnostics (inputs are not recentered)
+INFO mlfcs.fitting.fitter: - Maximum reference force: 0.0000000000e+00 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum snapshot net force: 4.0541434038e-15 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum center-of-mass displacement: 2.2627675189e-02 Å
+INFO mlfcs.fitting.fitter: Constraint system: 16 rows after duplicate removal (90 ASR before compression)
+INFO mlfcs.fitting.linear_solvers: Explicit constraint parameterization: 188 -> 172 parameters in 49 blocks, rank=16, nnz=446
+INFO mlfcs.fitting.design_operator: - Prepared JAX feature program: 7 signatures, 7 tiles, 0.2 MiB static buffers
+INFO mlfcs.fitting.gram_system: Accumulating streamed Gram system: 172 x 172 (0.2 MiB), effective_batch_size=1, backend=SciPy/OpenBLAS CPU
+INFO mlfcs.fitting.gram_system: - Physical design kernel groups: 7, 7 bounded tiles
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.01 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 1/100, elapsed=0.05 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 20/100, elapsed=0.77 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 40/100, elapsed=1.59 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 60/100, elapsed=2.29 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 80/100, elapsed=2.88 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 100/100, elapsed=3.50 s
+INFO mlfcs.fitting.gram_system: - Streamed Gram system ready in 3.50 s
+INFO mlfcs.fitting.gram_system: - Gram phase timing: kernel=0.98 s, transfer=0.02 s, scatter=0.15 s, constraint reduction=0.05 s, BLAS=2.22 s
+INFO mlfcs.fitting.fitter: Column-norm preconditioning in constrained coordinates
+INFO mlfcs.fitting.fitter: - Inverse column scale: 2.645354e-02 to 2.522255e-01
+INFO mlfcs.fitting.fitter: Solving the force-only least-squares problem with streamed Gram
+INFO mlfcs.fitting.fitter: - Equations: 36000, unknowns: 172
+INFO mlfcs.fitting.fitter: - Maximum joint constraint residual: 2.775558e-16
+INFO mlfcs.fitting.fitter: Force fitting summary
+INFO mlfcs.fitting.fitter: - Training relative error: 29.716538 %
+INFO mlfcs.fitting.fitter: - Validation relative error: 29.716538 %
+INFO mlfcs.fitting.fitter: - Training force RMSE: 9.3098931373e-02 eV/Å
+INFO mlfcs.fitting.fitter: - Validation force RMSE: 9.3098931373e-02 eV/Å
+INFO mlfcs.fitting.fitter: - FC2 force contribution RMS: 2.9913740973e-01 eV/Å
+INFO mlfcs.fitting.fitter: - JAX execution guard: 1 prepared program, 7 signatures, 7 tiles, Gram passes=1, prediction passes=0
+INFO mlfcs.fitting.fitter: - Solver iterations=67, stop_code=0
+INFO mlfcs.fitting.fitter: Expanding fitted Taylor parameters into sparse physical IFCs
+INFO mlfcs.fitting.fitter: - Expanded 286 sparse tensors in 0.03 s
+INFO mlfcs.physics.sscha.solver: - Fitting relative force error: 29.716538 %
+INFO mlfcs.physics.sscha.solver: Relative FC2 change: 4.652008e-02
+INFO mlfcs.physics.sscha.solver: - Variational free-energy estimate: -5.8338197563e-01 +/- 7.764e-04 eV/primitive cell
+INFO mlfcs.force_constants.realization: Export view cache miss; constructing new view
+WARNING mlfcs.sampling.harmonic: Imaginary harmonic modes use policy 'absolute'; frequencies below 1.000e-06 THz will not raise an exception
+INFO mlfcs.sampling.structures: Generated 100 harmonic perturbation structures
+INFO mlfcs.sampling.structures: Harmonic sampling: qpoints=12, sampled_modes=357/357, minimum_frequency=0.56771080 THz
+INFO mlfcs.physics.sscha.solver: SSCHA iteration 3/30: canonical sampling
+INFO mlfcs.physics.sscha.solver: q points: 12
+INFO mlfcs.physics.sscha.solver: - sampled modes: 357/357, imaginary=0, excluded=0
+INFO mlfcs.physics.sscha.solver: - maximum sampled atomic displacement: 0.63473843 Å
+INFO mlfcs.physics.sscha.solver: maximum displacement limit: disabled
+INFO mlfcs.fitting.fitter: Training-data diagnostics (inputs are not recentered)
+INFO mlfcs.fitting.fitter: - Maximum reference force: 0.0000000000e+00 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum snapshot net force: 4.4551211405e-15 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum center-of-mass displacement: 2.6419869887e-02 Å
+INFO mlfcs.fitting.fitter: Constraint system: 16 rows after duplicate removal (90 ASR before compression)
+INFO mlfcs.fitting.linear_solvers: Explicit constraint parameterization: 188 -> 172 parameters in 49 blocks, rank=16, nnz=446
+INFO mlfcs.fitting.design_operator: - Prepared JAX feature program: 7 signatures, 7 tiles, 0.2 MiB static buffers
+INFO mlfcs.fitting.gram_system: Accumulating streamed Gram system: 172 x 172 (0.2 MiB), effective_batch_size=1, backend=SciPy/OpenBLAS CPU
+INFO mlfcs.fitting.gram_system: - Physical design kernel groups: 7, 7 bounded tiles
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 1/100, elapsed=0.01 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 20/100, elapsed=0.14 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 40/100, elapsed=0.27 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 60/100, elapsed=0.41 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 80/100, elapsed=0.52 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 100/100, elapsed=0.65 s
+INFO mlfcs.fitting.gram_system: - Streamed Gram system ready in 0.65 s
+INFO mlfcs.fitting.gram_system: - Gram phase timing: kernel=0.47 s, transfer=0.01 s, scatter=0.08 s, constraint reduction=0.03 s, BLAS=0.03 s
+INFO mlfcs.fitting.fitter: Column-norm preconditioning in constrained coordinates
+INFO mlfcs.fitting.fitter: - Inverse column scale: 2.595788e-02 to 2.261694e-01
+INFO mlfcs.fitting.fitter: Solving the force-only least-squares problem with streamed Gram
+INFO mlfcs.fitting.fitter: - Equations: 36000, unknowns: 172
+INFO mlfcs.fitting.fitter: - Maximum joint constraint residual: 2.220446e-16
+INFO mlfcs.fitting.fitter: Force fitting summary
+INFO mlfcs.fitting.fitter: - Training relative error: 33.129363 %
+INFO mlfcs.fitting.fitter: - Validation relative error: 33.129363 %
+INFO mlfcs.fitting.fitter: - Training force RMSE: 1.0548187591e-01 eV/Å
+INFO mlfcs.fitting.fitter: - Validation force RMSE: 1.0548187591e-01 eV/Å
+INFO mlfcs.fitting.fitter: - FC2 force contribution RMS: 3.0041347834e-01 eV/Å
+INFO mlfcs.fitting.fitter: - JAX execution guard: 1 prepared program, 7 signatures, 7 tiles, Gram passes=1, prediction passes=0
+INFO mlfcs.fitting.fitter: - Solver iterations=71, stop_code=0
+INFO mlfcs.fitting.fitter: Expanding fitted Taylor parameters into sparse physical IFCs
+INFO mlfcs.fitting.fitter: - Expanded 286 sparse tensors in 0.02 s
+INFO mlfcs.physics.sscha.solver: - Fitting relative force error: 33.129363 %
+INFO mlfcs.physics.sscha.solver: Relative FC2 change: 2.282146e-02
+INFO mlfcs.physics.sscha.solver: - Variational free-energy estimate: -5.9446188172e-01 +/- 7.141e-04 eV/primitive cell
+INFO mlfcs.force_constants.realization: Export view cache miss; constructing new view
+WARNING mlfcs.sampling.harmonic: Imaginary harmonic modes use policy 'absolute'; frequencies below 1.000e-06 THz will not raise an exception
+INFO mlfcs.sampling.structures: Generated 100 harmonic perturbation structures
+INFO mlfcs.sampling.structures: Harmonic sampling: qpoints=12, sampled_modes=357/357, minimum_frequency=0.58515160 THz
+INFO mlfcs.physics.sscha.solver: SSCHA iteration 4/30: canonical sampling
+INFO mlfcs.physics.sscha.solver: q points: 12
+INFO mlfcs.physics.sscha.solver: - sampled modes: 357/357, imaginary=0, excluded=0
+INFO mlfcs.physics.sscha.solver: - maximum sampled atomic displacement: 0.61525970 Å
+INFO mlfcs.physics.sscha.solver: maximum displacement limit: disabled
+INFO mlfcs.fitting.fitter: Training-data diagnostics (inputs are not recentered)
+INFO mlfcs.fitting.fitter: - Maximum reference force: 0.0000000000e+00 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum snapshot net force: 5.3493426805e-15 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum center-of-mass displacement: 2.2342775906e-02 Å
+INFO mlfcs.fitting.fitter: Constraint system: 16 rows after duplicate removal (90 ASR before compression)
+INFO mlfcs.fitting.linear_solvers: Explicit constraint parameterization: 188 -> 172 parameters in 49 blocks, rank=16, nnz=446
+INFO mlfcs.fitting.design_operator: - Prepared JAX feature program: 7 signatures, 7 tiles, 0.2 MiB static buffers
+INFO mlfcs.fitting.gram_system: Accumulating streamed Gram system: 172 x 172 (0.2 MiB), effective_batch_size=1, backend=SciPy/OpenBLAS CPU
+INFO mlfcs.fitting.gram_system: - Physical design kernel groups: 7, 7 bounded tiles
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 1/100, elapsed=0.01 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 20/100, elapsed=0.12 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 40/100, elapsed=0.22 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 60/100, elapsed=0.32 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 80/100, elapsed=0.42 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 100/100, elapsed=0.52 s
+INFO mlfcs.fitting.gram_system: - Streamed Gram system ready in 0.52 s
+INFO mlfcs.fitting.gram_system: - Gram phase timing: kernel=0.38 s, transfer=0.01 s, scatter=0.07 s, constraint reduction=0.02 s, BLAS=0.02 s
+INFO mlfcs.fitting.fitter: Column-norm preconditioning in constrained coordinates
+INFO mlfcs.fitting.fitter: - Inverse column scale: 2.637750e-02 to 2.256297e-01
+INFO mlfcs.fitting.fitter: Solving the force-only least-squares problem with streamed Gram
+INFO mlfcs.fitting.fitter: - Equations: 36000, unknowns: 172
+INFO mlfcs.fitting.fitter: - Maximum joint constraint residual: 2.498002e-16
+INFO mlfcs.fitting.fitter: Force fitting summary
+INFO mlfcs.fitting.fitter: - Training relative error: 29.886646 %
+INFO mlfcs.fitting.fitter: - Validation relative error: 29.886646 %
+INFO mlfcs.fitting.fitter: - Training force RMSE: 9.4181494277e-02 eV/Å
+INFO mlfcs.fitting.fitter: - Validation force RMSE: 9.4181494277e-02 eV/Å
+INFO mlfcs.fitting.fitter: - FC2 force contribution RMS: 3.0072603088e-01 eV/Å
+INFO mlfcs.fitting.fitter: - JAX execution guard: 1 prepared program, 7 signatures, 7 tiles, Gram passes=1, prediction passes=0
+INFO mlfcs.fitting.fitter: - Solver iterations=69, stop_code=0
+INFO mlfcs.fitting.fitter: Expanding fitted Taylor parameters into sparse physical IFCs
+INFO mlfcs.fitting.fitter: - Expanded 286 sparse tensors in 0.01 s
+INFO mlfcs.physics.sscha.solver: - Fitting relative force error: 29.886646 %
+INFO mlfcs.physics.sscha.solver: Relative FC2 change: 2.292059e-02
+INFO mlfcs.physics.sscha.solver: - Variational free-energy estimate: -5.9050942467e-01 +/- 6.245e-04 eV/primitive cell
+INFO mlfcs.force_constants.realization: Export view cache miss; constructing new view
+WARNING mlfcs.sampling.harmonic: Imaginary harmonic modes use policy 'absolute'; frequencies below 1.000e-06 THz will not raise an exception
+INFO mlfcs.sampling.structures: Generated 100 harmonic perturbation structures
+INFO mlfcs.sampling.structures: Harmonic sampling: qpoints=12, sampled_modes=357/357, minimum_frequency=0.58961134 THz
+INFO mlfcs.physics.sscha.solver: SSCHA iteration 5/30: canonical sampling
+INFO mlfcs.physics.sscha.solver: q points: 12
+INFO mlfcs.physics.sscha.solver: - sampled modes: 357/357, imaginary=0, excluded=0
+INFO mlfcs.physics.sscha.solver: - maximum sampled atomic displacement: 0.65941009 Å
+INFO mlfcs.physics.sscha.solver: maximum displacement limit: disabled
+INFO mlfcs.fitting.fitter: Training-data diagnostics (inputs are not recentered)
+INFO mlfcs.fitting.fitter: - Maximum reference force: 0.0000000000e+00 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum snapshot net force: 5.0104928393e-15 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum center-of-mass displacement: 2.6219953626e-02 Å
+INFO mlfcs.fitting.fitter: Constraint system: 16 rows after duplicate removal (90 ASR before compression)
+INFO mlfcs.fitting.linear_solvers: Explicit constraint parameterization: 188 -> 172 parameters in 49 blocks, rank=16, nnz=446
+INFO mlfcs.fitting.design_operator: - Prepared JAX feature program: 7 signatures, 7 tiles, 0.2 MiB static buffers
+INFO mlfcs.fitting.gram_system: Accumulating streamed Gram system: 172 x 172 (0.2 MiB), effective_batch_size=1, backend=SciPy/OpenBLAS CPU
+INFO mlfcs.fitting.gram_system: - Physical design kernel groups: 7, 7 bounded tiles
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 1/100, elapsed=0.06 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 20/100, elapsed=0.63 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 40/100, elapsed=1.29 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 60/100, elapsed=1.85 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 80/100, elapsed=2.54 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 100/100, elapsed=3.17 s
+INFO mlfcs.fitting.gram_system: - Streamed Gram system ready in 3.17 s
+INFO mlfcs.fitting.gram_system: - Gram phase timing: kernel=0.77 s, transfer=0.01 s, scatter=0.11 s, constraint reduction=0.05 s, BLAS=2.14 s
+INFO mlfcs.fitting.fitter: Column-norm preconditioning in constrained coordinates
+INFO mlfcs.fitting.fitter: - Inverse column scale: 2.523522e-02 to 2.253098e-01
+INFO mlfcs.fitting.fitter: Solving the force-only least-squares problem with streamed Gram
+INFO mlfcs.fitting.fitter: - Equations: 36000, unknowns: 172
+INFO mlfcs.fitting.fitter: - Maximum joint constraint residual: 3.330669e-16
+INFO mlfcs.fitting.fitter: Force fitting summary
+INFO mlfcs.fitting.fitter: - Training relative error: 30.911399 %
+INFO mlfcs.fitting.fitter: - Validation relative error: 30.911399 %
+INFO mlfcs.fitting.fitter: - Training force RMSE: 9.7698789639e-02 eV/Å
+INFO mlfcs.fitting.fitter: - Validation force RMSE: 9.7698789639e-02 eV/Å
+INFO mlfcs.fitting.fitter: - FC2 force contribution RMS: 3.0058164308e-01 eV/Å
+INFO mlfcs.fitting.fitter: - JAX execution guard: 1 prepared program, 7 signatures, 7 tiles, Gram passes=1, prediction passes=0
+INFO mlfcs.fitting.fitter: - Solver iterations=69, stop_code=0
+INFO mlfcs.fitting.fitter: Expanding fitted Taylor parameters into sparse physical IFCs
+INFO mlfcs.fitting.fitter: - Expanded 286 sparse tensors in 0.03 s
+INFO mlfcs.physics.sscha.solver: - Fitting relative force error: 30.911399 %
+INFO mlfcs.physics.sscha.solver: Relative FC2 change: 2.049898e-02
+INFO mlfcs.physics.sscha.solver: - Variational free-energy estimate: -5.9256619062e-01 +/- 6.595e-04 eV/primitive cell
+INFO mlfcs.force_constants.realization: Export view cache miss; constructing new view
+WARNING mlfcs.sampling.harmonic: Imaginary harmonic modes use policy 'absolute'; frequencies below 1.000e-06 THz will not raise an exception
+INFO mlfcs.sampling.structures: Generated 100 harmonic perturbation structures
+INFO mlfcs.sampling.structures: Harmonic sampling: qpoints=12, sampled_modes=357/357, minimum_frequency=0.58967586 THz
+INFO mlfcs.physics.sscha.solver: SSCHA iteration 6/30: canonical sampling
+INFO mlfcs.physics.sscha.solver: q points: 12
+INFO mlfcs.physics.sscha.solver: - sampled modes: 357/357, imaginary=0, excluded=0
+INFO mlfcs.physics.sscha.solver: - maximum sampled atomic displacement: 0.62396453 Å
+INFO mlfcs.physics.sscha.solver: maximum displacement limit: disabled
+INFO mlfcs.fitting.fitter: Training-data diagnostics (inputs are not recentered)
+INFO mlfcs.fitting.fitter: - Maximum reference force: 0.0000000000e+00 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum snapshot net force: 4.6637626891e-15 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum center-of-mass displacement: 2.1236145518e-02 Å
+INFO mlfcs.fitting.fitter: Constraint system: 16 rows after duplicate removal (90 ASR before compression)
+INFO mlfcs.fitting.linear_solvers: Explicit constraint parameterization: 188 -> 172 parameters in 49 blocks, rank=16, nnz=446
+INFO mlfcs.fitting.design_operator: - Prepared JAX feature program: 7 signatures, 7 tiles, 0.2 MiB static buffers
+INFO mlfcs.fitting.gram_system: Accumulating streamed Gram system: 172 x 172 (0.2 MiB), effective_batch_size=1, backend=SciPy/OpenBLAS CPU
+INFO mlfcs.fitting.gram_system: - Physical design kernel groups: 7, 7 bounded tiles
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.01 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 1/100, elapsed=0.03 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 20/100, elapsed=0.16 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 40/100, elapsed=0.31 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 60/100, elapsed=0.44 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 80/100, elapsed=0.58 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 100/100, elapsed=0.71 s
+INFO mlfcs.fitting.gram_system: - Streamed Gram system ready in 0.71 s
+INFO mlfcs.fitting.gram_system: - Gram phase timing: kernel=0.51 s, transfer=0.01 s, scatter=0.08 s, constraint reduction=0.03 s, BLAS=0.03 s
+INFO mlfcs.fitting.fitter: Column-norm preconditioning in constrained coordinates
+INFO mlfcs.fitting.fitter: - Inverse column scale: 2.550983e-02 to 2.203409e-01
+INFO mlfcs.fitting.fitter: Solving the force-only least-squares problem with streamed Gram
+INFO mlfcs.fitting.fitter: - Equations: 36000, unknowns: 172
+INFO mlfcs.fitting.fitter: - Maximum joint constraint residual: 2.966377e-16
+INFO mlfcs.fitting.fitter: Force fitting summary
+INFO mlfcs.fitting.fitter: - Training relative error: 31.670344 %
+INFO mlfcs.fitting.fitter: - Validation relative error: 31.670344 %
+INFO mlfcs.fitting.fitter: - Training force RMSE: 1.0071592285e-01 eV/Å
+INFO mlfcs.fitting.fitter: - Validation force RMSE: 1.0071592285e-01 eV/Å
+INFO mlfcs.fitting.fitter: - FC2 force contribution RMS: 3.0164348608e-01 eV/Å
+INFO mlfcs.fitting.fitter: - JAX execution guard: 1 prepared program, 7 signatures, 7 tiles, Gram passes=1, prediction passes=0
+INFO mlfcs.fitting.fitter: - Solver iterations=73, stop_code=0
+INFO mlfcs.fitting.fitter: Expanding fitted Taylor parameters into sparse physical IFCs
+INFO mlfcs.fitting.fitter: - Expanded 286 sparse tensors in 0.02 s
+INFO mlfcs.physics.sscha.solver: - Fitting relative force error: 31.670344 %
+INFO mlfcs.physics.sscha.solver: Relative FC2 change: 2.087866e-02
+INFO mlfcs.physics.sscha.solver: - Variational free-energy estimate: -5.9246646218e-01 +/- 7.492e-04 eV/primitive cell
+INFO mlfcs.force_constants.realization: Export view cache miss; constructing new view
+WARNING mlfcs.sampling.harmonic: Imaginary harmonic modes use policy 'absolute'; frequencies below 1.000e-06 THz will not raise an exception
+INFO mlfcs.sampling.structures: Generated 100 harmonic perturbation structures
+INFO mlfcs.sampling.structures: Harmonic sampling: qpoints=12, sampled_modes=357/357, minimum_frequency=0.63103572 THz
+INFO mlfcs.physics.sscha.solver: SSCHA iteration 7/30: canonical sampling
+INFO mlfcs.physics.sscha.solver: q points: 12
+INFO mlfcs.physics.sscha.solver: - sampled modes: 357/357, imaginary=0, excluded=0
+INFO mlfcs.physics.sscha.solver: - maximum sampled atomic displacement: 0.63707746 Å
+INFO mlfcs.physics.sscha.solver: maximum displacement limit: disabled
+INFO mlfcs.fitting.fitter: Training-data diagnostics (inputs are not recentered)
+INFO mlfcs.fitting.fitter: - Maximum reference force: 0.0000000000e+00 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum snapshot net force: 5.1782573774e-15 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum center-of-mass displacement: 2.2423858219e-02 Å
+INFO mlfcs.fitting.fitter: Constraint system: 16 rows after duplicate removal (90 ASR before compression)
+INFO mlfcs.fitting.linear_solvers: Explicit constraint parameterization: 188 -> 172 parameters in 49 blocks, rank=16, nnz=446
+INFO mlfcs.fitting.design_operator: - Prepared JAX feature program: 7 signatures, 7 tiles, 0.2 MiB static buffers
+INFO mlfcs.fitting.gram_system: Accumulating streamed Gram system: 172 x 172 (0.2 MiB), effective_batch_size=1, backend=SciPy/OpenBLAS CPU
+INFO mlfcs.fitting.gram_system: - Physical design kernel groups: 7, 7 bounded tiles
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 1/100, elapsed=0.01 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 20/100, elapsed=0.13 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 40/100, elapsed=0.62 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 60/100, elapsed=1.37 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 80/100, elapsed=1.99 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 100/100, elapsed=2.58 s
+INFO mlfcs.fitting.gram_system: - Streamed Gram system ready in 2.58 s
+INFO mlfcs.fitting.gram_system: - Gram phase timing: kernel=0.78 s, transfer=0.01 s, scatter=0.10 s, constraint reduction=0.04 s, BLAS=1.60 s
+INFO mlfcs.fitting.fitter: Column-norm preconditioning in constrained coordinates
+INFO mlfcs.fitting.fitter: - Inverse column scale: 2.664781e-02 to 2.303213e-01
+INFO mlfcs.fitting.fitter: Solving the force-only least-squares problem with streamed Gram
+INFO mlfcs.fitting.fitter: - Equations: 36000, unknowns: 172
+INFO mlfcs.fitting.fitter: - Maximum joint constraint residual: 2.914335e-16
+INFO mlfcs.fitting.fitter: Force fitting summary
+INFO mlfcs.fitting.fitter: - Training relative error: 35.498039 %
+INFO mlfcs.fitting.fitter: - Validation relative error: 35.498039 %
+INFO mlfcs.fitting.fitter: - Training force RMSE: 1.1391692672e-01 eV/Å
+INFO mlfcs.fitting.fitter: - Validation force RMSE: 1.1391692672e-01 eV/Å
+INFO mlfcs.fitting.fitter: - FC2 force contribution RMS: 3.0001077979e-01 eV/Å
+INFO mlfcs.fitting.fitter: - JAX execution guard: 1 prepared program, 7 signatures, 7 tiles, Gram passes=1, prediction passes=0
+INFO mlfcs.fitting.fitter: - Solver iterations=69, stop_code=0
+INFO mlfcs.fitting.fitter: Expanding fitted Taylor parameters into sparse physical IFCs
+INFO mlfcs.fitting.fitter: - Expanded 286 sparse tensors in 0.02 s
+INFO mlfcs.physics.sscha.solver: - Fitting relative force error: 35.498039 %
+INFO mlfcs.physics.sscha.solver: Relative FC2 change: 2.627541e-02
+INFO mlfcs.physics.sscha.solver: - Variational free-energy estimate: -5.9178296649e-01 +/- 9.835e-04 eV/primitive cell
+INFO mlfcs.force_constants.realization: Export view cache miss; constructing new view
+WARNING mlfcs.sampling.harmonic: Imaginary harmonic modes use policy 'absolute'; frequencies below 1.000e-06 THz will not raise an exception
+INFO mlfcs.sampling.structures: Generated 100 harmonic perturbation structures
+INFO mlfcs.sampling.structures: Harmonic sampling: qpoints=12, sampled_modes=357/357, minimum_frequency=0.58007677 THz
+INFO mlfcs.physics.sscha.solver: SSCHA iteration 8/30: canonical sampling
+INFO mlfcs.physics.sscha.solver: q points: 12
+INFO mlfcs.physics.sscha.solver: - sampled modes: 357/357, imaginary=0, excluded=0
+INFO mlfcs.physics.sscha.solver: - maximum sampled atomic displacement: 0.68811422 Å
+INFO mlfcs.physics.sscha.solver: maximum displacement limit: disabled
+INFO mlfcs.fitting.fitter: Training-data diagnostics (inputs are not recentered)
+INFO mlfcs.fitting.fitter: - Maximum reference force: 0.0000000000e+00 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum snapshot net force: 4.4337957465e-15 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum center-of-mass displacement: 2.7938315008e-02 Å
+INFO mlfcs.fitting.fitter: Constraint system: 16 rows after duplicate removal (90 ASR before compression)
+INFO mlfcs.fitting.linear_solvers: Explicit constraint parameterization: 188 -> 172 parameters in 49 blocks, rank=16, nnz=446
+INFO mlfcs.fitting.design_operator: - Prepared JAX feature program: 7 signatures, 7 tiles, 0.2 MiB static buffers
+INFO mlfcs.fitting.gram_system: Accumulating streamed Gram system: 172 x 172 (0.2 MiB), effective_batch_size=1, backend=SciPy/OpenBLAS CPU
+INFO mlfcs.fitting.gram_system: - Physical design kernel groups: 7, 7 bounded tiles
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 1/100, elapsed=0.02 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 20/100, elapsed=0.15 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 40/100, elapsed=0.28 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 60/100, elapsed=0.50 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 80/100, elapsed=0.64 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 100/100, elapsed=0.76 s
+INFO mlfcs.fitting.gram_system: - Streamed Gram system ready in 0.76 s
+INFO mlfcs.fitting.gram_system: - Gram phase timing: kernel=0.54 s, transfer=0.01 s, scatter=0.08 s, constraint reduction=0.03 s, BLAS=0.06 s
+INFO mlfcs.fitting.fitter: Column-norm preconditioning in constrained coordinates
+INFO mlfcs.fitting.fitter: - Inverse column scale: 2.571559e-02 to 2.226391e-01
+INFO mlfcs.fitting.fitter: Solving the force-only least-squares problem with streamed Gram
+INFO mlfcs.fitting.fitter: - Equations: 36000, unknowns: 172
+INFO mlfcs.fitting.fitter: - Maximum joint constraint residual: 2.775558e-16
+INFO mlfcs.fitting.fitter: Force fitting summary
+INFO mlfcs.fitting.fitter: - Training relative error: 32.454282 %
+INFO mlfcs.fitting.fitter: - Validation relative error: 32.454282 %
+INFO mlfcs.fitting.fitter: - Training force RMSE: 1.0273490912e-01 eV/Å
+INFO mlfcs.fitting.fitter: - Validation force RMSE: 1.0273490912e-01 eV/Å
+INFO mlfcs.fitting.fitter: - FC2 force contribution RMS: 2.9941802693e-01 eV/Å
+INFO mlfcs.fitting.fitter: - JAX execution guard: 1 prepared program, 7 signatures, 7 tiles, Gram passes=1, prediction passes=0
+INFO mlfcs.fitting.fitter: - Solver iterations=70, stop_code=0
+INFO mlfcs.fitting.fitter: Expanding fitted Taylor parameters into sparse physical IFCs
+INFO mlfcs.fitting.fitter: - Expanded 286 sparse tensors in 0.01 s
+INFO mlfcs.physics.sscha.solver: - Fitting relative force error: 32.454282 %
+INFO mlfcs.physics.sscha.solver: Relative FC2 change: 2.196284e-02
+INFO mlfcs.physics.sscha.solver: - Variational free-energy estimate: -5.9465406626e-01 +/- 7.116e-04 eV/primitive cell
+INFO mlfcs.force_constants.realization: Export view cache miss; constructing new view
+WARNING mlfcs.sampling.harmonic: Imaginary harmonic modes use policy 'absolute'; frequencies below 1.000e-06 THz will not raise an exception
+INFO mlfcs.sampling.structures: Generated 100 harmonic perturbation structures
+INFO mlfcs.sampling.structures: Harmonic sampling: qpoints=12, sampled_modes=357/357, minimum_frequency=0.58478600 THz
+INFO mlfcs.physics.sscha.solver: SSCHA iteration 9/30: canonical sampling
+INFO mlfcs.physics.sscha.solver: q points: 12
+INFO mlfcs.physics.sscha.solver: - sampled modes: 357/357, imaginary=0, excluded=0
+INFO mlfcs.physics.sscha.solver: - maximum sampled atomic displacement: 0.63186644 Å
+INFO mlfcs.physics.sscha.solver: maximum displacement limit: disabled
+INFO mlfcs.fitting.fitter: Training-data diagnostics (inputs are not recentered)
+INFO mlfcs.fitting.fitter: - Maximum reference force: 0.0000000000e+00 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum snapshot net force: 4.9726700967e-15 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum center-of-mass displacement: 1.9286168585e-02 Å
+INFO mlfcs.fitting.fitter: Constraint system: 16 rows after duplicate removal (90 ASR before compression)
+INFO mlfcs.fitting.linear_solvers: Explicit constraint parameterization: 188 -> 172 parameters in 49 blocks, rank=16, nnz=446
+INFO mlfcs.fitting.design_operator: - Prepared JAX feature program: 7 signatures, 7 tiles, 0.2 MiB static buffers
+INFO mlfcs.fitting.gram_system: Accumulating streamed Gram system: 172 x 172 (0.2 MiB), effective_batch_size=1, backend=SciPy/OpenBLAS CPU
+INFO mlfcs.fitting.gram_system: - Physical design kernel groups: 7, 7 bounded tiles
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 1/100, elapsed=0.01 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 20/100, elapsed=0.12 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 40/100, elapsed=0.24 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 60/100, elapsed=0.34 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 80/100, elapsed=0.46 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 100/100, elapsed=0.57 s
+INFO mlfcs.fitting.gram_system: - Streamed Gram system ready in 0.57 s
+INFO mlfcs.fitting.gram_system: - Gram phase timing: kernel=0.42 s, transfer=0.01 s, scatter=0.07 s, constraint reduction=0.03 s, BLAS=0.02 s
+INFO mlfcs.fitting.fitter: Column-norm preconditioning in constrained coordinates
+INFO mlfcs.fitting.fitter: - Inverse column scale: 2.618494e-02 to 2.331245e-01
+INFO mlfcs.fitting.fitter: Solving the force-only least-squares problem with streamed Gram
+INFO mlfcs.fitting.fitter: - Equations: 36000, unknowns: 172
+INFO mlfcs.fitting.fitter: - Maximum joint constraint residual: 3.226586e-16
+INFO mlfcs.fitting.fitter: Force fitting summary
+INFO mlfcs.fitting.fitter: - Training relative error: 30.693800 %
+INFO mlfcs.fitting.fitter: - Validation relative error: 30.693800 %
+INFO mlfcs.fitting.fitter: - Training force RMSE: 9.5101400446e-02 eV/Å
+INFO mlfcs.fitting.fitter: - Validation force RMSE: 9.5101400446e-02 eV/Å
+INFO mlfcs.fitting.fitter: - FC2 force contribution RMS: 2.9488303205e-01 eV/Å
+INFO mlfcs.fitting.fitter: - JAX execution guard: 1 prepared program, 7 signatures, 7 tiles, Gram passes=1, prediction passes=0
+INFO mlfcs.fitting.fitter: - Solver iterations=69, stop_code=0
+INFO mlfcs.fitting.fitter: Expanding fitted Taylor parameters into sparse physical IFCs
+INFO mlfcs.fitting.fitter: - Expanded 286 sparse tensors in 0.02 s
+INFO mlfcs.physics.sscha.solver: - Fitting relative force error: 30.693800 %
+INFO mlfcs.physics.sscha.solver: Relative FC2 change: 1.926990e-02
+INFO mlfcs.physics.sscha.solver: - Variational free-energy estimate: -5.9226159927e-01 +/- 6.887e-04 eV/primitive cell
+INFO mlfcs.force_constants.realization: Export view cache miss; constructing new view
+WARNING mlfcs.sampling.harmonic: Imaginary harmonic modes use policy 'absolute'; frequencies below 1.000e-06 THz will not raise an exception
+INFO mlfcs.sampling.structures: Generated 100 harmonic perturbation structures
+INFO mlfcs.sampling.structures: Harmonic sampling: qpoints=12, sampled_modes=357/357, minimum_frequency=0.61796609 THz
+INFO mlfcs.physics.sscha.solver: SSCHA iteration 10/30: canonical sampling
+INFO mlfcs.physics.sscha.solver: q points: 12
+INFO mlfcs.physics.sscha.solver: - sampled modes: 357/357, imaginary=0, excluded=0
+INFO mlfcs.physics.sscha.solver: - maximum sampled atomic displacement: 0.59505758 Å
+INFO mlfcs.physics.sscha.solver: maximum displacement limit: disabled
+INFO mlfcs.fitting.fitter: Training-data diagnostics (inputs are not recentered)
+INFO mlfcs.fitting.fitter: - Maximum reference force: 0.0000000000e+00 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum snapshot net force: 4.1167352884e-15 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum center-of-mass displacement: 2.5814575733e-02 Å
+INFO mlfcs.fitting.fitter: Constraint system: 16 rows after duplicate removal (90 ASR before compression)
+INFO mlfcs.fitting.linear_solvers: Explicit constraint parameterization: 188 -> 172 parameters in 49 blocks, rank=16, nnz=446
+INFO mlfcs.fitting.design_operator: - Prepared JAX feature program: 7 signatures, 7 tiles, 0.2 MiB static buffers
+INFO mlfcs.fitting.gram_system: Accumulating streamed Gram system: 172 x 172 (0.2 MiB), effective_batch_size=1, backend=SciPy/OpenBLAS CPU
+INFO mlfcs.fitting.gram_system: - Physical design kernel groups: 7, 7 bounded tiles
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 1/100, elapsed=0.06 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 20/100, elapsed=0.84 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 40/100, elapsed=1.54 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 60/100, elapsed=2.17 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 80/100, elapsed=2.83 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 100/100, elapsed=3.46 s
+INFO mlfcs.fitting.gram_system: - Streamed Gram system ready in 3.47 s
+INFO mlfcs.fitting.gram_system: - Gram phase timing: kernel=0.96 s, transfer=0.02 s, scatter=0.15 s, constraint reduction=0.06 s, BLAS=2.21 s
+INFO mlfcs.fitting.fitter: Column-norm preconditioning in constrained coordinates
+INFO mlfcs.fitting.fitter: - Inverse column scale: 2.673437e-02 to 2.273701e-01
+INFO mlfcs.fitting.fitter: Solving the force-only least-squares problem with streamed Gram
+INFO mlfcs.fitting.fitter: - Equations: 36000, unknowns: 172
+INFO mlfcs.fitting.fitter: - Maximum joint constraint residual: 1.942890e-16
+INFO mlfcs.fitting.fitter: Force fitting summary
+INFO mlfcs.fitting.fitter: - Training relative error: 29.685487 %
+INFO mlfcs.fitting.fitter: - Validation relative error: 29.685487 %
+INFO mlfcs.fitting.fitter: - Training force RMSE: 9.3282036335e-02 eV/Å
+INFO mlfcs.fitting.fitter: - Validation force RMSE: 9.3282036335e-02 eV/Å
+INFO mlfcs.fitting.fitter: - FC2 force contribution RMS: 3.0006961004e-01 eV/Å
+INFO mlfcs.fitting.fitter: - JAX execution guard: 1 prepared program, 7 signatures, 7 tiles, Gram passes=1, prediction passes=0
+INFO mlfcs.fitting.fitter: - Solver iterations=69, stop_code=0
+INFO mlfcs.fitting.fitter: Expanding fitted Taylor parameters into sparse physical IFCs
+INFO mlfcs.fitting.fitter: - Expanded 286 sparse tensors in 0.02 s
+INFO mlfcs.physics.sscha.solver: - Fitting relative force error: 29.685487 %
+INFO mlfcs.physics.sscha.solver: Relative FC2 change: 1.972149e-02
+INFO mlfcs.physics.sscha.solver: - Variational free-energy estimate: -5.9138849775e-01 +/- 6.467e-04 eV/primitive cell
+INFO mlfcs.force_constants.realization: Export view cache miss; constructing new view
+WARNING mlfcs.sampling.harmonic: Imaginary harmonic modes use policy 'absolute'; frequencies below 1.000e-06 THz will not raise an exception
+INFO mlfcs.sampling.structures: Generated 100 harmonic perturbation structures
+INFO mlfcs.sampling.structures: Harmonic sampling: qpoints=12, sampled_modes=357/357, minimum_frequency=0.60731382 THz
+INFO mlfcs.physics.sscha.solver: SSCHA iteration 11/30: canonical sampling
+INFO mlfcs.physics.sscha.solver: q points: 12
+INFO mlfcs.physics.sscha.solver: - sampled modes: 357/357, imaginary=0, excluded=0
+INFO mlfcs.physics.sscha.solver: - maximum sampled atomic displacement: 0.55392577 Å
+INFO mlfcs.physics.sscha.solver: maximum displacement limit: disabled
+INFO mlfcs.fitting.fitter: Training-data diagnostics (inputs are not recentered)
+INFO mlfcs.fitting.fitter: - Maximum reference force: 0.0000000000e+00 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum snapshot net force: 5.2728517349e-15 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum center-of-mass displacement: 2.6156446072e-02 Å
+INFO mlfcs.fitting.fitter: Constraint system: 16 rows after duplicate removal (90 ASR before compression)
+INFO mlfcs.fitting.linear_solvers: Explicit constraint parameterization: 188 -> 172 parameters in 49 blocks, rank=16, nnz=446
+INFO mlfcs.fitting.design_operator: - Prepared JAX feature program: 7 signatures, 7 tiles, 0.2 MiB static buffers
+INFO mlfcs.fitting.gram_system: Accumulating streamed Gram system: 172 x 172 (0.2 MiB), effective_batch_size=1, backend=SciPy/OpenBLAS CPU
+INFO mlfcs.fitting.gram_system: - Physical design kernel groups: 7, 7 bounded tiles
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 1/100, elapsed=0.01 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 20/100, elapsed=0.15 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 40/100, elapsed=0.28 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 60/100, elapsed=0.41 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 80/100, elapsed=0.54 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 100/100, elapsed=0.68 s
+INFO mlfcs.fitting.gram_system: - Streamed Gram system ready in 0.68 s
+INFO mlfcs.fitting.gram_system: - Gram phase timing: kernel=0.51 s, transfer=0.01 s, scatter=0.08 s, constraint reduction=0.03 s, BLAS=0.02 s
+INFO mlfcs.fitting.fitter: Column-norm preconditioning in constrained coordinates
+INFO mlfcs.fitting.fitter: - Inverse column scale: 2.637057e-02 to 2.306749e-01
+INFO mlfcs.fitting.fitter: Solving the force-only least-squares problem with streamed Gram
+INFO mlfcs.fitting.fitter: - Equations: 36000, unknowns: 172
+INFO mlfcs.fitting.fitter: - Maximum joint constraint residual: 5.551115e-16
+INFO mlfcs.fitting.fitter: Force fitting summary
+INFO mlfcs.fitting.fitter: - Training relative error: 32.981318 %
+INFO mlfcs.fitting.fitter: - Validation relative error: 32.981318 %
+INFO mlfcs.fitting.fitter: - Training force RMSE: 1.0434501893e-01 eV/Å
+INFO mlfcs.fitting.fitter: - Validation force RMSE: 1.0434501893e-01 eV/Å
+INFO mlfcs.fitting.fitter: - FC2 force contribution RMS: 2.9867369697e-01 eV/Å
+INFO mlfcs.fitting.fitter: - JAX execution guard: 1 prepared program, 7 signatures, 7 tiles, Gram passes=1, prediction passes=0
+INFO mlfcs.fitting.fitter: - Solver iterations=70, stop_code=0
+INFO mlfcs.fitting.fitter: Expanding fitted Taylor parameters into sparse physical IFCs
+INFO mlfcs.fitting.fitter: - Expanded 286 sparse tensors in 0.02 s
+INFO mlfcs.physics.sscha.solver: - Fitting relative force error: 32.981318 %
+INFO mlfcs.physics.sscha.solver: Relative FC2 change: 2.104499e-02
+INFO mlfcs.physics.sscha.solver: - Variational free-energy estimate: -5.9049566169e-01 +/- 8.449e-04 eV/primitive cell
+INFO mlfcs.force_constants.realization: Export view cache miss; constructing new view
+WARNING mlfcs.sampling.harmonic: Imaginary harmonic modes use policy 'absolute'; frequencies below 1.000e-06 THz will not raise an exception
+INFO mlfcs.sampling.structures: Generated 100 harmonic perturbation structures
+INFO mlfcs.sampling.structures: Harmonic sampling: qpoints=12, sampled_modes=357/357, minimum_frequency=0.60075067 THz
+INFO mlfcs.physics.sscha.solver: SSCHA iteration 12/30: canonical sampling
+INFO mlfcs.physics.sscha.solver: q points: 12
+INFO mlfcs.physics.sscha.solver: - sampled modes: 357/357, imaginary=0, excluded=0
+INFO mlfcs.physics.sscha.solver: - maximum sampled atomic displacement: 0.61952314 Å
+INFO mlfcs.physics.sscha.solver: maximum displacement limit: disabled
+INFO mlfcs.fitting.fitter: Training-data diagnostics (inputs are not recentered)
+INFO mlfcs.fitting.fitter: - Maximum reference force: 0.0000000000e+00 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum snapshot net force: 3.9143234748e-15 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum center-of-mass displacement: 1.9151853396e-02 Å
+INFO mlfcs.fitting.fitter: Constraint system: 16 rows after duplicate removal (90 ASR before compression)
+INFO mlfcs.fitting.linear_solvers: Explicit constraint parameterization: 188 -> 172 parameters in 49 blocks, rank=16, nnz=446
+INFO mlfcs.fitting.design_operator: - Prepared JAX feature program: 7 signatures, 7 tiles, 0.2 MiB static buffers
+INFO mlfcs.fitting.gram_system: Accumulating streamed Gram system: 172 x 172 (0.2 MiB), effective_batch_size=1, backend=SciPy/OpenBLAS CPU
+INFO mlfcs.fitting.gram_system: - Physical design kernel groups: 7, 7 bounded tiles
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.01 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 1/100, elapsed=0.01 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 20/100, elapsed=0.14 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 40/100, elapsed=0.29 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 60/100, elapsed=0.42 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 80/100, elapsed=0.53 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 100/100, elapsed=0.65 s
+INFO mlfcs.fitting.gram_system: - Streamed Gram system ready in 0.65 s
+INFO mlfcs.fitting.gram_system: - Gram phase timing: kernel=0.44 s, transfer=0.01 s, scatter=0.08 s, constraint reduction=0.03 s, BLAS=0.05 s
+INFO mlfcs.fitting.fitter: Column-norm preconditioning in constrained coordinates
+INFO mlfcs.fitting.fitter: - Inverse column scale: 2.610306e-02 to 2.284226e-01
+INFO mlfcs.fitting.fitter: Solving the force-only least-squares problem with streamed Gram
+INFO mlfcs.fitting.fitter: - Equations: 36000, unknowns: 172
+INFO mlfcs.fitting.fitter: - Maximum joint constraint residual: 2.775558e-16
+INFO mlfcs.fitting.fitter: Force fitting summary
+INFO mlfcs.fitting.fitter: - Training relative error: 33.340194 %
+INFO mlfcs.fitting.fitter: - Validation relative error: 33.340194 %
+INFO mlfcs.fitting.fitter: - Training force RMSE: 1.0623585071e-01 eV/Å
+INFO mlfcs.fitting.fitter: - Validation force RMSE: 1.0623585071e-01 eV/Å
+INFO mlfcs.fitting.fitter: - FC2 force contribution RMS: 3.0041079712e-01 eV/Å
+INFO mlfcs.fitting.fitter: - JAX execution guard: 1 prepared program, 7 signatures, 7 tiles, Gram passes=1, prediction passes=0
+INFO mlfcs.fitting.fitter: - Solver iterations=70, stop_code=0
+INFO mlfcs.fitting.fitter: Expanding fitted Taylor parameters into sparse physical IFCs
+INFO mlfcs.fitting.fitter: - Expanded 286 sparse tensors in 0.05 s
+INFO mlfcs.physics.sscha.solver: - Fitting relative force error: 33.340194 %
+INFO mlfcs.physics.sscha.solver: Relative FC2 change: 2.469313e-02
+INFO mlfcs.physics.sscha.solver: - Variational free-energy estimate: -5.9291737634e-01 +/- 8.008e-04 eV/primitive cell
+INFO mlfcs.force_constants.realization: Export view cache miss; constructing new view
+WARNING mlfcs.sampling.harmonic: Imaginary harmonic modes use policy 'absolute'; frequencies below 1.000e-06 THz will not raise an exception
+INFO mlfcs.sampling.structures: Generated 100 harmonic perturbation structures
+INFO mlfcs.sampling.structures: Harmonic sampling: qpoints=12, sampled_modes=357/357, minimum_frequency=0.58506762 THz
+INFO mlfcs.physics.sscha.solver: SSCHA iteration 13/30: canonical sampling
+INFO mlfcs.physics.sscha.solver: q points: 12
+INFO mlfcs.physics.sscha.solver: - sampled modes: 357/357, imaginary=0, excluded=0
+INFO mlfcs.physics.sscha.solver: - maximum sampled atomic displacement: 0.61485655 Å
+INFO mlfcs.physics.sscha.solver: maximum displacement limit: disabled
+INFO mlfcs.fitting.fitter: Training-data diagnostics (inputs are not recentered)
+INFO mlfcs.fitting.fitter: - Maximum reference force: 0.0000000000e+00 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum snapshot net force: 5.3514304537e-15 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum center-of-mass displacement: 2.2486233640e-02 Å
+INFO mlfcs.fitting.fitter: Constraint system: 16 rows after duplicate removal (90 ASR before compression)
+INFO mlfcs.fitting.linear_solvers: Explicit constraint parameterization: 188 -> 172 parameters in 49 blocks, rank=16, nnz=446
+INFO mlfcs.fitting.design_operator: - Prepared JAX feature program: 7 signatures, 7 tiles, 0.2 MiB static buffers
+INFO mlfcs.fitting.gram_system: Accumulating streamed Gram system: 172 x 172 (0.2 MiB), effective_batch_size=1, backend=SciPy/OpenBLAS CPU
+INFO mlfcs.fitting.gram_system: - Physical design kernel groups: 7, 7 bounded tiles
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 1/100, elapsed=0.04 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 20/100, elapsed=0.70 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 40/100, elapsed=1.37 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 60/100, elapsed=2.06 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 80/100, elapsed=2.62 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 100/100, elapsed=3.27 s
+INFO mlfcs.fitting.gram_system: - Streamed Gram system ready in 3.27 s
+INFO mlfcs.fitting.gram_system: - Gram phase timing: kernel=0.81 s, transfer=0.01 s, scatter=0.12 s, constraint reduction=0.05 s, BLAS=2.21 s
+INFO mlfcs.fitting.fitter: Column-norm preconditioning in constrained coordinates
+INFO mlfcs.fitting.fitter: - Inverse column scale: 2.601257e-02 to 2.238384e-01
+INFO mlfcs.fitting.fitter: Solving the force-only least-squares problem with streamed Gram
+INFO mlfcs.fitting.fitter: - Equations: 36000, unknowns: 172
+INFO mlfcs.fitting.fitter: - Maximum joint constraint residual: 4.718448e-16
+INFO mlfcs.fitting.fitter: Force fitting summary
+INFO mlfcs.fitting.fitter: - Training relative error: 35.097268 %
+INFO mlfcs.fitting.fitter: - Validation relative error: 35.097268 %
+INFO mlfcs.fitting.fitter: - Training force RMSE: 1.1232700175e-01 eV/Å
+INFO mlfcs.fitting.fitter: - Validation force RMSE: 1.1232700175e-01 eV/Å
+INFO mlfcs.fitting.fitter: - FC2 force contribution RMS: 2.9968542628e-01 eV/Å
+INFO mlfcs.fitting.fitter: - JAX execution guard: 1 prepared program, 7 signatures, 7 tiles, Gram passes=1, prediction passes=0
+INFO mlfcs.fitting.fitter: - Solver iterations=69, stop_code=0
+INFO mlfcs.fitting.fitter: Expanding fitted Taylor parameters into sparse physical IFCs
+INFO mlfcs.fitting.fitter: - Expanded 286 sparse tensors in 0.02 s
+INFO mlfcs.physics.sscha.solver: - Fitting relative force error: 35.097268 %
+INFO mlfcs.physics.sscha.solver: Relative FC2 change: 2.029620e-02
+INFO mlfcs.physics.sscha.solver: - Variational free-energy estimate: -5.9378833122e-01 +/- 8.304e-04 eV/primitive cell
+INFO mlfcs.force_constants.realization: Export view cache miss; constructing new view
+WARNING mlfcs.sampling.harmonic: Imaginary harmonic modes use policy 'absolute'; frequencies below 1.000e-06 THz will not raise an exception
+INFO mlfcs.sampling.structures: Generated 100 harmonic perturbation structures
+INFO mlfcs.sampling.structures: Harmonic sampling: qpoints=12, sampled_modes=357/357, minimum_frequency=0.60293111 THz
+INFO mlfcs.physics.sscha.solver: SSCHA iteration 14/30: canonical sampling
+INFO mlfcs.physics.sscha.solver: q points: 12
+INFO mlfcs.physics.sscha.solver: - sampled modes: 357/357, imaginary=0, excluded=0
+INFO mlfcs.physics.sscha.solver: - maximum sampled atomic displacement: 0.58231937 Å
+INFO mlfcs.physics.sscha.solver: maximum displacement limit: disabled
+INFO mlfcs.fitting.fitter: Training-data diagnostics (inputs are not recentered)
+INFO mlfcs.fitting.fitter: - Maximum reference force: 0.0000000000e+00 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum snapshot net force: 5.3786409883e-15 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum center-of-mass displacement: 2.4556224557e-02 Å
+INFO mlfcs.fitting.fitter: Constraint system: 16 rows after duplicate removal (90 ASR before compression)
+INFO mlfcs.fitting.linear_solvers: Explicit constraint parameterization: 188 -> 172 parameters in 49 blocks, rank=16, nnz=446
+INFO mlfcs.fitting.design_operator: - Prepared JAX feature program: 7 signatures, 7 tiles, 0.2 MiB static buffers
+INFO mlfcs.fitting.gram_system: Accumulating streamed Gram system: 172 x 172 (0.2 MiB), effective_batch_size=1, backend=SciPy/OpenBLAS CPU
+INFO mlfcs.fitting.gram_system: - Physical design kernel groups: 7, 7 bounded tiles
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.01 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 1/100, elapsed=0.02 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 20/100, elapsed=0.17 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 40/100, elapsed=0.30 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 60/100, elapsed=0.42 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 80/100, elapsed=0.55 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 100/100, elapsed=0.68 s
+INFO mlfcs.fitting.gram_system: - Streamed Gram system ready in 0.68 s
+INFO mlfcs.fitting.gram_system: - Gram phase timing: kernel=0.49 s, transfer=0.01 s, scatter=0.08 s, constraint reduction=0.03 s, BLAS=0.04 s
+INFO mlfcs.fitting.fitter: Column-norm preconditioning in constrained coordinates
+INFO mlfcs.fitting.fitter: - Inverse column scale: 2.532619e-02 to 2.277684e-01
+INFO mlfcs.fitting.fitter: Solving the force-only least-squares problem with streamed Gram
+INFO mlfcs.fitting.fitter: - Equations: 36000, unknowns: 172
+INFO mlfcs.fitting.fitter: - Maximum joint constraint residual: 3.053113e-16
+INFO mlfcs.fitting.fitter: Force fitting summary
+INFO mlfcs.fitting.fitter: - Training relative error: 41.537839 %
+INFO mlfcs.fitting.fitter: - Validation relative error: 41.537839 %
+INFO mlfcs.fitting.fitter: - Training force RMSE: 1.3775755163e-01 eV/Å
+INFO mlfcs.fitting.fitter: - Validation force RMSE: 1.3775755163e-01 eV/Å
+INFO mlfcs.fitting.fitter: - FC2 force contribution RMS: 3.0167910545e-01 eV/Å
+INFO mlfcs.fitting.fitter: - JAX execution guard: 1 prepared program, 7 signatures, 7 tiles, Gram passes=1, prediction passes=0
+INFO mlfcs.fitting.fitter: - Solver iterations=70, stop_code=0
+INFO mlfcs.fitting.fitter: Expanding fitted Taylor parameters into sparse physical IFCs
+INFO mlfcs.fitting.fitter: - Expanded 286 sparse tensors in 0.02 s
+INFO mlfcs.physics.sscha.solver: - Fitting relative force error: 41.537839 %
+INFO mlfcs.physics.sscha.solver: Relative FC2 change: 2.497189e-02
+INFO mlfcs.physics.sscha.solver: - Variational free-energy estimate: -5.9422007124e-01 +/- 1.313e-03 eV/primitive cell
+INFO mlfcs.force_constants.realization: Export view cache miss; constructing new view
+WARNING mlfcs.sampling.harmonic: Imaginary harmonic modes use policy 'absolute'; frequencies below 1.000e-06 THz will not raise an exception
+INFO mlfcs.sampling.structures: Generated 100 harmonic perturbation structures
+INFO mlfcs.sampling.structures: Harmonic sampling: qpoints=12, sampled_modes=357/357, minimum_frequency=0.60040972 THz
+INFO mlfcs.physics.sscha.solver: SSCHA iteration 15/30: canonical sampling
+INFO mlfcs.physics.sscha.solver: q points: 12
+INFO mlfcs.physics.sscha.solver: - sampled modes: 357/357, imaginary=0, excluded=0
+INFO mlfcs.physics.sscha.solver: - maximum sampled atomic displacement: 0.62667499 Å
+INFO mlfcs.physics.sscha.solver: maximum displacement limit: disabled
+INFO mlfcs.fitting.fitter: Training-data diagnostics (inputs are not recentered)
+INFO mlfcs.fitting.fitter: - Maximum reference force: 0.0000000000e+00 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum snapshot net force: 1.2027423217e-14 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum center-of-mass displacement: 2.2285634093e-02 Å
+INFO mlfcs.fitting.fitter: Constraint system: 16 rows after duplicate removal (90 ASR before compression)
+INFO mlfcs.fitting.linear_solvers: Explicit constraint parameterization: 188 -> 172 parameters in 49 blocks, rank=16, nnz=446
+INFO mlfcs.fitting.design_operator: - Prepared JAX feature program: 7 signatures, 7 tiles, 0.2 MiB static buffers
+INFO mlfcs.fitting.gram_system: Accumulating streamed Gram system: 172 x 172 (0.2 MiB), effective_batch_size=1, backend=SciPy/OpenBLAS CPU
+INFO mlfcs.fitting.gram_system: - Physical design kernel groups: 7, 7 bounded tiles
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 1/100, elapsed=0.01 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 20/100, elapsed=0.68 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 40/100, elapsed=1.30 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 60/100, elapsed=2.10 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 80/100, elapsed=2.72 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 100/100, elapsed=3.38 s
+INFO mlfcs.fitting.gram_system: - Streamed Gram system ready in 3.38 s
+INFO mlfcs.fitting.gram_system: - Gram phase timing: kernel=1.02 s, transfer=0.02 s, scatter=0.14 s, constraint reduction=0.05 s, BLAS=2.08 s
+INFO mlfcs.fitting.fitter: Column-norm preconditioning in constrained coordinates
+INFO mlfcs.fitting.fitter: - Inverse column scale: 2.596872e-02 to 2.313019e-01
+INFO mlfcs.fitting.fitter: Solving the force-only least-squares problem with streamed Gram
+INFO mlfcs.fitting.fitter: - Equations: 36000, unknowns: 172
+INFO mlfcs.fitting.fitter: - Maximum joint constraint residual: 3.608225e-16
+INFO mlfcs.fitting.fitter: Force fitting summary
+INFO mlfcs.fitting.fitter: - Training relative error: 39.282154 %
+INFO mlfcs.fitting.fitter: - Validation relative error: 39.282154 %
+INFO mlfcs.fitting.fitter: - Training force RMSE: 1.2518258270e-01 eV/Å
+INFO mlfcs.fitting.fitter: - Validation force RMSE: 1.2518258270e-01 eV/Å
+INFO mlfcs.fitting.fitter: - FC2 force contribution RMS: 2.9305864336e-01 eV/Å
+INFO mlfcs.fitting.fitter: - JAX execution guard: 1 prepared program, 7 signatures, 7 tiles, Gram passes=1, prediction passes=0
+INFO mlfcs.fitting.fitter: - Solver iterations=70, stop_code=0
+INFO mlfcs.fitting.fitter: Expanding fitted Taylor parameters into sparse physical IFCs
+INFO mlfcs.fitting.fitter: - Expanded 286 sparse tensors in 0.02 s
+INFO mlfcs.physics.sscha.solver: - Fitting relative force error: 39.282154 %
+INFO mlfcs.physics.sscha.solver: Relative FC2 change: 2.420077e-02
+INFO mlfcs.physics.sscha.solver: - Variational free-energy estimate: -5.9662544766e-01 +/- 9.434e-04 eV/primitive cell
+INFO mlfcs.force_constants.realization: Export view cache miss; constructing new view
+WARNING mlfcs.sampling.harmonic: Imaginary harmonic modes use policy 'absolute'; frequencies below 1.000e-06 THz will not raise an exception
+INFO mlfcs.sampling.structures: Generated 100 harmonic perturbation structures
+INFO mlfcs.sampling.structures: Harmonic sampling: qpoints=12, sampled_modes=357/357, minimum_frequency=0.58794206 THz
+INFO mlfcs.physics.sscha.solver: SSCHA iteration 16/30: canonical sampling
+INFO mlfcs.physics.sscha.solver: q points: 12
+INFO mlfcs.physics.sscha.solver: - sampled modes: 357/357, imaginary=0, excluded=0
+INFO mlfcs.physics.sscha.solver: - maximum sampled atomic displacement: 0.63480300 Å
+INFO mlfcs.physics.sscha.solver: maximum displacement limit: disabled
+INFO mlfcs.fitting.fitter: Training-data diagnostics (inputs are not recentered)
+INFO mlfcs.fitting.fitter: - Maximum reference force: 0.0000000000e+00 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum snapshot net force: 5.4823685019e-15 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum center-of-mass displacement: 1.9798122539e-02 Å
+INFO mlfcs.fitting.fitter: Constraint system: 16 rows after duplicate removal (90 ASR before compression)
+INFO mlfcs.fitting.linear_solvers: Explicit constraint parameterization: 188 -> 172 parameters in 49 blocks, rank=16, nnz=446
+INFO mlfcs.fitting.design_operator: - Prepared JAX feature program: 7 signatures, 7 tiles, 0.2 MiB static buffers
+INFO mlfcs.fitting.gram_system: Accumulating streamed Gram system: 172 x 172 (0.2 MiB), effective_batch_size=1, backend=SciPy/OpenBLAS CPU
+INFO mlfcs.fitting.gram_system: - Physical design kernel groups: 7, 7 bounded tiles
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 1/100, elapsed=0.01 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 20/100, elapsed=0.13 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 40/100, elapsed=0.26 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 60/100, elapsed=0.38 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 80/100, elapsed=0.51 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 100/100, elapsed=0.65 s
+INFO mlfcs.fitting.gram_system: - Streamed Gram system ready in 0.65 s
+INFO mlfcs.fitting.gram_system: - Gram phase timing: kernel=0.47 s, transfer=0.01 s, scatter=0.08 s, constraint reduction=0.03 s, BLAS=0.02 s
+INFO mlfcs.fitting.fitter: Column-norm preconditioning in constrained coordinates
+INFO mlfcs.fitting.fitter: - Inverse column scale: 2.381223e-02 to 2.288079e-01
+INFO mlfcs.fitting.fitter: Solving the force-only least-squares problem with streamed Gram
+INFO mlfcs.fitting.fitter: - Equations: 36000, unknowns: 172
+INFO mlfcs.fitting.fitter: - Maximum joint constraint residual: 2.359224e-16
+INFO mlfcs.fitting.fitter: Force fitting summary
+INFO mlfcs.fitting.fitter: - Training relative error: 38.447841 %
+INFO mlfcs.fitting.fitter: - Validation relative error: 38.447841 %
+INFO mlfcs.fitting.fitter: - Training force RMSE: 1.2558823683e-01 eV/Å
+INFO mlfcs.fitting.fitter: - Validation force RMSE: 1.2558823683e-01 eV/Å
+INFO mlfcs.fitting.fitter: - FC2 force contribution RMS: 3.0153778737e-01 eV/Å
+INFO mlfcs.fitting.fitter: - JAX execution guard: 1 prepared program, 7 signatures, 7 tiles, Gram passes=1, prediction passes=0
+INFO mlfcs.fitting.fitter: - Solver iterations=71, stop_code=0
+INFO mlfcs.fitting.fitter: Expanding fitted Taylor parameters into sparse physical IFCs
+INFO mlfcs.fitting.fitter: - Expanded 286 sparse tensors in 0.02 s
+INFO mlfcs.physics.sscha.solver: - Fitting relative force error: 38.447841 %
+INFO mlfcs.physics.sscha.solver: Relative FC2 change: 3.146631e-02
+INFO mlfcs.physics.sscha.solver: - Variational free-energy estimate: -5.9746916445e-01 +/- 9.512e-04 eV/primitive cell
+INFO mlfcs.force_constants.realization: Export view cache miss; constructing new view
+WARNING mlfcs.sampling.harmonic: Imaginary harmonic modes use policy 'absolute'; frequencies below 1.000e-06 THz will not raise an exception
+INFO mlfcs.sampling.structures: Generated 100 harmonic perturbation structures
+INFO mlfcs.sampling.structures: Harmonic sampling: qpoints=12, sampled_modes=357/357, minimum_frequency=0.55883168 THz
+INFO mlfcs.physics.sscha.solver: SSCHA iteration 17/30: canonical sampling
+INFO mlfcs.physics.sscha.solver: q points: 12
+INFO mlfcs.physics.sscha.solver: - sampled modes: 357/357, imaginary=0, excluded=0
+INFO mlfcs.physics.sscha.solver: - maximum sampled atomic displacement: 0.65170460 Å
+INFO mlfcs.physics.sscha.solver: maximum displacement limit: disabled
+INFO mlfcs.fitting.fitter: Training-data diagnostics (inputs are not recentered)
+INFO mlfcs.fitting.fitter: - Maximum reference force: 0.0000000000e+00 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum snapshot net force: 4.7267875658e-15 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum center-of-mass displacement: 3.1077871410e-02 Å
+INFO mlfcs.fitting.fitter: Constraint system: 16 rows after duplicate removal (90 ASR before compression)
+INFO mlfcs.fitting.linear_solvers: Explicit constraint parameterization: 188 -> 172 parameters in 49 blocks, rank=16, nnz=446
+INFO mlfcs.fitting.design_operator: - Prepared JAX feature program: 7 signatures, 7 tiles, 0.2 MiB static buffers
+INFO mlfcs.fitting.gram_system: Accumulating streamed Gram system: 172 x 172 (0.2 MiB), effective_batch_size=1, backend=SciPy/OpenBLAS CPU
+INFO mlfcs.fitting.gram_system: - Physical design kernel groups: 7, 7 bounded tiles
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.01 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.01 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 1/100, elapsed=0.02 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 20/100, elapsed=0.13 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 40/100, elapsed=0.24 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 60/100, elapsed=0.36 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 80/100, elapsed=0.47 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 100/100, elapsed=0.58 s
+INFO mlfcs.fitting.gram_system: - Streamed Gram system ready in 0.58 s
+INFO mlfcs.fitting.gram_system: - Gram phase timing: kernel=0.42 s, transfer=0.01 s, scatter=0.07 s, constraint reduction=0.03 s, BLAS=0.02 s
+INFO mlfcs.fitting.fitter: Column-norm preconditioning in constrained coordinates
+INFO mlfcs.fitting.fitter: - Inverse column scale: 2.459752e-02 to 2.322116e-01
+INFO mlfcs.fitting.fitter: Solving the force-only least-squares problem with streamed Gram
+INFO mlfcs.fitting.fitter: - Equations: 36000, unknowns: 172
+INFO mlfcs.fitting.fitter: - Maximum joint constraint residual: 2.775558e-16
+INFO mlfcs.fitting.fitter: Force fitting summary
+INFO mlfcs.fitting.fitter: - Training relative error: 36.675741 %
+INFO mlfcs.fitting.fitter: - Validation relative error: 36.675741 %
+INFO mlfcs.fitting.fitter: - Training force RMSE: 1.1798145557e-01 eV/Å
+INFO mlfcs.fitting.fitter: - Validation force RMSE: 1.1798145557e-01 eV/Å
+INFO mlfcs.fitting.fitter: - FC2 force contribution RMS: 2.9927168752e-01 eV/Å
+INFO mlfcs.fitting.fitter: - JAX execution guard: 1 prepared program, 7 signatures, 7 tiles, Gram passes=1, prediction passes=0
+INFO mlfcs.fitting.fitter: - Solver iterations=70, stop_code=0
+INFO mlfcs.fitting.fitter: Expanding fitted Taylor parameters into sparse physical IFCs
+INFO mlfcs.fitting.fitter: - Expanded 286 sparse tensors in 0.02 s
+INFO mlfcs.physics.sscha.solver: - Fitting relative force error: 36.675741 %
+INFO mlfcs.physics.sscha.solver: Relative FC2 change: 2.733032e-02
+INFO mlfcs.physics.sscha.solver: - Variational free-energy estimate: -5.9584632592e-01 +/- 8.690e-04 eV/primitive cell
+INFO mlfcs.force_constants.realization: Export view cache miss; constructing new view
+WARNING mlfcs.sampling.harmonic: Imaginary harmonic modes use policy 'absolute'; frequencies below 1.000e-06 THz will not raise an exception
+INFO mlfcs.sampling.structures: Generated 100 harmonic perturbation structures
+INFO mlfcs.sampling.structures: Harmonic sampling: qpoints=12, sampled_modes=357/357, minimum_frequency=0.59836446 THz
+INFO mlfcs.physics.sscha.solver: SSCHA iteration 18/30: canonical sampling
+INFO mlfcs.physics.sscha.solver: q points: 12
+INFO mlfcs.physics.sscha.solver: - sampled modes: 357/357, imaginary=0, excluded=0
+INFO mlfcs.physics.sscha.solver: - maximum sampled atomic displacement: 0.69958145 Å
+INFO mlfcs.physics.sscha.solver: maximum displacement limit: disabled
+INFO mlfcs.fitting.fitter: Training-data diagnostics (inputs are not recentered)
+INFO mlfcs.fitting.fitter: - Maximum reference force: 0.0000000000e+00 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum snapshot net force: 5.8125238457e-15 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum center-of-mass displacement: 2.5630551022e-02 Å
+INFO mlfcs.fitting.fitter: Constraint system: 16 rows after duplicate removal (90 ASR before compression)
+INFO mlfcs.fitting.linear_solvers: Explicit constraint parameterization: 188 -> 172 parameters in 49 blocks, rank=16, nnz=446
+INFO mlfcs.fitting.design_operator: - Prepared JAX feature program: 7 signatures, 7 tiles, 0.2 MiB static buffers
+INFO mlfcs.fitting.gram_system: Accumulating streamed Gram system: 172 x 172 (0.2 MiB), effective_batch_size=1, backend=SciPy/OpenBLAS CPU
+INFO mlfcs.fitting.gram_system: - Physical design kernel groups: 7, 7 bounded tiles
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 1/100, elapsed=0.04 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 20/100, elapsed=0.72 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 40/100, elapsed=1.53 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 60/100, elapsed=2.18 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 80/100, elapsed=2.85 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 100/100, elapsed=3.49 s
+INFO mlfcs.fitting.gram_system: - Streamed Gram system ready in 3.49 s
+INFO mlfcs.fitting.gram_system: - Gram phase timing: kernel=0.97 s, transfer=0.02 s, scatter=0.13 s, constraint reduction=0.05 s, BLAS=2.26 s
+INFO mlfcs.fitting.fitter: Column-norm preconditioning in constrained coordinates
+INFO mlfcs.fitting.fitter: - Inverse column scale: 2.540032e-02 to 2.273447e-01
+INFO mlfcs.fitting.fitter: Solving the force-only least-squares problem with streamed Gram
+INFO mlfcs.fitting.fitter: - Equations: 36000, unknowns: 172
+INFO mlfcs.fitting.fitter: - Maximum joint constraint residual: 2.636780e-16
+INFO mlfcs.fitting.fitter: Force fitting summary
+INFO mlfcs.fitting.fitter: - Training relative error: 38.472008 %
+INFO mlfcs.fitting.fitter: - Validation relative error: 38.472008 %
+INFO mlfcs.fitting.fitter: - Training force RMSE: 1.2408779221e-01 eV/Å
+INFO mlfcs.fitting.fitter: - Validation force RMSE: 1.2408779221e-01 eV/Å
+INFO mlfcs.fitting.fitter: - FC2 force contribution RMS: 2.9771558778e-01 eV/Å
+INFO mlfcs.fitting.fitter: - JAX execution guard: 1 prepared program, 7 signatures, 7 tiles, Gram passes=1, prediction passes=0
+INFO mlfcs.fitting.fitter: - Solver iterations=70, stop_code=0
+INFO mlfcs.fitting.fitter: Expanding fitted Taylor parameters into sparse physical IFCs
+INFO mlfcs.fitting.fitter: - Expanded 286 sparse tensors in 0.02 s
+INFO mlfcs.physics.sscha.solver: - Fitting relative force error: 38.472008 %
+INFO mlfcs.physics.sscha.solver: Relative FC2 change: 2.474257e-02
+INFO mlfcs.physics.sscha.solver: - Variational free-energy estimate: -5.9577146614e-01 +/- 8.333e-04 eV/primitive cell
+INFO mlfcs.force_constants.realization: Export view cache miss; constructing new view
+WARNING mlfcs.sampling.harmonic: Imaginary harmonic modes use policy 'absolute'; frequencies below 1.000e-06 THz will not raise an exception
+INFO mlfcs.sampling.structures: Generated 100 harmonic perturbation structures
+INFO mlfcs.sampling.structures: Harmonic sampling: qpoints=12, sampled_modes=357/357, minimum_frequency=0.64140250 THz
+INFO mlfcs.physics.sscha.solver: SSCHA iteration 19/30: canonical sampling
+INFO mlfcs.physics.sscha.solver: q points: 12
+INFO mlfcs.physics.sscha.solver: - sampled modes: 357/357, imaginary=0, excluded=0
+INFO mlfcs.physics.sscha.solver: - maximum sampled atomic displacement: 0.64408568 Å
+INFO mlfcs.physics.sscha.solver: maximum displacement limit: disabled
+INFO mlfcs.fitting.fitter: Training-data diagnostics (inputs are not recentered)
+INFO mlfcs.fitting.fitter: - Maximum reference force: 0.0000000000e+00 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum snapshot net force: 6.9274109414e-15 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum center-of-mass displacement: 2.4508746494e-02 Å
+INFO mlfcs.fitting.fitter: Constraint system: 16 rows after duplicate removal (90 ASR before compression)
+INFO mlfcs.fitting.linear_solvers: Explicit constraint parameterization: 188 -> 172 parameters in 49 blocks, rank=16, nnz=446
+INFO mlfcs.fitting.design_operator: - Prepared JAX feature program: 7 signatures, 7 tiles, 0.2 MiB static buffers
+INFO mlfcs.fitting.gram_system: Accumulating streamed Gram system: 172 x 172 (0.2 MiB), effective_batch_size=1, backend=SciPy/OpenBLAS CPU
+INFO mlfcs.fitting.gram_system: - Physical design kernel groups: 7, 7 bounded tiles
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.01 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 1/100, elapsed=0.04 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 20/100, elapsed=0.18 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 40/100, elapsed=0.32 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 60/100, elapsed=0.45 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 80/100, elapsed=0.58 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 100/100, elapsed=0.73 s
+INFO mlfcs.fitting.gram_system: - Streamed Gram system ready in 0.73 s
+INFO mlfcs.fitting.gram_system: - Gram phase timing: kernel=0.52 s, transfer=0.01 s, scatter=0.08 s, constraint reduction=0.03 s, BLAS=0.04 s
+INFO mlfcs.fitting.fitter: Column-norm preconditioning in constrained coordinates
+INFO mlfcs.fitting.fitter: - Inverse column scale: 2.453885e-02 to 2.276895e-01
+INFO mlfcs.fitting.fitter: Solving the force-only least-squares problem with streamed Gram
+INFO mlfcs.fitting.fitter: - Equations: 36000, unknowns: 172
+INFO mlfcs.fitting.fitter: - Maximum joint constraint residual: 2.636780e-16
+INFO mlfcs.fitting.fitter: Force fitting summary
+INFO mlfcs.fitting.fitter: - Training relative error: 47.171280 %
+INFO mlfcs.fitting.fitter: - Validation relative error: 47.171280 %
+INFO mlfcs.fitting.fitter: - Training force RMSE: 1.5982907084e-01 eV/Å
+INFO mlfcs.fitting.fitter: - Validation force RMSE: 1.5982907084e-01 eV/Å
+INFO mlfcs.fitting.fitter: - FC2 force contribution RMS: 2.9876153801e-01 eV/Å
+INFO mlfcs.fitting.fitter: - JAX execution guard: 1 prepared program, 7 signatures, 7 tiles, Gram passes=1, prediction passes=0
+INFO mlfcs.fitting.fitter: - Solver iterations=71, stop_code=0
+INFO mlfcs.fitting.fitter: Expanding fitted Taylor parameters into sparse physical IFCs
+INFO mlfcs.fitting.fitter: - Expanded 286 sparse tensors in 0.04 s
+INFO mlfcs.physics.sscha.solver: - Fitting relative force error: 47.171280 %
+INFO mlfcs.physics.sscha.solver: Relative FC2 change: 2.331656e-02
+INFO mlfcs.physics.sscha.solver: - Variational free-energy estimate: -5.9702307535e-01 +/- 1.337e-03 eV/primitive cell
+INFO mlfcs.force_constants.realization: Export view cache miss; constructing new view
+WARNING mlfcs.sampling.harmonic: Imaginary harmonic modes use policy 'absolute'; frequencies below 1.000e-06 THz will not raise an exception
+INFO mlfcs.sampling.structures: Generated 100 harmonic perturbation structures
+INFO mlfcs.sampling.structures: Harmonic sampling: qpoints=12, sampled_modes=357/357, minimum_frequency=0.58709609 THz
+INFO mlfcs.physics.sscha.solver: SSCHA iteration 20/30: canonical sampling
+INFO mlfcs.physics.sscha.solver: q points: 12
+INFO mlfcs.physics.sscha.solver: - sampled modes: 357/357, imaginary=0, excluded=0
+INFO mlfcs.physics.sscha.solver: - maximum sampled atomic displacement: 0.67041750 Å
+INFO mlfcs.physics.sscha.solver: maximum displacement limit: disabled
+INFO mlfcs.fitting.fitter: Training-data diagnostics (inputs are not recentered)
+INFO mlfcs.fitting.fitter: - Maximum reference force: 0.0000000000e+00 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum snapshot net force: 4.1429148217e-15 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum center-of-mass displacement: 2.9647750798e-02 Å
+INFO mlfcs.fitting.fitter: Constraint system: 16 rows after duplicate removal (90 ASR before compression)
+INFO mlfcs.fitting.linear_solvers: Explicit constraint parameterization: 188 -> 172 parameters in 49 blocks, rank=16, nnz=446
+INFO mlfcs.fitting.design_operator: - Prepared JAX feature program: 7 signatures, 7 tiles, 0.2 MiB static buffers
+INFO mlfcs.fitting.gram_system: Accumulating streamed Gram system: 172 x 172 (0.2 MiB), effective_batch_size=1, backend=SciPy/OpenBLAS CPU
+INFO mlfcs.fitting.gram_system: - Physical design kernel groups: 7, 7 bounded tiles
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 1/100, elapsed=0.07 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 20/100, elapsed=0.64 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 40/100, elapsed=1.32 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 60/100, elapsed=1.91 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 80/100, elapsed=2.56 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 100/100, elapsed=3.23 s
+INFO mlfcs.fitting.gram_system: - Streamed Gram system ready in 3.23 s
+INFO mlfcs.fitting.gram_system: - Gram phase timing: kernel=0.85 s, transfer=0.01 s, scatter=0.11 s, constraint reduction=0.04 s, BLAS=2.14 s
+INFO mlfcs.fitting.fitter: Column-norm preconditioning in constrained coordinates
+INFO mlfcs.fitting.fitter: - Inverse column scale: 2.478973e-02 to 2.321507e-01
+INFO mlfcs.fitting.fitter: Solving the force-only least-squares problem with streamed Gram
+INFO mlfcs.fitting.fitter: - Equations: 36000, unknowns: 172
+INFO mlfcs.fitting.fitter: - Maximum joint constraint residual: 2.498002e-16
+INFO mlfcs.fitting.fitter: Force fitting summary
+INFO mlfcs.fitting.fitter: - Training relative error: 35.598269 %
+INFO mlfcs.fitting.fitter: - Validation relative error: 35.598269 %
+INFO mlfcs.fitting.fitter: - Training force RMSE: 1.1408270115e-01 eV/Å
+INFO mlfcs.fitting.fitter: - Validation force RMSE: 1.1408270115e-01 eV/Å
+INFO mlfcs.fitting.fitter: - FC2 force contribution RMS: 2.9947926442e-01 eV/Å
+INFO mlfcs.fitting.fitter: - JAX execution guard: 1 prepared program, 7 signatures, 7 tiles, Gram passes=1, prediction passes=0
+INFO mlfcs.fitting.fitter: - Solver iterations=70, stop_code=0
+INFO mlfcs.fitting.fitter: Expanding fitted Taylor parameters into sparse physical IFCs
+INFO mlfcs.fitting.fitter: - Expanded 286 sparse tensors in 0.02 s
+INFO mlfcs.physics.sscha.solver: - Fitting relative force error: 35.598269 %
+INFO mlfcs.physics.sscha.solver: Relative FC2 change: 2.559349e-02
+INFO mlfcs.physics.sscha.solver: - Variational free-energy estimate: -5.9615149027e-01 +/- 9.212e-04 eV/primitive cell
+INFO mlfcs.force_constants.realization: Export view cache miss; constructing new view
+WARNING mlfcs.sampling.harmonic: Imaginary harmonic modes use policy 'absolute'; frequencies below 1.000e-06 THz will not raise an exception
+INFO mlfcs.sampling.structures: Generated 100 harmonic perturbation structures
+INFO mlfcs.sampling.structures: Harmonic sampling: qpoints=12, sampled_modes=357/357, minimum_frequency=0.57992010 THz
+INFO mlfcs.physics.sscha.solver: SSCHA iteration 21/30: canonical sampling
+INFO mlfcs.physics.sscha.solver: q points: 12
+INFO mlfcs.physics.sscha.solver: - sampled modes: 357/357, imaginary=0, excluded=0
+INFO mlfcs.physics.sscha.solver: - maximum sampled atomic displacement: 0.65390002 Å
+INFO mlfcs.physics.sscha.solver: maximum displacement limit: disabled
+INFO mlfcs.fitting.fitter: Training-data diagnostics (inputs are not recentered)
+INFO mlfcs.fitting.fitter: - Maximum reference force: 0.0000000000e+00 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum snapshot net force: 4.7708125220e-15 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum center-of-mass displacement: 2.5519409902e-02 Å
+INFO mlfcs.fitting.fitter: Constraint system: 16 rows after duplicate removal (90 ASR before compression)
+INFO mlfcs.fitting.linear_solvers: Explicit constraint parameterization: 188 -> 172 parameters in 49 blocks, rank=16, nnz=446
+INFO mlfcs.fitting.design_operator: - Prepared JAX feature program: 7 signatures, 7 tiles, 0.2 MiB static buffers
+INFO mlfcs.fitting.gram_system: Accumulating streamed Gram system: 172 x 172 (0.2 MiB), effective_batch_size=1, backend=SciPy/OpenBLAS CPU
+INFO mlfcs.fitting.gram_system: - Physical design kernel groups: 7, 7 bounded tiles
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 1/100, elapsed=0.02 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 20/100, elapsed=0.21 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 40/100, elapsed=0.33 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 60/100, elapsed=0.46 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 80/100, elapsed=0.60 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 100/100, elapsed=0.73 s
+INFO mlfcs.fitting.gram_system: - Streamed Gram system ready in 0.73 s
+INFO mlfcs.fitting.gram_system: - Gram phase timing: kernel=0.48 s, transfer=0.01 s, scatter=0.08 s, constraint reduction=0.03 s, BLAS=0.08 s
+INFO mlfcs.fitting.fitter: Column-norm preconditioning in constrained coordinates
+INFO mlfcs.fitting.fitter: - Inverse column scale: 2.480909e-02 to 2.214406e-01
+INFO mlfcs.fitting.fitter: Solving the force-only least-squares problem with streamed Gram
+INFO mlfcs.fitting.fitter: - Equations: 36000, unknowns: 172
+INFO mlfcs.fitting.fitter: - Maximum joint constraint residual: 3.608225e-16
+INFO mlfcs.fitting.fitter: Force fitting summary
+INFO mlfcs.fitting.fitter: - Training relative error: 35.706789 %
+INFO mlfcs.fitting.fitter: - Validation relative error: 35.706789 %
+INFO mlfcs.fitting.fitter: - Training force RMSE: 1.1250184500e-01 eV/Å
+INFO mlfcs.fitting.fitter: - Validation force RMSE: 1.1250184500e-01 eV/Å
+INFO mlfcs.fitting.fitter: - FC2 force contribution RMS: 2.9430130552e-01 eV/Å
+INFO mlfcs.fitting.fitter: - JAX execution guard: 1 prepared program, 7 signatures, 7 tiles, Gram passes=1, prediction passes=0
+INFO mlfcs.fitting.fitter: - Solver iterations=71, stop_code=0
+INFO mlfcs.fitting.fitter: Expanding fitted Taylor parameters into sparse physical IFCs
+INFO mlfcs.fitting.fitter: - Expanded 286 sparse tensors in 0.03 s
+INFO mlfcs.physics.sscha.solver: - Fitting relative force error: 35.706789 %
+INFO mlfcs.physics.sscha.solver: Relative FC2 change: 2.111576e-02
+INFO mlfcs.physics.sscha.solver: - Variational free-energy estimate: -5.9477117676e-01 +/- 9.130e-04 eV/primitive cell
+INFO mlfcs.force_constants.realization: Export view cache miss; constructing new view
+WARNING mlfcs.sampling.harmonic: Imaginary harmonic modes use policy 'absolute'; frequencies below 1.000e-06 THz will not raise an exception
+INFO mlfcs.sampling.structures: Generated 100 harmonic perturbation structures
+INFO mlfcs.sampling.structures: Harmonic sampling: qpoints=12, sampled_modes=357/357, minimum_frequency=0.59667463 THz
+INFO mlfcs.physics.sscha.solver: SSCHA iteration 22/30: canonical sampling
+INFO mlfcs.physics.sscha.solver: q points: 12
+INFO mlfcs.physics.sscha.solver: - sampled modes: 357/357, imaginary=0, excluded=0
+INFO mlfcs.physics.sscha.solver: - maximum sampled atomic displacement: 0.63231909 Å
+INFO mlfcs.physics.sscha.solver: maximum displacement limit: disabled
+INFO mlfcs.fitting.fitter: Training-data diagnostics (inputs are not recentered)
+INFO mlfcs.fitting.fitter: - Maximum reference force: 0.0000000000e+00 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum snapshot net force: 4.6104342106e-15 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum center-of-mass displacement: 1.9655836986e-02 Å
+INFO mlfcs.fitting.fitter: Constraint system: 16 rows after duplicate removal (90 ASR before compression)
+INFO mlfcs.fitting.linear_solvers: Explicit constraint parameterization: 188 -> 172 parameters in 49 blocks, rank=16, nnz=446
+INFO mlfcs.fitting.design_operator: - Prepared JAX feature program: 7 signatures, 7 tiles, 0.2 MiB static buffers
+INFO mlfcs.fitting.gram_system: Accumulating streamed Gram system: 172 x 172 (0.2 MiB), effective_batch_size=1, backend=SciPy/OpenBLAS CPU
+INFO mlfcs.fitting.gram_system: - Physical design kernel groups: 7, 7 bounded tiles
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 1/100, elapsed=0.00 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 20/100, elapsed=0.12 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 40/100, elapsed=0.23 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 60/100, elapsed=0.34 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 80/100, elapsed=0.46 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 100/100, elapsed=0.57 s
+INFO mlfcs.fitting.gram_system: - Streamed Gram system ready in 0.57 s
+INFO mlfcs.fitting.gram_system: - Gram phase timing: kernel=0.41 s, transfer=0.01 s, scatter=0.08 s, constraint reduction=0.03 s, BLAS=0.02 s
+INFO mlfcs.fitting.fitter: Column-norm preconditioning in constrained coordinates
+INFO mlfcs.fitting.fitter: - Inverse column scale: 2.555718e-02 to 2.292992e-01
+INFO mlfcs.fitting.fitter: Solving the force-only least-squares problem with streamed Gram
+INFO mlfcs.fitting.fitter: - Equations: 36000, unknowns: 172
+INFO mlfcs.fitting.fitter: - Maximum joint constraint residual: 2.359224e-16
+INFO mlfcs.fitting.fitter: Force fitting summary
+INFO mlfcs.fitting.fitter: - Training relative error: 37.167924 %
+INFO mlfcs.fitting.fitter: - Validation relative error: 37.167924 %
+INFO mlfcs.fitting.fitter: - Training force RMSE: 1.1931378120e-01 eV/Å
+INFO mlfcs.fitting.fitter: - Validation force RMSE: 1.1931378120e-01 eV/Å
+INFO mlfcs.fitting.fitter: - FC2 force contribution RMS: 2.9801579850e-01 eV/Å
+INFO mlfcs.fitting.fitter: - JAX execution guard: 1 prepared program, 7 signatures, 7 tiles, Gram passes=1, prediction passes=0
+INFO mlfcs.fitting.fitter: - Solver iterations=70, stop_code=0
+INFO mlfcs.fitting.fitter: Expanding fitted Taylor parameters into sparse physical IFCs
+INFO mlfcs.fitting.fitter: - Expanded 286 sparse tensors in 0.01 s
+INFO mlfcs.physics.sscha.solver: - Fitting relative force error: 37.167924 %
+INFO mlfcs.physics.sscha.solver: Relative FC2 change: 2.048856e-02
+INFO mlfcs.physics.sscha.solver: - Variational free-energy estimate: -5.9629331379e-01 +/- 9.540e-04 eV/primitive cell
+INFO mlfcs.force_constants.realization: Export view cache miss; constructing new view
+WARNING mlfcs.sampling.harmonic: Imaginary harmonic modes use policy 'absolute'; frequencies below 1.000e-06 THz will not raise an exception
+INFO mlfcs.sampling.structures: Generated 100 harmonic perturbation structures
+INFO mlfcs.sampling.structures: Harmonic sampling: qpoints=12, sampled_modes=357/357, minimum_frequency=0.59024165 THz
+INFO mlfcs.physics.sscha.solver: SSCHA iteration 23/30: canonical sampling
+INFO mlfcs.physics.sscha.solver: q points: 12
+INFO mlfcs.physics.sscha.solver: - sampled modes: 357/357, imaginary=0, excluded=0
+INFO mlfcs.physics.sscha.solver: - maximum sampled atomic displacement: 0.71023851 Å
+INFO mlfcs.physics.sscha.solver: maximum displacement limit: disabled
+INFO mlfcs.fitting.fitter: Training-data diagnostics (inputs are not recentered)
+INFO mlfcs.fitting.fitter: - Maximum reference force: 0.0000000000e+00 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum snapshot net force: 5.2180482157e-15 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum center-of-mass displacement: 2.1278899576e-02 Å
+INFO mlfcs.fitting.fitter: Constraint system: 16 rows after duplicate removal (90 ASR before compression)
+INFO mlfcs.fitting.linear_solvers: Explicit constraint parameterization: 188 -> 172 parameters in 49 blocks, rank=16, nnz=446
+INFO mlfcs.fitting.design_operator: - Prepared JAX feature program: 7 signatures, 7 tiles, 0.2 MiB static buffers
+INFO mlfcs.fitting.gram_system: Accumulating streamed Gram system: 172 x 172 (0.2 MiB), effective_batch_size=1, backend=SciPy/OpenBLAS CPU
+INFO mlfcs.fitting.gram_system: - Physical design kernel groups: 7, 7 bounded tiles
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.01 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 1/100, elapsed=0.07 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 20/100, elapsed=0.65 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 40/100, elapsed=1.36 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 60/100, elapsed=2.25 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 80/100, elapsed=2.89 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 100/100, elapsed=3.54 s
+INFO mlfcs.fitting.gram_system: - Streamed Gram system ready in 3.54 s
+INFO mlfcs.fitting.gram_system: - Gram phase timing: kernel=0.96 s, transfer=0.02 s, scatter=0.14 s, constraint reduction=0.06 s, BLAS=2.29 s
+INFO mlfcs.fitting.fitter: Column-norm preconditioning in constrained coordinates
+INFO mlfcs.fitting.fitter: - Inverse column scale: 2.535511e-02 to 2.205182e-01
+INFO mlfcs.fitting.fitter: Solving the force-only least-squares problem with streamed Gram
+INFO mlfcs.fitting.fitter: - Equations: 36000, unknowns: 172
+INFO mlfcs.fitting.fitter: - Maximum joint constraint residual: 2.827599e-16
+INFO mlfcs.fitting.fitter: Force fitting summary
+INFO mlfcs.fitting.fitter: - Training relative error: 36.967232 %
+INFO mlfcs.fitting.fitter: - Validation relative error: 36.967232 %
+INFO mlfcs.fitting.fitter: - Training force RMSE: 1.1952721938e-01 eV/Å
+INFO mlfcs.fitting.fitter: - Validation force RMSE: 1.1952721938e-01 eV/Å
+INFO mlfcs.fitting.fitter: - FC2 force contribution RMS: 3.0042869960e-01 eV/Å
+INFO mlfcs.fitting.fitter: - JAX execution guard: 1 prepared program, 7 signatures, 7 tiles, Gram passes=1, prediction passes=0
+INFO mlfcs.fitting.fitter: - Solver iterations=71, stop_code=0
+INFO mlfcs.fitting.fitter: Expanding fitted Taylor parameters into sparse physical IFCs
+INFO mlfcs.fitting.fitter: - Expanded 286 sparse tensors in 0.01 s
+INFO mlfcs.physics.sscha.solver: - Fitting relative force error: 36.967232 %
+INFO mlfcs.physics.sscha.solver: Relative FC2 change: 1.952190e-02
+INFO mlfcs.physics.sscha.solver: - Variational free-energy estimate: -5.9811694645e-01 +/- 9.351e-04 eV/primitive cell
+INFO mlfcs.force_constants.realization: Export view cache miss; constructing new view
+WARNING mlfcs.sampling.harmonic: Imaginary harmonic modes use policy 'absolute'; frequencies below 1.000e-06 THz will not raise an exception
+INFO mlfcs.sampling.structures: Generated 100 harmonic perturbation structures
+INFO mlfcs.sampling.structures: Harmonic sampling: qpoints=12, sampled_modes=357/357, minimum_frequency=0.57418936 THz
+INFO mlfcs.physics.sscha.solver: SSCHA iteration 24/30: canonical sampling
+INFO mlfcs.physics.sscha.solver: q points: 12
+INFO mlfcs.physics.sscha.solver: - sampled modes: 357/357, imaginary=0, excluded=0
+INFO mlfcs.physics.sscha.solver: - maximum sampled atomic displacement: 0.82465685 Å
+INFO mlfcs.physics.sscha.solver: maximum displacement limit: disabled
+INFO mlfcs.fitting.fitter: Training-data diagnostics (inputs are not recentered)
+INFO mlfcs.fitting.fitter: - Maximum reference force: 0.0000000000e+00 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum snapshot net force: 6.6935873792e-15 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum center-of-mass displacement: 2.4902056358e-02 Å
+INFO mlfcs.fitting.fitter: Constraint system: 16 rows after duplicate removal (90 ASR before compression)
+INFO mlfcs.fitting.linear_solvers: Explicit constraint parameterization: 188 -> 172 parameters in 49 blocks, rank=16, nnz=446
+INFO mlfcs.fitting.design_operator: - Prepared JAX feature program: 7 signatures, 7 tiles, 0.2 MiB static buffers
+INFO mlfcs.fitting.gram_system: Accumulating streamed Gram system: 172 x 172 (0.2 MiB), effective_batch_size=1, backend=SciPy/OpenBLAS CPU
+INFO mlfcs.fitting.gram_system: - Physical design kernel groups: 7, 7 bounded tiles
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 1/100, elapsed=0.01 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 20/100, elapsed=0.16 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 40/100, elapsed=0.29 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 60/100, elapsed=0.44 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 80/100, elapsed=0.59 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 100/100, elapsed=0.75 s
+INFO mlfcs.fitting.gram_system: - Streamed Gram system ready in 0.75 s
+INFO mlfcs.fitting.gram_system: - Gram phase timing: kernel=0.55 s, transfer=0.01 s, scatter=0.08 s, constraint reduction=0.03 s, BLAS=0.03 s
+INFO mlfcs.fitting.fitter: Column-norm preconditioning in constrained coordinates
+INFO mlfcs.fitting.fitter: - Inverse column scale: 2.563159e-02 to 2.218461e-01
+INFO mlfcs.fitting.fitter: Solving the force-only least-squares problem with streamed Gram
+INFO mlfcs.fitting.fitter: - Equations: 36000, unknowns: 172
+INFO mlfcs.fitting.fitter: - Maximum joint constraint residual: 3.053113e-16
+INFO mlfcs.fitting.fitter: Force fitting summary
+INFO mlfcs.fitting.fitter: - Training relative error: 47.180474 %
+INFO mlfcs.fitting.fitter: - Validation relative error: 47.180474 %
+INFO mlfcs.fitting.fitter: - Training force RMSE: 1.6245251072e-01 eV/Å
+INFO mlfcs.fitting.fitter: - Validation force RMSE: 1.6245251072e-01 eV/Å
+INFO mlfcs.fitting.fitter: - FC2 force contribution RMS: 3.0358931355e-01 eV/Å
+INFO mlfcs.fitting.fitter: - JAX execution guard: 1 prepared program, 7 signatures, 7 tiles, Gram passes=1, prediction passes=0
+INFO mlfcs.fitting.fitter: - Solver iterations=70, stop_code=0
+INFO mlfcs.fitting.fitter: Expanding fitted Taylor parameters into sparse physical IFCs
+INFO mlfcs.fitting.fitter: - Expanded 286 sparse tensors in 0.02 s
+INFO mlfcs.physics.sscha.solver: - Fitting relative force error: 47.180474 %
+INFO mlfcs.physics.sscha.solver: Relative FC2 change: 2.551395e-02
+INFO mlfcs.physics.sscha.solver: - Variational free-energy estimate: -5.9836804635e-01 +/- 1.477e-03 eV/primitive cell
+INFO mlfcs.force_constants.realization: Export view cache miss; constructing new view
+WARNING mlfcs.sampling.harmonic: Imaginary harmonic modes use policy 'absolute'; frequencies below 1.000e-06 THz will not raise an exception
+INFO mlfcs.sampling.structures: Generated 100 harmonic perturbation structures
+INFO mlfcs.sampling.structures: Harmonic sampling: qpoints=12, sampled_modes=357/357, minimum_frequency=0.58299322 THz
+INFO mlfcs.physics.sscha.solver: SSCHA iteration 25/30: canonical sampling
+INFO mlfcs.physics.sscha.solver: q points: 12
+INFO mlfcs.physics.sscha.solver: - sampled modes: 357/357, imaginary=0, excluded=0
+INFO mlfcs.physics.sscha.solver: - maximum sampled atomic displacement: 0.67661441 Å
+INFO mlfcs.physics.sscha.solver: maximum displacement limit: disabled
+INFO mlfcs.fitting.fitter: Training-data diagnostics (inputs are not recentered)
+INFO mlfcs.fitting.fitter: - Maximum reference force: 0.0000000000e+00 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum snapshot net force: 5.3727833542e-15 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum center-of-mass displacement: 2.3066479371e-02 Å
+INFO mlfcs.fitting.fitter: Constraint system: 16 rows after duplicate removal (90 ASR before compression)
+INFO mlfcs.fitting.linear_solvers: Explicit constraint parameterization: 188 -> 172 parameters in 49 blocks, rank=16, nnz=446
+INFO mlfcs.fitting.design_operator: - Prepared JAX feature program: 7 signatures, 7 tiles, 0.2 MiB static buffers
+INFO mlfcs.fitting.gram_system: Accumulating streamed Gram system: 172 x 172 (0.2 MiB), effective_batch_size=1, backend=SciPy/OpenBLAS CPU
+INFO mlfcs.fitting.gram_system: - Physical design kernel groups: 7, 7 bounded tiles
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 1/100, elapsed=0.02 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 20/100, elapsed=0.14 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 40/100, elapsed=0.26 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 60/100, elapsed=0.37 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 80/100, elapsed=0.49 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 100/100, elapsed=0.61 s
+INFO mlfcs.fitting.gram_system: - Streamed Gram system ready in 0.61 s
+INFO mlfcs.fitting.gram_system: - Gram phase timing: kernel=0.43 s, transfer=0.01 s, scatter=0.08 s, constraint reduction=0.03 s, BLAS=0.02 s
+INFO mlfcs.fitting.fitter: Column-norm preconditioning in constrained coordinates
+INFO mlfcs.fitting.fitter: - Inverse column scale: 2.239597e-02 to 2.232264e-01
+INFO mlfcs.fitting.fitter: Solving the force-only least-squares problem with streamed Gram
+INFO mlfcs.fitting.fitter: - Equations: 36000, unknowns: 172
+INFO mlfcs.fitting.fitter: - Maximum joint constraint residual: 2.359224e-16
+INFO mlfcs.fitting.fitter: Force fitting summary
+INFO mlfcs.fitting.fitter: - Training relative error: 47.730244 %
+INFO mlfcs.fitting.fitter: - Validation relative error: 47.730244 %
+INFO mlfcs.fitting.fitter: - Training force RMSE: 1.5871501807e-01 eV/Å
+INFO mlfcs.fitting.fitter: - Validation force RMSE: 1.5871501807e-01 eV/Å
+INFO mlfcs.fitting.fitter: - FC2 force contribution RMS: 2.9220276233e-01 eV/Å
+INFO mlfcs.fitting.fitter: - JAX execution guard: 1 prepared program, 7 signatures, 7 tiles, Gram passes=1, prediction passes=0
+INFO mlfcs.fitting.fitter: - Solver iterations=71, stop_code=0
+INFO mlfcs.fitting.fitter: Expanding fitted Taylor parameters into sparse physical IFCs
+INFO mlfcs.fitting.fitter: - Expanded 286 sparse tensors in 0.02 s
+INFO mlfcs.physics.sscha.solver: - Fitting relative force error: 47.730244 %
+INFO mlfcs.physics.sscha.solver: Relative FC2 change: 3.187206e-02
+INFO mlfcs.physics.sscha.solver: - Variational free-energy estimate: -5.9725811697e-01 +/- 1.375e-03 eV/primitive cell
+INFO mlfcs.force_constants.realization: Export view cache miss; constructing new view
+WARNING mlfcs.sampling.harmonic: Imaginary harmonic modes use policy 'absolute'; frequencies below 1.000e-06 THz will not raise an exception
+INFO mlfcs.sampling.structures: Generated 100 harmonic perturbation structures
+INFO mlfcs.sampling.structures: Harmonic sampling: qpoints=12, sampled_modes=357/357, minimum_frequency=0.55879066 THz
+INFO mlfcs.physics.sscha.solver: SSCHA iteration 26/30: canonical sampling
+INFO mlfcs.physics.sscha.solver: q points: 12
+INFO mlfcs.physics.sscha.solver: - sampled modes: 357/357, imaginary=0, excluded=0
+INFO mlfcs.physics.sscha.solver: - maximum sampled atomic displacement: 0.73147342 Å
+INFO mlfcs.physics.sscha.solver: maximum displacement limit: disabled
+INFO mlfcs.fitting.fitter: Training-data diagnostics (inputs are not recentered)
+INFO mlfcs.fitting.fitter: - Maximum reference force: 0.0000000000e+00 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum snapshot net force: 5.0932048464e-15 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum center-of-mass displacement: 2.2455332342e-02 Å
+INFO mlfcs.fitting.fitter: Constraint system: 16 rows after duplicate removal (90 ASR before compression)
+INFO mlfcs.fitting.linear_solvers: Explicit constraint parameterization: 188 -> 172 parameters in 49 blocks, rank=16, nnz=446
+INFO mlfcs.fitting.design_operator: - Prepared JAX feature program: 7 signatures, 7 tiles, 0.2 MiB static buffers
+INFO mlfcs.fitting.gram_system: Accumulating streamed Gram system: 172 x 172 (0.2 MiB), effective_batch_size=1, backend=SciPy/OpenBLAS CPU
+INFO mlfcs.fitting.gram_system: - Physical design kernel groups: 7, 7 bounded tiles
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.01 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.01 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.01 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 1/100, elapsed=0.07 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 20/100, elapsed=0.68 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 40/100, elapsed=1.28 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 60/100, elapsed=1.96 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 80/100, elapsed=2.69 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 100/100, elapsed=3.35 s
+INFO mlfcs.fitting.gram_system: - Streamed Gram system ready in 3.35 s
+INFO mlfcs.fitting.gram_system: - Gram phase timing: kernel=0.87 s, transfer=0.01 s, scatter=0.13 s, constraint reduction=0.05 s, BLAS=2.21 s
+INFO mlfcs.fitting.fitter: Column-norm preconditioning in constrained coordinates
+INFO mlfcs.fitting.fitter: - Inverse column scale: 2.182127e-02 to 2.264694e-01
+INFO mlfcs.fitting.fitter: Solving the force-only least-squares problem with streamed Gram
+INFO mlfcs.fitting.fitter: - Equations: 36000, unknowns: 172
+INFO mlfcs.fitting.fitter: - Maximum joint constraint residual: 3.191891e-16
+INFO mlfcs.fitting.fitter: Force fitting summary
+INFO mlfcs.fitting.fitter: - Training relative error: 55.036660 %
+INFO mlfcs.fitting.fitter: - Validation relative error: 55.036660 %
+INFO mlfcs.fitting.fitter: - Training force RMSE: 1.9759913991e-01 eV/Å
+INFO mlfcs.fitting.fitter: - Validation force RMSE: 1.9759913991e-01 eV/Å
+INFO mlfcs.fitting.fitter: - FC2 force contribution RMS: 2.9976399485e-01 eV/Å
+INFO mlfcs.fitting.fitter: - JAX execution guard: 1 prepared program, 7 signatures, 7 tiles, Gram passes=1, prediction passes=0
+INFO mlfcs.fitting.fitter: - Solver iterations=70, stop_code=0
+INFO mlfcs.fitting.fitter: Expanding fitted Taylor parameters into sparse physical IFCs
+INFO mlfcs.fitting.fitter: - Expanded 286 sparse tensors in 0.02 s
+INFO mlfcs.physics.sscha.solver: - Fitting relative force error: 55.036660 %
+INFO mlfcs.physics.sscha.solver: Relative FC2 change: 3.397179e-02
+INFO mlfcs.physics.sscha.solver: - Variational free-energy estimate: -6.0008308337e-01 +/- 1.724e-03 eV/primitive cell
+INFO mlfcs.force_constants.realization: Export view cache miss; constructing new view
+WARNING mlfcs.sampling.harmonic: Imaginary harmonic modes use policy 'absolute'; frequencies below 1.000e-06 THz will not raise an exception
+INFO mlfcs.sampling.structures: Generated 100 harmonic perturbation structures
+INFO mlfcs.sampling.structures: Harmonic sampling: qpoints=12, sampled_modes=357/357, minimum_frequency=0.49917331 THz
+INFO mlfcs.physics.sscha.solver: SSCHA iteration 27/30: canonical sampling
+INFO mlfcs.physics.sscha.solver: q points: 12
+INFO mlfcs.physics.sscha.solver: - sampled modes: 357/357, imaginary=0, excluded=0
+INFO mlfcs.physics.sscha.solver: - maximum sampled atomic displacement: 0.84419232 Å
+INFO mlfcs.physics.sscha.solver: maximum displacement limit: disabled
+INFO mlfcs.fitting.fitter: Training-data diagnostics (inputs are not recentered)
+INFO mlfcs.fitting.fitter: - Maximum reference force: 0.0000000000e+00 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum snapshot net force: 6.6310016144e-14 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum center-of-mass displacement: 2.3106468121e-02 Å
+INFO mlfcs.fitting.fitter: Constraint system: 16 rows after duplicate removal (90 ASR before compression)
+INFO mlfcs.fitting.linear_solvers: Explicit constraint parameterization: 188 -> 172 parameters in 49 blocks, rank=16, nnz=446
+INFO mlfcs.fitting.design_operator: - Prepared JAX feature program: 7 signatures, 7 tiles, 0.2 MiB static buffers
+INFO mlfcs.fitting.gram_system: Accumulating streamed Gram system: 172 x 172 (0.2 MiB), effective_batch_size=1, backend=SciPy/OpenBLAS CPU
+INFO mlfcs.fitting.gram_system: - Physical design kernel groups: 7, 7 bounded tiles
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.01 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 1/100, elapsed=0.02 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 20/100, elapsed=0.16 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 40/100, elapsed=0.30 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 60/100, elapsed=0.43 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 80/100, elapsed=0.54 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 100/100, elapsed=0.68 s
+INFO mlfcs.fitting.gram_system: - Streamed Gram system ready in 0.68 s
+INFO mlfcs.fitting.gram_system: - Gram phase timing: kernel=0.50 s, transfer=0.01 s, scatter=0.08 s, constraint reduction=0.03 s, BLAS=0.02 s
+INFO mlfcs.fitting.fitter: Column-norm preconditioning in constrained coordinates
+INFO mlfcs.fitting.fitter: - Inverse column scale: 1.812444e-02 to 2.263456e-01
+INFO mlfcs.fitting.fitter: Solving the force-only least-squares problem with streamed Gram
+INFO mlfcs.fitting.fitter: - Equations: 36000, unknowns: 172
+INFO mlfcs.fitting.fitter: - Maximum joint constraint residual: 1.942890e-16
+INFO mlfcs.fitting.fitter: Force fitting summary
+INFO mlfcs.fitting.fitter: - Training relative error: 95.377450 %
+INFO mlfcs.fitting.fitter: - Validation relative error: 95.377450 %
+INFO mlfcs.fitting.fitter: - Training force RMSE: 1.1727295398e+00 eV/Å
+INFO mlfcs.fitting.fitter: - Validation force RMSE: 1.1727295398e+00 eV/Å
+INFO mlfcs.fitting.fitter: - FC2 force contribution RMS: 3.6951340004e-01 eV/Å
+INFO mlfcs.fitting.fitter: - JAX execution guard: 1 prepared program, 7 signatures, 7 tiles, Gram passes=1, prediction passes=0
+INFO mlfcs.fitting.fitter: - Solver iterations=75, stop_code=0
+INFO mlfcs.fitting.fitter: Expanding fitted Taylor parameters into sparse physical IFCs
+INFO mlfcs.fitting.fitter: - Expanded 286 sparse tensors in 0.04 s
+INFO mlfcs.physics.sscha.solver: - Fitting relative force error: 95.377450 %
+INFO mlfcs.physics.sscha.solver: Relative FC2 change: 1.787219e-01
+INFO mlfcs.physics.sscha.solver: - Variational free-energy estimate: -6.5802752192e-01 +/- 1.542e-02 eV/primitive cell
+INFO mlfcs.force_constants.realization: Export view cache miss; constructing new view
+WARNING mlfcs.sampling.harmonic: Imaginary harmonic modes use policy 'absolute'; frequencies below 1.000e-06 THz will not raise an exception
+INFO mlfcs.sampling.structures: Generated 100 harmonic perturbation structures
+INFO mlfcs.sampling.structures: Harmonic sampling: qpoints=12, sampled_modes=357/357, minimum_frequency=-5.26750399 THz
+INFO mlfcs.physics.sscha.solver: SSCHA iteration 28/30: canonical sampling
+INFO mlfcs.physics.sscha.solver: q points: 12
+INFO mlfcs.physics.sscha.solver: - sampled modes: 357/357, imaginary=47, excluded=0
+INFO mlfcs.physics.sscha.solver: - maximum sampled atomic displacement: 0.83593039 Å
+INFO mlfcs.physics.sscha.solver: maximum displacement limit: disabled
+INFO mlfcs.fitting.fitter: Training-data diagnostics (inputs are not recentered)
+INFO mlfcs.fitting.fitter: - Maximum reference force: 0.0000000000e+00 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum snapshot net force: 7.3468961469e-15 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum center-of-mass displacement: 2.6670909936e-02 Å
+INFO mlfcs.fitting.fitter: Constraint system: 16 rows after duplicate removal (90 ASR before compression)
+INFO mlfcs.fitting.linear_solvers: Explicit constraint parameterization: 188 -> 172 parameters in 49 blocks, rank=16, nnz=446
+INFO mlfcs.fitting.design_operator: - Prepared JAX feature program: 7 signatures, 7 tiles, 0.2 MiB static buffers
+INFO mlfcs.fitting.gram_system: Accumulating streamed Gram system: 172 x 172 (0.2 MiB), effective_batch_size=1, backend=SciPy/OpenBLAS CPU
+INFO mlfcs.fitting.gram_system: - Physical design kernel groups: 7, 7 bounded tiles
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.02 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 1/100, elapsed=0.08 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 20/100, elapsed=0.64 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 40/100, elapsed=1.27 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 60/100, elapsed=2.00 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 80/100, elapsed=2.60 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 100/100, elapsed=3.36 s
+INFO mlfcs.fitting.gram_system: - Streamed Gram system ready in 3.37 s
+INFO mlfcs.fitting.gram_system: - Gram phase timing: kernel=1.03 s, transfer=0.02 s, scatter=0.13 s, constraint reduction=0.05 s, BLAS=2.07 s
+INFO mlfcs.fitting.fitter: Column-norm preconditioning in constrained coordinates
+INFO mlfcs.fitting.fitter: - Inverse column scale: 2.436444e-02 to 2.299201e-01
+INFO mlfcs.fitting.fitter: Solving the force-only least-squares problem with streamed Gram
+INFO mlfcs.fitting.fitter: - Equations: 36000, unknowns: 172
+INFO mlfcs.fitting.fitter: - Maximum joint constraint residual: 6.314393e-16
+INFO mlfcs.fitting.fitter: Force fitting summary
+INFO mlfcs.fitting.fitter: - Training relative error: 52.576738 %
+INFO mlfcs.fitting.fitter: - Validation relative error: 52.576738 %
+INFO mlfcs.fitting.fitter: - Training force RMSE: 2.1161818930e-01 eV/Å
+INFO mlfcs.fitting.fitter: - Validation force RMSE: 2.1161818930e-01 eV/Å
+INFO mlfcs.fitting.fitter: - FC2 force contribution RMS: 3.4237277991e-01 eV/Å
+INFO mlfcs.fitting.fitter: - JAX execution guard: 1 prepared program, 7 signatures, 7 tiles, Gram passes=1, prediction passes=0
+INFO mlfcs.fitting.fitter: - Solver iterations=78, stop_code=0
+INFO mlfcs.fitting.fitter: Expanding fitted Taylor parameters into sparse physical IFCs
+INFO mlfcs.fitting.fitter: - Expanded 286 sparse tensors in 0.03 s
+INFO mlfcs.physics.sscha.solver: - Fitting relative force error: 52.576738 %
+INFO mlfcs.physics.sscha.solver: Relative FC2 change: 2.363621e-01
+INFO mlfcs.physics.sscha.solver: - Variational free-energy estimate: -4.6084857655e-01 +/- 3.469e-03 eV/primitive cell
+INFO mlfcs.force_constants.realization: Export view cache miss; constructing new view
+WARNING mlfcs.sampling.harmonic: Imaginary harmonic modes use policy 'absolute'; frequencies below 1.000e-06 THz will not raise an exception
+INFO mlfcs.sampling.structures: Generated 100 harmonic perturbation structures
+INFO mlfcs.sampling.structures: Harmonic sampling: qpoints=12, sampled_modes=357/357, minimum_frequency=0.63870585 THz
+INFO mlfcs.physics.sscha.solver: SSCHA iteration 29/30: canonical sampling
+INFO mlfcs.physics.sscha.solver: q points: 12
+INFO mlfcs.physics.sscha.solver: - sampled modes: 357/357, imaginary=0, excluded=0
+INFO mlfcs.physics.sscha.solver: - maximum sampled atomic displacement: 0.53611530 Å
+INFO mlfcs.physics.sscha.solver: maximum displacement limit: disabled
+INFO mlfcs.fitting.fitter: Training-data diagnostics (inputs are not recentered)
+INFO mlfcs.fitting.fitter: - Maximum reference force: 0.0000000000e+00 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum snapshot net force: 4.2499408167e-15 eV/Å
+INFO mlfcs.fitting.fitter: - Maximum center-of-mass displacement: 2.1610930576e-02 Å
+INFO mlfcs.fitting.fitter: Constraint system: 16 rows after duplicate removal (90 ASR before compression)
+INFO mlfcs.fitting.linear_solvers: Explicit constraint parameterization: 188 -> 172 parameters in 49 blocks, rank=16, nnz=446
+INFO mlfcs.fitting.design_operator: - Prepared JAX feature program: 7 signatures, 7 tiles, 0.2 MiB static buffers
+INFO mlfcs.fitting.gram_system: Accumulating streamed Gram system: 172 x 172 (0.2 MiB), effective_batch_size=1, backend=SciPy/OpenBLAS CPU
+INFO mlfcs.fitting.gram_system: - Physical design kernel groups: 7, 7 bounded tiles
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Compiled FC2 physical design kernel in 0.00 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 1/100, elapsed=0.01 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 20/100, elapsed=0.16 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 40/100, elapsed=0.28 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 60/100, elapsed=0.41 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 80/100, elapsed=0.52 s
+INFO mlfcs.fitting.gram_system: - Gram structures: 100/100, elapsed=0.65 s
+INFO mlfcs.fitting.gram_system: - Streamed Gram system ready in 0.65 s
+INFO mlfcs.fitting.gram_system: - Gram phase timing: kernel=0.47 s, transfer=0.01 s, scatter=0.07 s, constraint reduction=0.03 s, BLAS=0.03 s
+INFO mlfcs.fitting.fitter: Column-norm preconditioning in constrained coordinates
+INFO mlfcs.fitting.fitter: - Inverse column scale: 2.773450e-02 to 2.313274e-01
+INFO mlfcs.fitting.fitter: Solving the force-only least-squares problem with streamed Gram
+INFO mlfcs.fitting.fitter: - Equations: 36000, unknowns: 172
+INFO mlfcs.fitting.fitter: - Maximum joint constraint residual: 3.660267e-16
+INFO mlfcs.fitting.fitter: Force fitting summary
+INFO mlfcs.fitting.fitter: - Training relative error: 27.581815 %
+INFO mlfcs.fitting.fitter: - Validation relative error: 27.581815 %
+INFO mlfcs.fitting.fitter: - Training force RMSE: 8.4378643819e-02 eV/Å
+INFO mlfcs.fitting.fitter: - Validation force RMSE: 8.4378643819e-02 eV/Å
+INFO mlfcs.fitting.fitter: - FC2 force contribution RMS: 2.9405455475e-01 eV/Å
+INFO mlfcs.fitting.fitter: - JAX execution guard: 1 prepared program, 7 signatures, 7 tiles, Gram passes=1, prediction passes=0
+INFO mlfcs.fitting.fitter: - Solver iterations=69, stop_code=0
+INFO mlfcs.fitting.fitter: Expanding fitted Taylor parameters into sparse physical IFCs
+INFO mlfcs.fitting.fitter: - Expanded 286 sparse tensors in 0.03 s
+INFO mlfcs.physics.sscha.solver: - Fitting relative force error: 27.581815 %
+INFO mlfcs.physics.sscha.solver: Relative FC2 change: 5.561666e-02
+INFO mlfcs.physics.sscha.solver: - Variational free-energy estimate: -5.7673997703e-01 +/- 5.961e-04 eV/primitive cell
+INFO mlfcs.force_constants.realization: Export view cache miss; constructing new view
+INFO mlfcs.force_constants.realization: Export view cache hit; reusing existing view
+INFO mlfcs.force_constants.realization: Export view cache miss; constructing new view

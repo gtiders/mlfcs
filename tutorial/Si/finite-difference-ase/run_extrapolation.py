@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import sys
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
@@ -10,7 +11,7 @@ from pathlib import Path
 from ase.io import read, write
 from calorine.calculators import CPUNEP
 
-from mlfcs import ForceConstantCalculation, build_supercell, write_force_constants
+from mlfcs import FiniteDifferenceCalculation, build_supercell, write_force_constants
 
 MODEL = "Si_2022_NEP3_5body.txt"
 LOG = Path("extrapolation.log")
@@ -39,54 +40,65 @@ def main() -> None:
         redirect_stdout(Tee(sys.stdout, log)),
         redirect_stderr(Tee(sys.stderr, log)),
     ):
-        primitive = read("POSCAR.vasp")
-        reference = build_supercell(primitive, (4, 4, 4))
-        write(
-            "SPOSCAR-extrapolation",
-            reference,
-            format="vasp",
-            direct=True,
-            sort=False,
-            vasp5=True,
-        )
-        calculator = CPUNEP(str(MODEL))
-        calculation = ForceConstantCalculation(
-            primitive,
-            order=2,
-            reference=reference,
-            cutoff=None,
-            displacement=0.01,
-        )
-        force_constants = calculation.run(
-            calculator,
-            derivative_backend="extrapolate",
-            extrapolation_spacing=0.002,
-            extrapolation_side_steps=2,
-            extrapolation_degree=1,
-        )
+        handler = logging.StreamHandler(log)
+        handler.setFormatter(logging.Formatter("%(levelname)s %(name)s: %(message)s"))
+        package_logger = logging.getLogger("mlfcs")
+        package_logger.addHandler(handler)
+        try:
+            _run()
+        finally:
+            package_logger.removeHandler(handler)
 
-        write_force_constants(
-            force_constants,
-            "fc2-mlfcs-extrapolation.h5",
-            format="hdf5",
-        )
-        write_force_constants(
-            force_constants,
-            "FORCE_CONSTANTS_2ND_EXTRAPOLATION",
-            format="phonopy",
-            order=2,
-        )
-        write_force_constants(
-            force_constants,
-            "force_constants-extrapolation.hdf5",
-            format="phonopy_hdf5",
-            order=2,
-        )
-        Path("metadata-extrapolation.json").write_text(
-            json.dumps(force_constants.metadata, indent=2, default=str) + "\n",
-            encoding="utf-8",
-        )
-        print(f"wrote {LOG}")
+
+def _run() -> None:
+    primitive = read("POSCAR.vasp")
+    reference = build_supercell(primitive, (4, 4, 4))
+    write(
+        "SPOSCAR-extrapolation",
+        reference,
+        format="vasp",
+        direct=True,
+        sort=False,
+        vasp5=True,
+    )
+    calculator = CPUNEP(str(MODEL))
+    calculation = FiniteDifferenceCalculation(
+        primitive,
+        order=2,
+        reference=reference,
+        cutoff=None,
+        displacement=0.01,
+    )
+    force_constants = calculation.run(
+        calculator,
+        derivative_backend="extrapolate",
+        extrapolation_spacing=0.002,
+        extrapolation_side_steps=2,
+        extrapolation_degree=1,
+    )
+
+    write_force_constants(
+        force_constants,
+        "fc2-mlfcs-extrapolation.h5",
+        format="hdf5",
+    )
+    write_force_constants(
+        force_constants,
+        "FORCE_CONSTANTS_2ND_EXTRAPOLATION",
+        format="phonopy",
+        order=2,
+    )
+    write_force_constants(
+        force_constants,
+        "force_constants-extrapolation.hdf5",
+        format="phonopy_hdf5",
+        order=2,
+    )
+    Path("metadata-extrapolation.json").write_text(
+        json.dumps(force_constants.metadata, indent=2, default=str) + "\n",
+        encoding="utf-8",
+    )
+    print(f"wrote {LOG}")
 
 
 if __name__ == "__main__":

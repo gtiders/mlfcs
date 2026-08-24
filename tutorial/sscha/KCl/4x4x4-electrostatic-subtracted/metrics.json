@@ -1,0 +1,16 @@
+{
+  "atoms": 512,
+  "cutoff_angstrom": 12.0,
+  "fitting_basis": "taylor",
+  "frames": 100,
+  "maximum_constraint_residual": 9.974659986866641e-18,
+  "nac_used_for_band_plot": false,
+  "orbits": 23,
+  "parameters": 76,
+  "relative_fc2_difference_from_phonopy": 0.032672960498089244,
+  "restored_long_range_fc2": true,
+  "solver_iterations": 18,
+  "solver_stop_code": 0,
+  "training_force_rmse_ev_per_angstrom": 0.0009567623815877266,
+  "training_relative_force_error": 0.04241188391326073
+}

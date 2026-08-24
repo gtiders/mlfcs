@@ -1,32 +1,31 @@
-Preparing order-2 force-constant calculation
-Creating reference supercell with matrix [[4, 0, 0], [0, 4, 0], [0, 0, 4]]
-- 2 primitive atoms, 128 supercell atoms
-Resolving the interaction cutoff
-- Cutoff radius: 7.7237404951 Å
-Analyzing crystal symmetries
-- Space group Fd-3m
-- 48 symmetry operations
-Finding symmetry-inequivalent order-2 interaction clusters
-- 9 cluster equivalence classes
-- 28 independent tensor parameters
-Building the central-difference displacement plan
-- 3 displacement keys
-- 6 force calculations required
-Evaluating 6 configurations with CPUNEP
-- Forces: 1/6 (17%)
-- Forces: 2/6 (33%)
-- Forces: 3/6 (50%)
-- Forces: 4/6 (67%)
-- Forces: 5/6 (83%)
-- Forces: 6/6 (100%)
-Reaping forces for order-2 force constants
-- Validated 6 force configurations
-- Contracted 3 finite-difference derivatives
-Reconstructing symmetry-expanded force constants (ASR enabled)
-- Max drift of fc2: 1.1203260210e-01 -> 5.3290705182e-15 eV/angstrom^2
-- ASR parameter correction: maximum=2.5866113040e-03 eV/angstrom^2, relative L2=3.2643774750e-04
-- Reconstructed 174 sparse cluster tensors
-MLFCS export view: cache miss; constructing new view
-MLFCS export view: constructed in 0.051642 s
-MLFCS export view: cache hit; reusing existing view
-MLFCS export view: cache hit; reusing existing view
+INFO mlfcs.finite_difference.calculation: Preparing order-2 finite-difference calculation
+INFO mlfcs.interactions.space: Creating reference supercell with matrix [[4, 0, 0], [0, 4, 0], [0, 0, 4]]
+INFO mlfcs.interactions.space: 2 primitive atoms, 128 supercell atoms
+INFO mlfcs.interactions.space: Resolving the interaction cutoff
+INFO mlfcs.interactions.space: Cutoff radius: 7.7237404951 Å
+INFO mlfcs.interactions.space: Analyzing crystal symmetries
+INFO mlfcs.interactions.space: Space group Fd-3m
+INFO mlfcs.interactions.space: 48 symmetry operations
+INFO mlfcs.interactions.space: Finding symmetry-inequivalent order-2 interaction clusters
+INFO mlfcs.interactions.space: 9 cluster equivalence classes
+INFO mlfcs.interactions.space: 28 independent tensor parameters
+INFO mlfcs.finite_difference.calculation: Building the central-difference displacement plan
+INFO mlfcs.finite_difference.calculation: 3 displacement keys
+INFO mlfcs.finite_difference.calculation: 6 force calculations required
+INFO mlfcs.finite_difference.calculation: Evaluating 6 configurations with CPUNEP
+INFO mlfcs.finite_difference.calculation: Forces: 1/6 (17%)
+INFO mlfcs.finite_difference.calculation: Forces: 2/6 (33%)
+INFO mlfcs.finite_difference.calculation: Forces: 3/6 (50%)
+INFO mlfcs.finite_difference.calculation: Forces: 4/6 (67%)
+INFO mlfcs.finite_difference.calculation: Forces: 5/6 (83%)
+INFO mlfcs.finite_difference.calculation: Forces: 6/6 (100%)
+INFO mlfcs.finite_difference.calculation: Reaping forces for order-2 force constants
+INFO mlfcs.finite_difference.calculation: Validated 6 force configurations
+INFO mlfcs.finite_difference.calculation: Contracted 3 finite-difference derivatives
+INFO mlfcs.finite_difference.calculation: Reconstructing symmetry-expanded force constants (ASR enabled)
+INFO mlfcs.finite_difference.calculation: - Max drift of fc2: 1.1203260210e-01 -> 5.3290705182e-15 eV/angstrom^2
+INFO mlfcs.finite_difference.calculation: - ASR parameter correction: maximum=2.5866113040e-03 eV/angstrom^2, relative L2=3.2643774750e-04
+INFO mlfcs.finite_difference.calculation: Reconstructed 174 sparse cluster tensors
+INFO mlfcs.force_constants.realization: Export view cache miss; constructing new view
+INFO mlfcs.force_constants.realization: Export view cache hit; reusing existing view
+INFO mlfcs.force_constants.realization: Export view cache hit; reusing existing view

@@ -2,17 +2,15 @@
 title: 日志
 audience:
   - user
+  - developer
 status: stable
-code_verified: 4.0.0a5
+code_verified: 4.0.0a6
 ---
 
 # 日志
 
-MLFCS 通过名为 `mlfcs` 的标准 Python logger 报告主要物理状态和数值状态。默认情况下，
-`INFO` 及以上级别全部写入 stdout。软件不配置 root logger，也不把 Python 未捕获异常的
-traceback 从 stderr 重定向出去。
-
-如需查看 batch、计时和秩判据等实现细节，可启用 `DEBUG`：
+MLFCS 使用标准 Python logger `mlfcs`。导入包时安装唯一 stdout handler，默认显示 `INFO` 及以上；
+不会调用 `logging.basicConfig()`、不会修改 root logger，也不会吞掉 Python traceback。
 
 ```python
 import logging
@@ -20,6 +18,12 @@ import logging
 logging.getLogger("mlfcs").setLevel(logging.DEBUG)
 ```
 
-用户可以使用 Python 标准 logging API 添加过滤器或替换 handler。MLFCS 公共工作流不再
-接受 `verbose`、`log_level` 或 reporter callback。非法状态直接抛出异常；warning 只表示
-计算仍然合法但其后果需要注意，例如显式选择虚频处理策略、位移被裁剪或返回未收敛迭代。
+`DEBUG` 用于 batch、缓存、计时和秩阈值等细节。公共 API 不提供 `verbose`、`log_level` 或 reporter
+参数；进度回调只存在于必须逐构型计算的有限差分和 SSCHA `run()` 中。
+
+若案例必须保存完整日志，可给 `mlfcs` logger 增加文件 handler，同时捕获计算器写到 stdout/stderr 的内容。
+不要依赖终端重定向去捕获已在导入时绑定的 package handler。
+
+- `INFO`：物理设置、orbit/参数数、拟合误差、迭代状态和导出目标。
+- `WARNING`：仍返回合法结果但需要关注，例如显式接纳虚频、位移裁剪或允许未收敛结果。
+- 异常：非法输入或不能保证物理语义时直接抛出，不用 `ERROR` 日志代替。

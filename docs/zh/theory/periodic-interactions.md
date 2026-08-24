@@ -3,7 +3,7 @@ title: 周期几何与 IFC
 audience:
   - advanced
 status: stable
-code_verified: 4.0.0a5
+code_verified: 4.0.0a6
 ---
 
 # 周期几何与 IFC

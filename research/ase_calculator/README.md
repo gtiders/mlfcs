@@ -3,16 +3,15 @@
 ## 实施状态
 
 ```text
-状态：Deferred research design
-正式 API：未实现
-阻塞问题：Wick 跨阶收缩在有限超胞 folding 下不一定闭合于 transferable IFC 空间
+状态：Canonical Taylor evaluator 已进入正式实现
+正式 API：`MLFCSCalculator`
+语义边界：只表示保存后的零 FC1、零 $E_0$、reference-relative Taylor 多项式
 ```
 
-本文件只保存设计和原型结论，不是当前版本的实施计划。项目目前接受上述 folding 误差，因而
-不会同时把转换后的 Taylor IFC 宣布为可严格复现训练期 Wick predictor 的通用 ASE 势函数。
-在这一语义重新得到明确处理以前，不增加 FC1 HDF5 字段、`ForceConstantPotential` 或
-`MLFCSCalculator` 公共 API。对应问题记录见
-`research/wick_contraction_folding/README.md`。
+本文件保存早期设计与原型结论。正式 Calculator 只承诺求值 canonical Taylor IFC，不宣称
+严格复现训练期 Wick predictor。Wick folding 限制仍记录于
+`research/wick_contraction_folding/README.md`，但它不阻止零 FC1 的 Taylor artifact 作为独立
+多项式势使用。HDF5 schema 仍不增加 FC1 或绝对参考能量。
 
 ## 1. 结论
 

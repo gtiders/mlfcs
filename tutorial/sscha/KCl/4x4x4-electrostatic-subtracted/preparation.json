@@ -1,0 +1,12 @@
+{
+  "atoms": 512,
+  "born_model": "nominal K=+1, Cl=-1",
+  "electronic_dielectric": 2.365,
+  "gaussian_displacement_angstrom": 0.01,
+  "gaussian_snapshots": 100,
+  "maximum_long_range_force_ev_per_angstrom": 0.03456650203646923,
+  "maximum_short_range_force_ev_per_angstrom": 0.11772713320047366,
+  "maximum_total_force_ev_per_angstrom": 0.1091069578118464,
+  "phonopy_displacements": 2,
+  "random_seed": 42
+}

@@ -3,7 +3,7 @@ title: 有限差分完整工作流
 audience:
   - intermediate
 status: stable
-code_verified: 4.0.0a5
+code_verified: 4.0.0a6
 ---
 
 # Versioning Policy

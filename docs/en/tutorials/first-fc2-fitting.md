@@ -3,7 +3,7 @@ title: Force-only force-constant fitting
 audience:
   - user
 status: stable
-code_verified: 4.0.0a5
+code_verified: 4.0.0a6
 ---
 
 # Force-only force-constant fitting

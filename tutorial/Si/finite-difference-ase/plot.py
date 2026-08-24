@@ -12,7 +12,6 @@ from phonopy import Phonopy
 from phonopy.file_IO import read_force_constants_hdf5
 from phonopy.interface.calculator import read_crystal_structure
 
-
 STRUCTURE = Path("SPOSCAR")
 FORCE_CONSTANTS = Path("force_constants.hdf5")
 OUTPUT = Path("phonon-band.png")

@@ -3,7 +3,7 @@ title: 长程静电作用
 audience:
   - advanced
 status: planned
-code_verified: 4.0.0a5
+code_verified: 4.0.0a6
 ---
 
 # 长程静电作用

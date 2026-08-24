@@ -3,7 +3,7 @@ title: 未来物理功能
 audience:
   - advanced
 status: planned
-code_verified: 4.0.0a5
+code_verified: 4.0.0a6
 ---
 
 # 未来物理功能

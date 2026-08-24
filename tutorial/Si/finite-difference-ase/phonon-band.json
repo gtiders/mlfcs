@@ -1,0 +1,33 @@
+{
+  "structure": "SPOSCAR",
+  "force_constants": "force_constants.hdf5",
+  "output": "phonon-band.png",
+  "primitive_atoms": 2,
+  "path": [
+    [
+      "GAMMA",
+      "X"
+    ],
+    [
+      "X",
+      "U"
+    ],
+    [
+      "K",
+      "GAMMA"
+    ],
+    [
+      "GAMMA",
+      "L"
+    ],
+    [
+      "L",
+      "W"
+    ],
+    [
+      "W",
+      "X"
+    ]
+  ],
+  "q_points": 606
+}

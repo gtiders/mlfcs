@@ -3,7 +3,7 @@ title: FC2 与 FC3 联合拟合
 audience:
   - advanced
 status: stable
-code_verified: 4.0.0a5
+code_verified: 4.0.0a6
 ---
 
 # Versioning Policy

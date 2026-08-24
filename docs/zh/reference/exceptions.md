@@ -1,25 +1,30 @@
 ---
-title: 异常
+title: 异常与排错
 audience:
+  - user
   - developer
 status: stable
-code_verified: 4.0.0a5
+code_verified: 4.0.0a6
 ---
 
-# 异常
+# 异常与排错
 
-## 用途
+当前公共工作流主要使用 Python 标准异常类型，消息中包含被拒绝的条件。MLFCS 不把失败降级为 warning。
 
-列出公共验证与执行异常、失败保证和恢复方法。
+| 异常 | 常见原因 | 首先检查 |
+|---|---|---|
+| `TypeError` | 不是 ASE `Atoms`/`Calculator`/`ForceConstants` | 对象类型与导入来源 |
+| `ValueError` | 参数范围、结构关系、shape、order 或格式不合法 | 完整消息、reference 与单位 |
+| `KeyError` | 请求不存在的 IFC order 或温度 | `force_constants.orders`、温度序列 |
+| `RuntimeError` | 数值秩、JAX 设备、正规形或迭代内部保证失败 | 同一调用日志和秩信息 |
+| `MemoryError` | 目标稠密张量超过可用内存 | 保持 sparse HDF5，避免高阶 materialization |
+| `AlamodeMirrorImageError` | 目标超胞不能表达 ALAMODE 27-image 编码 | 更换目标超胞或输出格式 |
 
-## 稳定性约定
+拟合、有限差分和 harmonic sampling 都把 reference 原子顺序视为权威顺序。若输入只是排列不同，先显式
+使用 `align_structures()`；不要期望计算 API 自动重排。若晶格或 primitive 对应不同，必须修正输入结构。
 
-Reference 只描述当前公开行为。参数默认值、单位、返回对象和异常必须与已验证版本一致；planned 或 research 功能不会出现在稳定接口中。
+当多个 primitive exact-$R$ interaction 在 reference 中折叠为同一个有限观测且导致 realization map
+秩亏时，构造会拒绝继续。增加训练帧不能修复 representation kernel；需要更大的 reference 或更小 cutoff。
 
-## 诊断顺序
-
-先阅读异常消息和同一调用产生的诊断，再检查输入结构与数据形状。若问题涉及物理近似，应转到 Theory；若涉及具体流程，应转到 How-to。
-
-## 版本与兼容性
-
-内部模块路径不属于公共兼容承诺。用户代码应从 `mlfcs` 顶层导入公开对象，并在保存结果时记录 MLFCS 版本和 schema。
+拟合默认拒绝未收敛求解；`allow_unconverged=True` 才会带 warning 返回最后参数。SCPH/SSCHA 达到最大
+步数时会返回最后迭代并记录 `converged=False`，用户必须检查历史，不能只看是否生成了文件。

@@ -1,0 +1,23 @@
+{
+  "cutoff_angstrom": 11.0,
+  "direct_total": {
+    "maximum_constraint_residual": 1.3010426069826053e-18,
+    "orbits": 23,
+    "parameters": 76,
+    "solver_iterations": 19,
+    "solver_stop_code": 0,
+    "training_force_rmse_ev_per_angstrom": 2.651939354366066e-05,
+    "training_relative_force_error": 0.04555639416937791
+  },
+  "fitting_basis": "taylor",
+  "frames": 2,
+  "short_range": {
+    "maximum_constraint_residual": 1.496198998029996e-17,
+    "orbits": 23,
+    "parameters": 76,
+    "solver_iterations": 19,
+    "solver_stop_code": 0,
+    "training_force_rmse_ev_per_angstrom": 1.4842226110009013e-05,
+    "training_relative_force_error": 0.024691623576430326
+  }
+}

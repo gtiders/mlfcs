@@ -3,7 +3,7 @@ title: SCPH Anharmonicity
 audience:
   - advanced
 status: experimental
-code_verified: 4.0.0a5
+code_verified: 4.0.0a6
 ---
 
 # Versioning Policy

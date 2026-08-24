@@ -1,0 +1,33 @@
+{
+  "atoms": 256,
+  "cutoffs_angstrom": {
+    "2": 8.0,
+    "3": 6.5,
+    "4": 4.5
+  },
+  "fitting_basis": "taylor",
+  "frames": 201,
+  "maximum_constraint_residual": 1.5359675337167644e-14,
+  "orbits": {
+    "2": 55,
+    "3": 204,
+    "4": 99
+  },
+  "order_force_rms": {
+    "2": 0.3359166821436872,
+    "3": 0.13149892845135702,
+    "4": 0.04264848130333756
+  },
+  "orders": [
+    2,
+    3,
+    4
+  ],
+  "parameters": 8572,
+  "solver_iterations": 1376,
+  "solver_stop_code": 0,
+  "training_force_rmse_ev_per_angstrom": 0.005889607180876912,
+  "training_relative_force_error": 0.018606301827936086,
+  "validation_force_rmse_ev_per_angstrom": 0.006628105950382344,
+  "validation_relative_force_error": 0.02100824592750518
+}

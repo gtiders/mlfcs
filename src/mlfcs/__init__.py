@@ -19,6 +19,7 @@ def _configure_package_logger() -> None:
 
 _configure_package_logger()
 
+from mlfcs.calculators.ase import MLFCSCalculator
 from mlfcs.constraints.rotational import enforce_rotational_sum_rules
 from mlfcs.finite_difference.calculation import FiniteDifferenceCalculation
 from mlfcs.force_constants.realization import realize_force_constants
@@ -35,6 +36,7 @@ __all__ = [
     "ForceConstantFitter",
     "ForceConstants",
     "LoopSCPH",
+    "MLFCSCalculator",
     "build_supercell",
     "enforce_rotational_sum_rules",
     "perturb_structures",
@@ -43,7 +45,7 @@ __all__ = [
     "write_force_constants",
 ]
 
-__version__ = "4.0.0a5"
+__version__ = "4.0.0a6"
 
 
 def __getattr__(name: str):

@@ -1,0 +1,64 @@
+{
+  "2x4x4": {
+    "atoms": 256,
+    "fitting_basis": "taylor",
+    "frames": 10,
+    "maximum_constraint_residual": 1.2750217548429532e-16,
+    "orbits": 59,
+    "parameters": 429,
+    "requested_cutoff": null,
+    "resolved_cutoff_angstrom": 8.338178280000003,
+    "solver_iterations": 34,
+    "solver_stop_code": 0,
+    "supercell_matrix": [
+      [
+        2,
+        0,
+        0
+      ],
+      [
+        0,
+        4,
+        0
+      ],
+      [
+        0,
+        0,
+        4
+      ]
+    ],
+    "training_force_rmse_ev_per_angstrom": 0.0021448197785432148,
+    "training_relative_force_error": 0.042856908535422844
+  },
+  "3x5x5": {
+    "atoms": 600,
+    "fitting_basis": "taylor",
+    "frames": 10,
+    "maximum_constraint_residual": 1.3292318634672284e-16,
+    "orbits": 125,
+    "parameters": 923,
+    "requested_cutoff": null,
+    "resolved_cutoff_angstrom": 10.59818664917062,
+    "solver_iterations": 37,
+    "solver_stop_code": 0,
+    "supercell_matrix": [
+      [
+        3,
+        0,
+        0
+      ],
+      [
+        0,
+        5,
+        0
+      ],
+      [
+        0,
+        0,
+        5
+      ]
+    ],
+    "training_force_rmse_ev_per_angstrom": 0.0022617592937811746,
+    "training_relative_force_error": 0.04443326089391269
+  }
+}
