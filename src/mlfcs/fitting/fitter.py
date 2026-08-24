@@ -9,7 +9,8 @@ from ase import Atoms
 from scipy import sparse
 
 from mlfcs.constraints.translational import project_parameters
-from mlfcs.fitting.backends.wick.backend import WickFittingBackend
+from mlfcs.fitting.backends.factory import create_fitting_backend
+from mlfcs.fitting.backends.result import BasisDiagnostics
 from mlfcs.fitting.constraints import build_joint_constraints
 from mlfcs.fitting.dataset import FitDataset
 from mlfcs.fitting.gram import (
@@ -45,8 +46,8 @@ class FittingDiagnostics:
     maximum_reference_force: float
     maximum_snapshot_net_force: float
     maximum_center_of_mass_displacement: float
-    omitted_taylor_fc1_maximum: float
-    omitted_taylor_fc1_net: float
+    wick_lowered_fc1_maximum: float
+    wick_lowered_fc1_net: float
     regularization: str = "none"
     effective_noise_scale: float = 0.0
     active_orbits: int = 0
@@ -62,9 +63,10 @@ class FittingDiagnostics:
 @dataclass(slots=True)
 class FittingResult:
     force_constants: ForceConstants
-    parameters: np.ndarray
+    fitting_parameters: np.ndarray
+    fitting_basis: str
+    basis_diagnostics: BasisDiagnostics
     parameter_scale: np.ndarray
-    covariance: np.ndarray
     diagnostics: FittingDiagnostics
     cache_directory: Path | None = None
 
@@ -80,6 +82,7 @@ class ForceConstantFitter:
         orders: tuple[int, ...] = (2, 3),
         cutoffs: dict[int, float | int | None] | None = None,
         max_body_orders: dict[int, int | None] | None = None,
+        fitting_basis: str = "taylor",
         symprec: float = 1e-5,
         jax_platform: JaxPlatform = "auto",
         verbose: bool = True,
@@ -108,6 +111,8 @@ class ForceConstantFitter:
         self.symprec = symprec
         self.jax_platform = jax_platform
         self.verbose = verbose
+        self._backend = create_fitting_backend(fitting_basis)
+        self.fitting_basis = self._backend.name
         order_text = "+".join(f"FC{order}" for order in self.orders)
         self._report(f"Preparing independent {order_text} fitting parameterization")
         self.calculations = tuple(
@@ -135,7 +140,6 @@ class ForceConstantFitter:
         self.index = self.calculations[0].index
         self.canonical_supercell = self.calculations[0].supercell
         self._report(f"- Joint parameter count: {self.n_parameters}")
-        self._backend = WickFittingBackend()
 
     def fit(
         self,
@@ -368,12 +372,13 @@ class ForceConstantFitter:
             self._report("- WARNING: returning an explicitly allowed unconverged solution")
         lowering = self._backend.lower(prepared_basis, parameters_numpy)
         fc1 = lowering.diagnostics.reference_fc1
-        assert fc1 is not None
-        fc1_maximum = float(np.max(np.abs(fc1))) if fc1.size else 0.0
-        fc1_net = float(np.linalg.norm(np.sum(fc1, axis=0)))
-        self._report(
-            f"- Omitted Taylor FC1: maximum={fc1_maximum:.10e} eV/Å, net={fc1_net:.10e} eV/Å"
-        )
+        fc1_maximum = float(np.max(np.abs(fc1))) if fc1 is not None and fc1.size else 0.0
+        fc1_net = float(np.linalg.norm(np.sum(fc1, axis=0))) if fc1 is not None else 0.0
+        if fc1 is not None:
+            self._report(
+                "- Wick-lowered FC1 diagnostic: "
+                f"maximum={fc1_maximum:.10e} eV/Å, net={fc1_net:.10e} eV/Å"
+            )
         expansion_started = perf_counter()
         self._report("Expanding fitted Taylor parameters into sparse physical IFCs")
         taylor_parameters = lowering.taylor_parameters
@@ -394,7 +399,7 @@ class ForceConstantFitter:
                     else "gram_scaled_group_lasso_admm"
                 ),
                 "regularization": normalized_regularization,
-                "fitting_basis": "wick",
+                "fitted_with": self.fitting_basis,
                 "force_constants_basis": "taylor",
                 "cutoff_angstrom": self.calculations[-1].cutoff,
                 "cutoff_angstrom_by_order": {
@@ -436,12 +441,13 @@ class ForceConstantFitter:
             operator.program.prediction_feature_passes,
         )
         result = FittingResult(
-            force_constants,
-            parameters_numpy,
-            parameter_scale,
-            prepared_basis.covariance,
-            diagnostics,
-            gram_system.cache_directory,
+            force_constants=force_constants,
+            fitting_parameters=parameters_numpy,
+            fitting_basis=self.fitting_basis,
+            basis_diagnostics=lowering.diagnostics,
+            parameter_scale=parameter_scale,
+            diagnostics=diagnostics,
+            cache_directory=gram_system.cache_directory,
         )
         return result
 
