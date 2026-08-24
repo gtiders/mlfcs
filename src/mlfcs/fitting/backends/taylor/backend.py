@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from mlfcs.fitting.backends.result import BasisDiagnostics, BasisLoweringResult
+from mlfcs.fitting.backends.result import LoweringResult
 from mlfcs.fitting.backends.taylor.features import taylor_axis_derivatives
 from mlfcs.fitting.design_operator import ForceDesignOperator
 
@@ -31,7 +31,6 @@ class TaylorFittingBackend:
         n_parameters,
         batch_size,
         parameter_map,
-        reporter,
         device,
     ) -> PreparedTaylorBasis:
         operator = ForceDesignOperator(
@@ -41,7 +40,6 @@ class TaylorFittingBackend:
             n_parameters,
             batch_size,
             parameter_map=parameter_map,
-            reporter=reporter,
             device=device,
             axis_derivatives=taylor_axis_derivatives,
         )
@@ -53,12 +51,9 @@ class TaylorFittingBackend:
     def predict(self, prepared, displacements, parameters):
         return self.build_operator(prepared, displacements).matvec(parameters)
 
-    def lower(self, prepared, parameters) -> BasisLoweringResult:
+    def lower(self, prepared, parameters) -> LoweringResult:
         del prepared
-        return BasisLoweringResult(
-            np.asarray(parameters, dtype=float).copy(),
-            BasisDiagnostics(details={"lowering": "identity"}),
-        )
+        return LoweringResult(np.asarray(parameters, dtype=float).copy())
 
 
 __all__ = ["PreparedTaylorBasis", "TaylorFittingBackend"]

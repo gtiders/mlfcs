@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+import logging
 from dataclasses import dataclass
 
 from ase import Atoms
@@ -20,6 +20,8 @@ from mlfcs.structure.relation import (
     StructureRelation,
 )
 from mlfcs.structure.symmetry import PrimitiveSymmetryOperations, SymmetryOperations
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,7 +77,6 @@ class InteractionSpace:
         max_body_order: int | None = None,
         symprec: float = 1e-5,
         displacement: float = 0.01,
-        reporter: Callable[[str], None] | None = None,
     ) -> None:
         frame = ReferenceFrame.from_atoms(atoms, reference, symprec=symprec)
         self._initialize(
@@ -85,7 +86,6 @@ class InteractionSpace:
             max_body_order=max_body_order,
             symprec=symprec,
             displacement=displacement,
-            reporter=reporter,
         )
 
     @classmethod
@@ -98,7 +98,6 @@ class InteractionSpace:
         max_body_order: int | None = None,
         symprec: float = 1e-5,
         displacement: float = 0.01,
-        reporter: Callable[[str], None] | None = None,
     ) -> InteractionSpace:
         """Construct an order-specific space from a verified shared frame."""
         instance = cls.__new__(cls)
@@ -109,7 +108,6 @@ class InteractionSpace:
             max_body_order=max_body_order,
             symprec=symprec,
             displacement=displacement,
-            reporter=reporter,
         )
         return instance
 
@@ -122,7 +120,6 @@ class InteractionSpace:
         max_body_order: int | None,
         symprec: float,
         displacement: float,
-        reporter: Callable[[str], None] | None,
     ) -> None:
         self.frame = frame
         self.relation = frame.relation
@@ -136,20 +133,19 @@ class InteractionSpace:
             symprec=symprec,
         )
         self.primitive = self.relation.primitive
-        self._reporter = reporter
-        self._report(f"Creating reference supercell with matrix {matrix.tolist()}")
+        logger.info("Creating reference supercell with matrix %s", matrix.tolist())
         self.supercell = self.relation.reference
         self.index = self.relation.index
-        self._report(
-            f"- {len(self.primitive)} primitive atoms, {len(self.supercell)} supercell atoms"
+        logger.info(
+            "%d primitive atoms, %d supercell atoms", len(self.primitive), len(self.supercell)
         )
-        self._report("Resolving the interaction cutoff")
+        logger.info("Resolving the interaction cutoff")
         self.cutoff = resolve_primitive_cutoff(self.primitive, cutoff, reference=self.supercell)
-        self._report(f"- Cutoff radius: {self.cutoff:.10f} Å")
-        self._report("Analyzing crystal symmetries")
+        logger.info("Cutoff radius: %.10f Å", self.cutoff)
+        logger.info("Analyzing crystal symmetries")
         self.symmetry = frame.symmetry
-        self._report(f"- Space group {self.symmetry.symbol}")
-        self._report(f"- {self.symmetry.size} symmetry operations")
+        logger.info("Space group %s", self.symmetry.symbol)
+        logger.info("%d symmetry operations", self.symmetry.size)
         self._orbit_space: OrbitSpace | None = None
         self._primitive_orbit_space: PrimitiveInteractionSpace | None = None
 
@@ -169,23 +165,19 @@ class InteractionSpace:
     @property
     def orbit_space(self) -> OrbitSpace:
         if self._orbit_space is None:
-            self._report(
-                f"Finding symmetry-inequivalent order-{self.config.order} interaction clusters"
+            logger.info(
+                "Finding symmetry-inequivalent order-%d interaction clusters", self.config.order
             )
             self._orbit_space = realize_orbit_space(self.primitive_orbit_space, self.index)
             validate_realization_identifiability(
                 self.primitive_orbit_space, self.index, realized=self._orbit_space
             )
             dimensions = sum(orbit.dimension for orbit in self._orbit_space.orbits)
-            self._report(f"- {len(self._orbit_space.orbits)} cluster equivalence classes")
-            self._report(f"- {dimensions} independent tensor parameters")
+            logger.info("%d cluster equivalence classes", len(self._orbit_space.orbits))
+            logger.info("%d independent tensor parameters", dimensions)
             if self.config.max_body_order is not None:
-                self._report(f"- Maximum body order: {self.config.max_body_order}")
+                logger.info("Maximum body order: %d", self.config.max_body_order)
         return self._orbit_space
-
-    def _report(self, message: str) -> None:
-        if self._reporter is not None:
-            self._reporter(message)
 
 
 __all__ = ["InteractionSettings", "InteractionSpace", "ReferenceFrame"]

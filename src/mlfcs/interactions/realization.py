@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
+from mlfcs.exceptions import InteractionAliasingError
 from mlfcs.interactions.keys import InteractionKey
 from mlfcs.interactions.orbits import (
     ClusterOrbit,
@@ -11,10 +12,6 @@ from mlfcs.interactions.orbits import (
     OrbitSpace,
     PrimitiveInteractionSpace,
 )
-
-
-class InteractionAliasingError(ValueError):
-    """A finite reference folds distinct primitive interactions together."""
 
 
 def validate_realization_identifiability(

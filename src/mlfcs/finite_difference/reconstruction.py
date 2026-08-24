@@ -9,8 +9,8 @@ from mlfcs.constraints.translational import (
     project_acoustic_sum_rule,
 )
 from mlfcs.finite_difference.sampling import DisplacementKey
-from mlfcs.force_constants.representation import SparseOrderForceConstants
 from mlfcs.force_constants.expansion import expand_primitive_parameters
+from mlfcs.force_constants.representation import SparseOrderForceConstants
 from mlfcs.interactions.orbits import OrbitSpace
 from mlfcs.structure.supercell_mapping import PeriodicIndex
 

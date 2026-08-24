@@ -78,7 +78,9 @@ def test_second_order_uses_the_same_pipeline():
     assert result.materialize(2).shape == (2, 16, 3, 3)
 
 
-def test_stage_reporting_is_enabled_by_default(capsys):
+def test_stage_reporting_is_enabled_by_default():
+    import logging
+
     primitive = bulk("Si", "diamond", a=5.43)
     job = FiniteDifferenceCalculation(
         primitive,
@@ -87,13 +89,13 @@ def test_stage_reporting_is_enabled_by_default(capsys):
         cutoff=-1,
     )
     job.evaluate(ZeroCalculator())
-    output = capsys.readouterr().out
-    assert "Creating reference supercell" in output
-    assert "Space group Fd-3m" in output
-    assert "cluster equivalence classes" in output
-    assert "force calculations required" in output
-    assert "Evaluating" in output
-    assert "Forces:" in output
+    logger = logging.getLogger("mlfcs")
+    handlers = [
+        handler for handler in logger.handlers if getattr(handler, "_mlfcs_stdout_handler", False)
+    ]
+    assert logger.level == logging.INFO
+    assert len(handlers) == 1
+    assert handlers[0].level == logging.NOTSET
 
 
 def test_stage_reporting_can_be_disabled_completely(capsys):
@@ -103,7 +105,6 @@ def test_stage_reporting_can_be_disabled_completely(capsys):
         order=2,
         reference=make_supercell(primitive, (2, 2, 2))[0],
         cutoff=-1,
-        verbose=False,
     )
     forces = job.evaluate(ZeroCalculator())
     job.reap(forces)

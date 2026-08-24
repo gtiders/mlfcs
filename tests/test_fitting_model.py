@@ -9,15 +9,18 @@ from ase.calculators.singlepoint import SinglePointCalculator
 from scipy import sparse
 from supercell_helpers import make_supercell
 
-from mlfcs.fitting.backends.wick.features import wick as _wick
-from mlfcs.fitting.backends.wick.features import wick_axis_derivatives as _wick_axis_derivatives
-from mlfcs.fitting.backends.wick.lowering import lowered_fc1
 from mlfcs.fitting import ForceConstantFitter
 from mlfcs.fitting.backends.wick.covariance import symmetrized_covariance as _symmetrized_covariance
+from mlfcs.fitting.backends.wick.features import wick as _wick
+from mlfcs.fitting.backends.wick.features import wick_axis_derivatives
+from mlfcs.fitting.backends.wick.features import wick_axis_derivatives as _wick_axis_derivatives
+from mlfcs.fitting.backends.wick.lowering import lowered_fc1
 from mlfcs.fitting.design_operator import ForceDesignOperator as _BatchedForceOperator
 from mlfcs.fitting.design_operator import physical_tile_shape as _physical_tile_shape
-from mlfcs.fitting.backends.wick.prediction import predict_wick_force as predict_force
-from mlfcs.fitting.design_operator import prepare_design_kernel_groups as _prepare_physical_design_builders
+from mlfcs.fitting.design_operator import predict_force
+from mlfcs.fitting.design_operator import (
+    prepare_design_kernel_groups as _prepare_physical_design_builders,
+)
 from mlfcs.fitting.design_operator import prepare_device_reduction as _prepare_device_reduction
 from mlfcs.fitting.fitter import (
     _force_metrics,
@@ -99,8 +102,8 @@ def test_shared_wick_axis_derivatives_equal_independent_recursions():
 def test_reduced_wick_transform_matches_sparse_tensor_conversion():
     from ase import Atoms
 
-    from mlfcs.fitting.backends.wick.lowering import build_wick_to_taylor_transform
     from mlfcs.finite_difference.calculation import FiniteDifferenceCalculation
+    from mlfcs.fitting.backends.wick.lowering import build_wick_to_taylor_transform
 
     primitive = Atoms("Si", positions=[[0, 0, 0]], cell=np.eye(3) * 4.0, pbc=True)
     reference = make_supercell(primitive, (3, 3, 3))[0]
@@ -110,7 +113,6 @@ def test_reduced_wick_transform_matches_sparse_tensor_conversion():
             order=order,
             reference=reference,
             cutoff=4.1,
-            verbose=False,
         )
         for order in (2, 3, 4)
     )
@@ -142,7 +144,6 @@ def test_reported_omitted_fc1_reproduces_constant_wick_force():
         reference,
         orders=(3,),
         cutoffs={3: 3.0},
-        verbose=False,
     )
     covariance = np.eye(6) * 0.04
     parameters = np.random.default_rng(4).normal(size=fitter.n_parameters)
@@ -153,6 +154,7 @@ def test_reported_omitted_fc1_reproduces_constant_wick_force():
             jnp.zeros((1, 2, 3)),
             jnp.asarray(covariance),
             fitter.order_tensors,
+            wick_axis_derivatives,
         )
     )[0]
 
@@ -175,7 +177,6 @@ def test_unconverged_fit_requires_explicit_opt_in_and_exposes_gram_cache(monkeyp
         reference,
         orders=(2,),
         cutoffs={2: 4.1},
-        verbose=False,
     )
 
     def incomplete(self, scale, constraints, **kwargs):
@@ -191,7 +192,7 @@ def test_unconverged_fit_requires_explicit_opt_in_and_exposes_gram_cache(monkeyp
         allow_unconverged=True,
         cache_directory=tmp_path / "fit-cache",
     )
-    assert result.diagnostics.stop_code == 7
+    assert result.stop_code == 7
     cached = tuple((tmp_path / "fit-cache").glob("gram-*/complete"))
     assert len(cached) == 1
     assert result.cache_directory == cached[0].parent
@@ -205,7 +206,6 @@ def test_fitter_uses_reordered_reference_without_a_separate_supercell_argument()
         reference,
         orders=(2,),
         cutoffs={2: 3.0},
-        verbose=False,
     )
 
     np.testing.assert_array_equal(fitter.reference.numbers, reference.numbers)
@@ -221,7 +221,6 @@ def test_fitter_reuses_one_reference_and_symmetry_frame_across_orders():
         reference,
         orders=(2, 3),
         cutoffs={2: 4.1, 3: 4.1},
-        verbose=False,
     )
 
     first, second = fitter.calculations
@@ -248,7 +247,6 @@ def test_public_fitter_exposes_scaled_orbit_group_lasso():
         reference,
         orders=(2,),
         cutoffs={2: 4.1},
-        verbose=False,
     )
     result = fitter.fit(
         structures,
@@ -259,15 +257,15 @@ def test_public_fitter_exposes_scaled_orbit_group_lasso():
         max_iterations=500,
     )
 
-    assert result.diagnostics.stop_code == 0
-    assert result.diagnostics.regularization == "scaled_group_lasso"
-    assert result.diagnostics.effective_noise_scale > 0
-    assert result.diagnostics.active_orbits == 2
-    assert result.diagnostics.design_kernel_signatures > 0
-    assert result.diagnostics.design_tiles > 0
-    assert result.diagnostics.static_device_bytes > 0
-    assert result.diagnostics.gram_feature_passes == 1
-    assert result.diagnostics.prediction_feature_passes == 0
+    assert result.stop_code == 0
+    assert result.regularization == "scaled_group_lasso"
+    assert result.effective_noise_scale > 0
+    assert result.active_orbits == 2
+    assert result.design_kernel_signatures > 0
+    assert result.design_tiles > 0
+    assert result.static_device_bytes > 0
+    assert result.gram_feature_passes == 1
+    assert result.prediction_feature_passes == 0
     assert result.force_constants.metadata["regularization"] == "scaled_group_lasso"
 
 
@@ -294,7 +292,6 @@ def test_streaming_gram_recovers_force_constant_and_force_error():
             sparse.csr_matrix((0, 1)),
             tolerance=1e-12,
             max_iterations=100,
-            verbose=False,
         )[0]
         * scale
     )

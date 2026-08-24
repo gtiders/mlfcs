@@ -13,7 +13,6 @@ def test_strict_harmonic_projection_uses_tied_images_and_keeps_higher_orders():
         order=2,
         reference=make_supercell(primitive, (2, 1, 1))[0],
         cutoff=3.1,
-        verbose=False,
     )
     fc2 = SparseOrderForceConstants(
         2,
@@ -40,7 +39,7 @@ def test_strict_harmonic_projection_uses_tied_images_and_keeps_higher_orders():
         relation=calculation.interaction_space.relation,
     )
     constrained = enforce_rotational_sum_rules(result, born_huang=True, huang=True)
-    diagnostics = constrained.diagnostics
+    diagnostics = constrained
     assert diagnostics.strength == 1.0
     assert diagnostics.huang_before is not None and diagnostics.huang_before > 1.0
     assert diagnostics.huang_after is not None and diagnostics.huang_after < 1e-10
@@ -56,7 +55,6 @@ def test_strength_zero_only_enforces_asr():
         order=2,
         reference=make_supercell(primitive, (2, 1, 1))[0],
         cutoff=3.1,
-        verbose=False,
     )
     fc2 = SparseOrderForceConstants(
         2,
@@ -68,6 +66,6 @@ def test_strength_zero_only_enforces_asr():
         {}, calculation.supercell, sparse={2: fc2}, relation=calculation.interaction_space.relation
     )
     constrained = enforce_rotational_sum_rules(result, huang=True, strength=0.0)
-    assert constrained.diagnostics.acoustic_after < 1e-10
-    assert constrained.diagnostics.huang_after is not None
-    assert constrained.diagnostics.huang_after <= constrained.diagnostics.huang_before
+    assert constrained.acoustic_after < 1e-10
+    assert constrained.huang_after is not None
+    assert constrained.huang_after <= constrained.huang_before

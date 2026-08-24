@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from time import perf_counter
@@ -10,7 +11,6 @@ from scipy import sparse
 
 from mlfcs.constraints.translational import project_parameters
 from mlfcs.fitting.backends.factory import create_fitting_backend
-from mlfcs.fitting.backends.result import BasisDiagnostics
 from mlfcs.fitting.constraints import build_joint_constraints
 from mlfcs.fitting.dataset import FitDataset
 from mlfcs.fitting.gram_system import (
@@ -20,19 +20,26 @@ from mlfcs.fitting.gram_system import (
     _order_force_rms_from_reduced_gram,
     _StreamingGramSystem,
 )
+from mlfcs.fitting.jax_runtime import JaxPlatform, resolve_jax_device
 from mlfcs.fitting.linear_solvers import (
     explicit_constraint_null_space,
     solve_scaled_group_lasso,
 )
-from mlfcs.fitting.parameterization import pack_order as _pack_order
-from mlfcs.fitting.jax_runtime import JaxPlatform, resolve_jax_device
+from mlfcs.fitting.parameterization import pack_order
+from mlfcs.force_constants.expansion import expand_fitted_orders
 from mlfcs.force_constants.representation import ForceConstants
-from mlfcs.force_constants.expansion import expand_fitted_orders as _expand_sparse
 from mlfcs.interactions.space import InteractionSpace, ReferenceFrame
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
-class FittingDiagnostics:
+class FittingResult:
+    force_constants: ForceConstants
+    fitting_parameters: np.ndarray
+    fitting_basis: str
+    parameter_scale: np.ndarray
+    cache_directory: Path | None
     iterations: int
     training_force_rmse: float
     validation_force_rmse: float
@@ -46,8 +53,10 @@ class FittingDiagnostics:
     maximum_reference_force: float
     maximum_snapshot_net_force: float
     maximum_center_of_mass_displacement: float
-    lowered_fc1_maximum: float
-    lowered_fc1_net: float
+    lowered_fc1_maximum: float | None
+    lowered_fc1_net: float | None
+    lowering_force_maximum: float | None = None
+    lowering_force_relative: float | None = None
     regularization: str = "none"
     effective_noise_scale: float = 0.0
     active_orbits: int = 0
@@ -58,17 +67,6 @@ class FittingDiagnostics:
     static_device_bytes: int = 0
     gram_feature_passes: int = 0
     prediction_feature_passes: int = 0
-
-
-@dataclass(slots=True)
-class FittingResult:
-    force_constants: ForceConstants
-    fitting_parameters: np.ndarray
-    fitting_basis: str
-    basis_diagnostics: BasisDiagnostics
-    parameter_scale: np.ndarray
-    diagnostics: FittingDiagnostics
-    cache_directory: Path | None = None
 
 
 class ForceConstantFitter:
@@ -85,7 +83,6 @@ class ForceConstantFitter:
         fitting_basis: str = "taylor",
         symprec: float = 1e-5,
         jax_platform: JaxPlatform = "auto",
-        verbose: bool = True,
     ):
         self.jax_device = resolve_jax_device(jax_platform)
         frame = ReferenceFrame.from_atoms(primitive, reference, symprec=symprec)
@@ -110,11 +107,10 @@ class ForceConstantFitter:
         self.max_body_orders = dict(max_body_orders or {})
         self.symprec = symprec
         self.jax_platform = jax_platform
-        self.verbose = verbose
         self._backend = create_fitting_backend(fitting_basis)
         self.fitting_basis = self._backend.name
         order_text = "+".join(f"FC{order}" for order in self.orders)
-        self._report(f"Preparing independent {order_text} fitting parameterization")
+        logger.info(f"Preparing independent {order_text} fitting parameterization")
         self.calculations = tuple(
             InteractionSpace.from_frame(
                 frame,
@@ -122,16 +118,15 @@ class ForceConstantFitter:
                 cutoff=self.cutoffs.get(order),
                 max_body_order=self.max_body_orders.get(order),
                 symprec=symprec,
-                reporter=self._report if verbose else None,
             )
             for order in self.orders
         )
         offset = 0
         tensors = []
         for calculation in self.calculations:
-            tensor, offset = _pack_order(calculation, offset)
+            tensor, offset = pack_order(calculation, offset)
             tensors.append(tensor)
-            self._report(
+            logger.info(
                 f"- FC{tensor.order}: {len(calculation.orbit_space.orbits)} orbits, "
                 f"{np.count_nonzero(tensor.parameter_mask)} parameters"
             )
@@ -139,7 +134,7 @@ class ForceConstantFitter:
         self.n_parameters = offset
         self.index = self.calculations[0].index
         self.canonical_supercell = self.calculations[0].supercell
-        self._report(f"- Joint parameter count: {self.n_parameters}")
+        logger.info(f"- Joint parameter count: {self.n_parameters}")
 
     def fit(
         self,
@@ -173,10 +168,10 @@ class ForceConstantFitter:
         maximum_center_of_mass_displacement = float(
             np.max(np.linalg.norm(dataset.center_of_mass_displacements, axis=1))
         )
-        self._report("Training-data diagnostics (inputs are not recentered)")
-        self._report(f"- Maximum reference force: {maximum_reference_force:.10e} eV/Å")
-        self._report(f"- Maximum snapshot net force: {maximum_snapshot_net_force:.10e} eV/Å")
-        self._report(
+        logger.info("Training-data diagnostics (inputs are not recentered)")
+        logger.info(f"- Maximum reference force: {maximum_reference_force:.10e} eV/Å")
+        logger.info(f"- Maximum snapshot net force: {maximum_snapshot_net_force:.10e} eV/Å")
+        logger.info(
             f"- Maximum center-of-mass displacement: {maximum_center_of_mass_displacement:.10e} Å"
         )
         # The reference frame is the public atom order.  Reordering here used
@@ -196,7 +191,7 @@ class ForceConstantFitter:
             self.calculations,
             acoustic=acoustic_sum_rule,
         )
-        self._report(
+        logger.info(
             f"Constraint system: {constraints.matrix.shape[0]} rows after duplicate removal "
             f"({constraints.translational_rows} ASR before compression)"
         )
@@ -205,7 +200,6 @@ class ForceConstantFitter:
             parameter_map = explicit_constraint_null_space(
                 constraints.matrix,
                 tolerance=1e-11,
-                reporter=self._report if self.verbose else None,
             )
         prepared_basis = self._backend.prepare(
             calculations=self.calculations,
@@ -214,7 +208,6 @@ class ForceConstantFitter:
             n_parameters=self.n_parameters,
             batch_size=batch_size,
             parameter_map=parameter_map,
-            reporter=self._report if self.verbose else None,
             device=self.jax_device,
         )
         operator = prepared_basis.operator
@@ -230,22 +223,22 @@ class ForceConstantFitter:
                 self._report_parameter_scale(parameter_scale)
             else:
                 active_scale = parameter_scale[parameter_scale > 0]
-                self._report("Column-norm preconditioning in constrained coordinates")
+                logger.info("Column-norm preconditioning in constrained coordinates")
                 if len(active_scale):
-                    self._report(
+                    logger.info(
                         f"- Inverse column scale: {np.min(active_scale):.6e} to "
                         f"{np.max(active_scale):.6e}"
                     )
                 else:
-                    self._report("- Inverse column scale: no active columns")
+                    logger.info("- Inverse column scale: no active columns")
         else:
             parameter_scale = np.ones(gram_system.gram.shape[0])
-            self._report("- Parameter preconditioning disabled")
+            logger.info("- Parameter preconditioning disabled")
         if normalized_regularization == "none":
-            self._report("Solving the force-only least-squares problem with streamed Gram")
+            logger.info("Solving the force-only least-squares problem with streamed Gram")
         else:
-            self._report("Solving the force-only problem with constrained scaled orbit-group LASSO")
-        self._report(f"- Equations: {len(target)}, unknowns: {gram_system.gram.shape[0]}")
+            logger.info("Solving the force-only problem with constrained scaled orbit-group LASSO")
+        logger.info(f"- Equations: {len(target)}, unknowns: {gram_system.gram.shape[0]}")
         solve_constraint_matrix = (
             sparse.csr_matrix((0, gram_system.gram.shape[0]))
             if parameter_map is not None
@@ -265,7 +258,6 @@ class ForceConstantFitter:
                 solve_constraints,
                 tolerance=tolerance,
                 max_iterations=max_iterations,
-                verbose=self.verbose,
             )
             scaled_parameters, stop_code, iterations, residual_norm, normal_residual = solution
         else:
@@ -280,8 +272,6 @@ class ForceConstantFitter:
                 n_equations=len(target),
                 tolerance=tolerance,
                 max_iterations=max_iterations,
-                verbose=self.verbose,
-                reporter=self._report if self.verbose else None,
             )
             (
                 scaled_parameters,
@@ -354,37 +344,42 @@ class ForceConstantFitter:
                 counts,
                 len(target),
             )
-        self._report("Force fitting summary")
-        self._report(f"- Training relative error: {100 * training_metrics[1]:.6f} %")
-        self._report(f"- Validation relative error: {100 * validation_metrics[1]:.6f} %")
-        self._report(f"- Training force RMSE: {training_metrics[0]:.10e} eV/Å")
-        self._report(f"- Validation force RMSE: {validation_metrics[0]:.10e} eV/Å")
+        logger.info("Force fitting summary")
+        logger.info(f"- Training relative error: {100 * training_metrics[1]:.6f} %")
+        logger.info(f"- Validation relative error: {100 * validation_metrics[1]:.6f} %")
+        logger.info(f"- Training force RMSE: {training_metrics[0]:.10e} eV/Å")
+        logger.info(f"- Validation force RMSE: {validation_metrics[0]:.10e} eV/Å")
         for order, rms in order_force_rms.items():
-            self._report(f"- FC{order} force contribution RMS: {rms:.10e} eV/Å")
-        self._report(
+            logger.info(f"- FC{order} force contribution RMS: {rms:.10e} eV/Å")
+        logger.info(
             "- JAX execution guard: 1 prepared program, "
             f"{len(operator.program.groups)} signatures, {operator.program.tile_count} tiles, "
             f"Gram passes={operator.program.gram_feature_passes}, "
             f"prediction passes={operator.program.prediction_feature_passes}"
         )
-        self._report(f"- Solver iterations={iterations}, stop_code={stop_code}")
+        logger.info(f"- Solver iterations={iterations}, stop_code={stop_code}")
         if stop_code != 0:
-            self._report("- WARNING: returning an explicitly allowed unconverged solution")
+            logger.warning(
+                "Returning unconverged fitting solution: stop_code=%d, iterations=%d, residual=%.6e",
+                stop_code,
+                iterations,
+                normal_residual,
+            )
         lowering = self._backend.lower(prepared_basis, parameters_numpy)
-        fc1 = lowering.diagnostics.reference_fc1
-        fc1_maximum = float(np.max(np.abs(fc1))) if fc1 is not None and fc1.size else 0.0
-        fc1_net = float(np.linalg.norm(np.sum(fc1, axis=0))) if fc1 is not None else 0.0
+        fc1 = lowering.reference_fc1
+        fc1_maximum = float(np.max(np.abs(fc1))) if fc1 is not None and fc1.size else None
+        fc1_net = float(np.linalg.norm(np.sum(fc1, axis=0))) if fc1 is not None else None
         if fc1 is not None:
-            self._report(
+            logger.info(
                 "- Lowered FC1 diagnostic: "
                 f"maximum={fc1_maximum:.10e} eV/Å, net={fc1_net:.10e} eV/Å"
             )
         expansion_started = perf_counter()
-        self._report("Expanding fitted Taylor parameters into sparse physical IFCs")
+        logger.info("Expanding fitted Taylor parameters into sparse physical IFCs")
         taylor_parameters = lowering.taylor_parameters
-        residual_sparse = _expand_sparse(taylor_parameters, self.calculations)
+        residual_sparse = expand_fitted_orders(taylor_parameters, self.calculations)
         sparse_values = dict(residual_sparse)
-        self._report(
+        logger.info(
             f"- Expanded {sum(len(value.tensors) for value in sparse_values.values())} "
             f"sparse tensors in {perf_counter() - expansion_started:.2f} s"
         )
@@ -413,68 +408,62 @@ class ForceConstantFitter:
             sparse=sparse_values,
             relation=self.geometry,
         )
-        diagnostics = FittingDiagnostics(
-            int(iterations),
-            training_metrics[0],
-            validation_metrics[0],
-            training_metrics[1],
-            validation_metrics[1],
-            order_force_rms,
-            int(stop_code),
-            float(residual_norm),
-            float(normal_residual),
-            constraint_residual,
-            maximum_reference_force,
-            maximum_snapshot_net_force,
-            maximum_center_of_mass_displacement,
-            fc1_maximum,
-            fc1_net,
-            normalized_regularization,
-            effective_noise_scale,
-            active_orbits,
-            admm_primal,
-            admm_dual,
-            len(operator.program.groups),
-            operator.program.tile_count,
-            operator.program.static_device_bytes,
-            operator.program.gram_feature_passes,
-            operator.program.prediction_feature_passes,
-        )
         result = FittingResult(
             force_constants=force_constants,
             fitting_parameters=parameters_numpy,
             fitting_basis=self.fitting_basis,
-            basis_diagnostics=lowering.diagnostics,
             parameter_scale=parameter_scale,
-            diagnostics=diagnostics,
             cache_directory=gram_system.cache_directory,
+            iterations=int(iterations),
+            training_force_rmse=training_metrics[0],
+            validation_force_rmse=validation_metrics[0],
+            training_relative_force_error=training_metrics[1],
+            validation_relative_force_error=validation_metrics[1],
+            order_force_rms=order_force_rms,
+            stop_code=int(stop_code),
+            residual_norm=float(residual_norm),
+            normal_equation_residual=float(normal_residual),
+            maximum_constraint_residual=constraint_residual,
+            maximum_reference_force=maximum_reference_force,
+            maximum_snapshot_net_force=maximum_snapshot_net_force,
+            maximum_center_of_mass_displacement=maximum_center_of_mass_displacement,
+            lowered_fc1_maximum=fc1_maximum,
+            lowered_fc1_net=fc1_net,
+            lowering_force_maximum=lowering.lowering_force_maximum,
+            lowering_force_relative=lowering.lowering_force_relative,
+            regularization=normalized_regularization,
+            effective_noise_scale=effective_noise_scale,
+            active_orbits=active_orbits,
+            admm_primal_residual=admm_primal,
+            admm_dual_residual=admm_dual,
+            design_kernel_signatures=len(operator.program.groups),
+            design_tiles=operator.program.tile_count,
+            static_device_bytes=operator.program.static_device_bytes,
+            gram_feature_passes=operator.program.gram_feature_passes,
+            prediction_feature_passes=operator.program.prediction_feature_passes,
         )
         return result
 
     def _constraint_drift(self, parameters, constraints):
         residual = constraints.matrix @ parameters
         maximum = float(np.max(np.abs(residual))) if len(residual) else 0.0
-        self._report(f"- Maximum joint constraint residual: {maximum:.6e}")
+        logger.info(f"- Maximum joint constraint residual: {maximum:.6e}")
         return maximum
 
     def _report_parameter_scale(self, parameter_scale):
-        self._report("Column-norm preconditioning (exact from streamed Gram matrix)")
+        logger.info("Column-norm preconditioning (exact from streamed Gram matrix)")
         offset = 0
         for calculation in self.calculations:
             count = sum(orbit.dimension for orbit in calculation.orbit_space.orbits)
             values = parameter_scale[offset : offset + count]
             active = values[values > 0]
             if len(active):
-                self._report(
+                logger.info(
                     f"- FC{calculation.config.order} inverse column scale: "
                     f"{np.min(active):.6e} to {np.max(active):.6e}"
                 )
             else:
-                self._report(
+                logger.info(
                     f"- FC{calculation.config.order} inverse column scale: no active columns"
                 )
             offset += count
-
-    def _report(self, message):
-        if self.verbose:
-            print(message, flush=True)

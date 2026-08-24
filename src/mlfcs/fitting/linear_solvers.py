@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from time import perf_counter
 
 import numpy as np
@@ -10,8 +11,10 @@ from scipy.linalg import pinvh, qr, solve_triangular
 from scipy.sparse.csgraph import connected_components
 from scipy.sparse.linalg import LinearOperator, cg
 
+logger = logging.getLogger(__name__)
 
-def explicit_constraint_null_space(constraints, *, tolerance=1e-11, reporter=None):
+
+def explicit_constraint_null_space(constraints, *, tolerance=1e-11):
     """Construct a block-sparse map from free to exactly constrained parameters.
 
     Constraint-connected parameter components are factorized independently.
@@ -72,12 +75,11 @@ def explicit_constraint_null_space(constraints, *, tolerance=1e-11, reporter=Non
     maximum = float(np.max(np.abs(residual.data))) if residual.nnz else 0.0
     if maximum > max(tolerance * 100, 1e-9):
         raise RuntimeError(f"explicit constraint null space has residual {maximum:.6e}")
-    if reporter is not None:
-        reporter(
-            f"Explicit constraint parameterization: {n_parameters} -> "
-            f"{reduced_offset} parameters in {n_components} blocks, "
-            f"rank={sum(ranks)}, nnz={result.nnz}"
-        )
+    logger.info(
+        f"Explicit constraint parameterization: {n_parameters} -> "
+        f"{reduced_offset} parameters in {n_components} blocks, "
+        f"rank={sum(ranks)}, nnz={result.nnz}"
+    )
     return result
 
 
@@ -92,8 +94,6 @@ def solve_scaled_group_lasso(
     n_equations,
     tolerance,
     max_iterations,
-    verbose,
-    reporter=None,
 ):
     """Solve equality-constrained scaled group LASSO from Gram statistics.
 
@@ -108,9 +108,7 @@ def solve_scaled_group_lasso(
     groups = tuple(groups)
     if not groups:
         raise ValueError("scaled group LASSO requires at least one parameter group")
-    projector = (
-        ConstraintNullSpace(constraints, reporter=reporter) if constraints.shape[0] else None
-    )
+    projector = ConstraintNullSpace(constraints) if constraints.shape[0] else None
 
     def project(values):
         return projector.project(values) if projector is not None else np.asarray(values)
@@ -190,13 +188,12 @@ def solve_scaled_group_lasso(
             np.sqrt(n_parameters), np.linalg.norm(parameters), np.linalg.norm(sparse_parameters)
         )
         dual_limit = tolerance * max(np.sqrt(n_parameters), rho * np.linalg.norm(dual))
-        if verbose and (iteration <= 5 or iteration % 25 == 0):
+        if logger.isEnabledFor(logging.DEBUG) and (iteration <= 5 or iteration % 25 == 0):
             active = sum(np.linalg.norm(sparse_parameters[group]) > 1e-12 for group in groups)
-            print(
+            logger.debug(
                 f"Scaled group-LASSO iteration {iteration}: sigma={sigma:.6e} eV/A, "
                 f"active_orbits={active}/{len(groups)}, primal={primal:.3e}, "
                 f"dual={dual_residual:.3e}, elapsed={perf_counter() - started:.2f} s",
-                flush=True,
             )
         sigma_tolerance = max(np.sqrt(tolerance), 1e-6)
         if (
@@ -237,17 +234,16 @@ def solve_scaled_group_lasso(
 class ConstraintNullSpace:
     """Implicit orthogonal projector onto null(C), including redundant rows."""
 
-    def __init__(self, constraints, reporter=None):
+    def __init__(self, constraints):
         self.constraints = sparse.csr_matrix(constraints)
         row_gram = (self.constraints @ self.constraints.T).toarray()
         row_gram = (row_gram + row_gram.T) * 0.5
         self.row_gram_inverse, self.rank = pinvh(row_gram, return_rank=True, check_finite=False)
-        if reporter is not None:
-            reporter(
-                f"Implicit constraint null space: numerical rank={self.rank}/"
-                f"{self.constraints.shape[0]}, redundant rows="
-                f"{self.constraints.shape[0] - self.rank}"
-            )
+        logger.info(
+            f"Implicit constraint null space: numerical rank={self.rank}/"
+            f"{self.constraints.shape[0]}, redundant rows="
+            f"{self.constraints.shape[0] - self.rank}"
+        )
 
     def project(self, values):
         values = np.asarray(values)
@@ -265,8 +261,6 @@ def solve_gram_system(
     *,
     tolerance,
     max_iterations,
-    verbose,
-    reporter=None,
 ):
     """Solve a preconditioned Gram system in the equality-constraint null space."""
     scale = np.asarray(scale)
@@ -277,7 +271,7 @@ def solve_gram_system(
     previous = started
     iterations = 0
     if constraints.shape[0]:
-        projector = ConstraintNullSpace(constraints, reporter=reporter)
+        projector = ConstraintNullSpace(constraints)
         projected_rhs = projector.project(scaled_rhs)
 
         def multiply(values):
@@ -294,17 +288,16 @@ def solve_gram_system(
             nonlocal iterations, previous
             iterations += 1
             now = perf_counter()
-            if verbose and (iterations <= 5 or iterations % 100 == 0):
+            if logger.isEnabledFor(logging.DEBUG) and (iterations <= 5 or iterations % 100 == 0):
                 drift = np.linalg.norm(constraints @ values[:n_parameters], ord=np.inf)
                 gradient = multiply(values) - projected_rhs
                 relative_gradient = np.linalg.norm(gradient) / max(
                     np.linalg.norm(projected_rhs), np.finfo(float).tiny
                 )
-                print(
+                logger.debug(
                     f"Projected CG iteration {iterations}: relative gradient="
                     f"{relative_gradient:.6e}, max constraint residual={drift:.6e}, "
                     f"step={now - previous:.3f} s, elapsed={now - started:.2f} s",
-                    flush=True,
                 )
             previous = now
 

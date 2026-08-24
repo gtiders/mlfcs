@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Literal
 
 import numpy as np
 from ase import Atoms, units
 
-from mlfcs.physics.harmonic import HBAR_ASE, OMEGA_TO_THZ, mode_sigma
+from mlfcs.sampling.mode_statistics import HBAR_ASE, OMEGA_TO_THZ, mode_sigma
 from mlfcs.structure.reciprocal import reciprocal_quotient_grid
 from mlfcs.structure.supercell_mapping import PeriodicIndex
 
@@ -15,6 +16,7 @@ ImaginaryModePolicy = Literal["error", "absolute", "exclude"]
 
 _HBAR_ASE = HBAR_ASE
 _OMEGA_TO_THZ = OMEGA_TO_THZ
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,6 +77,13 @@ class HarmonicSampler:
         self.statistics = statistics
         self.cutoff_frequency = float(cutoff_frequency)
         self.imaginary_modes = imaginary_modes
+        if imaginary_modes != "error":
+            logger.warning(
+                "Imaginary harmonic modes use policy '%s'; frequencies below %.3e THz "
+                "will not raise an exception",
+                imaginary_modes,
+                imaginary_tolerance,
+            )
         self.imaginary_tolerance = float(imaginary_tolerance)
         self.max_displacement = max_displacement
         self._compact = np.asarray(compact_fc2, dtype=float)
@@ -162,9 +171,7 @@ class HarmonicSampler:
             scale = np.ones_like(norms)
             scale[clipped] = self.max_displacement / norms[clipped]
             values *= scale[..., None]
-        self._last_state = self._state(
-            maximum_sampled, clipped_atoms, affected_snapshots
-        )
+        self._last_state = self._state(maximum_sampled, clipped_atoms, affected_snapshots)
         return values
 
     def harmonic_free_energy(self) -> float:
@@ -281,5 +288,3 @@ class HarmonicSampler:
             clipped_atoms,
             affected_snapshots,
         )
-
-

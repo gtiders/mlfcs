@@ -44,7 +44,6 @@ def test_extrapolation_is_available_only_through_direct_calculator_run():
         reference=make_supercell(primitive, (2, 2, 2))[0],
         cutoff=-1,
         displacement=0.02,
-        verbose=False,
     )
     central_count = len(calculation.plan)
 
@@ -70,7 +69,6 @@ def test_direct_calculator_rejects_nonfinite_forces(backend):
         order=2,
         reference=make_supercell(primitive, (2, 2, 2))[0],
         cutoff=-1,
-        verbose=False,
     )
     options = {"derivative_backend": backend}
     if backend == "extrapolate":

@@ -14,7 +14,7 @@ from mlfcs.interactions.orbits import OrbitSpace
 
 
 @dataclass(frozen=True, slots=True)
-class ExtrapolationMetrics:
+class ExtrapolationResult:
     maximum_correction: float
     relative_l2_correction: float
     maximum_fit_residual: float
@@ -57,7 +57,7 @@ class ExtrapolationBackend:
     def extrapolate(
         self,
         derivatives: list[dict[DisplacementKey, np.ndarray]],
-    ) -> tuple[dict[DisplacementKey, np.ndarray], ExtrapolationMetrics]:
+    ) -> tuple[dict[DisplacementKey, np.ndarray], ExtrapolationResult]:
         if len(derivatives) != len(self.grid):
             raise ValueError("one derivative set is required for every extrapolation step")
         keys = tuple(derivatives[0])
@@ -91,7 +91,7 @@ class ExtrapolationBackend:
         maximum = float(np.max(np.abs(correction_vector))) if len(correction_vector) else 0.0
         denominator = max(float(np.linalg.norm(reference_vector)), np.finfo(float).tiny)
         relative = float(np.linalg.norm(correction_vector) / denominator)
-        return result, ExtrapolationMetrics(maximum, relative, residual_maximum)
+        return result, ExtrapolationResult(maximum, relative, residual_maximum)
 
 
-__all__ = ["ExtrapolationBackend", "ExtrapolationMetrics"]
+__all__ = ["ExtrapolationBackend", "ExtrapolationResult"]

@@ -9,12 +9,20 @@ ROOT = Path(__file__).parents[1] / "src" / "mlfcs"
 
 ALLOWED = {
     "structure": set(),
-    "interactions": {"structure"},
+    "interactions": {"exceptions", "structure"},
     "force_constants": {"interactions", "structure"},
     "constraints": {"force_constants", "interactions", "structure"},
     "finite_difference": {"constraints", "force_constants", "interactions", "structure"},
     "fitting": {"constraints", "force_constants", "interactions", "structure"},
-    "physics": {"constraints", "fitting", "force_constants", "interactions", "structure"},
+    "sampling": {"force_constants", "structure"},
+    "physics": {
+        "constraints",
+        "fitting",
+        "force_constants",
+        "interactions",
+        "sampling",
+        "structure",
+    },
     "io": {"force_constants", "structure"},
 }
 
@@ -56,3 +64,19 @@ def test_concrete_fitting_backends_do_not_leak_into_generic_modules():
         source = path.read_text()
         assert "mlfcs.fitting.backends.wick" not in source, path
         assert "mlfcs.fitting.backends.taylor" not in source, path
+
+
+def test_production_code_has_no_print_or_legacy_diagnostics_types():
+    for path in ROOT.rglob("*.py"):
+        source = path.read_text()
+        tree = ast.parse(source)
+        assert not any(
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "print"
+            for node in ast.walk(tree)
+        ), path
+        assert "Diagnostics" not in source, path
+        assert "reporter" not in source, path
+        assert "verbose" not in source, path
+        assert "log_level" not in source, path

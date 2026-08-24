@@ -7,9 +7,9 @@ from ase import Atoms
 from mlfcs import write_force_constants
 from mlfcs.force_constants.representation import ForceConstants, SparseOrderForceConstants
 from mlfcs.io.hdf5 import read_hdf5
-from mlfcs.physics.harmonic import mode_sigma
 from mlfcs.physics.scph.fourier import _fourier_terms, harmonic_frequencies
 from mlfcs.physics.scph.solver import LoopSCPH
+from mlfcs.sampling.mode_statistics import mode_sigma
 from mlfcs.structure.relation import StructureRelation
 
 
@@ -73,7 +73,6 @@ def test_scph_is_independent_of_fitting_basis_provenance():
             scph_multiplier=1,
             mixing=1.0,
             max_iterations=2,
-            verbose=False,
         ).run()
 
     np.testing.assert_allclose(
@@ -95,7 +94,6 @@ def test_loop_correction_has_quartic_one_half_factor():
         scph_multiplier=1,
         mixing=1.0,
         max_iterations=1,
-        verbose=False,
     ).run()
     mass = fc2.relation.primitive.get_masses()[0]
     sigma2 = mode_sigma(np.ones(3) / mass, temperature=300, statistics="quantum") ** 2 / mass
@@ -113,7 +111,6 @@ def test_loop_scph_qpoint_workers_preserve_covariance():
         scph_multiplier=2,
         mixing=1.0,
         max_iterations=1,
-        verbose=False,
         qpoint_workers=1,
     ).run()
     parallel = LoopSCPH(
@@ -124,7 +121,6 @@ def test_loop_scph_qpoint_workers_preserve_covariance():
         scph_multiplier=2,
         mixing=1.0,
         max_iterations=1,
-        verbose=False,
         qpoint_workers=2,
     ).run()
     np.testing.assert_allclose(serial.frequencies, parallel.frequencies, rtol=1e-12, atol=1e-12)
@@ -140,7 +136,6 @@ def test_loop_scph_temperature_series_uses_previous_effective_fc2():
         scph_multiplier=1,
         mixing=1.0,
         max_iterations=1,
-        verbose=False,
     )
     series = series.run()
     assert tuple(result.temperature for result in series) == (0.0, 300.0)
@@ -152,7 +147,6 @@ def test_loop_scph_temperature_series_uses_previous_effective_fc2():
         scph_multiplier=1,
         mixing=1.0,
         max_iterations=1,
-        verbose=False,
         warm_start=series[0].force_constants,
     ).run()
     np.testing.assert_allclose(series[1].frequencies, direct.frequencies)
@@ -168,7 +162,6 @@ def test_loop_scph_temperature_range_runs_continuation():
         scph_multiplier=1,
         mixing=1.0,
         max_iterations=1,
-        verbose=False,
     ).run()
     assert results.continuation
     assert tuple(result.temperature for result in results) == (300.0, 600.0, 900.0)

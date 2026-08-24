@@ -7,17 +7,17 @@ existing IO backends; it is not a frequency-dependent bubble self-energy.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 
 import numpy as np
 
+from mlfcs.force_constants.dense import lattice_fc2, replace_lattice_fc2
 from mlfcs.force_constants.representation import (
     ForceConstants,
 )
-from mlfcs.force_constants.dense import lattice_fc2, replace_lattice_fc2
-from mlfcs.physics.harmonic import HBAR_ASE, OMEGA_TO_THZ, mode_sigma
 from mlfcs.physics.scph.fourier import (
     _dynamical,
     _dynamical_batch,
@@ -27,10 +27,12 @@ from mlfcs.physics.scph.fourier import (
     _validate_relation,
 )
 from mlfcs.physics.temperature import TemperatureSeriesResult, normalize_temperature_schedule
+from mlfcs.sampling.mode_statistics import HBAR_ASE, OMEGA_TO_THZ, mode_sigma
 from mlfcs.structure.reciprocal import quotient_qpoints
 
 _HBAR_ASE = HBAR_ASE
 _OMEGA_TO_THZ = OMEGA_TO_THZ
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -77,7 +79,6 @@ class LoopSCPH:
         frequency_cutoff_thz: float = 0.0,
         warm_start: ForceConstants | None = None,
         continuation: bool = True,
-        verbose: bool = True,
         qpoint_workers: int = 1,
     ) -> None:
         if not isinstance(fc2, ForceConstants) or not isinstance(fc4, ForceConstants):
@@ -106,7 +107,6 @@ class LoopSCPH:
         self.tolerance = float(tolerance)
         self.max_iterations = int(max_iterations)
         self.frequency_cutoff_thz = float(frequency_cutoff_thz)
-        self.verbose = bool(verbose)
         if qpoint_workers < 1:
             raise ValueError("qpoint_workers must be positive")
         self.qpoint_workers = int(qpoint_workers)
@@ -166,14 +166,12 @@ class LoopSCPH:
             frequencies = self._frequencies(updated, self.interpolation_multiplier)[1]
             frequency_change = float(np.sqrt(np.mean((frequencies - previous_frequencies) ** 2)))
             history.append(LoopSCPHIteration(iteration, frequency_change, correction_norm))
-            if self.verbose:
-                print(
-                    f"SCPH iteration {iteration}: delta_omega={frequency_change:.6e} THz, "
-                    f"frequency_min={np.min(frequencies):.6e} THz, "
-                    f"frequency_max={np.max(frequencies):.6e} THz, "
-                    f"correction_norm={correction_norm:.6e}",
-                    flush=True,
-                )
+            logger.info(
+                f"SCPH iteration {iteration}: delta_omega={frequency_change:.6e} THz, "
+                f"frequency_min={np.min(frequencies):.6e} THz, "
+                f"frequency_max={np.max(frequencies):.6e} THz, "
+                f"correction_norm={correction_norm:.6e}",
+            )
             current = updated
             previous_frequencies = frequencies
             previous_covariance = covariance
@@ -184,6 +182,13 @@ class LoopSCPH:
                 converged = True
                 break
 
+        if not converged:
+            logger.warning(
+                "SCPH reached %d iterations without meeting tolerance %.3e THz; "
+                "returning the final iterate",
+                self.max_iterations,
+                self.tolerance,
+            )
         effective = replace_lattice_fc2(
             base,
             current,

@@ -11,11 +11,11 @@ from mlfcs import (
     FiniteDifferenceCalculation,
     ForceConstantFitter,
     LoopSCPH,
-    align_structures,
     build_supercell,
     enforce_rotational_sum_rules,
-    harmonic_frequencies,
+    perturb_structures,
     read_hdf5,
+    realize_force_constants,
     write_force_constants,
 )
 
@@ -27,9 +27,9 @@ def test_public_callables_have_explicit_documented_signatures():
         LoopSCPH,
         SSCHA,
         build_supercell,
-        align_structures,
+        perturb_structures,
         enforce_rotational_sum_rules,
-        harmonic_frequencies,
+        realize_force_constants,
         read_hdf5,
         write_force_constants,
     )
@@ -40,6 +40,24 @@ def test_public_callables_have_explicit_documented_signatures():
             parameter.kind not in {inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD}
             for parameter in signature.parameters.values()
         ), callable_.__qualname__
+
+
+def test_top_level_api_is_the_locked_whitelist():
+    import mlfcs
+
+    assert set(mlfcs.__all__) == {
+        "FiniteDifferenceCalculation",
+        "ForceConstantFitter",
+        "ForceConstants",
+        "LoopSCPH",
+        "SSCHA",
+        "build_supercell",
+        "perturb_structures",
+        "read_hdf5",
+        "write_force_constants",
+        "realize_force_constants",
+        "enforce_rotational_sum_rules",
+    }
 
 
 def _imports(module: str) -> set[str]:

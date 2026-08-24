@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-import warnings
+import logging
 from dataclasses import dataclass, field
 
 import numpy as np
 from ase import Atoms
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -61,11 +63,11 @@ class ForceConstants:
         shape += (3,) * order
         nbytes = int(np.prod(shape, dtype=np.int64)) * sparse.tensors.dtype.itemsize
         if max_bytes is not None and nbytes > max_bytes:
-            warnings.warn(
-                f"dense order-{order} force constants require {nbytes / 1024**3:.2f} GiB; "
-                "materialization will continue; sparse HDF5 output is safer",
-                RuntimeWarning,
-                stacklevel=2,
+            logger.warning(
+                "Dense order-%d force constants require %.2f GiB; materialization will "
+                "continue; sparse HDF5 output is safer",
+                order,
+                nbytes / 1024**3,
             )
         values = np.zeros(shape, dtype=sparse.tensors.dtype)
         for sites, translations, tensor in zip(

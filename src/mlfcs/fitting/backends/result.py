@@ -1,28 +1,17 @@
-"""Basis-independent lowering and diagnostic result objects."""
+"""Basis-independent lowering result."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import numpy as np
 
 
 @dataclass(frozen=True, slots=True)
-class BasisDiagnostics:
-    """Diagnostics owned by one fitting-coordinate backend."""
-
-    reference_fc1: np.ndarray | None = None
-    lowering_force_maximum: float | None = None
-    lowering_force_relative: float | None = None
-    details: dict[str, object] = field(default_factory=dict)
-
-
-@dataclass(frozen=True, slots=True)
-class BasisLoweringResult:
+class LoweringResult:
     """Canonical Taylor parameters produced from fitted coordinates."""
 
     taylor_parameters: np.ndarray
-    diagnostics: BasisDiagnostics
-
-
-__all__ = ["BasisDiagnostics", "BasisLoweringResult"]
+    reference_fc1: np.ndarray | None = None
+    lowering_force_maximum: float | None = None
+    lowering_force_relative: float | None = None

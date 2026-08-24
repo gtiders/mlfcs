@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Literal
@@ -12,16 +13,17 @@ from ase.calculators.calculator import Calculator
 from numpy.typing import NDArray
 
 from mlfcs.fitting import ForceConstantFitter
+from mlfcs.force_constants.dense import expand_compact_fc2, lattice_fc2, replace_lattice_fc2
+from mlfcs.force_constants.realization import realize_force_constants
 from mlfcs.force_constants.representation import (
     ForceConstants,
 )
-from mlfcs.force_constants.dense import expand_compact_fc2, lattice_fc2, replace_lattice_fc2
-from mlfcs.force_constants.realization import realize_force_constants
+from mlfcs.physics.temperature import TemperatureSeriesResult, normalize_temperature_schedule
 from mlfcs.sampling.harmonic import HarmonicSampler, SamplingState
 from mlfcs.sampling.structures import _sample_perturbations
-from mlfcs.physics.temperature import TemperatureSeriesResult, normalize_temperature_schedule
 
 Progress = Callable[[int, int], None]
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -81,7 +83,6 @@ class SSCHA:
         acoustic_sum_rule: bool = True,
         mixing: float = 1.0,
         continuation: bool = True,
-        log_level: int = 0,
     ) -> None:
         if not isinstance(atoms, Atoms):
             raise TypeError("atoms must be an ASE Atoms object")
@@ -127,7 +128,6 @@ class SSCHA:
         self.acoustic_sum_rule = acoustic_sum_rule
         self.mixing = float(mixing)
         self.continuation = bool(continuation)
-        self.log_level = log_level
         self.history: list[SSCHAIteration] = []
         self._reference_energy: float | None = None
         self._fitter = ForceConstantFitter(
@@ -137,7 +137,6 @@ class SSCHA:
             cutoffs={2: self.cutoff},
             fitting_basis=fitting_basis,
             symprec=symprec,
-            verbose=log_level > 1,
         )
         self._active_compact: NDArray[np.float64] | None = None
         self._force_constants: ForceConstants | None = None
@@ -227,10 +226,9 @@ class SSCHA:
                 mlfcs_sscha_sampling=sampling,
             )
             structures.append(atoms)
-        if self.log_level:
-            print(f"[SSCHA {index}/{self.max_iterations}] {sampling} sampling")
-            if sampling_ensemble is not None:
-                self._report_ensemble(sampling_ensemble.state)
+        logger.info("SSCHA iteration %d/%d: %s sampling", index, self.max_iterations, sampling)
+        if sampling_ensemble is not None:
+            self._report_ensemble(sampling_ensemble.state)
         return structures, sampling_compact, sampling_ensemble, sampling
 
     def _fit_sampled_structures(
@@ -332,7 +330,7 @@ class SSCHA:
                 else sampling_state.maximum_sampled_displacement
             ),
             clipped_atoms=0 if sampling_state is None else sampling_state.clipped_atoms,
-            fitting_relative_force_error=fit.diagnostics.training_relative_force_error,
+            fitting_relative_force_error=fit.training_relative_force_error,
             relative_force_constant_change=relative_change,
             raw_relative_force_constant_change=raw_relative_change,
         )
@@ -348,20 +346,19 @@ class SSCHA:
         )
         self._active_compact = self._force_constants.materialize(2, max_bytes=None).copy()
         self.history.append(result)
-        if self.log_level:
-            print(
-                f"- Fitting relative force error: {100 * result.fitting_relative_force_error:.6f} %"
+        logger.info(
+            f"- Fitting relative force error: {100 * result.fitting_relative_force_error:.6f} %"
+        )
+        if relative_change is not None:
+            logger.info("Relative FC2 change: %.6e", relative_change)
+            if self.mixing != 1.0:
+                assert raw_relative_change is not None
+                logger.info("Raw fitted FC2 change: %.6e", raw_relative_change)
+        if result.free_energy is not None:
+            logger.info(
+                f"- Variational free-energy estimate: {result.free_energy:.10e} "
+                f"+/- {result.free_energy_error:.3e} eV/primitive cell"
             )
-            if relative_change is not None:
-                print(f"- Relative FC2 change: {relative_change:.6e}")
-                if self.mixing != 1.0:
-                    assert raw_relative_change is not None
-                    print(f"- Raw fitted FC2 change: {raw_relative_change:.6e}")
-            if result.free_energy is not None:
-                print(
-                    f"- Variational free-energy estimate: {result.free_energy:.10e} "
-                    f"+/- {result.free_energy_error:.3e} eV/primitive cell"
-                )
         return result
 
     def step(
@@ -454,7 +451,6 @@ class SSCHA:
                 acoustic_sum_rule=self.acoustic_sum_rule,
                 mixing=self.mixing,
                 continuation=False,
-                log_level=self.log_level,
             )
             result = child.run(
                 calculator,
@@ -505,7 +501,6 @@ class SSCHA:
         sequence = np.random.SeedSequence([self.random_seed, schedule_index])
         return int(sequence.generate_state(1, dtype=np.uint32)[0])
 
-
     def _require_single_temperature(self) -> None:
         if len(self.temperatures) != 1:
             raise RuntimeError(
@@ -513,20 +508,19 @@ class SSCHA:
             )
 
     def _report_ensemble(self, diagnostics: SamplingState) -> None:
-        print(f"- q points: {diagnostics.qpoints}")
-        print(
+        logger.info("q points: %d", diagnostics.qpoints)
+        logger.info(
             f"- sampled modes: {diagnostics.sampled_modes}/{diagnostics.total_modes}, "
             f"imaginary={diagnostics.imaginary_modes}, excluded={diagnostics.excluded_modes}"
         )
-        print(
+        logger.info(
             f"- maximum sampled atomic displacement: "
             f"{diagnostics.maximum_sampled_displacement:.8f} Å"
         )
         if diagnostics.maximum_displacement is None:
-            print("- maximum displacement limit: disabled")
+            logger.info("maximum displacement limit: disabled")
         else:
-            print(
+            logger.info(
                 f"- clipped atoms: {diagnostics.clipped_atoms}, "
                 f"affected snapshots: {diagnostics.affected_snapshots}"
             )
-

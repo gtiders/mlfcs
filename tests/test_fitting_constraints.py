@@ -4,13 +4,13 @@ from ase import Atoms
 from scipy import sparse
 from supercell_helpers import make_supercell
 
+from mlfcs.finite_difference.calculation import FiniteDifferenceCalculation
 from mlfcs.fitting.backends.wick.lowering import (
     _target_orbit_intertwiner,
     _validate_missing_exact_contractions,
     build_fc1_lowering_transform,
     lowered_fc1,
 )
-from mlfcs.finite_difference.calculation import FiniteDifferenceCalculation
 from mlfcs.fitting.linear_solvers import ConstraintNullSpace as _ConstraintNullSpace
 from mlfcs.fitting.linear_solvers import solve_scaled_group_lasso
 from mlfcs.interactions.keys import InteractionKey
@@ -36,7 +36,6 @@ def test_scaled_group_lasso_selects_orbits_and_preserves_hard_constraint():
         n_equations=10,
         tolerance=1e-6,
         max_iterations=500,
-        verbose=False,
     )
     parameters, stop_code = result[:2]
     assert stop_code == 0
@@ -71,9 +70,7 @@ def test_explicit_fc1_transform_matches_reported_wick_contraction():
     primitive = Atoms("Si", positions=[[0, 0, 0]], cell=np.eye(3) * 4.0, pbc=True)
     reference = make_supercell(primitive, (3, 3, 3))[0]
     calculations = tuple(
-        FiniteDifferenceCalculation(
-            primitive, order=order, reference=reference, cutoff=4.1, verbose=False
-        )
+        FiniteDifferenceCalculation(primitive, order=order, reference=reference, cutoff=4.1)
         for order in (2, 3)
     )
     covariance = np.eye(len(calculations[0].supercell) * 3)
@@ -98,9 +95,7 @@ def test_fc1_transform_maps_supercell_anchor_to_primitive_site():
     )
     reference = make_supercell(primitive, (2, 2, 2))[0]
     calculations = tuple(
-        FiniteDifferenceCalculation(
-            primitive, order=order, reference=reference, cutoff=-1, verbose=False
-        )
+        FiniteDifferenceCalculation(primitive, order=order, reference=reference, cutoff=-1)
         for order in (2, 3)
     )
     covariance = np.eye(len(calculations[0].supercell) * 3)
@@ -122,9 +117,7 @@ def test_missing_negligible_exact_wick_contraction_is_accepted():
 def test_centrosymmetric_onsite_odd_tensor_has_zero_allowed_dimension():
     primitive = Atoms("Si", positions=[[0, 0, 0]], cell=np.eye(3) * 4.0, pbc=True)
     reference = make_supercell(primitive, (3, 3, 3))[0]
-    calculation = FiniteDifferenceCalculation(
-        primitive, order=3, reference=reference, cutoff=4.1, verbose=False
-    )
+    calculation = FiniteDifferenceCalculation(primitive, order=3, reference=reference, cutoff=4.1)
     onsite = InteractionKey((0, 0, 0), ((0, 0, 0), (0, 0, 0)))
     assert all(
         orbit.representative != onsite

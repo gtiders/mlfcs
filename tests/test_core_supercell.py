@@ -61,9 +61,7 @@ def test_internal_reference_construction_uses_phonopy_ordering():
         pbc=True,
     )
     reference = build_supercell(primitive, (2, 1, 1))
-    calculation = FiniteDifferenceCalculation(
-        primitive, reference=reference, order=2, cutoff=3.0, verbose=False
-    )
+    calculation = FiniteDifferenceCalculation(primitive, reference=reference, order=2, cutoff=3.0)
     sscha = SSCHA(primitive, reference=reference, cutoff=3.0, snapshots=1, max_iterations=0)
 
     expected = np.asarray([0, 0, 1, 1])

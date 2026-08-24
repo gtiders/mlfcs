@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import numpy as np
 
-from mlfcs.force_constants.representation import ForceConstants, SparseOrderForceConstants
 from mlfcs.force_constants.dense import lattice_fc2
-from mlfcs.physics.harmonic import OMEGA_TO_THZ as _OMEGA_TO_THZ
+from mlfcs.force_constants.representation import ForceConstants, SparseOrderForceConstants
+from mlfcs.sampling.mode_statistics import OMEGA_TO_THZ as _OMEGA_TO_THZ
 from mlfcs.structure.reciprocal import quotient_qpoints
 
 

@@ -5,11 +5,10 @@ orchestrator consumes only the protocol and result objects defined here.
 """
 
 from mlfcs.fitting.backends.interface import FittingBasisBackend, PreparedBasis
-from mlfcs.fitting.backends.result import BasisDiagnostics, BasisLoweringResult
+from mlfcs.fitting.backends.result import LoweringResult
 
 __all__ = [
-    "BasisDiagnostics",
-    "BasisLoweringResult",
     "FittingBasisBackend",
+    "LoweringResult",
     "PreparedBasis",
 ]

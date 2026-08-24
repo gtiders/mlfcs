@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from hashlib import sha256
 from time import perf_counter
@@ -12,6 +13,8 @@ from scipy.optimize import linear_sum_assignment
 
 from mlfcs.force_constants.representation import ForceConstants, SparseOrderForceConstants
 from mlfcs.structure.relation import StructureRelation
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -111,19 +114,16 @@ def build_export_view(
     cache_key = _export_cache_key(force_constants, primitive, supercell)
     cached = force_constants._export_view_cache.get(cache_key)
     if cached is not None:
-        print("MLFCS export view: cache hit; reusing existing view", flush=True)
+        logger.info("Export view cache hit; reusing existing view")
         return cached
-    print("MLFCS export view: cache miss; constructing new view", flush=True)
+    logger.info("Export view cache miss; constructing new view")
     construction_started = perf_counter()
     if not isinstance(force_constants.relation, StructureRelation):
         if primitive is not None or supercell is not None:
             raise ValueError("target export requires force constants with a StructureRelation")
         view = ExportView(force_constants, None)
         force_constants._export_view_cache[cache_key] = view
-        print(
-            f"MLFCS export view: constructed in {perf_counter() - construction_started:.6f} s",
-            flush=True,
-        )
+        logger.debug("Export view constructed in %.6f s", perf_counter() - construction_started)
         return view
     source = force_constants.relation
     target_primitive = source.primitive if primitive is None else primitive
@@ -164,10 +164,7 @@ def build_export_view(
     )
     view = ExportView(converted, target)
     force_constants._export_view_cache[cache_key] = view
-    print(
-        f"MLFCS export view: constructed in {perf_counter() - construction_started:.6f} s",
-        flush=True,
-    )
+    logger.debug("Export view constructed in %.6f s", perf_counter() - construction_started)
     return view
 
 

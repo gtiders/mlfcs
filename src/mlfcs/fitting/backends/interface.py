@@ -6,7 +6,7 @@ from typing import Any, Protocol
 
 import numpy as np
 
-from mlfcs.fitting.backends.result import BasisLoweringResult
+from mlfcs.fitting.backends.result import LoweringResult
 
 PreparedBasis = Any
 
@@ -25,7 +25,6 @@ class FittingBasisBackend(Protocol):
         n_parameters: int,
         batch_size: int,
         parameter_map,
-        reporter,
         device,
     ) -> PreparedBasis: ...
 
@@ -42,7 +41,7 @@ class FittingBasisBackend(Protocol):
         self,
         prepared: PreparedBasis,
         parameters: np.ndarray,
-    ) -> BasisLoweringResult: ...
+    ) -> LoweringResult: ...
 
 
 __all__ = ["FittingBasisBackend", "PreparedBasis"]

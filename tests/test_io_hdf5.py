@@ -12,9 +12,9 @@ from supercell_helpers import make_supercell
 from mlfcs import (
     FiniteDifferenceCalculation,
     ForceConstants,
-    SparseOrderForceConstants,
     write_force_constants,
 )
+from mlfcs.force_constants.representation import SparseOrderForceConstants
 from mlfcs.structure.relation import StructureRelation
 
 
@@ -42,7 +42,7 @@ def test_reap_keeps_sparse_clusters_and_hdf5_writes_them(tmp_path):
         assert group["tensors"].shape[1:] == (3, 3, 3)
 
 
-def test_dense_materialization_warns_but_continues():
+def test_dense_materialization_warns_but_continues(caplog):
     primitive = Atoms("H", positions=[[0, 0, 0]], cell=np.eye(3), pbc=True)
     relation = StructureRelation.from_atoms(primitive, primitive)
     sparse = SparseOrderForceConstants(
@@ -51,10 +51,11 @@ def test_dense_materialization_warns_but_continues():
         translations=np.empty((0, 1, 3), dtype=np.int32),
         tensors=np.empty((0, 3, 3)),
     )
-    with pytest.warns(RuntimeWarning, match="materialization will continue"):
+    with caplog.at_level("WARNING", logger="mlfcs.force_constants.representation"):
         dense = ForceConstants({}, primitive, sparse={2: sparse}, relation=relation).materialize(
             2, max_bytes=1
         )
+    assert "materialization will continue" in caplog.text
     assert dense.shape == (1, 1, 3, 3)
 
 

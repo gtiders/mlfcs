@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable, Mapping, Sequence
 from math import ceil
 from typing import Literal
@@ -16,6 +17,7 @@ from mlfcs.interactions.space import InteractionSpace
 
 Progress = Callable[[int, int], None]
 ForceInput = np.ndarray | Sequence[np.ndarray] | Mapping[int, np.ndarray]
+logger = logging.getLogger(__name__)
 
 
 class FiniteDifferenceCalculation:
@@ -31,10 +33,8 @@ class FiniteDifferenceCalculation:
         max_body_order: int | None = None,
         displacement: float = 0.01,
         symprec: float = 1e-5,
-        verbose: bool = True,
     ):
-        self.verbose = bool(verbose)
-        self._report(f"Preparing order-{order} force-constant calculation")
+        logger.info("Preparing order-%d finite-difference calculation", order)
         self.interaction_space = InteractionSpace(
             atoms,
             order=order,
@@ -43,7 +43,6 @@ class FiniteDifferenceCalculation:
             max_body_order=max_body_order,
             symprec=symprec,
             displacement=displacement,
-            reporter=self._report if self.verbose else None,
         )
         self.primitive = self.interaction_space.primitive
         self.config = self.interaction_space.config
@@ -61,15 +60,15 @@ class FiniteDifferenceCalculation:
     def plan(self) -> DisplacementPlan:
         if self._plan is None:
             orbit_space = self.orbit_space
-            self._report("Building the central-difference displacement plan")
+            logger.info("Building the central-difference displacement plan")
             self._plan = build_displacement_plan(
                 self.supercell,
                 orbit_space,
                 displacement=self.config.displacement,
             )
             displacement_keys = len(self._plan) // len(self._plan.stencil.signs)
-            self._report(f"- {displacement_keys} displacement keys")
-            self._report(f"- {len(self._plan)} force calculations required")
+            logger.info("%d displacement keys", displacement_keys)
+            logger.info("%d force calculations required", len(self._plan))
         return self._plan
 
     def sow(self) -> list[Atoms]:
@@ -79,7 +78,7 @@ class FiniteDifferenceCalculation:
         index ``i``. Each structure also carries its zero-based stable ID.
         """
         structures = list(self.plan)
-        self._report(f"Sowing {len(structures)} displaced structures in reference atom order")
+        logger.info("Sowing %d displaced structures in reference atom order", len(structures))
         return structures
 
     def reap(
@@ -94,11 +93,11 @@ class FiniteDifferenceCalculation:
         mapping is keyed by ``mlfcs_configuration_id`` and may arrive in any
         insertion order.
         """
-        self._report(f"Reaping forces for order-{self.config.order} force constants")
+        logger.info("Reaping forces for order-%d force constants", self.config.order)
         values = self._normalize_forces(forces)
-        self._report(f"- Validated {len(values)} force configurations")
+        logger.info("Validated %d force configurations", len(values))
         derivatives = self.plan.contract_forces(values)
-        self._report(f"- Contracted {len(derivatives)} finite-difference derivatives")
+        logger.info("Contracted %d finite-difference derivatives", len(derivatives))
         return self._reconstruct(
             derivatives,
             acoustic_sum_rule=acoustic_sum_rule,
@@ -115,7 +114,7 @@ class FiniteDifferenceCalculation:
         acoustic_sum_rule: bool,
         metadata: dict[str, object],
     ) -> ForceConstants:
-        self._report(
+        logger.info(
             "Reconstructing symmetry-expanded force constants "
             f"(ASR {'enabled' if acoustic_sum_rule else 'disabled'})"
         )
@@ -124,10 +123,10 @@ class FiniteDifferenceCalculation:
             self.index,
             derivatives,
             enforce_asr=acoustic_sum_rule,
-            report=self._report,
+            report=logger.info,
             primitive_interaction_space=self.interaction_space.primitive_orbit_space,
         )
-        self._report(f"- Reconstructed {len(sparse.tensors)} sparse cluster tensors")
+        logger.info("Reconstructed %d sparse cluster tensors", len(sparse.tensors))
         return ForceConstants(
             {},
             self.supercell.copy(),
@@ -203,16 +202,16 @@ class FiniteDifferenceCalculation:
         plans = backend.plans(self.supercell, self.orbit_space)
         total = sum(len(plan) for plan in plans)
         grid_text = ", ".join(f"{step:.10f}" for step in backend.grid)
-        self._report("Derivative backend: zero-step extrapolation")
-        self._report(f"- Displacement grid: {grid_text} Å")
-        self._report(f"- Polynomial degree in h^2: {degree}")
-        self._report(f"- {len(plans)} central-difference subplans")
-        self._report(f"- {total} force calculations required")
+        logger.info("Derivative backend: zero-step extrapolation")
+        logger.info("Displacement grid: %s Å", grid_text)
+        logger.info("Polynomial degree in h^2: %d", degree)
+        logger.info("%d central-difference subplans", len(plans))
+        logger.info("%d force calculations required", total)
 
         derivative_sets = []
         completed = 0
         for step, plan in zip(backend.grid, plans, strict=True):
-            self._report(f"Evaluating displacement step {step:.10f} Å")
+            logger.info("Evaluating displacement step %.10f Å", step)
             forces = self._evaluate_plan(
                 plan,
                 calculator,
@@ -224,13 +223,13 @@ class FiniteDifferenceCalculation:
             completed += len(plan)
         derivatives, metrics = backend.extrapolate(derivative_sets)
         unit = f"eV/angstrom^{self.config.order}"
-        self._report("Zero-step derivative extrapolation")
-        self._report(
+        logger.info("Zero-step derivative extrapolation")
+        logger.info(
             f"- Maximum correction from central displacement: "
             f"{metrics.maximum_correction:.10e} {unit}"
         )
-        self._report(f"- Relative L2 correction: {metrics.relative_l2_correction:.10e}")
-        self._report(
+        logger.info("Relative L2 correction: %.10e", metrics.relative_l2_correction)
+        logger.info(
             f"- Maximum polynomial fit residual: {metrics.maximum_fit_residual:.10e} {unit}"
         )
         return self._reconstruct(
@@ -256,7 +255,9 @@ class FiniteDifferenceCalculation:
         """Evaluate and return forces in the exact positional reap order."""
         if not isinstance(calculator, Calculator):
             raise TypeError("calculator must be an ASE Calculator")
-        self._report(f"Evaluating {len(self.plan)} configurations with {type(calculator).__name__}")
+        logger.info(
+            "Evaluating %d configurations with %s", len(self.plan), type(calculator).__name__
+        )
         return self._evaluate_plan(
             self.plan,
             calculator,
@@ -294,16 +295,10 @@ class FiniteDifferenceCalculation:
             completed = completed_offset + configuration_id + 1
             if progress is not None:
                 progress(completed, total)
-            elif self.verbose and (
-                completed == 1 or completed == total or completed % reporting_interval == 0
-            ):
+            elif completed == 1 or completed == total or completed % reporting_interval == 0:
                 percentage = 100.0 * completed / total
-                self._report(f"- Forces: {completed}/{total} ({percentage:.0f}%)")
+                logger.info("Forces: %d/%d (%.0f%%)", completed, total, percentage)
         return forces
-
-    def _report(self, message: str) -> None:
-        if self.verbose:
-            print(message, flush=True)
 
     def _normalize_forces(self, forces: ForceInput) -> np.ndarray:
         if isinstance(forces, Mapping):
@@ -324,5 +319,3 @@ class FiniteDifferenceCalculation:
         if not np.isfinite(values).all():
             raise ValueError("forces contain NaN or infinite values")
         return values
-
-

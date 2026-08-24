@@ -59,7 +59,6 @@ def calculation(displacement: float) -> FiniteDifferenceCalculation:
         reference=make_supercell(primitive, SUPERCELL)[0],
         cutoff=CUTOFF,
         displacement=displacement,
-        verbose=False,
     )
 
 

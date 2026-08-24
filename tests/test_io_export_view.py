@@ -40,7 +40,9 @@ def test_export_view_relabels_an_equivalent_reordered_reference(tmp_path):
     assert (tmp_path / "phonopy.hdf5").is_file()
 
 
-def test_export_view_reuses_cached_source_and_target_views(capsys):
+def test_export_view_reuses_cached_source_and_target_views(monkeypatch):
+    messages = []
+    monkeypatch.setattr("mlfcs.force_constants.realization.logger.info", messages.append)
     result = _result()
     source_first = build_export_view(result)
     source_second = build_export_view(result)
@@ -51,9 +53,8 @@ def test_export_view_reuses_cached_source_and_target_views(capsys):
     assert source_first is source_second
     assert target_first is target_second
     assert target_first is not source_first
-    messages = capsys.readouterr().out
-    assert messages.count("cache miss; constructing new view") == 2
-    assert messages.count("cache hit; reusing existing view") == 2
+    assert messages.count("Export view cache miss; constructing new view") == 2
+    assert messages.count("Export view cache hit; reusing existing view") == 2
 
 
 def test_export_view_realizes_into_a_different_supercell_translation_lattice(tmp_path):

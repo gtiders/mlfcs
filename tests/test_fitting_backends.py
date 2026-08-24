@@ -12,7 +12,7 @@ from mlfcs import ForceConstantFitter, enforce_rotational_sum_rules
 from mlfcs.constraints.translational import project_parameters
 from mlfcs.fitting.backends.factory import create_fitting_backend
 from mlfcs.fitting.backends.interface import FittingBasisBackend
-from mlfcs.fitting.backends.result import BasisDiagnostics, BasisLoweringResult
+from mlfcs.fitting.backends.result import LoweringResult
 from mlfcs.fitting.backends.taylor.backend import TaylorFittingBackend
 from mlfcs.fitting.backends.taylor.features import taylor_axis_derivatives
 from mlfcs.fitting.backends.wick.backend import WickFittingBackend
@@ -21,10 +21,8 @@ from mlfcs.fitting.constraints import build_joint_constraints
 
 
 def test_backend_result_objects_are_basis_independent():
-    diagnostics = BasisDiagnostics(details={"backend": "test"})
-    result = BasisLoweringResult(taylor_parameters=[1.0], diagnostics=diagnostics)
-
-    assert result.diagnostics.details == {"backend": "test"}
+    result = LoweringResult(taylor_parameters=np.asarray([1.0]))
+    np.testing.assert_array_equal(result.taylor_parameters, [1.0])
     assert FittingBasisBackend is not None
 
 
@@ -45,7 +43,7 @@ def test_taylor_lowering_is_identity():
     lowered = TaylorFittingBackend().lower(None, parameters)
 
     np.testing.assert_array_equal(lowered.taylor_parameters, parameters)
-    assert lowered.diagnostics.reference_fc1 is None
+    assert lowered.reference_fc1 is None
 
 
 def test_backend_factory_is_the_only_basis_name_dispatch():
@@ -76,7 +74,6 @@ def test_fitter_backends_share_result_interface_and_fc2_prediction():
             orders=(2,),
             cutoffs={2: 4.1},
             fitting_basis=basis,
-            verbose=False,
         )
         results[basis] = fitter.fit(
             structures,
@@ -86,8 +83,6 @@ def test_fitter_backends_share_result_interface_and_fc2_prediction():
 
     assert results["taylor"].fitting_basis == "taylor"
     assert results["wick"].fitting_basis == "wick"
-    assert not hasattr(results["taylor"].basis_diagnostics, "covariance")
-    assert results["wick"].basis_diagnostics.covariance is not None
     np.testing.assert_allclose(
         results["taylor"].force_constants.sparse[2].tensors,
         results["wick"].force_constants.sparse[2].tensors,
@@ -109,8 +104,8 @@ def test_fitter_backends_share_result_interface_and_fc2_prediction():
         atol=1e-12,
         rtol=1e-12,
     )
-    assert corrected["taylor"].diagnostics.acoustic_after < 1e-12
-    assert corrected["wick"].diagnostics.acoustic_after < 1e-12
+    assert corrected["taylor"].acoustic_after < 1e-12
+    assert corrected["wick"].acoustic_after < 1e-12
 
 
 def test_wick_lowering_preserves_per_order_acoustic_null_spaces():
@@ -123,7 +118,6 @@ def test_wick_lowering_preserves_per_order_acoustic_null_spaces():
         cutoffs={2: 4.1, 3: 4.1, 4: 4.1},
         max_body_orders={2: 2, 3: 2, 4: 2},
         fitting_basis="wick",
-        verbose=False,
     )
     constraints = build_joint_constraints(fitter.calculations, acoustic=True).matrix
     rng = np.random.default_rng(12)

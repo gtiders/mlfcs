@@ -1,7 +1,6 @@
 """Physical IFC constraints independent of calculation backends."""
 
 from mlfcs.constraints.rotational import (
-    RotationalSumRuleDiagnostics,
     RotationalSumRuleResult,
     enforce_rotational_sum_rules,
 )
@@ -14,7 +13,6 @@ from mlfcs.constraints.translational import (
 )
 
 __all__ = [
-    "RotationalSumRuleDiagnostics",
     "RotationalSumRuleResult",
     "build_translational_constraints",
     "enforce_rotational_sum_rules",

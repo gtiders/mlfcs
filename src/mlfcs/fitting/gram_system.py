@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from functools import partial
 from hashlib import sha256
 from pathlib import Path
@@ -12,9 +13,10 @@ import numpy as np
 from scipy import sparse
 from scipy.linalg.blas import dsyrk
 
-from mlfcs.fitting.design_operator import accumulate_physical_design
-from mlfcs.fitting.design_operator import prepare_design_kernel_groups as _prepare_physical_design_builders
+from mlfcs.fitting.design_operator import accumulate_physical_design, prepare_design_kernel_groups
 from mlfcs.fitting.linear_solvers import solve_gram_system
+
+logger = logging.getLogger(__name__)
 
 
 @partial(jax.jit, donate_argnums=(0, 1))
@@ -36,11 +38,10 @@ def _orbit_parameter_groups(calculations):
 class _StreamingGramSystem:
     """Normal-equation sufficient statistics accumulated without storing A."""
 
-    def __init__(self, gram, rhs, target_norm, reporter=None, cache_directory=None):
+    def __init__(self, gram, rhs, target_norm, cache_directory=None):
         self.gram = gram
         self.rhs = rhs
         self.target_norm = target_norm
-        self.reporter = reporter
         self.cache_directory = cache_directory
 
     @classmethod
@@ -60,12 +61,12 @@ class _StreamingGramSystem:
             gram = np.load(cache_directory / "gram.npy")
             rhs = np.load(cache_directory / "rhs.npy")
             target_norm = float(np.load(cache_directory / "target_norm.npy"))
-            if operator.reporter is not None:
-                operator.reporter(
+            if logger.isEnabledFor(logging.INFO):
+                logger.info(
                     f"Recovered completed streamed Gram system from cache "
                     f"({perf_counter() - started:.2f} s)"
                 )
-            return cls(gram, rhs, target_norm, operator.reporter, cache_directory)
+            return cls(gram, rhs, target_norm, cache_directory)
         use_device_gram = operator.device_gram
         if use_device_gram:
             gram = jax.device_put(
@@ -81,18 +82,18 @@ class _StreamingGramSystem:
             )
             rhs = np.zeros(operator.fit_n_parameters, dtype=float)
         target_shaped = np.asarray(target).reshape(operator.force_shape)
-        builders, effective_batch_size = _prepare_physical_design_builders(operator)
+        builders, effective_batch_size = prepare_design_kernel_groups(operator)
         rows_per_structure = int(np.prod(operator.force_shape[1:]))
         operator.program.gram_feature_passes += 1
-        if operator.reporter is not None:
+        if logger.isEnabledFor(logging.INFO):
             tile_counts = [group.tile_count for group in builders]
-            operator.reporter(
+            logger.info(
                 f"Accumulating streamed Gram system: {operator.fit_n_parameters} x "
                 f"{operator.fit_n_parameters} ({gram.nbytes / 1024**2:.1f} MiB), "
                 f"effective_batch_size={effective_batch_size}, "
                 f"backend={'JAX device' if use_device_gram else 'SciPy/OpenBLAS CPU'}"
             )
-            operator.reporter(
+            logger.info(
                 f"- Physical design kernel groups: {len(builders)}, "
                 f"{sum(tile_counts)} bounded tiles"
             )
@@ -139,9 +140,9 @@ class _StreamingGramSystem:
                         contribution = contribution.reshape(force_rows, -1)
                         design[:, tile_columns] += contribution
                     scatter_seconds += perf_counter() - scatter_started
-                if operator.reporter is not None and begin == 0:
+                if logger.isEnabledFor(logging.INFO) and begin == 0:
                     contributions.block_until_ready()
-                    operator.reporter(
+                    logger.info(
                         f"- Compiled FC{group.order} physical design kernel in "
                         f"{perf_counter() - order_started:.2f} s"
                     )
@@ -176,12 +177,12 @@ class _StreamingGramSystem:
                 )
                 rhs += design.T @ force
             gram_seconds += perf_counter() - gram_started
-            if operator.reporter is not None and (
+            if logger.isEnabledFor(logging.INFO) and (
                 begin == 0 or end == len(operator.displacements) or end % 20 == 0
             ):
                 if use_device_gram:
                     gram.block_until_ready()
-                operator.reporter(
+                logger.info(
                     f"- Gram structures: {end}/{len(operator.displacements)}, "
                     f"elapsed={perf_counter() - started:.2f} s"
                 )
@@ -191,15 +192,15 @@ class _StreamingGramSystem:
         else:
             upper = np.triu(np.asarray(gram))
             gram = upper + np.triu(upper, 1).T
-        if operator.reporter is not None:
-            operator.reporter(f"- Streamed Gram system ready in {perf_counter() - started:.2f} s")
+        if logger.isEnabledFor(logging.INFO):
+            logger.info(f"- Streamed Gram system ready in {perf_counter() - started:.2f} s")
             if use_device_gram:
-                operator.reporter(
+                logger.info(
                     "- Gram phase timing: device kernel, scatter, reduction, and BLAS "
                     "execute asynchronously as one device pipeline"
                 )
             else:
-                operator.reporter(
+                logger.info(
                     "- Gram phase timing: "
                     f"kernel={kernel_seconds:.2f} s, transfer={transfer_seconds:.2f} s, "
                     f"scatter={scatter_seconds:.2f} s, "
@@ -213,7 +214,7 @@ class _StreamingGramSystem:
             np.save(cache_directory / "rhs.npy", rhs)
             np.save(cache_directory / "target_norm.npy", np.asarray(target_norm))
             (cache_directory / "complete").write_text("mlfcs streamed Gram recovery cache\n")
-        return cls(gram, rhs, target_norm, operator.reporter, cache_directory)
+        return cls(gram, rhs, target_norm, cache_directory)
 
     def exact_column_scale(self):
         norm = np.sqrt(np.maximum(np.diag(self.gram), 0.0))
@@ -247,7 +248,7 @@ class _StreamingGramSystem:
             offset += count
         return result
 
-    def solve(self, scale, constraints, *, tolerance, max_iterations, verbose):
+    def solve(self, scale, constraints, *, tolerance, max_iterations):
         return solve_gram_system(
             self.gram,
             self.rhs,
@@ -256,8 +257,6 @@ class _StreamingGramSystem:
             constraints,
             tolerance=tolerance,
             max_iterations=max_iterations,
-            verbose=verbose,
-            reporter=self.reporter,
         )
 
 

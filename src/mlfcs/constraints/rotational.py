@@ -17,9 +17,10 @@ from mlfcs.force_constants.representation import ForceConstants, SparseOrderForc
 
 
 @dataclass(frozen=True, slots=True)
-class RotationalSumRuleDiagnostics:
-    """Residuals and numerical choices for one FC2 rotational projection."""
+class RotationalSumRuleResult:
+    """Corrected FC2 and the projection's physical residuals."""
 
+    force_constants: ForceConstants
     strength: float
     tolerance: float
     length_scale: float
@@ -32,14 +33,6 @@ class RotationalSumRuleDiagnostics:
     huang_after: float | None
     relative_fc2_correction: float
     maximum_fc2_correction: float
-
-
-@dataclass(frozen=True, slots=True)
-class RotationalSumRuleResult:
-    """A copy of :class:`ForceConstants` corrected by rotational sum rules."""
-
-    force_constants: ForceConstants
-    diagnostics: RotationalSumRuleDiagnostics
 
 
 def enforce_rotational_sum_rules(
@@ -111,20 +104,20 @@ def enforce_rotational_sum_rules(
     hu_after = _maximum_residual(hu, projected) * length_scale**2 if huang else None
     delta = projected - initial
     denominator = max(float(np.linalg.norm(initial)), np.finfo(float).eps)
-    diagnostics = RotationalSumRuleDiagnostics(
-        strength=float(strength),
-        tolerance=float(tolerance),
-        length_scale=length_scale,
-        retained_rank=rank,
-        acoustic_before=asr_before,
-        acoustic_after=asr_after,
-        born_huang_before=bh_before,
-        born_huang_after=bh_after,
-        huang_before=hu_before,
-        huang_after=hu_after,
-        relative_fc2_correction=float(np.linalg.norm(delta) / denominator),
-        maximum_fc2_correction=float(np.max(np.abs(delta), initial=0.0)),
-    )
+    result_values = {
+        "strength": float(strength),
+        "tolerance": float(tolerance),
+        "length_scale": length_scale,
+        "retained_rank": rank,
+        "acoustic_before": asr_before,
+        "acoustic_after": asr_after,
+        "born_huang_before": bh_before,
+        "born_huang_after": bh_after,
+        "huang_before": hu_before,
+        "huang_after": hu_after,
+        "relative_fc2_correction": float(np.linalg.norm(delta) / denominator),
+        "maximum_fc2_correction": float(np.max(np.abs(delta), initial=0.0)),
+    }
     corrected = _replace_fc2(
         force_constants, fc2, keys, projected.reshape((-1, 3, 3)), sites, translations
     )
@@ -139,7 +132,7 @@ def enforce_rotational_sum_rules(
             "retained_rank": rank,
         },
     }
-    return RotationalSumRuleResult(corrected, diagnostics)
+    return RotationalSumRuleResult(force_constants=corrected, **result_values)
 
 
 def _lattice_labels(fc2: SparseOrderForceConstants, relation) -> tuple[np.ndarray, np.ndarray]:
@@ -301,7 +294,6 @@ def _replace_fc2(force_constants, fc2, keys, values, sites, translations) -> For
 
 
 __all__ = [
-    "RotationalSumRuleDiagnostics",
     "RotationalSumRuleResult",
     "enforce_rotational_sum_rules",
 ]

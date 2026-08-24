@@ -1,14 +1,17 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Literal
 
 import numpy as np
 from ase import Atoms
 
-from mlfcs.force_constants.representation import ForceConstants
 from mlfcs.force_constants.realization import realize_force_constants
+from mlfcs.force_constants.representation import ForceConstants
 from mlfcs.sampling.harmonic import HarmonicSampler, SamplingState
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -48,7 +51,9 @@ def _sample_perturbations(
         if displacement <= 0:
             raise ValueError("displacement must be positive")
         if force_constants is not None or temperature is not None or max_displacement is not None:
-            raise ValueError("force_constants, temperature, and max_displacement require harmonic sampling")
+            raise ValueError(
+                "force_constants, temperature, and max_displacement require harmonic sampling"
+            )
         if statistics != "quantum" or cutoff_frequency != 0.01:
             raise ValueError("statistics and cutoff_frequency require harmonic sampling")
         if imaginary_modes != "error" or imaginary_tolerance != 1e-6:
@@ -91,6 +96,22 @@ def _sample_perturbations(
         atoms.info["mlfcs_configuration_id"] = configuration
         atoms.info["mlfcs_sampling_method"] = method
         structures.append(atoms)
+    logger.info("Generated %d %s perturbation structures", snapshots, method)
+    if state is not None:
+        logger.info(
+            "Harmonic sampling: qpoints=%d, sampled_modes=%d/%d, minimum_frequency=%.8f THz",
+            state.qpoints,
+            state.sampled_modes,
+            state.total_modes,
+            state.minimum_frequency_thz,
+        )
+        if state.clipped_atoms:
+            logger.warning(
+                "Clipped %d atomic displacements in %d snapshots at %.6g Å",
+                state.clipped_atoms,
+                state.affected_snapshots,
+                state.maximum_displacement,
+            )
     return SamplingBatch(tuple(structures), values, method, state, sampler)
 
 

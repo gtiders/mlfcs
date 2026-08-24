@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from functools import cache
 from math import factorial
@@ -10,10 +11,12 @@ from time import perf_counter
 import jax
 import jax.numpy as jnp
 import numpy as np
+
+logger = logging.getLogger(__name__)
 from scipy import sparse
 
-from mlfcs.fitting.parameterization import OrderParameterization, image_parameter_basis
 from mlfcs.fitting.jax_runtime import transfer_guard
+from mlfcs.fitting.parameterization import OrderParameterization, image_parameter_basis
 
 
 @dataclass(frozen=True, slots=True)
@@ -150,7 +153,6 @@ class ForceDesignOperator:
         n_parameters,
         batch_size,
         parameter_map=None,
-        reporter=None,
         program: PreparedDesignProgram | None = None,
         device=None,
         device_gram: bool | None = None,
@@ -164,7 +166,6 @@ class ForceDesignOperator:
         )
         self.batch_size = batch_size
         self.force_shape = self.displacements.shape
-        self.reporter = reporter
         self._device_reductions = {}
         self.program = (
             PreparedDesignProgram(
@@ -177,14 +178,14 @@ class ForceDesignOperator:
         self.device_gram = (
             self.program.device.platform == "gpu" if device_gram is None else bool(device_gram)
         )
-        if program is None and self.reporter is not None:
-            self.reporter(
+        if program is None:
+            logger.info(
                 f"- Prepared JAX feature program: {len(self.program.groups)} signatures, "
                 f"{self.program.tile_count} tiles, "
                 f"{self.program.static_device_bytes / 1024**2:.1f} MiB static buffers"
             )
 
-    def with_displacements(self, displacements, *, reporter=None):
+    def with_displacements(self, displacements):
         """Reuse static kernels and device buffers for another snapshot subset."""
         return ForceDesignOperator(
             displacements,
@@ -192,7 +193,6 @@ class ForceDesignOperator:
             (),
             self.n_parameters,
             self.batch_size,
-            reporter=self.reporter if reporter is None else reporter,
             program=self.program,
             device_gram=self.device_gram,
         )
@@ -242,11 +242,10 @@ class ForceDesignOperator:
                 output[begin:end] = np.asarray(jax.device_get(predicted)).reshape(
                     output[begin:end].shape
                 )
-        if self.reporter is not None:
-            self.reporter(
-                f"- Bounded force prediction: {len(self.displacements)} structures in "
-                f"{perf_counter() - started:.2f} s"
-            )
+        logger.debug(
+            f"- Bounded force prediction: {len(self.displacements)} structures in "
+            f"{perf_counter() - started:.2f} s"
+        )
         return output.reshape(-1)
 
     def matvec_by_order(self, parameters):
@@ -281,11 +280,10 @@ class ForceDesignOperator:
                     output[order][begin:end] = np.asarray(jax.device_get(predicted[order])).reshape(
                         output[order][begin:end].shape
                     )
-        if self.reporter is not None:
-            self.reporter(
-                f"- Bounded order-resolved force prediction: {len(self.displacements)} "
-                f"structures in {perf_counter() - started:.2f} s"
-            )
+        logger.debug(
+            f"- Bounded order-resolved force prediction: {len(self.displacements)} "
+            f"structures in {perf_counter() - started:.2f} s"
+        )
         return {order: values.reshape(-1) for order, values in output.items()}
 
 

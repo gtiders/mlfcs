@@ -75,7 +75,6 @@ def test_exact_ifcs_realize_into_a_different_supercell_size():
         reference=source,
         order=2,
         cutoff=4.1,
-        verbose=False,
     )
     result = calculation.reap(
         np.zeros((len(calculation.plan), len(source), 3)), acoustic_sum_rule=False
