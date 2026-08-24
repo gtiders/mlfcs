@@ -1,5 +1,19 @@
 # 从 HDF5 到 ASE Calculator 的源码级调研
 
+## 实施状态
+
+```text
+状态：Deferred research design
+正式 API：未实现
+阻塞问题：Wick 跨阶收缩在有限超胞 folding 下不一定闭合于 transferable IFC 空间
+```
+
+本文件只保存设计和原型结论，不是当前版本的实施计划。项目目前接受上述 folding 误差，因而
+不会同时把转换后的 Taylor IFC 宣布为可严格复现训练期 Wick predictor 的通用 ASE 势函数。
+在这一语义重新得到明确处理以前，不增加 FC1 HDF5 字段、`ForceConstantPotential` 或
+`MLFCSCalculator` 公共 API。对应问题记录见
+`research/wick_contraction_folding/README.md`。
+
 ## 1. 结论
 
 结论分成两个层次：
@@ -243,9 +257,9 @@ $$
 transferable mode 可 realization 到任意合法 target；source-enhanced mode 只在 fingerprint 和
 translation sublattice 匹配时叠加 finite harmonic residual。FC3/FC4 evaluator 不应复制。
 
-## 10. 最小正式改动计划
+## 10. 暂缓的候选实现
 
-在加入 contraction folding guard 后，建议独立小提交：
+只有未来重新处理 contraction folding，并重新批准 Calculator 功能后，才考虑以下独立小提交：
 
 1. `force_constants/potential.py`：纯 NumPy `ForceConstantPotential`，缓存 realization，返回
    reference-relative energy、forces 和 order-resolved contribution；
@@ -277,5 +291,7 @@ loader 返回 physical artifact。stress 暂不实现。
 12. 最小正式文件是 core potential、ASE adapter、HDF5 FC1 extension 及测试。
 13. 最终可以统一 validation，但必须先解决 FC1 序列化并增加 contraction folding guard。
 
-本轮结论为：**Small Refactor + optional FC1 schema extension**。不是 No-Go；intertwiner 本身
-通过了 alias-free reference 的 FP64 等价验证。
+本轮结论为：实现规模属于 **Small Refactor + optional FC1 schema extension**，但当前状态为
+**Deferred**。这不是技术上的 No-Go；暂停原因是项目已经选择接受 contraction folding 误差，
+而尚未为由此得到的 Taylor artifact 规定可公开承诺的 Calculator 复现语义。intertwiner 本身仅
+在 alias-free reference 上通过了 FP64 等价验证。

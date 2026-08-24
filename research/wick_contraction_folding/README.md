@@ -112,6 +112,33 @@ $$
 5. 将误差视为 reference/cutoff 选择下可接受的建模误差；
 6. 文档和测试不得宣称有限胞 folding 情况下一定达到 FP64 严格等价。
 
+## 对 FC1 与 ASE Calculator 的影响
+
+FC1 数据表示和 ASE Calculator 设计与本问题绑定，当前一并暂缓实施。
+
+原因不是 FC1 本身无法表示。primitive 周期性的 Taylor FC1 可以写成
+
+$$
+\Phi^{(1)}_{a\alpha},
+$$
+
+并按 primitive site 映射重复到任意合法 target supercell。真正尚未锁定的是它的来源语义：
+FC3、FC5 等奇数阶 Wick 项产生 FC1 时，同样经过有限 covariance contraction，因而可能包含
+transferable primitive FC1 无法完整代表的 source-only finite response。
+
+同理，若 ASE Calculator 直接读取当前 Wick 拟合后保存的 Taylor IFC，它在一般 folding 情况下
+不保证逐点重现训练期 Wick predictor。项目既然暂时接受该差异，就不应同时发布一个暗示严格
+等价的公共 Calculator。
+
+因此当前决定为：
+
+1. 不向 HDF5 增加 FC1；
+2. 不修改 `ForceConstants` 数据结构以支持 `order=1`；
+3. 不发布 `ForceConstantPotential` 或 `MLFCSCalculator`；
+4. 保留 `research/ase_calculator/` 中的数学设计和独立原型；
+5. 若未来重新启动，必须先决定 Calculator 表示的是 canonical transferable Taylor potential，
+   还是要求严格复现 source-reference Wick predictor。
+
 若未来重新开启该问题，候选方案是：构造实际 finite contraction response，投影到目标
 transferable span，并将 span 外 residual 作为诊断或 source-only companion；在此之前不改变
 生产路径。
