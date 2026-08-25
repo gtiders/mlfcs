@@ -28,6 +28,8 @@ ForceConstants(
 - `supercell` 是当前目标视图的 ASE `Atoms`。
 - `relation` 是经过验证的 primitive/reference 对应，materialization、采样和外部 writer 需要它。
 - `metadata` 保存来源、设置和约束记录，不参与 IFC 数值。
+- `periodic_fc2_completion` 默认为 `None`；启用 periodic FC2 completion 拟合后，它保存仅属于训练
+  reference 的有限周期谐波响应。该对象不改变 `sparse[2]` 的 exact-$R$ 身份。
 
 ### `orders`
 
@@ -107,3 +109,7 @@ compact_fc2 = target_fc.materialize(2)
 
 target 晶格、元素或 primitive 表示不等价时抛出 `ValueError`。该函数不能从小超胞观测“创造”source 中不存在
 的 interaction，只负责展开已有 canonical IFC。
+
+若对象包含 `periodic_fc2_completion`，只允许 realization 到具有相同整数平移商群的 reference（包括原子重排）；
+不同大小或不同平移子晶格的 target 会被明确拒绝。`materialize(2)` 在合法 source 上返回 exact-$R$ FC2 与
+periodic completion 的总和。

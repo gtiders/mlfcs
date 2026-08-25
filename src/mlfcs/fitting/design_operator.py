@@ -55,6 +55,7 @@ class PreparedDesignProgram:
         self.groups = _build_design_kernel_groups(
             self.parameterizations, batch_size, self.device, axis_derivatives
         )
+        self.additional_cache_arrays = []
         self.gram_feature_passes = 0
         self.prediction_feature_passes = 0
 
@@ -196,6 +197,65 @@ class ForceDesignOperator:
             program=self.program,
             device_gram=self.device_gram,
         )
+    def append_periodic_fc2_block(self, compact_basis, relation, column_offset):
+        """Append a periodic FC2 block without expanding a full Hessian basis."""
+        basis = np.asarray(compact_basis, dtype=float)
+        if basis.ndim != 5:
+            raise ValueError(
+                "compact periodic FC2 basis must have shape (P, n_primitive, N, 3, 3)"
+            )
+        n_atoms = self.force_shape[1]
+        if basis.shape[2:] != (n_atoms, 3, 3):
+            raise ValueError("full Hessian basis has an incompatible source-supercell size")
+        n_parameters = basis.shape[0]
+        if not n_parameters:
+            return
+        cells = np.asarray(relation.index.cell_representatives, dtype=np.int32)
+        anchors = np.asarray(
+            [
+                [relation.index.atom(site, cell) for site in range(len(relation.primitive))]
+                for cell in cells
+            ],
+            dtype=np.int32,
+        )
+        translated_atoms = np.asarray(
+            [
+                [relation.index.translate_atom(atom, cell) for atom in range(n_atoms)]
+                for cell in cells
+            ],
+            dtype=np.int32,
+        )
+
+        @jax.jit
+        def kernel(displacements, basis_state, tensors, translated, anchor_atoms):
+            del basis_state
+            shifted = displacements[:, translated, :]
+            local = -jnp.einsum(
+                "ptkab,sckb->sctap", tensors, shifted, optimize=True
+            )
+            contribution = jnp.zeros(
+                (displacements.shape[0], n_atoms, 3, tensors.shape[0]),
+                dtype=displacements.dtype,
+            )
+            contribution = contribution.at[:, anchor_atoms, :, :].set(local)
+            return contribution.reshape((1, displacements.shape[0], -1, tensors.shape[0]))
+
+        columns = np.arange(
+            column_offset, column_offset + n_parameters, dtype=np.int32
+        )[None, :]
+        arguments = (basis, translated_atoms, anchors)
+        group = DesignKernelGroup(
+            order=2,
+            kernel=kernel,
+            columns=columns,
+            device_columns=jax.device_put(columns, self.program.device),
+            arguments=arguments,
+            device_arguments=tuple(
+                jax.device_put(value, self.program.device) for value in arguments
+            ),
+        )
+        self.program.groups = (*self.program.groups, group)
+        self.program.additional_cache_arrays.extend(arguments)
 
     def device_reduction(self, force_rows):
         """Return a reusable bounded device map for one batch row shape."""

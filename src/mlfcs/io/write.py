@@ -44,6 +44,11 @@ def write_force_constants(
             if order is None
             else (order,)
         )
+        if 2 in selected_orders and force_constants.periodic_fc2_completion is not None:
+            raise ValueError(
+                "ALAMODE export cannot represent source-periodic FC2 completion; "
+                "use phonopy FC2 output for the total source Hessian"
+            )
         try:
             write_alamode(target, force_constants, orders=selected_orders)
         except AlamodeMirrorImageError as original_error:
@@ -85,6 +90,10 @@ def write_force_constants(
         from mlfcs.io.shengbte import write_shengbte
 
         selected_order = order if order is not None else max(force_constants.orders)
+        if selected_order == 2 and force_constants.periodic_fc2_completion is not None:
+            raise ValueError(
+                "ShengBTE sparse export cannot represent source-periodic FC2 completion"
+            )
         sparse = force_constants.sparse.get(selected_order)
         if sparse is None:
             raise ValueError("ShengBTE output requires lattice-labelled sparse force constants")

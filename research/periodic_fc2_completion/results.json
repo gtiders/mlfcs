@@ -1,0 +1,40 @@
+{
+  "direct_gram": {
+    "direct_seconds": 0.0005990420031594113,
+    "explicit_design_bytes": 345600,
+    "explicit_seconds": 0.002025327004957944,
+    "gram_relative_error": 2.89091917290166e-16,
+    "moment_bytes": 18432,
+    "rhs_relative_error": 1.6807097626269367e-15
+  },
+  "nacl_512": {
+    "completion_basis_mib": 6.46875,
+    "completion_parameters": 92,
+    "exact_fc2_phonopy_relative": 0.0405448724564577,
+    "exact_force_rmse_ev_per_angstrom": 2.651939354366066e-05,
+    "hybrid_fc2_phonopy_relative": 0.008821875908038224,
+    "hybrid_force_rmse_ev_per_angstrom": 1.3146374588337632e-05,
+    "observable_basis_mib": 11.671875,
+    "space_build_seconds": 2.8068891410075594,
+    "symfc_asr_dimension": 166
+  },
+  "si_128": {
+    "completion_basis_mib": 0.298828125,
+    "completion_parameters": 17,
+    "exact_fc2_phonopy_relative": 0.005738348369490435,
+    "exact_force_rmse_ev_per_angstrom": 0.0049958528507828516,
+    "hybrid_fc2_phonopy_relative": 0.010733800086767076,
+    "hybrid_force_rmse_ev_per_angstrom": 0.004819943118141598,
+    "observable_basis_mib": 0.7734375,
+    "space_build_seconds": 0.5540901089989347,
+    "symfc_asr_dimension": 44
+  },
+  "synthetic_nacl_2x2x2": {
+    "asr_dimension": 11,
+    "completion_dimension": 9,
+    "exact_dimension": 2,
+    "fc2_relative_recovery_error": 6.4e-12,
+    "force_rmse_ev_per_angstrom": 0.0,
+    "symfc_maximum_principal_angle_radians": 1.476559728589841e-15
+  }
+}

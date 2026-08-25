@@ -3,4 +3,8 @@
 from mlfcs.force_constants.realization import realize_force_constants
 from mlfcs.force_constants.representation import ForceConstants, SparseOrderForceConstants
 
-__all__ = ["ForceConstants", "SparseOrderForceConstants", "realize_force_constants"]
+__all__ = [
+    "ForceConstants",
+    "SparseOrderForceConstants",
+    "realize_force_constants",
+]

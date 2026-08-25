@@ -54,6 +54,14 @@ def _export_cache_key(force_constants: ForceConstants, primitive, supercell) -> 
         _atoms_fingerprint(primitive),
         _atoms_fingerprint(supercell),
         sparse_identity,
+        (
+            None
+            if force_constants.periodic_fc2_completion is None
+            else (
+                force_constants.periodic_fc2_completion.source_fingerprint,
+                id(force_constants.periodic_fc2_completion.compact_hessian),
+            )
+        ),
     )
 
 
@@ -159,8 +167,24 @@ def build_export_view(
         )
     if force_constants.arrays and not force_constants.sparse:
         raise ValueError("target export requires lattice-labelled sparse force constants")
+    completion = force_constants.periodic_fc2_completion
+    if completion is not None:
+        from mlfcs.force_constants.periodic_fc2 import PeriodicFC2Completion
+
+        full = completion.full_hessian(target.reference)
+        representatives = np.asarray(
+            [target.index.representative(site) for site in range(len(target.primitive))],
+            dtype=np.int32,
+        )
+        compact = full[representatives]
+        completion = PeriodicFC2Completion(target, compact, completion.rank_report)
     converted = ForceConstants(
-        {}, target.reference.copy(), dict(force_constants.metadata), sparse, target
+        {},
+        target.reference.copy(),
+        metadata=dict(force_constants.metadata),
+        sparse=sparse,
+        relation=target,
+        periodic_fc2_completion=completion,
     )
     view = ExportView(converted, target)
     force_constants._export_view_cache[cache_key] = view

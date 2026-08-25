@@ -1,0 +1,42 @@
+{
+  "NaCl (512 atoms, no NAC)": {
+    "exact": {
+      "completion_parameters": 0,
+      "exact_parameters": 76,
+      "fit_seconds": 0.9929171340045286,
+      "force_rmse_ev_per_angstrom": 2.651939354366066e-05,
+      "phonon_rms_difference_thz": 0.1273173550740248,
+      "phonopy_fc2_relative": 0.0405448724564577,
+      "relative_force_error": 0.04555639416937791
+    },
+    "hybrid": {
+      "completion_parameters": 92,
+      "exact_parameters": 76,
+      "fit_seconds": 5.316628008004045,
+      "force_rmse_ev_per_angstrom": 1.3146374588337632e-05,
+      "phonon_rms_difference_thz": 0.00032783636725064485,
+      "phonopy_fc2_relative": 0.008821875908038224,
+      "relative_force_error": 0.022583526341150705
+    }
+  },
+  "Si (128 atoms)": {
+    "exact": {
+      "completion_parameters": 0,
+      "exact_parameters": 28,
+      "fit_seconds": 0.5211144290078664,
+      "force_rmse_ev_per_angstrom": 0.0049958528507828516,
+      "phonon_rms_difference_thz": 0.04038526943783762,
+      "phonopy_fc2_relative": 0.005738348369490435,
+      "relative_force_error": 0.03428677679457355
+    },
+    "hybrid": {
+      "completion_parameters": 17,
+      "exact_parameters": 28,
+      "fit_seconds": 0.9885421590006445,
+      "force_rmse_ev_per_angstrom": 0.004819943118141598,
+      "phonon_rms_difference_thz": 0.09368192730343693,
+      "phonopy_fc2_relative": 0.01073380008528381,
+      "relative_force_error": 0.03307949989527124
+    }
+  }
+}

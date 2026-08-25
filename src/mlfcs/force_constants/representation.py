@@ -44,6 +44,7 @@ class ForceConstants:
     metadata: dict[str, object] = field(default_factory=dict)
     sparse: dict[int, SparseOrderForceConstants] = field(default_factory=dict)
     relation: object | None = None
+    periodic_fc2_completion: object | None = None
     _export_view_cache: dict[tuple[object, ...], object] = field(
         default_factory=dict, init=False, repr=False, compare=False
     )
@@ -78,6 +79,8 @@ class ForceConstants:
                 for site, translation in zip(sites[1:], translations, strict=True)
             )
             values[(int(sites[0]), *atoms)] += tensor
+        if order == 2 and self.periodic_fc2_completion is not None:
+            values += np.asarray(self.periodic_fc2_completion.compact_hessian)
         self.arrays[order] = values
         return values
 

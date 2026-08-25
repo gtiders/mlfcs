@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import asdict
 from pathlib import Path
 
 import h5py
@@ -48,6 +49,10 @@ def write_hdf5(target: str | Path, force_constants: ForceConstants) -> None:
         handle.attrs["tensor_basis"] = "cartesian"
         structures = handle.create_group("structures")
         _write_atoms(structures.create_group("primitive"), relation.primitive)
+        if force_constants.periodic_fc2_completion is not None:
+            _write_atoms(
+                structures.create_group("periodic_fc2_source"), relation.reference
+            )
         group = handle.create_group("force_constants")
         for order, values in sorted(force_constants.sparse.items()):
             entry = group.create_group(str(order))
@@ -57,6 +62,17 @@ def write_hdf5(target: str | Path, force_constants: ForceConstants) -> None:
             entry.create_dataset("sites", data=values.sites, compression="gzip")
             entry.create_dataset("translations", data=values.translations, compression="gzip")
             entry.create_dataset("tensors", data=values.tensors, compression="gzip")
+        if force_constants.periodic_fc2_completion is not None:
+            completion = force_constants.periodic_fc2_completion
+            entry = handle.create_group("periodic_fc2_completion")
+            entry.attrs["representation"] = "source-periodic-harmonic-hessian"
+            entry.attrs["source_fingerprint"] = completion.source_fingerprint
+            entry.attrs["rank_diagnostics"] = json.dumps(
+                asdict(completion.rank_report), sort_keys=True
+            )
+            entry.create_dataset(
+                "compact_hessian", data=completion.compact_hessian, compression="gzip"
+            )
         for key, value in force_constants.metadata.items():
             if isinstance(value, (str, int, float, bool, np.number)):
                 handle.attrs[key] = value
@@ -70,10 +86,15 @@ def read_hdf5(source: str | Path) -> ForceConstants:
         if int(handle.attrs.get("schema_version", 0)) != SCHEMA_VERSION:
             raise ValueError("unsupported native MLFCS HDF5 schema; only v3 is supported")
         primitive = _read_atoms(handle["structures/primitive"])
-        # Canonical storage has no source-supercell identity.  The primitive
-        # itself is the default finite view; callers may realize the IFCs into
-        # any verified target supercell after reading.
-        relation = StructureRelation.from_atoms(primitive, primitive)
+        # Canonical exact-R storage has no source-supercell identity.  The
+        # optional periodic FC2 sidecar is source-bound and therefore carries
+        # its reference structure explicitly.
+        reference = (
+            _read_atoms(handle["structures/periodic_fc2_source"])
+            if "periodic_fc2_source" in handle["structures"]
+            else primitive
+        )
+        relation = StructureRelation.from_atoms(primitive, reference)
         sparse: dict[int, SparseOrderForceConstants] = {}
         for name, entry in handle["force_constants"].items():
             order = int(name)
@@ -86,7 +107,33 @@ def read_hdf5(source: str | Path) -> ForceConstants:
             for key, value in handle.attrs.items()
             if key not in {"format", "schema_version", "units", "tensor_basis"}
         }
-    return ForceConstants({}, primitive, metadata=metadata, sparse=sparse, relation=relation)
+        completion = None
+        if "periodic_fc2_completion" in handle:
+            from mlfcs.force_constants.periodic_fc2 import (
+                PeriodicFC2Completion,
+                PeriodicFC2RankReport,
+            )
+
+            entry = handle["periodic_fc2_completion"]
+            rank_report = PeriodicFC2RankReport(
+                **json.loads(entry.attrs["rank_diagnostics"])
+            )
+            completion = PeriodicFC2Completion(
+                relation,
+                np.asarray(entry["compact_hessian"], dtype=float),
+                rank_report,
+            )
+            stored_fingerprint = str(entry.attrs["source_fingerprint"])
+            if completion.source_fingerprint != stored_fingerprint:
+                raise ValueError("periodic FC2 source fingerprint is inconsistent")
+    return ForceConstants(
+        {},
+        relation.reference.copy(),
+        metadata=metadata,
+        sparse=sparse,
+        relation=relation,
+        periodic_fc2_completion=completion,
+    )
 
 
 __all__ = ["SCHEMA_VERSION", "read_hdf5", "write_hdf5"]

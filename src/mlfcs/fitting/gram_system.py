@@ -279,6 +279,7 @@ def _gram_recovery_key(operator, target):
                 tensor.image_mask,
             ]
         )
+    arrays.extend(operator.program.additional_cache_arrays)
     for array in arrays:
         value = np.ascontiguousarray(array)
         digest.update(str(value.shape).encode())

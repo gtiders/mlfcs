@@ -20,6 +20,8 @@ ForceConstantFitter(
     cutoffs: dict[int, float | int | None] | None = None,
     max_body_orders: dict[int, int | None] | None = None,
     fitting_basis: Literal["taylor", "wick"] = "taylor",
+    periodic_fc2_completion: bool = False,
+    periodic_fc2_rank_tolerance: float | None = None,
     symprec: float = 1e-5,
     jax_platform: Literal["auto", "cpu", "gpu"] = "auto",
 )
@@ -33,6 +35,8 @@ ForceConstantFitter(
 | `cutoffs` | 每个拟合阶必须有一项；值可为正 Å、负整数壳层或 `None`。 |
 | `max_body_orders` | 可选的逐阶 body-order 上限；缺失阶等价于 `None`。 |
 | `fitting_basis` | `"taylor"` 为默认；`"wick"` 使用训练 covariance 定义坐标，最终仍 lowering 为 Taylor IFC。 |
+| `periodic_fc2_completion` | 默认 `False`。在当前训练超胞上加入 symmetry/ASR-allowed periodic FC2 complement；不改变 exact-$R$ FC3/FC4。 |
+| `periodic_fc2_rank_tolerance` | exact FC2 realization 的可选绝对 SVD rank 阈值；`None` 使用日志报告的 FP64 判据。 |
 | `symprec` | 结构映射与空间群容差。 |
 | `jax_platform` | `auto` 使用 JAX 默认设备；显式 `cpu`/`gpu` 在设备不存在时拒绝。 |
 
@@ -74,6 +78,10 @@ fit(
 
 ASR 构造在物理 Taylor 参数层，随后映射到所选拟合基，因此 Taylor/Wick 共用同一约束语义。
 
+开启 periodic completion 时，`acoustic_sum_rule` 必须为 `True`，且第一版只支持无正则的严格
+最小二乘。exact FC2 若在 source supercell 中存在 kernel，仍抛出
+`InteractionAliasingError`，不会由 completion 掩盖。
+
 ## `FittingResult`
 
 ```python
@@ -100,5 +108,11 @@ from mlfcs.fitting import FittingResult
 | `lowering_force_maximum`、`lowering_force_relative` | Wick predictor 与 Taylor 输出的有限胞差异诊断。 |
 | `design_kernel_signatures`、`design_tiles`、`static_device_bytes` | design 程序规模。 |
 | `gram_feature_passes`、`prediction_feature_passes` | 特征执行次数。 |
+| `periodic_fc2_completion` | source-bound `PeriodicFC2Completion`；默认路径为 `None`。 |
+| `periodic_fc2_rank` | raw、symmetry/ASR、exact、completion 与 hybrid 维数及 rank tolerance。 |
 
 结果对象不提供写文件方法；使用 `write_force_constants(result.force_constants, ...)`。
+
+`force_constants.sparse[2]` 始终只包含 exact-$R$ FC2；periodic completion 保存在独立 sidecar。
+`materialize(2)`、phonopy 输出和 `MLFCSCalculator` 使用二者之和。completion 没有 canonical
+exact-$R$ lift，不能展开到不同大小超胞。

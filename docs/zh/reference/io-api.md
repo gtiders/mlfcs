@@ -19,6 +19,10 @@ read_hdf5(source: str | Path) -> ForceConstants
 metadata。它不是 phonopy/phono3py 的稠密 HDF5。路径不存在、schema 不是 v3、shape 损坏或结构映射不一致
 时抛出异常。
 
+启用 periodic FC2 completion 时，同一 v3 文件会额外保存 source reference、compact periodic Hessian 与
+rank report。该扩展是可选的；普通 exact-$R$ 文件的结构不变。读取后 `sparse[2]` 仍只包含 transferable
+exact-$R$ IFC，`materialize(2)` 才组合 source-bound completion。
+
 ## `write_force_constants`
 
 ```python
@@ -53,6 +57,10 @@ write_force_constants(
 
 格式名未知、order 缺失/不存在或格式不支持所选阶时抛出 `ValueError`。ShengBTE 要求 sparse exact-$R$ IFC；
 ALAMODE 若无法在目标胞内表达所需镜像，会抛出 `AlamodeMirrorImageError`，而不是写出近似文件。
+
+带 periodic FC2 completion 的结果可写为 native HDF5、phonopy 文本或 phonopy HDF5；后二者写出 total
+source Hessian。ShengBTE 的高阶 exact-$R$ 输出不受影响。ALAMODE FC2 无法表达这一 source-bound sidecar，
+因此会明确拒绝，而不是静默丢弃。
 
 ```python
 write_force_constants(fc, "mlfcs.h5", format="hdf5")

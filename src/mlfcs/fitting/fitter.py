@@ -27,6 +27,11 @@ from mlfcs.fitting.linear_solvers import (
 )
 from mlfcs.fitting.parameterization import pack_order
 from mlfcs.force_constants.expansion import expand_fitted_orders
+from mlfcs.force_constants.periodic_fc2 import (
+    PeriodicFC2Completion,
+    PeriodicFC2RankReport,
+    SupercellHessianSpace,
+)
 from mlfcs.force_constants.representation import ForceConstants
 from mlfcs.interactions.space import InteractionSpace, ReferenceFrame
 
@@ -67,6 +72,8 @@ class FittingResult:
     static_device_bytes: int = 0
     gram_feature_passes: int = 0
     prediction_feature_passes: int = 0
+    periodic_fc2_completion: PeriodicFC2Completion | None = None
+    periodic_fc2_rank: PeriodicFC2RankReport | None = None
 
 
 class ForceConstantFitter:
@@ -81,6 +88,8 @@ class ForceConstantFitter:
         cutoffs: dict[int, float | int | None] | None = None,
         max_body_orders: dict[int, int | None] | None = None,
         fitting_basis: str = "taylor",
+        periodic_fc2_completion: bool = False,
+        periodic_fc2_rank_tolerance: float | None = None,
         symprec: float = 1e-5,
         jax_platform: JaxPlatform = "auto",
     ):
@@ -109,6 +118,10 @@ class ForceConstantFitter:
         self.jax_platform = jax_platform
         self._backend = create_fitting_backend(fitting_basis)
         self.fitting_basis = self._backend.name
+        self.periodic_fc2_completion = bool(periodic_fc2_completion)
+        self.periodic_fc2_rank_tolerance = periodic_fc2_rank_tolerance
+        if self.periodic_fc2_completion and 2 not in self.orders:
+            raise ValueError("periodic FC2 completion requires order 2 in the fitted orders")
         order_text = "+".join(f"FC{order}" for order in self.orders)
         logger.info(f"Preparing independent {order_text} fitting parameterization")
         self.calculations = tuple(
@@ -162,6 +175,10 @@ class ForceConstantFitter:
         normalized_regularization = "none" if regularization is None else regularization.casefold()
         if normalized_regularization not in {"none", "scaled_group_lasso"}:
             raise ValueError("regularization must be None or 'scaled_group_lasso'")
+        if self.periodic_fc2_completion and not acoustic_sum_rule:
+            raise ValueError("periodic FC2 completion requires acoustic_sum_rule=True")
+        if self.periodic_fc2_completion and normalized_regularization != "none":
+            raise ValueError("periodic FC2 completion currently requires strict least squares")
         dataset = FitDataset.from_atoms(self.geometry, structures)
         maximum_reference_force = float(np.max(np.linalg.norm(dataset.reference_forces, axis=1)))
         maximum_snapshot_net_force = float(np.max(np.linalg.norm(dataset.net_forces, axis=1)))
@@ -201,16 +218,65 @@ class ForceConstantFitter:
                 constraints.matrix,
                 tolerance=1e-11,
             )
+        periodic_space = None
+        completion_dimension = 0
+        physical_parameter_count = self.n_parameters
+        if self.periodic_fc2_completion:
+            fc2_calculation = self.calculations[self.orders.index(2)]
+            periodic_space = SupercellHessianSpace.build(
+                fc2_calculation,
+                rank_tolerance=self.periodic_fc2_rank_tolerance,
+            )
+            rank = periodic_space.rank_report
+            completion_dimension = rank.completion_dimension
+            physical_parameter_count += completion_dimension
+            if parameter_map is not None:
+                parameter_map = sparse.block_diag(
+                    (parameter_map, sparse.eye(completion_dimension)), format="csc"
+                )
+            logger.info("Periodic FC2 completion rank diagnostics")
+            logger.info(
+                "- raw=%d, translation-reduced raw=%d, symmetry=%d, ASR=%d, "
+                "exact=%d, exact_rank=%d",
+                rank.raw_dimension,
+                rank.translation_reduced_raw_dimension,
+                rank.symmetry_reduced_dimension,
+                rank.asr_dimension,
+                rank.exact_dimension,
+                rank.exact_rank,
+            )
+            logger.info(
+                "- completion=%d, hybrid=%d, numerical_rank=%d, discarded=%d, "
+                "rank_tolerance=%.6e",
+                rank.completion_dimension,
+                rank.hybrid_dimension,
+                rank.numerical_rank,
+                rank.discarded_dependent_directions,
+                rank.rank_tolerance,
+            )
         prepared_basis = self._backend.prepare(
             calculations=self.calculations,
             training_displacements=displacements[training],
             parameterizations=self.order_tensors,
-            n_parameters=self.n_parameters,
+            n_parameters=physical_parameter_count,
             batch_size=batch_size,
             parameter_map=parameter_map,
             device=self.jax_device,
         )
         operator = prepared_basis.operator
+        if periodic_space is not None and completion_dimension:
+            compact_shape = (
+                completion_dimension,
+                len(self.geometry.primitive),
+                len(self.geometry.reference),
+                3,
+                3,
+            )
+            operator.append_periodic_fc2_block(
+                periodic_space.completion_basis.T.reshape(compact_shape),
+                self.geometry,
+                self.n_parameters,
+            )
         target = residual_forces[training].reshape(-1)
         gram_system = _StreamingGramSystem.from_operator(
             operator,
@@ -313,7 +379,9 @@ class ForceConstantFitter:
             if parameter_map is not None
             else reduced_parameters
         )
-        constraint_residual = self._constraint_drift(parameters_numpy, constraints)
+        constraint_residual = self._constraint_drift(
+            parameters_numpy[: self.n_parameters], constraints
+        )
         training_metrics = gram_system.force_metrics(reduced_parameters, target)
         if n_validation:
             validation_operator = self._backend.build_operator(
@@ -329,7 +397,13 @@ class ForceConstantFitter:
             sum(orbit.dimension for orbit in calculation.orbit_space.orbits)
             for calculation in self.calculations
         ]
-        if parameter_map is None:
+        if periodic_space is not None:
+            predicted_by_order = operator.matvec_by_order(parameters_numpy)
+            order_force_rms = {
+                order: float(np.linalg.norm(predicted_by_order[order]) / np.sqrt(len(target)))
+                for order in self.orders
+            }
+        elif parameter_map is None:
             order_force_rms = gram_system.order_force_rms(
                 parameters_numpy, self.orders, counts, len(target)
             )
@@ -365,7 +439,9 @@ class ForceConstantFitter:
                 iterations,
                 normal_residual,
             )
-        lowering = self._backend.lower(prepared_basis, parameters_numpy)
+        lowering = self._backend.lower(
+            prepared_basis, parameters_numpy[: self.n_parameters]
+        )
         fc1 = lowering.reference_fc1
         fc1_maximum = float(np.max(np.abs(fc1))) if fc1 is not None and fc1.size else None
         fc1_net = float(np.linalg.norm(np.sum(fc1, axis=0))) if fc1 is not None else None
@@ -383,6 +459,20 @@ class ForceConstantFitter:
             f"- Expanded {sum(len(value.tensors) for value in sparse_values.values())} "
             f"sparse tensors in {perf_counter() - expansion_started:.2f} s"
         )
+        periodic_response = None
+        if periodic_space is not None:
+            completion_parameters = parameters_numpy[
+                self.n_parameters : self.n_parameters + completion_dimension
+            ]
+            compact_shape = (
+                len(self.geometry.primitive), len(self.geometry.reference), 3, 3
+            )
+            compact_completion = (
+                periodic_space.completion_basis @ completion_parameters
+            ).reshape(compact_shape)
+            periodic_response = PeriodicFC2Completion(
+                self.geometry, compact_completion, periodic_space.rank_report
+            )
         force_constants = ForceConstants(
             {},
             self.canonical_supercell.copy(),
@@ -404,9 +494,11 @@ class ForceConstantFitter:
                 "acoustic_sum_rule": acoustic_sum_rule,
                 "training_structures": len(structures),
                 "jax_platform": self.jax_platform,
+                "periodic_fc2_completion": periodic_response is not None,
             },
             sparse=sparse_values,
             relation=self.geometry,
+            periodic_fc2_completion=periodic_response,
         )
         result = FittingResult(
             force_constants=force_constants,
@@ -441,6 +533,10 @@ class ForceConstantFitter:
             static_device_bytes=operator.program.static_device_bytes,
             gram_feature_passes=operator.program.gram_feature_passes,
             prediction_feature_passes=operator.program.prediction_feature_passes,
+            periodic_fc2_completion=periodic_response,
+            periodic_fc2_rank=(
+                periodic_space.rank_report if periodic_space is not None else None
+            ),
         )
         return result
 
