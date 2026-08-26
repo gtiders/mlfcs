@@ -13,7 +13,7 @@ code_verified: 4.0.0a6
 
 `FiniteDifferenceCalculation.reap/run(acoustic_sum_rule=True)` 和
 `ForceConstantFitter.fit(acoustic_sum_rule=True)` 都在参数重建/求解阶段施加平移声学求和规则。拟合侧先在
-physical Taylor 参数空间构造约束，再通过所选 backend 映射，因此 Taylor 和 Wick 的 ASR 物理语义相同。
+physical Taylor 参数空间直接构造约束，因此 ASR 与拟合参数具有相同的物理语义。
 
 ## `enforce_rotational_sum_rules`
 

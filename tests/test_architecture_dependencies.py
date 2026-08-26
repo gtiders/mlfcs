@@ -56,14 +56,13 @@ def test_historical_ambiguous_packages_are_removed():
         assert not (ROOT / package).exists()
 
 
-def test_concrete_fitting_backends_do_not_leak_into_generic_modules():
-    backend_root = ROOT / "fitting" / "backends"
+def test_taylor_model_does_not_leak_into_generic_modules():
+    taylor_root = ROOT / "fitting" / "taylor"
     for path in ROOT.rglob("*.py"):
-        if path.is_relative_to(backend_root):
+        if path.is_relative_to(taylor_root):
             continue
         source = path.read_text()
-        assert "mlfcs.fitting.backends.wick" not in source, path
-        assert "mlfcs.fitting.backends.taylor" not in source, path
+        assert "mlfcs.fitting.backends" not in source, path
 
 
 def test_production_code_has_no_print_or_legacy_diagnostics_types():

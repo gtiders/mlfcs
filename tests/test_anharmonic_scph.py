@@ -59,31 +59,6 @@ def test_loop_scph_accepts_independent_fc2_and_fc4_and_writes_effective_fc2(tmp_
     assert result.history[0].frequency_change_thz >= 0.0
 
 
-def test_scph_is_independent_of_fitting_basis_provenance():
-    outputs = {}
-    for basis in ("taylor", "wick"):
-        fc2, fc4 = _force_constants()
-        fc2.metadata["fitted_with"] = basis
-        fc4.metadata["fitted_with"] = basis
-        outputs[basis] = LoopSCPH(
-            fc2=fc2,
-            fc4=fc4,
-            temperature=300,
-            interpolation_multiplier=1,
-            scph_multiplier=1,
-            mixing=1.0,
-            max_iterations=2,
-        ).run()
-
-    np.testing.assert_allclose(
-        outputs["taylor"].force_constants.materialize(2),
-        outputs["wick"].force_constants.materialize(2),
-        atol=0.0,
-        rtol=0.0,
-    )
-    assert outputs["taylor"].history == outputs["wick"].history
-
-
 def test_loop_correction_has_quartic_one_half_factor():
     fc2, fc4 = _force_constants()
     result = LoopSCPH(

@@ -21,7 +21,7 @@ High-order force constants combine rapidly growing interaction spaces, Cartesian
 ## Core capabilities
 
 - FC2 and arbitrarily higher-order finite differences with production validation centered on FC2–FC4.
-- Joint force-only fitting on one fixed reference supercell using Taylor-compatible Wick coordinates.
+- Joint force-only fitting on one fixed reference supercell using Taylor coordinates.
 - Primitive-site plus exact integer-translation force constants with sparse native HDF5 v3 storage.
 - Translational constraints and explicit FC2 Born–Huang/Huang post-processing.
 - Target-supercell realization and writers for phonopy, phono3py, ShengBTE, and ALAMODE.

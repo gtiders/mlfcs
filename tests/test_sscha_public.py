@@ -42,26 +42,16 @@ def test_sscha_has_no_external_sow_reap_api():
     assert not hasattr(SSCHA, "reap")
 
 
-def test_sscha_taylor_and_wick_backends_produce_the_same_effective_fc2():
+def test_sscha_uses_taylor_coordinates():
     primitive_atoms = primitive()
     reference = make_supercell(primitive_atoms, (2, 2, 2))[0]
     calculator = TranslationalHarmonic(reference)
-    results = {}
-    for basis in ("taylor", "wick"):
-        solver = SSCHA(
-            primitive_atoms,
-            reference=reference,
-            cutoff=-1,
-            snapshots=8,
-            max_iterations=0,
-            random_seed=31,
-            fitting_basis=basis,
-        )
-        solver.step(calculator, calculate_free_energy=False)
-        assert solver.force_constants is not None
-        results[basis] = solver.force_constants.materialize(2)
-
-    np.testing.assert_allclose(results["taylor"], results["wick"], atol=1e-11, rtol=1e-11)
+    solver = SSCHA(
+        primitive_atoms, reference=reference, cutoff=-1, snapshots=8,
+        max_iterations=0, random_seed=31,
+    )
+    solver.step(calculator, calculate_free_energy=False)
+    assert solver.force_constants is not None
 
 
 def test_sscha_direct_run_and_linear_mixing(tmp_path):

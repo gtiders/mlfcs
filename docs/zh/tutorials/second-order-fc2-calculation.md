@@ -290,12 +290,12 @@ fitter = ForceConstantFitter(
     cutoffs={2: None},
 )
 
-result = fitter.fit(
+gram = fitter.prepare_gram(
     training,
-    validation_split=0.0,
     acoustic_sum_rule=True,
-    cache_directory="fit-cache",
 )
+gram.save("training-gram.npz")
+result = fitter.fit(gram, acoustic_sum_rule=True)
 
 write_force_constants(
     result.force_constants,
@@ -344,21 +344,8 @@ uv run python plot.py
 * body order；
 * ASR 设置。
 
-`validation_split` 用于从输入结构中划出一部分作为验证集。例如：
-
-```python
-validation_split=0.1
-```
-
-表示使用 10% 的结构进行验证。
-
-如果数据量较少，也可以设置为：
-
-```python
-validation_split=0.0
-```
-
-此时建议另外准备独立测试数据，用于检查拟合得到的力常数对未参与训练结构的原子力是否具有良好的重建能力。
+训练集和测试集分别构造独立的 Gram 对象。`fit()` 不再隐式划分验证集或预测测试集力；
+测试误差应由用户使用 `MLFCSCalculator` 显式计算。
 
 默认情况下：
 
@@ -453,7 +440,7 @@ MLFCS 原生 HDF5 保存的是稀疏 exact-$R$ 表示。
 
 不能。
 
-MLFCS 的高阶力常数拟合在统一的 Wick 参数空间中进行。不同阶数之间并不是完全独立的，因此需要在同一次拟合中共同确定。
+MLFCS 的高阶力常数拟合在统一的 Taylor 参数空间中进行。不同阶数共享同一份力数据，因此需要在同一次拟合中共同确定。
 
 例如，同时拟合 FC2、FC3 和 FC4：
 

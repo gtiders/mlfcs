@@ -56,7 +56,7 @@ MLFCS writes FC2–FC4 FCSXML. ALAMODE's 27-image encoding is handled only at th
 
 hiPhive also uses clusters, orbits, symmetry reduction, and force fitting, and provides a ForceConstantPotential. MLFCS shares general mathematics such as representative interactions and orbit expansion but does not copy its cluster-space implementation.
 
-MLFCS uses primitive exact-$R$ IFCs, one-reference fitting, Wick fitting coordinates, and Taylor physical output. A hiPhive FCP is designed to evaluate forces as a potential; MLFCS `ForceConstants` is primarily physical IFC data.
+MLFCS uses primitive exact-$R$ IFCs, one-reference Taylor fitting, and Taylor physical output. A hiPhive FCP is designed to evaluate forces as a potential; MLFCS `ForceConstants` is primarily physical IFC data.
 
 ## DFT and machine-learning potentials: force sources
 

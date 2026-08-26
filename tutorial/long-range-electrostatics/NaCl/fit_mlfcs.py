@@ -68,7 +68,6 @@ def _run() -> None:
     metrics = {
         "cutoff_angstrom": CUTOFF,
         "frames": 2,
-        "fitting_basis": total_result.fitting_basis,
         "direct_total": {
             "orbits": len(total_fitter.calculations[0].realized_orbit_space.orbits),
             "parameters": total_fitter.n_parameters,

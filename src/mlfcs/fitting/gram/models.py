@@ -23,9 +23,6 @@ class GramStatistics:
         """Combine statistics only when they describe the same design space."""
         if not isinstance(other, GramStatistics):
             raise TypeError("can only merge GramStatistics")
-        for key in ("fitting_basis",):
-            if self.metadata.get(key) != other.metadata.get(key):
-                raise ValueError(f"incompatible Gram metadata: {key}")
         if self.gram.shape != other.gram.shape or self.rhs.shape != other.rhs.shape:
             raise ValueError("incompatible Gram dimensions")
         return GramStatistics(

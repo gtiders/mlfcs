@@ -75,4 +75,4 @@ forces = atoms.get_forces()
 - 周期边界内外的等价坐标使用 MIC 位移处理；不会静默重排原子。
 - 可以在构造时将 exact-$R$ IFC realization 到其他合法整数超胞。
 - 只实现 `energy` 和 `forces`；stress、virial、绝对能量和晶胞应变不在当前模型中。
-- Calculator 表示保存后的 Taylor 多项式，不保证复现拟合前的 reference force，也不接收 Wick 参数。
+- Calculator 表示保存后的 Taylor 多项式，不保证复现拟合前的 reference force。

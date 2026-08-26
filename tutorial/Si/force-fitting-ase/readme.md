@@ -38,7 +38,8 @@ fitter = ForceConstantFitter(
     orders=(2,),
     cutoffs={2: None},
 )
-result = fitter.fit(training, validation_split=0.0)
+gram = fitter.prepare_gram(training)
+result = fitter.fit(gram)
 ```
 
 普通 Python 用户可以将命令替换为：

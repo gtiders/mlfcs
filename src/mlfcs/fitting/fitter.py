@@ -3,14 +3,12 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from time import perf_counter
-from types import SimpleNamespace
 
 import numpy as np
 from ase import Atoms
 from scipy import sparse
 
 from mlfcs.constraints.translational import project_parameters
-from mlfcs.fitting.backends.factory import create_fitting_backend
 from mlfcs.fitting.constraints import build_joint_constraints
 from mlfcs.fitting.dataset import FitDataset
 from mlfcs.fitting.gram import GramBuilder, GramStatistics
@@ -20,6 +18,7 @@ from mlfcs.fitting.linear_solvers import (
     solve_scaled_group_lasso,
 )
 from mlfcs.fitting.parameterization import pack_order
+from mlfcs.fitting.taylor.model import TaylorModel
 from mlfcs.force_constants.expansion import expand_fitted_orders
 from mlfcs.force_constants.periodic_fc2 import (
     PeriodicFC2Completion,
@@ -36,7 +35,6 @@ logger = logging.getLogger(__name__)
 class FittingResult:
     force_constants: ForceConstants
     fitting_parameters: np.ndarray
-    fitting_basis: str
     parameter_scale: np.ndarray
     gram_statistics: GramStatistics
     iterations: int
@@ -47,10 +45,6 @@ class FittingResult:
     residual_norm: float
     normal_equation_residual: float
     maximum_constraint_residual: float
-    lowered_fc1_maximum: float | None
-    lowered_fc1_net: float | None
-    lowering_force_maximum: float | None = None
-    lowering_force_relative: float | None = None
     regularization: str = "none"
     effective_noise_scale: float = 0.0
     active_orbits: int = 0
@@ -71,7 +65,6 @@ class ForceConstantFitter:
         orders: tuple[int, ...] = (2, 3),
         cutoffs: dict[int, float | int | None] | None = None,
         max_body_orders: dict[int, int | None] | None = None,
-        fitting_basis: str = "taylor",
         periodic_fc2_completion: bool = False,
         periodic_fc2_rank_tolerance: float | None = None,
         symprec: float = 1e-5,
@@ -100,8 +93,7 @@ class ForceConstantFitter:
         self.max_body_orders = dict(max_body_orders or {})
         self.symprec = symprec
         self.jax_platform = jax_platform
-        self._backend = create_fitting_backend(fitting_basis)
-        self.fitting_basis = self._backend.name
+        self._taylor = TaylorModel()
         self.periodic_fc2_completion = bool(periodic_fc2_completion)
         self.periodic_fc2_rank_tolerance = periodic_fc2_rank_tolerance
         if self.periodic_fc2_completion and 2 not in self.orders:
@@ -157,10 +149,6 @@ class ForceConstantFitter:
             raise ValueError("periodic FC2 completion requires acoustic_sum_rule=True")
         if self.periodic_fc2_completion and normalized_regularization != "none":
             raise ValueError("periodic FC2 completion currently requires strict least squares")
-        prepared_basis = SimpleNamespace(
-            calculations=self.calculations,
-            covariance=np.asarray(gram.metadata.get("covariance", np.empty(0))),
-        )
         constraints = build_joint_constraints(
             self.calculations,
             acoustic=acoustic_sum_rule,
@@ -342,17 +330,7 @@ class ForceConstantFitter:
                 iterations,
                 normal_residual,
             )
-        lowering = self._backend.lower(
-            prepared_basis, parameters_numpy[: self.n_parameters]
-        )
-        fc1 = lowering.reference_fc1
-        fc1_maximum = float(np.max(np.abs(fc1))) if fc1 is not None and fc1.size else None
-        fc1_net = float(np.linalg.norm(np.sum(fc1, axis=0))) if fc1 is not None else None
-        if fc1 is not None:
-            logger.info(
-                "- Lowered FC1 diagnostic: "
-                f"maximum={fc1_maximum:.10e} eV/Å, net={fc1_net:.10e} eV/Å"
-            )
+        lowering = self._taylor.lower(None, parameters_numpy[: self.n_parameters])
         expansion_started = perf_counter()
         logger.info("Expanding fitted Taylor parameters into sparse physical IFCs")
         taylor_parameters = lowering.taylor_parameters
@@ -387,7 +365,7 @@ class ForceConstantFitter:
                     else "gram_scaled_group_lasso_admm"
                 ),
                 "regularization": normalized_regularization,
-                "fitted_with": self.fitting_basis,
+                "fitted_with": "taylor",
                 "force_constants_basis": "taylor",
                 "cutoff_angstrom": self.calculations[-1].cutoff,
                 "cutoff_angstrom_by_order": {
@@ -406,7 +384,6 @@ class ForceConstantFitter:
         result = FittingResult(
             force_constants=force_constants,
             fitting_parameters=parameters_numpy,
-            fitting_basis=self.fitting_basis,
             parameter_scale=parameter_scale,
             gram_statistics=gram,
             iterations=int(iterations),
@@ -417,10 +394,6 @@ class ForceConstantFitter:
             residual_norm=float(residual_norm),
             normal_equation_residual=float(normal_residual),
             maximum_constraint_residual=constraint_residual,
-            lowered_fc1_maximum=fc1_maximum,
-            lowered_fc1_net=fc1_net,
-            lowering_force_maximum=lowering.lowering_force_maximum,
-            lowering_force_relative=lowering.lowering_force_relative,
             regularization=normalized_regularization,
             effective_noise_scale=effective_noise_scale,
             active_orbits=active_orbits,
@@ -465,7 +438,7 @@ class ForceConstantFitter:
                 parameter_map = sparse.block_diag(
                     (parameter_map, sparse.eye(completion_dimension)), format="csc"
                 )
-        prepared = self._backend.prepare(
+        prepared = self._taylor.prepare(
             calculations=self.calculations,
             training_displacements=dataset.displacements,
             parameterizations=self.order_tensors,
@@ -487,7 +460,6 @@ class ForceConstantFitter:
                 self.geometry,
                 self.n_parameters,
             )
-        prepared.operator.fitting_basis = self.fitting_basis
         return GramBuilder.from_operator(
             prepared.operator,
             dataset.forces.reshape(-1),

@@ -69,7 +69,6 @@ SSCHA(
     *,
     reference: Atoms,
     cutoff: float | None,
-    fitting_basis: Literal["taylor", "wick"] = "taylor",
     temperature: float | Sequence[float] = 300.0,
     statistics: Literal["quantum", "classical"] = "quantum",
     snapshots: int | Literal["auto"] = 1000,
@@ -93,7 +92,6 @@ SSCHA(
 | `atoms` | primitive；与公共采样函数的首参数语义不同。 |
 | `reference` | 唯一固定采样超胞和原子顺序。 |
 | `cutoff` | 内部 FC2 fitter cutoff；允许正 Å、负壳层或 `None`。 |
-| `fitting_basis` | 每轮有效 FC2 拟合使用 Taylor（默认）或 Wick。 |
 | `temperature` | 单温度或序列；序列升序运行。 |
 | `snapshots` | 每轮快照数；`auto` 取不少于约四倍参数方程覆盖所需的帧数。 |
 | `max_iterations` | canonical 更新上限；0 仍执行初始 Cartesian bootstrap。 |

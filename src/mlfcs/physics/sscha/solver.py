@@ -67,7 +67,6 @@ class SSCHA:
         *,
         reference: Atoms,
         cutoff: float | None,
-        fitting_basis: Literal["taylor", "wick"] = "taylor",
         temperature: float | Sequence[float] = 300.0,
         statistics: Literal["quantum", "classical"] = "quantum",
         snapshots: int | Literal["auto"] = 1000,
@@ -120,7 +119,6 @@ class SSCHA:
         self.random_seed = random_seed
         self.symprec = symprec
         self.cutoff = None if cutoff is None else float(cutoff)
-        self.fitting_basis = fitting_basis
         self.cutoff_frequency = float(cutoff_frequency)
         self.imaginary_modes = imaginary_modes
         self.imaginary_tolerance = float(imaginary_tolerance)
@@ -135,7 +133,6 @@ class SSCHA:
             self._reference,
             orders=(2,),
             cutoffs={2: self.cutoff},
-            fitting_basis=fitting_basis,
             symprec=symprec,
         )
         self._active_compact: NDArray[np.float64] | None = None
@@ -435,7 +432,6 @@ class SSCHA:
                 self.primitive,
                 reference=self._reference,
                 cutoff=self.cutoff,
-                fitting_basis=self.fitting_basis,
                 temperature=temperature,
                 statistics=self.statistics,
                 snapshots=self.snapshots,

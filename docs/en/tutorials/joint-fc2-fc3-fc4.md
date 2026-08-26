@@ -10,7 +10,7 @@ code_verified: 4.0.0a6
 
 ## Goal
 
-Use Wick coordinates for a joint high-order fit and verify the Taylor force constants written by MLFCS.
+Use Taylor coordinates for a joint high-order fit and verify the force constants written by MLFCS.
 
 ## Prerequisites
 

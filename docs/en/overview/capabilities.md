@@ -14,7 +14,7 @@ This page records stable, experimental, planned, and unsupported capabilities ag
 
 - Explicit primitive/reference structure relations, HNF periodic indexing, arbitrary atom order, and non-diagonal integer supercells.
 - Symmetry-reduced finite differences and force-only fitting from FC2 through supported higher orders.
-- Taylor output, Wick fitting coordinates, translational constraints, and FC2 Born–Huang/Huang correction.
+- Taylor fitting and output, translational constraints, and FC2 Born–Huang/Huang correction.
 - Sparse native HDF5 v3, target-supercell realization, and the documented external writers.
 
 ## Experimental

@@ -86,7 +86,6 @@ def _run() -> None:
     Path("fit-metrics.json").write_text(
         json.dumps(
             {
-                "fitting_basis": result.fitting_basis,
                 "iterations": result.iterations,
                 "stop_code": result.stop_code,
                 "training_force_rmse_eV_per_A": result.training_force_rmse,

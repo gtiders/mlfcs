@@ -65,7 +65,6 @@ def _fit() -> None:
     metrics = {
         "atoms": len(supercell),
         "frames": len(snapshots),
-        "fitting_basis": result.fitting_basis,
         "orders": list(fitter.orders),
         "cutoffs_angstrom": {str(order): space.cutoff for order, space in zip(fitter.orders, fitter.calculations, strict=True)},
         "orbits": {str(order): len(space.realized_orbit_space.orbits) for order, space in zip(fitter.orders, fitter.calculations, strict=True)},

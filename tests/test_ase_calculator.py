@@ -69,7 +69,6 @@ def test_calculator_matches_taylor_fitting_design_prediction():
         reference,
         orders=(2,),
         cutoffs={2: 4.1},
-        fitting_basis="taylor",
     )
     result = fitter.fit(
         fitter.prepare_gram(structures, acoustic_sum_rule=False),

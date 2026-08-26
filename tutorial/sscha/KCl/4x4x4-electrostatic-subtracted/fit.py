@@ -73,7 +73,6 @@ def _fit() -> None:
     metrics = {
         "atoms": len(reference),
         "frames": len(structures),
-        "fitting_basis": result.fitting_basis,
         "cutoff_angstrom": fitter.calculations[0].cutoff,
         "orbits": len(fitter.calculations[0].realized_orbit_space.orbits),
         "parameters": fitter.n_parameters,

@@ -1,1 +1,0 @@
-"""Wick fitting-coordinate backend."""

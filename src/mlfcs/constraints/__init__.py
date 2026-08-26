@@ -1,4 +1,4 @@
-"""Physical IFC constraints independent of calculation backends."""
+"""Physical IFC constraints independent of fitting models."""
 
 from mlfcs.constraints.rotational import (
     RotationalSumRuleResult,

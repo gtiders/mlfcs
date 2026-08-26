@@ -7,14 +7,8 @@ import pytest
 from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
 from scipy import sparse
-from supercell_helpers import make_supercell
 
 from mlfcs.fitting import ForceConstantFitter
-from mlfcs.fitting.backends.wick.covariance import symmetrized_covariance as _symmetrized_covariance
-from mlfcs.fitting.backends.wick.features import wick as _wick
-from mlfcs.fitting.backends.wick.features import wick_axis_derivatives
-from mlfcs.fitting.backends.wick.features import wick_axis_derivatives as _wick_axis_derivatives
-from mlfcs.fitting.backends.wick.lowering import lowered_fc1
 from mlfcs.fitting.design_operator import ForceDesignOperator as _BatchedForceOperator
 from mlfcs.fitting.design_operator import physical_tile_shape as _physical_tile_shape
 from mlfcs.fitting.design_operator import (
@@ -24,7 +18,7 @@ from mlfcs.fitting.design_operator import prepare_device_reduction as _prepare_d
 from mlfcs.fitting.gram import GramBuilder, GramStatistics
 from mlfcs.fitting.linear_solvers import explicit_constraint_null_space
 from mlfcs.fitting.parameterization import OrderParameterization as _OrderTensor
-from mlfcs.force_constants.expansion import expand_fitted_orders as _expand_sparse
+from mlfcs.fitting.taylor.features import taylor_axis_derivatives as _taylor_axis_derivatives
 
 
 def test_fitter_fit_exposes_only_strict_solver_controls():
@@ -67,95 +61,6 @@ def _one_parameter_fc2_tensor():
         coordinates=coordinates,
         image_mask=np.ones((1, 1), dtype=bool),
     )
-
-
-def test_wick_recursion_supports_arbitrary_degree():
-    displacement = np.array([[2.0, 3.0, 5.0]])
-    covariance = np.diag([0.5, 0.7, 1.1])
-    coordinates = np.array([0, 0, 1, 2])
-
-    actual = _wick(displacement, covariance, coordinates, order=4)
-    expected = (2.0**2 - 0.5) * 3.0 * 5.0
-
-    np.testing.assert_allclose(actual, expected)
-
-
-def test_shared_wick_axis_derivatives_equal_independent_recursions():
-    rng = np.random.default_rng(7)
-    displacement = rng.normal(size=(2, 3))
-    matrix = rng.normal(size=(6, 6))
-    covariance = matrix @ matrix.T
-    coordinates = rng.integers(0, 6, size=(4, 5))
-
-    actual = _wick_axis_derivatives(displacement, covariance, coordinates, order=5)
-    for axis, values in enumerate(actual):
-        remaining = np.delete(np.arange(5), axis)
-        expected = _wick(displacement, covariance, coordinates[..., remaining], order=4)
-        np.testing.assert_allclose(values, expected, rtol=1e-13, atol=1e-13)
-
-
-def test_reduced_wick_transform_matches_sparse_tensor_conversion():
-    from ase import Atoms
-
-    from mlfcs.finite_difference.calculation import FiniteDifferenceCalculation
-    from mlfcs.fitting.backends.wick.lowering import build_wick_to_taylor_transform
-
-    primitive = Atoms("Si", positions=[[0, 0, 0]], cell=np.eye(3) * 4.0, pbc=True)
-    reference = make_supercell(primitive, (3, 3, 3))[0]
-    calculations = tuple(
-        FiniteDifferenceCalculation(
-            primitive,
-            order=order,
-            reference=reference,
-            cutoff=4.1,
-        )
-        for order in (2, 3, 4)
-    )
-    rng = np.random.default_rng(41)
-    n_parameters = sum(
-        orbit.dimension
-        for calculation in calculations
-        for orbit in calculation.realized_orbit_space.orbits
-    )
-    parameters = rng.normal(size=n_parameters)
-    displacement = rng.normal(size=(20, len(reference), 3))
-    covariance = _symmetrized_covariance(displacement, calculations[0])
-    transform = build_wick_to_taylor_transform(calculations, covariance)
-    actual = _expand_sparse(np.asarray(transform @ parameters), calculations)
-
-    for order in (2, 3, 4):
-        assert actual[order].tensors.shape[1:] == (3,) * order
-        assert np.all(np.isfinite(actual[order].tensors))
-
-
-def test_reported_omitted_fc1_reproduces_constant_wick_force():
-    primitive = Atoms(
-        "GaAs",
-        cell=np.eye(3) * 5.6,
-        scaled_positions=[[0, 0, 0], [0.25, 0.25, 0.25]],
-        pbc=True,
-    )
-    reference = primitive.copy()
-    fitter = ForceConstantFitter(
-        primitive,
-        reference,
-        orders=(3,),
-        cutoffs={3: 3.0},
-    )
-    covariance = np.eye(6) * 0.04
-    parameters = np.random.default_rng(4).normal(size=fitter.n_parameters)
-    fc1 = lowered_fc1(fitter.calculations, parameters, covariance)
-    operator = _BatchedForceOperator(
-        np.zeros((1, 2, 3)),
-        covariance,
-        fitter.order_tensors,
-        fitter.n_parameters,
-        batch_size=1,
-        axis_derivatives=wick_axis_derivatives,
-    )
-    force = operator.matvec(parameters).reshape(1, 2, 3)[0]
-
-    np.testing.assert_allclose(force, -fc1, atol=1e-12, rtol=1e-12)
 
 
 def test_unconverged_fit_requires_explicit_opt_in_and_exposes_gram_cache(monkeypatch, tmp_path):
@@ -268,7 +173,7 @@ def test_streaming_gram_recovers_force_constant_and_force_error():
         (tensor,),
         1,
         batch_size=4,
-        axis_derivatives=_wick_axis_derivatives,
+        axis_derivatives=_taylor_axis_derivatives,
     )
     expected = np.array([2.75])
     target = operator.matvec(expected)
@@ -315,7 +220,7 @@ def test_physical_design_tiles_equal_matrix_free_operator():
         (tensor,),
         n_orbits,
         batch_size=4,
-        axis_derivatives=_wick_axis_derivatives,
+        axis_derivatives=_taylor_axis_derivatives,
     )
     builders, _ = _prepare_physical_design_builders(operator)
     assert builders
@@ -387,7 +292,7 @@ def test_device_gram_pipeline_matches_cpu_with_a_sparse_null_space_map():
         (tensor,),
         2,
         batch_size=2,
-        axis_derivatives=_wick_axis_derivatives,
+        axis_derivatives=_taylor_axis_derivatives,
     )
     target = physical.matvec(np.asarray(parameter_map @ np.array([1.75])).reshape(-1))
     cpu = _BatchedForceOperator(
@@ -397,7 +302,7 @@ def test_device_gram_pipeline_matches_cpu_with_a_sparse_null_space_map():
         2,
         batch_size=2,
         parameter_map=parameter_map,
-        axis_derivatives=_wick_axis_derivatives,
+        axis_derivatives=_taylor_axis_derivatives,
     )
     device = _BatchedForceOperator(
         displacements,
@@ -407,7 +312,7 @@ def test_device_gram_pipeline_matches_cpu_with_a_sparse_null_space_map():
         batch_size=2,
         parameter_map=parameter_map,
         device_gram=True,
-        axis_derivatives=_wick_axis_derivatives,
+        axis_derivatives=_taylor_axis_derivatives,
     )
     expected = GramBuilder.from_operator(cpu, target)
     actual = GramBuilder.from_operator(device, target)

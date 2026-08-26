@@ -188,8 +188,6 @@ class GramAccumulator:
         return GramStatistics(
             np.asarray(gram), np.asarray(rhs), target_norm, len(target),
             {
-                "fitting_basis": getattr(operator, "fitting_basis", "unknown"),
-                "covariance": np.asarray(operator.basis_state),
                 "parameter_map": operator.parameter_map,
             },
         )

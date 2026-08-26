@@ -69,6 +69,6 @@ from mlfcs.structure.relation import StructureRelation, align_structures
 
 - `primitive` 描述无限晶体的 primitive site；`reference` 是本次计算的唯一显式超胞和原子顺序。
 - 训练结构不会被静默重排，必须与 `reference` 的晶格、元素、原子数和顺序一致。
-- MLFCS 内部 canonical IFC 始终是 Taylor IFC；Wick 只是一种拟合坐标。
+- MLFCS 内部 canonical IFC 和拟合坐标均为 Taylor 表示。
 - 长度为 Å，力为 eV/Å，$n$ 阶 IFC 为 eV/Å$^n$，频率为 THz，温度为 K。
 - 所有生成文件应显式指定格式；`.h5` 后缀本身不能区分 MLFCS、phonopy 和 phono3py schema。

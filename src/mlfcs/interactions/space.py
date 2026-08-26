@@ -1,4 +1,4 @@
-"""Shared symmetry-reduced interaction spaces for all calculation backends."""
+"""Shared symmetry-reduced interaction spaces."""
 
 from __future__ import annotations
 

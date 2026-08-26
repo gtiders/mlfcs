@@ -25,7 +25,7 @@ class TaylorPotential:
 
     This internal evaluator interprets canonical force constants as an energy
     expansion with zero constant and linear terms.  It deliberately has no
-    dependency on fitting backends or JAX.
+    dependency on fitting models or JAX.
     """
 
     def __init__(

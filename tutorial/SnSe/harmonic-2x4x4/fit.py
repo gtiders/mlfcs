@@ -58,7 +58,6 @@ def _fit() -> None:
         "supercell_matrix": [[2, 0, 0], [0, 4, 0], [0, 0, 4]],
         "atoms": len(supercell),
         "frames": len(snapshots),
-        "fitting_basis": result.fitting_basis,
         "requested_cutoff": None,
         "resolved_cutoff_angstrom": fitter.calculations[0].cutoff,
         "orbits": len(fitter.calculations[0].realized_orbit_space.orbits),
