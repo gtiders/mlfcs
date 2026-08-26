@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from pathlib import Path
 from time import perf_counter
+from types import SimpleNamespace
 
 import numpy as np
 from ase import Atoms
@@ -13,13 +13,7 @@ from mlfcs.constraints.translational import project_parameters
 from mlfcs.fitting.backends.factory import create_fitting_backend
 from mlfcs.fitting.constraints import build_joint_constraints
 from mlfcs.fitting.dataset import FitDataset
-from mlfcs.fitting.gram_system import (
-    _force_metrics,
-    _normalize_constraint_rows,
-    _orbit_parameter_groups,
-    _order_force_rms_from_reduced_gram,
-    _StreamingGramSystem,
-)
+from mlfcs.fitting.gram import GramBuilder, GramStatistics
 from mlfcs.fitting.jax_runtime import JaxPlatform, resolve_jax_device
 from mlfcs.fitting.linear_solvers import (
     explicit_constraint_null_space,
@@ -44,20 +38,15 @@ class FittingResult:
     fitting_parameters: np.ndarray
     fitting_basis: str
     parameter_scale: np.ndarray
-    cache_directory: Path | None
+    gram_statistics: GramStatistics
     iterations: int
     training_force_rmse: float
-    validation_force_rmse: float
     training_relative_force_error: float
-    validation_relative_force_error: float
     order_force_rms: dict[int, float]
     stop_code: int
     residual_norm: float
     normal_equation_residual: float
     maximum_constraint_residual: float
-    maximum_reference_force: float
-    maximum_snapshot_net_force: float
-    maximum_center_of_mass_displacement: float
     lowered_fc1_maximum: float | None
     lowered_fc1_net: float | None
     lowering_force_maximum: float | None = None
@@ -67,11 +56,6 @@ class FittingResult:
     active_orbits: int = 0
     admm_primal_residual: float = 0.0
     admm_dual_residual: float = 0.0
-    design_kernel_signatures: int = 0
-    design_tiles: int = 0
-    static_device_bytes: int = 0
-    gram_feature_passes: int = 0
-    prediction_feature_passes: int = 0
     periodic_fc2_completion: PeriodicFC2Completion | None = None
     periodic_fc2_rank: PeriodicFC2RankReport | None = None
 
@@ -151,23 +135,17 @@ class ForceConstantFitter:
 
     def fit(
         self,
-        structures: list[Atoms] | tuple[Atoms, ...],
+        gram: GramStatistics,
         *,
-        batch_size: int = 1,
-        validation_split: float = 0.1,
         tolerance: float = 1e-8,
         max_iterations: int = 1000,
-        seed: int = 0,
         acoustic_sum_rule: bool = True,
         precondition: bool = True,
         allow_unconverged: bool = False,
         regularization: str | None = None,
-        cache_directory: str | Path | None = None,
     ) -> FittingResult:
-        if not 0 <= validation_split < 1:
-            raise ValueError("validation_split must be in [0, 1)")
-        if batch_size < 1 or batch_size > 4:
-            raise ValueError("batch_size must be between 1 and 4")
+        if not isinstance(gram, GramStatistics):
+            raise TypeError("fit expects a GramStatistics object")
         if max_iterations < 1:
             raise ValueError("max_iterations must be positive")
         if tolerance <= 0:
@@ -179,31 +157,10 @@ class ForceConstantFitter:
             raise ValueError("periodic FC2 completion requires acoustic_sum_rule=True")
         if self.periodic_fc2_completion and normalized_regularization != "none":
             raise ValueError("periodic FC2 completion currently requires strict least squares")
-        dataset = FitDataset.from_atoms(self.geometry, structures)
-        maximum_reference_force = float(np.max(np.linalg.norm(dataset.reference_forces, axis=1)))
-        maximum_snapshot_net_force = float(np.max(np.linalg.norm(dataset.net_forces, axis=1)))
-        maximum_center_of_mass_displacement = float(
-            np.max(np.linalg.norm(dataset.center_of_mass_displacements, axis=1))
+        prepared_basis = SimpleNamespace(
+            calculations=self.calculations,
+            covariance=np.asarray(gram.metadata.get("covariance", np.empty(0))),
         )
-        logger.info("Training-data diagnostics (inputs are not recentered)")
-        logger.info(f"- Maximum reference force: {maximum_reference_force:.10e} eV/Å")
-        logger.info(f"- Maximum snapshot net force: {maximum_snapshot_net_force:.10e} eV/Å")
-        logger.info(
-            f"- Maximum center-of-mass displacement: {maximum_center_of_mass_displacement:.10e} Å"
-        )
-        # The reference frame is the public atom order.  Reordering here used
-        # to hide a cell-major calculation frame and made fitted IFCs depend
-        # on the incidental order of the input structure.
-        displacements = dataset.displacements
-        forces = dataset.forces
-        residual_forces = forces
-        rng = np.random.default_rng(seed)
-        indices = rng.permutation(len(structures))
-        n_validation = round(len(indices) * validation_split)
-        validation = indices[:n_validation]
-        training = indices[n_validation:]
-        if not len(training):
-            raise ValueError("validation split leaves no training structures")
         constraints = build_joint_constraints(
             self.calculations,
             acoustic=acoustic_sum_rule,
@@ -212,8 +169,8 @@ class ForceConstantFitter:
             f"Constraint system: {constraints.matrix.shape[0]} rows after duplicate removal "
             f"({constraints.translational_rows} ASR before compression)"
         )
-        parameter_map = None
-        if normalized_regularization == "none" and constraints.matrix.shape[0]:
+        parameter_map = gram.metadata.get("parameter_map")
+        if parameter_map is None and normalized_regularization == "none" and constraints.matrix.shape[0]:
             parameter_map = explicit_constraint_null_space(
                 constraints.matrix,
                 tolerance=1e-11,
@@ -230,7 +187,7 @@ class ForceConstantFitter:
             rank = periodic_space.rank_report
             completion_dimension = rank.completion_dimension
             physical_parameter_count += completion_dimension
-            if parameter_map is not None:
+            if parameter_map is not None and parameter_map.shape[0] == self.n_parameters:
                 parameter_map = sparse.block_diag(
                     (parameter_map, sparse.eye(completion_dimension)), format="csc"
                 )
@@ -254,35 +211,7 @@ class ForceConstantFitter:
                 rank.discarded_dependent_directions,
                 rank.rank_tolerance,
             )
-        prepared_basis = self._backend.prepare(
-            calculations=self.calculations,
-            training_displacements=displacements[training],
-            parameterizations=self.order_tensors,
-            n_parameters=physical_parameter_count,
-            batch_size=batch_size,
-            parameter_map=parameter_map,
-            device=self.jax_device,
-        )
-        operator = prepared_basis.operator
-        if periodic_space is not None and completion_dimension:
-            compact_shape = (
-                completion_dimension,
-                len(self.geometry.primitive),
-                len(self.geometry.reference),
-                3,
-                3,
-            )
-            operator.append_periodic_fc2_block(
-                periodic_space.completion_basis.T.reshape(compact_shape),
-                self.geometry,
-                self.n_parameters,
-            )
-        target = residual_forces[training].reshape(-1)
-        gram_system = _StreamingGramSystem.from_operator(
-            operator,
-            target,
-            cache_directory=cache_directory,
-        )
+        gram_system = gram
         if precondition:
             parameter_scale = gram_system.exact_column_scale()
             if parameter_map is None:
@@ -304,14 +233,14 @@ class ForceConstantFitter:
             logger.info("Solving the force-only least-squares problem with streamed Gram")
         else:
             logger.info("Solving the force-only problem with constrained scaled orbit-group LASSO")
-        logger.info(f"- Equations: {len(target)}, unknowns: {gram_system.gram.shape[0]}")
+        logger.info(f"- Equations: {gram.n_equations}, unknowns: {gram_system.gram.shape[0]}")
         solve_constraint_matrix = (
             sparse.csr_matrix((0, gram_system.gram.shape[0]))
             if parameter_map is not None
             else constraints.matrix
         )
         scaled_constraints = solve_constraint_matrix @ sparse.diags(parameter_scale)
-        solve_constraints = _normalize_constraint_rows(scaled_constraints)
+        solve_constraints = self._normalize_constraint_rows(scaled_constraints)
         effective_noise_scale = 0.0
         active_orbits = sum(
             len(calculation.realized_orbit_space.orbits) for calculation in self.calculations
@@ -327,7 +256,7 @@ class ForceConstantFitter:
             )
             scaled_parameters, stop_code, iterations, residual_norm, normal_residual = solution
         else:
-            groups = _orbit_parameter_groups(self.calculations)
+            groups = self._orbit_parameter_groups()
             solution = solve_scaled_group_lasso(
                 gram_system.gram,
                 gram_system.rhs,
@@ -335,7 +264,7 @@ class ForceConstantFitter:
                 parameter_scale,
                 solve_constraints,
                 groups,
-                n_equations=len(target),
+                n_equations=gram.n_equations,
                 tolerance=tolerance,
                 max_iterations=max_iterations,
             )
@@ -382,54 +311,28 @@ class ForceConstantFitter:
         constraint_residual = self._constraint_drift(
             parameters_numpy[: self.n_parameters], constraints
         )
-        training_metrics = gram_system.force_metrics(reduced_parameters, target)
-        if n_validation:
-            validation_operator = self._backend.build_operator(
-                prepared_basis, displacements[validation]
-            )
-            validation_metrics = _force_metrics(
-                validation_operator.matvec(parameters_numpy),
-                residual_forces[validation].reshape(-1),
-            )
-        else:
-            validation_metrics = training_metrics
+        training_metrics = gram_system.force_metrics(reduced_parameters)
         counts = [
             sum(orbit.dimension for orbit in calculation.realized_orbit_space.orbits)
             for calculation in self.calculations
         ]
-        if periodic_space is not None:
-            predicted_by_order = operator.matvec_by_order(parameters_numpy)
-            order_force_rms = {
-                order: float(np.linalg.norm(predicted_by_order[order]) / np.sqrt(len(target)))
-                for order in self.orders
-            }
-        elif parameter_map is None:
+        if parameter_map is None:
             order_force_rms = gram_system.order_force_rms(
-                parameters_numpy, self.orders, counts, len(target)
+                parameters_numpy, self.orders, counts, gram.n_equations
             )
         else:
-            order_force_rms = _order_force_rms_from_reduced_gram(
-                gram_system,
-                reduced_parameters,
-                parameter_map,
-                operator,
-                parameters_numpy,
-                self.orders,
-                counts,
-                len(target),
-            )
+            # A reduced Gram does not contain cross-order physical blocks when
+            # the constraint map mixes orders.  Do not recreate an operator or
+            # silently perform a second feature pass for this diagnostic.
+            order_force_rms = {}
         logger.info("Force fitting summary")
         logger.info(f"- Training relative error: {100 * training_metrics[1]:.6f} %")
-        logger.info(f"- Validation relative error: {100 * validation_metrics[1]:.6f} %")
         logger.info(f"- Training force RMSE: {training_metrics[0]:.10e} eV/Å")
-        logger.info(f"- Validation force RMSE: {validation_metrics[0]:.10e} eV/Å")
         for order, rms in order_force_rms.items():
             logger.info(f"- FC{order} force contribution RMS: {rms:.10e} eV/Å")
         logger.info(
             "- JAX execution guard: 1 prepared program, "
-            f"{len(operator.program.groups)} signatures, {operator.program.tile_count} tiles, "
-            f"Gram passes={operator.program.gram_feature_passes}, "
-            f"prediction passes={operator.program.prediction_feature_passes}"
+            "independent Gram statistics"
         )
         logger.info(f"- Solver iterations={iterations}, stop_code={stop_code}")
         if stop_code != 0:
@@ -492,7 +395,7 @@ class ForceConstantFitter:
                     for calculation in self.calculations
                 },
                 "acoustic_sum_rule": acoustic_sum_rule,
-                "training_structures": len(structures),
+                "training_equations": gram.n_equations,
                 "jax_platform": self.jax_platform,
                 "periodic_fc2_completion": periodic_response is not None,
             },
@@ -505,20 +408,15 @@ class ForceConstantFitter:
             fitting_parameters=parameters_numpy,
             fitting_basis=self.fitting_basis,
             parameter_scale=parameter_scale,
-            cache_directory=gram_system.cache_directory,
+            gram_statistics=gram,
             iterations=int(iterations),
             training_force_rmse=training_metrics[0],
-            validation_force_rmse=validation_metrics[0],
             training_relative_force_error=training_metrics[1],
-            validation_relative_force_error=validation_metrics[1],
             order_force_rms=order_force_rms,
             stop_code=int(stop_code),
             residual_norm=float(residual_norm),
             normal_equation_residual=float(normal_residual),
             maximum_constraint_residual=constraint_residual,
-            maximum_reference_force=maximum_reference_force,
-            maximum_snapshot_net_force=maximum_snapshot_net_force,
-            maximum_center_of_mass_displacement=maximum_center_of_mass_displacement,
             lowered_fc1_maximum=fc1_maximum,
             lowered_fc1_net=fc1_net,
             lowering_force_maximum=lowering.lowering_force_maximum,
@@ -528,17 +426,92 @@ class ForceConstantFitter:
             active_orbits=active_orbits,
             admm_primal_residual=admm_primal,
             admm_dual_residual=admm_dual,
-            design_kernel_signatures=len(operator.program.groups),
-            design_tiles=operator.program.tile_count,
-            static_device_bytes=operator.program.static_device_bytes,
-            gram_feature_passes=operator.program.gram_feature_passes,
-            prediction_feature_passes=operator.program.prediction_feature_passes,
             periodic_fc2_completion=periodic_response,
             periodic_fc2_rank=(
                 periodic_space.rank_report if periodic_space is not None else None
             ),
         )
         return result
+
+    def prepare_gram(
+        self,
+        structures: list[Atoms] | tuple[Atoms, ...],
+        *,
+        batch_size: int = 1,
+        acoustic_sum_rule: bool = True,
+    ) -> GramStatistics:
+        """Build independent training statistics for a user-owned dataset."""
+        if self.periodic_fc2_completion and not acoustic_sum_rule:
+            raise ValueError("periodic FC2 completion requires acoustic_sum_rule=True")
+        if batch_size < 1 or batch_size > 4:
+            raise ValueError("batch_size must be between 1 and 4")
+        dataset = FitDataset.from_atoms(self.geometry, structures)
+        constraints = build_joint_constraints(self.calculations, acoustic=acoustic_sum_rule)
+        periodic_space = None
+        completion_dimension = 0
+        physical_parameter_count = self.n_parameters
+        if self.periodic_fc2_completion:
+            fc2_calculation = self.calculations[self.orders.index(2)]
+            periodic_space = SupercellHessianSpace.build(
+                fc2_calculation,
+                rank_tolerance=self.periodic_fc2_rank_tolerance,
+            )
+            completion_dimension = periodic_space.rank_report.completion_dimension
+            physical_parameter_count += completion_dimension
+        parameter_map = None
+        if constraints.matrix.shape[0]:
+            parameter_map = explicit_constraint_null_space(constraints.matrix)
+            if completion_dimension:
+                parameter_map = sparse.block_diag(
+                    (parameter_map, sparse.eye(completion_dimension)), format="csc"
+                )
+        prepared = self._backend.prepare(
+            calculations=self.calculations,
+            training_displacements=dataset.displacements,
+            parameterizations=self.order_tensors,
+            n_parameters=physical_parameter_count,
+            batch_size=batch_size,
+            parameter_map=parameter_map,
+            device=self.jax_device,
+        )
+        if periodic_space is not None and completion_dimension:
+            compact_shape = (
+                completion_dimension,
+                len(self.geometry.primitive),
+                len(self.geometry.reference),
+                3,
+                3,
+            )
+            prepared.operator.append_periodic_fc2_block(
+                periodic_space.completion_basis.T.reshape(compact_shape),
+                self.geometry,
+                self.n_parameters,
+            )
+        prepared.operator.fitting_basis = self.fitting_basis
+        return GramBuilder.from_operator(
+            prepared.operator,
+            dataset.forces.reshape(-1),
+            batch_size=batch_size,
+        )
+
+    def _orbit_parameter_groups(self):
+        groups = []
+        offset = 0
+        for calculation in self.calculations:
+            for orbit in calculation.realized_orbit_space.orbits:
+                groups.append(slice(offset, offset + orbit.dimension))
+                offset += orbit.dimension
+        return tuple(groups)
+
+    @staticmethod
+    def _normalize_constraint_rows(constraints):
+        if constraints.shape[0] == 0:
+            return constraints
+        norms = np.sqrt(np.asarray(constraints.multiply(constraints).sum(axis=1)).reshape(-1))
+        scale = np.ones_like(norms)
+        active = norms > np.finfo(float).tiny
+        scale[active] = 1.0 / norms[active]
+        return sparse.diags(scale) @ constraints
 
     def _constraint_drift(self, parameters, constraints):
         residual = constraints.matrix @ parameters

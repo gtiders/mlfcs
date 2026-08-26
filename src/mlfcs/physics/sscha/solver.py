@@ -255,11 +255,11 @@ class SSCHA:
             # force array for every structure instead of this snapshot's force.
             atoms.calc = None
             atoms.new_array("forces", np.asarray(values, dtype=float))
-        fit = self._fitter.fit(
+        gram = self._fitter.prepare_gram(
             snapshots,
-            validation_split=0.0,
             acoustic_sum_rule=self.acoustic_sum_rule,
         )
+        fit = self._fitter.fit(gram, acoustic_sum_rule=self.acoustic_sum_rule)
         fitted_lattice = lattice_fc2(fit.force_constants)
         fitted_compact = fit.force_constants.materialize(2, max_bytes=None)
         raw_relative_change = None

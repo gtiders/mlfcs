@@ -41,17 +41,18 @@ def _json_ready(value):
 
 
 def _run() -> None:
-    result = ForceConstantFitter(
+    fitter = ForceConstantFitter(
         read(INPUT / "primitive.vasp"),
         read(INPUT / "supercell.vasp"),
         orders=(2, 3, 4),
         cutoffs={2: 5.4, 3: 5.4, 4: 4.6},
         max_body_orders={2: 2, 3: 3, 4: 3},
-    ).fit(
-        read(INPUT / "train.extxyz", index=":"),
-        validation_split=0.0,
-        batch_size=4,
-        acoustic_sum_rule=True,
+    )
+    gram = fitter.prepare_gram(
+        read(INPUT / "train.extxyz", index=":"), batch_size=4, acoustic_sum_rule=True
+    )
+    result = fitter.fit(
+        gram,
         max_iterations=10_000,
     )
     write_force_constants(result.force_constants, ROOT / "mlfcs.h5", format="hdf5")

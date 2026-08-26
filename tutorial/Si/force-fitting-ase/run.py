@@ -67,11 +67,8 @@ def _run() -> None:
         orders=(2,),
         cutoffs={2: None},
     )
-    result = fitter.fit(
-        training,
-        validation_split=0.0,
-        acoustic_sum_rule=True,
-    )
+    gram = fitter.prepare_gram(training, acoustic_sum_rule=True)
+    result = fitter.fit(gram, acoustic_sum_rule=True)
 
     write_force_constants(result.force_constants, "fc2-fit-mlfcs.h5", format="hdf5")
     write_force_constants(

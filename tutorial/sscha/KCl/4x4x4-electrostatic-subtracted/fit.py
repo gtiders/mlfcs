@@ -44,9 +44,9 @@ def _fit() -> None:
         cutoffs={2: 12.0},
         max_body_orders={2: 2},
     )
+    gram = fitter.prepare_gram(structures, acoustic_sum_rule=True)
     result = fitter.fit(
-        structures,
-        validation_split=0.0,
+        gram,
         acoustic_sum_rule=True,
         tolerance=1e-8,
         max_iterations=10_000,
@@ -75,7 +75,7 @@ def _fit() -> None:
         "frames": len(structures),
         "fitting_basis": result.fitting_basis,
         "cutoff_angstrom": fitter.calculations[0].cutoff,
-        "orbits": len(fitter.calculations[0].orbit_space.orbits),
+        "orbits": len(fitter.calculations[0].realized_orbit_space.orbits),
         "parameters": fitter.n_parameters,
         "training_force_rmse_ev_per_angstrom": result.training_force_rmse,
         "training_relative_force_error": result.training_relative_force_error,

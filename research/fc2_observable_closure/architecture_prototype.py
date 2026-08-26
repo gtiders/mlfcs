@@ -40,7 +40,7 @@ from mlfcs.fitting.design_operator import (
     force_design_batch,
     image_parameter_basis,
 )
-from mlfcs.fitting.gram_system import _StreamingGramSystem
+from mlfcs.fitting.gram import GramBuilder
 from mlfcs.fitting.parameterization import pack_order
 from mlfcs.force_constants.dense import expand_compact_fc2
 from mlfcs.interactions.enumerate import resolve_primitive_cutoff
@@ -455,7 +455,7 @@ def solve_streamed_joint(
     )
     operator.program.groups = (*operator.program.groups, closure_group)
     gram_started = time.perf_counter()
-    gram = _StreamingGramSystem.from_operator(operator, forces.reshape(-1))
+    gram = GramBuilder.from_operator(operator, forces.reshape(-1))
     gram_seconds = time.perf_counter() - gram_started
     scale = gram.exact_column_scale()
     empty = sparse.csr_matrix((0, gram.gram.shape[0]))

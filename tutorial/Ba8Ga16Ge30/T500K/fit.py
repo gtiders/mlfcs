@@ -54,10 +54,13 @@ def _fit() -> None:
         max_body_orders={2: 2, 3: 2},
         symprec=1e-4,
     )
-    result = fitter.fit(
+    gram = fitter.prepare_gram(
         snapshots,
-        validation_split=0.0,
         acoustic_sum_rule=True,
+        batch_size=1,
+    )
+    result = fitter.fit(
+        gram,
         tolerance=1e-8,
         max_iterations=10_000,
     )

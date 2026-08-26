@@ -46,9 +46,9 @@ def _fit_case(name, primitive_path, reference_path, dataset_path, reference_fc2,
             periodic_fc2_completion=enabled,
         )
         started = time.perf_counter()
+        gram = fitter.prepare_gram(structures, acoustic_sum_rule=True)
         result = fitter.fit(
-            structures,
-            validation_split=0,
+            gram,
             tolerance=1e-10,
             max_iterations=10_000,
         )

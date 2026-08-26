@@ -75,11 +75,8 @@ def test_fitter_backends_share_result_interface_and_fc2_prediction():
             cutoffs={2: 4.1},
             fitting_basis=basis,
         )
-        results[basis] = fitter.fit(
-            structures,
-            validation_split=0.0,
-            acoustic_sum_rule=False,
-        )
+        gram = fitter.prepare_gram(structures, acoustic_sum_rule=False)
+        results[basis] = fitter.fit(gram, acoustic_sum_rule=False)
 
     assert results["taylor"].fitting_basis == "taylor"
     assert results["wick"].fitting_basis == "wick"

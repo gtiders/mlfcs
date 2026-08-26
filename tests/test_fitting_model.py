@@ -21,11 +21,7 @@ from mlfcs.fitting.design_operator import (
     prepare_design_kernel_groups as _prepare_physical_design_builders,
 )
 from mlfcs.fitting.design_operator import prepare_device_reduction as _prepare_device_reduction
-from mlfcs.fitting.fitter import (
-    _force_metrics,
-    _order_force_rms_from_reduced_gram,
-    _StreamingGramSystem,
-)
+from mlfcs.fitting.gram import GramBuilder, GramStatistics
 from mlfcs.fitting.linear_solvers import explicit_constraint_null_space
 from mlfcs.fitting.parameterization import OrderParameterization as _OrderTensor
 from mlfcs.force_constants.expansion import expand_fitted_orders as _expand_sparse
@@ -38,8 +34,8 @@ def test_fitter_fit_exposes_only_strict_solver_controls():
 
 
 def test_streaming_gram_zero_target_has_finite_zero_relative_error():
-    system = _StreamingGramSystem(np.eye(2), np.zeros(2), 0.0)
-    rmse, relative = system.force_metrics(np.zeros(2), np.zeros(2))
+    system = GramStatistics(np.eye(2), np.zeros(2), 0.0, 2, {})
+    rmse, relative = system.force_metrics(np.zeros(2))
 
     assert rmse == 0.0
     assert relative == 0.0
@@ -183,20 +179,16 @@ def test_unconverged_fit_requires_explicit_opt_in_and_exposes_gram_cache(monkeyp
     def incomplete(self, scale, constraints, **kwargs):
         return np.zeros_like(scale), 7, 7, 1.0, 1.0
 
-    monkeypatch.setattr(_StreamingGramSystem, "solve", incomplete)
+    monkeypatch.setattr(GramStatistics, "solve", incomplete)
+    gram = fitter.prepare_gram(structures, acoustic_sum_rule=False)
     with pytest.raises(RuntimeError, match="did not converge"):
-        fitter.fit(structures, validation_split=0, acoustic_sum_rule=False)
+        fitter.fit(gram, acoustic_sum_rule=False)
     result = fitter.fit(
-        structures,
-        validation_split=0,
+        gram,
         acoustic_sum_rule=False,
         allow_unconverged=True,
-        cache_directory=tmp_path / "fit-cache",
     )
     assert result.stop_code == 7
-    cached = tuple((tmp_path / "fit-cache").glob("gram-*/complete"))
-    assert len(cached) == 1
-    assert result.cache_directory == cached[0].parent
 
 
 def test_fitter_uses_reordered_reference_without_a_separate_supercell_argument():
@@ -249,9 +241,9 @@ def test_public_fitter_exposes_scaled_orbit_group_lasso():
         orders=(2,),
         cutoffs={2: 4.1},
     )
+    gram = fitter.prepare_gram(structures, acoustic_sum_rule=False)
     result = fitter.fit(
-        structures,
-        validation_split=0,
+        gram,
         acoustic_sum_rule=False,
         regularization="scaled_group_lasso",
         tolerance=1e-6,
@@ -262,11 +254,6 @@ def test_public_fitter_exposes_scaled_orbit_group_lasso():
     assert result.regularization == "scaled_group_lasso"
     assert result.effective_noise_scale > 0
     assert result.active_orbits == 2
-    assert result.design_kernel_signatures > 0
-    assert result.design_tiles > 0
-    assert result.static_device_bytes > 0
-    assert result.gram_feature_passes == 1
-    assert result.prediction_feature_passes == 0
     assert result.force_constants.metadata["regularization"] == "scaled_group_lasso"
 
 
@@ -285,7 +272,7 @@ def test_streaming_gram_recovers_force_constant_and_force_error():
     )
     expected = np.array([2.75])
     target = operator.matvec(expected)
-    gram = _StreamingGramSystem.from_operator(operator, target)
+    gram = GramBuilder.from_operator(operator, target)
     scale = gram.exact_column_scale()
     actual = (
         gram.solve(
@@ -297,7 +284,10 @@ def test_streaming_gram_recovers_force_constant_and_force_error():
         * scale
     )
     np.testing.assert_allclose(actual, expected, rtol=1e-12, atol=1e-12)
-    rmse, relative = _force_metrics(operator.matvec(actual), target)
+    predicted = operator.matvec(actual)
+    residual = predicted - target
+    rmse = float(np.sqrt(np.mean(residual**2)))
+    relative = float(np.linalg.norm(residual) / np.linalg.norm(target))
     assert rmse < 1e-12
     assert 100 * relative < 1e-9
     assert operator.program.gram_feature_passes == 1
@@ -419,35 +409,7 @@ def test_device_gram_pipeline_matches_cpu_with_a_sparse_null_space_map():
         device_gram=True,
         axis_derivatives=_wick_axis_derivatives,
     )
-    expected = _StreamingGramSystem.from_operator(cpu, target)
-    actual = _StreamingGramSystem.from_operator(device, target)
+    expected = GramBuilder.from_operator(cpu, target)
+    actual = GramBuilder.from_operator(device, target)
     np.testing.assert_allclose(actual.gram, expected.gram, rtol=1e-12, atol=1e-12)
     np.testing.assert_allclose(actual.rhs, expected.rhs, rtol=1e-12, atol=1e-12)
-
-
-def test_mixed_order_diagnostics_use_one_joint_prediction_pass():
-    class Operator:
-        def __init__(self):
-            self.calls = 0
-
-        def matvec_by_order(self, _parameters):
-            self.calls += 1
-            return {2: np.array([3.0, 4.0]), 3: np.array([0.0, 12.0])}
-
-        def matvec(self, _parameters):
-            raise AssertionError("mixed-order diagnostics must not predict each order separately")
-
-    operator = Operator()
-    system = _StreamingGramSystem(np.eye(1), np.zeros(1), 1.0)
-    result = _order_force_rms_from_reduced_gram(
-        system,
-        np.ones(1),
-        sparse.csc_matrix([[1.0], [1.0]]),
-        operator,
-        np.array([2.0, 5.0]),
-        (2, 3),
-        (1, 1),
-        2,
-    )
-    assert operator.calls == 1
-    assert result == {2: pytest.approx(5 / np.sqrt(2)), 3: pytest.approx(12 / np.sqrt(2))}

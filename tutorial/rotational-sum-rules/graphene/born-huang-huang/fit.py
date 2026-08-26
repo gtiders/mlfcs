@@ -48,13 +48,15 @@ def _run() -> None:
     snapshot = reference.copy()
     snapshot.positions += source.arrays["displacements"]
     snapshot.calc = SinglePointCalculator(snapshot, forces=source.get_forces())
-    result = ForceConstantFitter(
+    fitter = ForceConstantFitter(
         primitive,
         reference,
         orders=(2,),
         cutoffs={2: 8.0},
         max_body_orders={2: 2},
-    ).fit([snapshot], validation_split=0.0, seed=0, acoustic_sum_rule=True)
+    )
+    gram = fitter.prepare_gram([snapshot], acoustic_sum_rule=True)
+    result = fitter.fit(gram, acoustic_sum_rule=True)
     correction = enforce_rotational_sum_rules(result.force_constants, born_huang=True, huang=True)
     write_force_constants(correction.force_constants, ROOT / "mlfcs.h5", format="hdf5")
     write_force_constants(correction.force_constants, ROOT / "FORCE_CONSTANTS_2ND", format="phonopy", order=2)

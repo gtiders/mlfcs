@@ -43,10 +43,11 @@ def _fit() -> None:
         max_body_orders={2: 2, 3: 3, 4: 3},
         symprec=1e-4,
     )
+    gram = fitter.prepare_gram(
+        snapshots, batch_size=4, acoustic_sum_rule=True
+    )
     result = fitter.fit(
-        snapshots,
-        validation_split=0.1,
-        batch_size=4,
+        gram,
         acoustic_sum_rule=True,
         tolerance=1e-8,
         max_iterations=10_000,
@@ -67,12 +68,10 @@ def _fit() -> None:
         "fitting_basis": result.fitting_basis,
         "orders": list(fitter.orders),
         "cutoffs_angstrom": {str(order): space.cutoff for order, space in zip(fitter.orders, fitter.calculations, strict=True)},
-        "orbits": {str(order): len(space.orbit_space.orbits) for order, space in zip(fitter.orders, fitter.calculations, strict=True)},
+        "orbits": {str(order): len(space.realized_orbit_space.orbits) for order, space in zip(fitter.orders, fitter.calculations, strict=True)},
         "parameters": fitter.n_parameters,
         "training_force_rmse_ev_per_angstrom": result.training_force_rmse,
-        "validation_force_rmse_ev_per_angstrom": result.validation_force_rmse,
         "training_relative_force_error": result.training_relative_force_error,
-        "validation_relative_force_error": result.validation_relative_force_error,
         "maximum_constraint_residual": result.maximum_constraint_residual,
         "solver_iterations": result.iterations,
         "solver_stop_code": result.stop_code,
@@ -105,4 +104,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

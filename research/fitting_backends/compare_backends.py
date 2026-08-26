@@ -25,7 +25,6 @@ class Case:
     orders: tuple[int, ...]
     cutoffs: dict[int, float]
     body_orders: dict[int, int]
-    validation_split: float
     batch_size: int
     regularization: str | None = None
     symprec: float = 1e-5
@@ -39,7 +38,6 @@ CASES = {
         (2, 3, 4),
         {2: 5.4, 3: 5.4, 4: 4.6},
         {2: 2, 3: 3, 4: 3},
-        0.0,
         4,
         "scaled_group_lasso",
     ),
@@ -50,7 +48,6 @@ CASES = {
         (2, 3, 4),
         {2: 8.0, 3: 6.5, 4: 4.5},
         {2: 2, 3: 3, 4: 3},
-        0.1,
         4,
         symprec=1e-4,
     ),
@@ -61,7 +58,6 @@ CASES = {
         (2, 3),
         {2: 5.4, 3: 4.35},
         {2: 2, 3: 2},
-        0.0,
         1,
         symprec=1e-4,
     ),
@@ -80,15 +76,15 @@ def fit_case(name: str, case: Case, basis: str, output: Path):
         symprec=case.symprec,
         fitting_basis=basis,
     )
+    gram = fitter.prepare_gram(
+        read(case.snapshots, index=":"), batch_size=case.batch_size, acoustic_sum_rule=True
+    )
     result = fitter.fit(
-        read(case.snapshots, index=":"),
-        validation_split=case.validation_split,
-        batch_size=case.batch_size,
+        gram,
         regularization=case.regularization,
         acoustic_sum_rule=True,
         tolerance=1e-8,
         max_iterations=10_000,
-        cache_directory=destination / "cache",
     )
     write_force_constants(result.force_constants, destination / "mlfcs.h5", format="hdf5")
     (destination / "metrics.json").write_text(
@@ -121,12 +117,12 @@ def compare(name: str, results: dict[str, object]) -> dict[str, object]:
         "case": name,
         "taylor": {
             "training_force_rmse": taylor.training_force_rmse,
-            "validation_force_rmse": taylor.validation_force_rmse,
+            "training_relative_force_error": taylor.training_relative_force_error,
             "maximum_constraint_residual": taylor.maximum_constraint_residual,
         },
         "wick": {
             "training_force_rmse": wick.training_force_rmse,
-            "validation_force_rmse": wick.validation_force_rmse,
+            "training_relative_force_error": wick.training_relative_force_error,
             "maximum_constraint_residual": wick.maximum_constraint_residual,
         },
         "orders": orders,

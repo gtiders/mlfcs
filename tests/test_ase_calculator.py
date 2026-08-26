@@ -64,13 +64,17 @@ def test_calculator_matches_taylor_fitting_design_prediction():
         forces[1, 0] = value
         atoms.calc = SinglePointCalculator(atoms, forces=forces)
         structures.append(atoms)
-    result = ForceConstantFitter(
+    fitter = ForceConstantFitter(
         primitive,
         reference,
         orders=(2,),
         cutoffs={2: 4.1},
         fitting_basis="taylor",
-    ).fit(structures, validation_split=0.0, acoustic_sum_rule=False)
+    )
+    result = fitter.fit(
+        fitter.prepare_gram(structures, acoustic_sum_rule=False),
+        acoustic_sum_rule=False,
+    )
     calculator = MLFCSCalculator(result.force_constants)
     predicted = []
     observed = []

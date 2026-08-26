@@ -70,10 +70,9 @@ def test_hybrid_recovers_a_random_periodic_hessian_and_hdf5(tmp_path):
         )
         structures.append(atoms)
 
+    gram = fitter.prepare_gram(structures, batch_size=2)
     result = fitter.fit(
-        structures,
-        validation_split=0,
-        batch_size=2,
+        gram,
         tolerance=1e-11,
         max_iterations=5000,
     )
@@ -123,4 +122,7 @@ def test_periodic_completion_is_default_off_and_requires_asr():
     atoms = enabled.reference.copy()
     atoms.calc = SinglePointCalculator(atoms, forces=np.zeros((len(atoms), 3)))
     with pytest.raises(ValueError, match="requires acoustic_sum_rule=True"):
-        enabled.fit([atoms], validation_split=0, acoustic_sum_rule=False)
+        enabled.fit(
+            enabled.prepare_gram([atoms], acoustic_sum_rule=False),
+            acoustic_sum_rule=False,
+        )
