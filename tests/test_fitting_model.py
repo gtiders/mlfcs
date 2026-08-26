@@ -17,7 +17,6 @@ from mlfcs.fitting.backends.wick.features import wick_axis_derivatives as _wick_
 from mlfcs.fitting.backends.wick.lowering import lowered_fc1
 from mlfcs.fitting.design_operator import ForceDesignOperator as _BatchedForceOperator
 from mlfcs.fitting.design_operator import physical_tile_shape as _physical_tile_shape
-from mlfcs.fitting.design_operator import predict_force
 from mlfcs.fitting.design_operator import (
     prepare_design_kernel_groups as _prepare_physical_design_builders,
 )
@@ -150,15 +149,15 @@ def test_reported_omitted_fc1_reproduces_constant_wick_force():
     covariance = np.eye(6) * 0.04
     parameters = np.random.default_rng(4).normal(size=fitter.n_parameters)
     fc1 = lowered_fc1(fitter.calculations, parameters, covariance)
-    force = np.asarray(
-        predict_force(
-            jnp.asarray(parameters),
-            jnp.zeros((1, 2, 3)),
-            jnp.asarray(covariance),
-            fitter.order_tensors,
-            wick_axis_derivatives,
-        )
-    )[0]
+    operator = _BatchedForceOperator(
+        np.zeros((1, 2, 3)),
+        covariance,
+        fitter.order_tensors,
+        fitter.n_parameters,
+        batch_size=1,
+        axis_derivatives=wick_axis_derivatives,
+    )
+    force = operator.matvec(parameters).reshape(1, 2, 3)[0]
 
     np.testing.assert_allclose(force, -fc1, atol=1e-12, rtol=1e-12)
 

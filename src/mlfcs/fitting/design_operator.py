@@ -544,42 +544,6 @@ def force_design_batch(
     return jax.vmap(one_structure)(displacements)
 
 
-def predict_force(parameters, displacements, basis_state, parameterizations, axis_derivatives):
-    """Evaluate model forces without materializing the design matrix."""
-
-    def one_structure(displacement):
-        force = jnp.zeros(displacement.size, dtype=jnp.float64)
-        for parameterization in parameterizations:
-            order = parameterization.order
-            indices = jnp.asarray(parameterization.parameter_indices)
-            local_parameters = parameters[indices] * jnp.asarray(parameterization.parameter_mask)
-            representative = jnp.einsum(
-                "ocd,od->oc",
-                jnp.asarray(parameterization.representative_from_pivots),
-                local_parameters,
-            ).reshape((-1,) + (3,) * order)
-            rotated = rotate_images(representative, jnp.asarray(parameterization.rotations), order)
-            image_tensors = jnp.take_along_axis(
-                rotated, jnp.asarray(parameterization.component_permutations), axis=2
-            )
-            coordinates = jnp.asarray(parameterization.coordinates)
-            components = jnp.asarray(tuple(np.ndindex((3,) * order)), dtype=jnp.int32)
-            coordinates = coordinates[..., None, :] * 3 + components
-            mask = jnp.asarray(parameterization.image_mask)
-            lowers = axis_derivatives(displacement, basis_state, coordinates, order)
-            for axis, lower in enumerate(lowers):
-                contribution = (
-                    -lower
-                    * image_tensors[:, :, None, :]
-                    * mask[:, :, None, None]
-                    / factorial(order)
-                )
-                force = force.at[coordinates[..., axis].reshape(-1)].add(contribution.reshape(-1))
-        return force.reshape(displacement.shape)
-
-    return jax.vmap(one_structure)(displacements)
-
-
 def rotate_tensor(tensor, rotation, order):
     result = tensor
     for axis in range(order):

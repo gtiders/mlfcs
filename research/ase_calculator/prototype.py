@@ -15,16 +15,16 @@ import numpy as np
 from ase import Atoms
 from ase.calculators.calculator import Calculator, all_changes
 
+from mlfcs.fitting import ForceConstantFitter
+from mlfcs.fitting.backends.wick.features import wick_axis_derivatives
 from mlfcs.fitting.backends.wick.lowering import (
     build_wick_to_taylor_transform,
     lowered_fc1,
 )
-from mlfcs.fitting import ForceConstantFitter
-from mlfcs.fitting.backends.wick.features import wick_axis_derivatives
-from mlfcs.fitting.design_operator import predict_force as _predict_force
-from mlfcs.force_constants.representation import ForceConstants
+from mlfcs.fitting.design_operator import ForceDesignOperator
 from mlfcs.force_constants.expansion import expand_fitted_orders
 from mlfcs.force_constants.realization import realize_force_constants
+from mlfcs.force_constants.representation import ForceConstants
 from mlfcs.io.hdf5 import read_hdf5, write_hdf5
 from mlfcs.structure.relation import StructureRelation
 from mlfcs.structure.supercell import build_supercell
@@ -33,10 +33,16 @@ ROOT = Path(__file__).resolve().parents[2]
 RESULTS = Path(__file__).with_name("results.json")
 
 
-def predict_force(parameters, displacements, covariance, parameterizations):
-    return _predict_force(
-        parameters, displacements, covariance, parameterizations, wick_axis_derivatives
+def _predict_with_design_operator(parameters, displacements, covariance, parameterizations):
+    operator = ForceDesignOperator(
+        displacements,
+        covariance,
+        parameterizations,
+        len(parameters),
+        batch_size=max(1, len(displacements)),
+        axis_derivatives=wick_axis_derivatives,
     )
+    return operator.matvec(parameters).reshape(np.asarray(displacements).shape)
 
 
 @dataclass(slots=True)
@@ -172,7 +178,7 @@ def wick_equivalence() -> dict:
     covariance = np.eye(3 * len(reference)) * 0.003
     displacements = rng.normal(scale=0.025, size=(7, len(reference), 3))
     wick_force = np.asarray(
-        predict_force(
+        _predict_with_design_operator(
             jnp.asarray(parameters),
             jnp.asarray(displacements),
             jnp.asarray(covariance),
@@ -182,7 +188,7 @@ def wick_equivalence() -> dict:
     transform = build_wick_to_taylor_transform(fitter.calculations, covariance)
     taylor_parameters = np.asarray(transform @ parameters)
     taylor_design_force = np.asarray(
-        predict_force(
+        _predict_with_design_operator(
             jnp.asarray(taylor_parameters),
             jnp.asarray(displacements),
             jnp.zeros_like(jnp.asarray(covariance)),
@@ -257,13 +263,13 @@ def folded_covariance_counterexample() -> dict:
     displacement = rng.normal(scale=0.025, size=(10, len(reference), 3))
     transform = build_wick_to_taylor_transform(fitter.calculations, covariance)
     wick_force = np.asarray(
-        predict_force(
+        _predict_with_design_operator(
             jnp.asarray(parameters), jnp.asarray(displacement),
             jnp.asarray(covariance), fitter.order_tensors
         )
     )
     taylor_force = np.asarray(
-        predict_force(
+        _predict_with_design_operator(
             jnp.asarray(transform @ parameters), jnp.asarray(displacement),
             jnp.zeros_like(jnp.asarray(covariance)), fitter.order_tensors
         )
@@ -303,7 +309,7 @@ def fc1_equivalence() -> dict:
     covariance = np.eye(6) * 0.04
     displacement = rng.normal(scale=0.03, size=(9, 2, 3))
     wick_force = np.asarray(
-        predict_force(
+        _predict_with_design_operator(
             jnp.asarray(parameters),
             jnp.asarray(displacement),
             jnp.asarray(covariance),
