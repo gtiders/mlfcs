@@ -222,7 +222,7 @@ def build_fc1_lowering_transform(calculations, covariance) -> sparse.csr_matrix:
 
 
 def _parameter_count(calculation):
-    return sum(orbit.dimension for orbit in calculation.orbit_space.orbits)
+    return sum(orbit.dimension for orbit in calculation.realized_orbit_space.orbits)
 
 
 def _primitive_image_columns(calculation):

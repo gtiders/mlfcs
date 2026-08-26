@@ -5,8 +5,8 @@ from supercell_helpers import make_supercell
 
 from mlfcs.finite_difference.reconstruction import reconstruct_sparse
 from mlfcs.force_constants.representation import ForceConstants
-from mlfcs.interactions.enumerate import build_primitive_interaction_space
-from mlfcs.interactions.realization import realize_orbit_space
+from mlfcs.interactions.primitive.builder import build_primitive_interaction_space
+from mlfcs.interactions.realization import realize_interaction_space
 from mlfcs.structure.relation import StructureRelation
 
 
@@ -21,7 +21,7 @@ def test_acoustic_sum_rule_projection_is_strict(order):
         max_body_order=None,
         symprec=1e-5,
     )
-    space = realize_orbit_space(primitive_space, index)
+    space = realize_interaction_space(primitive_space, index)
     rng = np.random.default_rng(4)
     derivatives = {key: rng.normal(size=(len(supercell), 3)) for key in space.displacement_keys}
     raw_sparse = reconstruct_sparse(
@@ -53,7 +53,7 @@ def test_asr_reports_phonopy_style_maximum_drift():
         max_body_order=None,
         symprec=1e-5,
     )
-    space = realize_orbit_space(primitive_space, index)
+    space = realize_interaction_space(primitive_space, index)
     rng = np.random.default_rng(8)
     derivatives = {key: rng.normal(size=(len(supercell), 3)) for key in space.displacement_keys}
     messages = []

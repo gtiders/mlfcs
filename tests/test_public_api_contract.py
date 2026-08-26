@@ -51,8 +51,12 @@ def test_top_level_api_is_the_locked_whitelist():
         "FiniteDifferenceCalculation",
         "ForceConstantFitter",
         "ForceConstants",
+        "InteractionSpace",
         "LoopSCPH",
         "MLFCSCalculator",
+        "PrimitiveInteractionSpace",
+        "RealizedInteractionSpace",
+        "ReferenceFrame",
         "SSCHA",
         "build_supercell",
         "perturb_structures",
@@ -78,8 +82,8 @@ def test_low_level_packages_do_not_depend_on_workflow_or_writer_modules():
     for module in (
         "structure.periodic_geometry",
         "structure.supercell_mapping",
-        "interactions.tensors",
-        "interactions.orbits",
+        "interactions.algebra.actions",
+        "interactions.models",
         "constraints.rotational",
         "constraints.translational",
     ):

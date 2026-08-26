@@ -9,8 +9,9 @@ import numpy as np
 from scipy import sparse
 
 from mlfcs.force_constants.dense import expand_compact_fc2
+from mlfcs.interactions.algebra.actions import TensorAction
+from mlfcs.interactions.algebra.invariants import invariant_basis_from_gram
 from mlfcs.interactions.realization import InteractionAliasingError
-from mlfcs.interactions.tensors import TensorAction, _null_space_from_gram
 from mlfcs.structure.integer_lattice import IntegerLatticeQuotient
 from mlfcs.structure.relation import StructureRelation
 
@@ -107,7 +108,7 @@ def _finite_pair_basis(frame) -> sparse.csc_matrix:
         orbit = sorted(transport)
         unseen.difference_update(orbit)
         invariant = (
-            _null_space_from_gram(constraint_gram, 1e-10)[0]
+            invariant_basis_from_gram(constraint_gram, tolerance=1e-10)
             if np.any(constraint_gram)
             else identity
         )

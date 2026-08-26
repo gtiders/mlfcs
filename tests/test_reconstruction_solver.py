@@ -4,8 +4,8 @@ from ase.build import bulk
 from supercell_helpers import make_supercell
 
 from mlfcs.finite_difference.reconstruction import reconstruct_sparse
-from mlfcs.interactions.enumerate import build_primitive_interaction_space
-from mlfcs.interactions.realization import realize_orbit_space
+from mlfcs.interactions.primitive.builder import build_primitive_interaction_space
+from mlfcs.interactions.realization import realize_interaction_space
 
 
 @pytest.mark.parametrize("order", [3, 4])
@@ -19,7 +19,7 @@ def test_reconstructs_every_orbit_from_independent_components(order):
         max_body_order=None,
         symprec=1e-5,
     )
-    space = realize_orbit_space(primitive_space, index)
+    space = realize_interaction_space(primitive_space, index)
 
     derivatives = {
         key: np.zeros((len(supercell), 3), dtype=float) for key in space.displacement_keys

@@ -6,7 +6,7 @@ import numpy as np
 from ase import Atoms
 
 from mlfcs.finite_difference.stencil import CentralDifferenceStencil
-from mlfcs.interactions.orbits import OrbitSpace
+from mlfcs.interactions.models import RealizedInteractionSpace
 
 DisplacementKey = tuple[tuple[int, int], ...]
 
@@ -57,7 +57,7 @@ class DisplacementPlan:
 
 def build_displacement_plan(
     supercell: Atoms,
-    orbit_space: OrbitSpace,
+    orbit_space: RealizedInteractionSpace,
     *,
     displacement: float,
 ) -> DisplacementPlan:

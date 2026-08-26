@@ -118,7 +118,9 @@ def test_reduced_wick_transform_matches_sparse_tensor_conversion():
     )
     rng = np.random.default_rng(41)
     n_parameters = sum(
-        orbit.dimension for calculation in calculations for orbit in calculation.orbit_space.orbits
+        orbit.dimension
+        for calculation in calculations
+        for orbit in calculation.realized_orbit_space.orbits
     )
     parameters = rng.normal(size=n_parameters)
     displacement = rng.normal(size=(20, len(reference), 3))

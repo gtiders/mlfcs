@@ -2,7 +2,7 @@ import numpy as np
 from ase.build import bulk
 from ase.geometry import minkowski_reduce
 
-from mlfcs.interactions.enumerate import resolve_primitive_cutoff
+from mlfcs.interactions.primitive.candidates import resolve_primitive_cutoff
 from mlfcs.structure.periodic_geometry import unique_periodic_distances
 
 

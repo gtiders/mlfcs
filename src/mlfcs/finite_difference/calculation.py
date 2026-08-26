@@ -53,13 +53,13 @@ class FiniteDifferenceCalculation:
         self._plan: DisplacementPlan | None = None
 
     @property
-    def orbit_space(self):
-        return self.interaction_space.orbit_space
+    def realized_orbit_space(self):
+        return self.interaction_space.realized_orbit_space
 
     @property
     def plan(self) -> DisplacementPlan:
         if self._plan is None:
-            orbit_space = self.orbit_space
+            orbit_space = self.realized_orbit_space
             logger.info("Building the central-difference displacement plan")
             self._plan = build_displacement_plan(
                 self.supercell,
@@ -119,7 +119,7 @@ class FiniteDifferenceCalculation:
             f"(ASR {'enabled' if acoustic_sum_rule else 'disabled'})"
         )
         sparse = reconstruct_sparse(
-            self.orbit_space,
+            self.realized_orbit_space,
             self.index,
             derivatives,
             enforce_asr=acoustic_sum_rule,
@@ -199,7 +199,7 @@ class FiniteDifferenceCalculation:
             side_steps,
             degree,
         )
-        plans = backend.plans(self.supercell, self.orbit_space)
+        plans = backend.plans(self.supercell, self.realized_orbit_space)
         total = sum(len(plan) for plan in plans)
         grid_text = ", ".join(f"{step:.10f}" for step in backend.grid)
         logger.info("Derivative backend: zero-step extrapolation")

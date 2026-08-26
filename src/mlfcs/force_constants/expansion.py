@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 
 from mlfcs.force_constants.representation import SparseOrderForceConstants
-from mlfcs.interactions.orbits import PrimitiveInteractionSpace
+from mlfcs.interactions.models import PrimitiveInteractionSpace
 
 
 def expand_primitive_parameters(
@@ -44,7 +44,7 @@ def expand_fitted_orders(parameters, calculations):
     result = {}
     offset = 0
     for calculation in calculations:
-        count = sum(orbit.dimension for orbit in calculation.orbit_space.orbits)
+        count = sum(orbit.dimension for orbit in calculation.realized_orbit_space.orbits)
         primitive_space = getattr(calculation, "primitive_orbit_space", None)
         if primitive_space is None:
             primitive_space = calculation.interaction_space.primitive_orbit_space

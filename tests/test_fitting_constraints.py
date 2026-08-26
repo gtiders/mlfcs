@@ -76,7 +76,10 @@ def test_explicit_fc1_transform_matches_reported_wick_contraction():
     covariance = np.eye(len(calculations[0].supercell) * 3)
     rng = np.random.default_rng(19)
     parameters = rng.normal(
-        size=sum(sum(orbit.dimension for orbit in item.orbit_space.orbits) for item in calculations)
+        size=sum(
+            sum(orbit.dimension for orbit in item.realized_orbit_space.orbits)
+            for item in calculations
+        )
     )
     transform = build_fc1_lowering_transform(calculations, covariance)
     np.testing.assert_allclose(

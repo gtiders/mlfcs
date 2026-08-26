@@ -10,7 +10,7 @@ from mlfcs.finite_difference.sampling import (
     DisplacementPlan,
     build_displacement_plan,
 )
-from mlfcs.interactions.orbits import OrbitSpace
+from mlfcs.interactions.models import RealizedInteractionSpace
 
 
 @dataclass(frozen=True, slots=True)
@@ -48,7 +48,9 @@ class ExtrapolationBackend:
         offsets = np.arange(-self.side_steps, self.side_steps + 1, dtype=float)
         return self.displacement + self.spacing * offsets
 
-    def plans(self, supercell: Atoms, orbit_space: OrbitSpace) -> tuple[DisplacementPlan, ...]:
+    def plans(
+        self, supercell: Atoms, orbit_space: RealizedInteractionSpace
+    ) -> tuple[DisplacementPlan, ...]:
         return tuple(
             build_displacement_plan(supercell, orbit_space, displacement=float(step))
             for step in self.grid

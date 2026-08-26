@@ -4,10 +4,8 @@ from ase import Atoms
 
 from mlfcs import FiniteDifferenceCalculation, build_supercell, realize_force_constants
 from mlfcs.force_constants.representation import ForceConstants, SparseOrderForceConstants
-from mlfcs.interactions.enumerate import (
-    build_primitive_interaction_space,
-)
 from mlfcs.interactions.keys import InteractionKey
+from mlfcs.interactions.primitive.builder import build_primitive_interaction_space
 from mlfcs.interactions.realization import (
     InteractionAliasingError,
     validate_realization_identifiability,

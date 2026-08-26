@@ -27,7 +27,7 @@ class OrderParameterization:
 
 def pack_order(calculation, offset):
     """Pack an orbit space into fixed-shape arrays used by JAX kernels."""
-    orbit_space = calculation.orbit_space
+    orbit_space = calculation.realized_orbit_space
     order = orbit_space.order
     orbits = orbit_space.orbits
     n_orbits = len(orbits)

@@ -1,0 +1,23 @@
+{
+  "status": "pass",
+  "primitive": [
+    {"case": "Si", "order": 2, "orbits": 4, "parameters": 11, "images": 58, "projector_error": 1.57e-15, "action_error": 2.78e-15, "production_seconds": 0.0570, "indexed_seconds": 0.0093},
+    {"case": "Si", "order": 3, "orbits": 10, "parameters": 95, "images": 842, "projector_error": 1.31e-15, "action_error": 2.66e-15, "production_seconds": 0.6869, "indexed_seconds": 0.1680},
+    {"case": "Si", "order": 4, "orbits": 18, "parameters": 468, "images": 4426, "projector_error": 2.40e-15, "action_error": 3.32e-15, "production_seconds": 2.9414, "indexed_seconds": 1.9525},
+    {"case": "Si", "order": 5, "orbits": 29, "parameters": 1547, "images": 17642, "projector_error": 1.83e-15, "action_error": 2.26e-15, "production_seconds": 11.2666, "indexed_seconds": 5.0769, "unique_stabilizer_actions": 103},
+    {"case": "Si", "order": 6, "orbits": 44, "parameters": 4316, "images": 62218, "projector_error": 4.29e-15, "action_error": 5.35e-15, "production_seconds": 65.2270, "indexed_seconds": 29.5195, "unique_stabilizer_actions": 206},
+    {"case": "SnSe", "order": 2, "orbits": 55, "parameters": 400, "images": 664, "projector_error": 0.0, "action_error": 2.22e-16},
+    {"case": "SnSe", "order": 3, "orbits": 204, "parameters": 4354, "images": 7280, "projector_error": 0.0, "action_error": 2.22e-16},
+    {"case": "SnSe", "order": 4, "orbits": 99, "parameters": 3818, "images": 6144, "projector_error": 1.26e-15, "action_error": 1.05e-15},
+    {"case": "Ba8Ga16Ge30", "order": 2, "orbits": 215, "parameters": 1809, "images": 1188, "projector_error": 8.07e-16, "action_error": 4.44e-16},
+    {"case": "Ba8Ga16Ge30", "order": 3, "orbits": 382, "parameters": 6520, "images": 3222, "projector_error": 1.33e-15, "action_error": 6.66e-16},
+    {"case": "Ba8Ga16Ge30", "order": 4, "orbits": 562, "parameters": 17166, "images": 7446, "projector_error": 1.07e-15, "action_error": 8.88e-16}
+  ],
+  "finite_pair": [
+    {"case": "NaCl-2x2x2", "pair_orbits": 8, "symmetry_dimension": 13, "asr_dimension": 11, "symmetry_error": 6.10e-16, "asr_error": 9.74e-16},
+    {"case": "NaCl-3x3x3", "pair_orbits": 12, "symmetry_dimension": 24, "asr_dimension": 22, "symmetry_error": 1.81e-15, "asr_error": 2.90e-15},
+    {"case": "NaCl-4x4x4", "pair_orbits": 22, "symmetry_dimension": 52, "asr_dimension": 50, "symmetry_error": 2.69e-14, "asr_error": 2.76e-14}
+  ],
+  "periodic_completion": {"exact_dimension": 2, "exact_rank": 2, "completion_dimension": 9, "subspace_error": 9.18e-16},
+  "fc6_observed_peak_rss_mib": 460.5
+}

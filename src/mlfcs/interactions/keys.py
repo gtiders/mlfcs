@@ -47,3 +47,30 @@ class InteractionKey:
             for label in values[1:]
         )
         return cls(tuple(label[0] for label in values), translations)
+
+
+class InteractionKeyCodec:
+    """Fixed-width NumPy representation preserving InteractionKey ordering."""
+
+    def __init__(self, order: int) -> None:
+        if order < 2:
+            raise ValueError("interaction order must be at least two")
+        self.order = int(order)
+        self.width = 4 * self.order
+        self.canonical_columns = tuple(range(self.order)) + tuple(
+            self.order + 3 * axis + component
+            for axis in range(self.order - 1)
+            for component in range(3)
+        )
+
+    def encode(self, key: InteractionKey) -> np.ndarray:
+        if key.order != self.order:
+            raise ValueError("key order does not match codec")
+        return np.asarray(key.labels, dtype=np.int64).reshape(-1)
+
+    def decode(self, row: np.ndarray) -> InteractionKey:
+        values = np.asarray(row, dtype=np.int64).reshape(self.order, 4)
+        return InteractionKey.from_labels(values)
+
+
+__all__ = ["InteractionKey", "InteractionKeyCodec"]

@@ -11,7 +11,7 @@ from mlfcs.constraints.translational import build_translational_constraints
 
 
 def _parameter_count(calculation):
-    return sum(orbit.dimension for orbit in calculation.orbit_space.orbits)
+    return sum(orbit.dimension for orbit in calculation.realized_orbit_space.orbits)
 
 
 @dataclass(frozen=True, slots=True)

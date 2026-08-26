@@ -7,14 +7,11 @@ from dataclasses import dataclass
 
 from ase import Atoms
 
-from mlfcs.interactions.enumerate import (
-    build_primitive_interaction_space,
-    resolve_primitive_cutoff,
-)
-from mlfcs.interactions.orbits import OrbitSpace, PrimitiveInteractionSpace
+from mlfcs.interactions.models import PrimitiveInteractionSpace, RealizedInteractionSpace
+from mlfcs.interactions.primitive.builder import build_primitive_interaction_space
+from mlfcs.interactions.primitive.candidates import resolve_primitive_cutoff
 from mlfcs.interactions.realization import (
-    realize_orbit_space,
-    validate_realization_identifiability,
+    realize_interaction_space,
 )
 from mlfcs.structure.relation import (
     StructureRelation,
@@ -146,7 +143,7 @@ class InteractionSpace:
         self.symmetry = frame.symmetry
         logger.info("Space group %s", self.symmetry.symbol)
         logger.info("%d symmetry operations", self.symmetry.size)
-        self._orbit_space: OrbitSpace | None = None
+        self._realized_orbit_space: RealizedInteractionSpace | None = None
         self._primitive_orbit_space: PrimitiveInteractionSpace | None = None
 
     @property
@@ -163,21 +160,20 @@ class InteractionSpace:
         return self._primitive_orbit_space
 
     @property
-    def orbit_space(self) -> OrbitSpace:
-        if self._orbit_space is None:
+    def realized_orbit_space(self) -> RealizedInteractionSpace:
+        if self._realized_orbit_space is None:
             logger.info(
                 "Finding symmetry-inequivalent order-%d interaction clusters", self.config.order
             )
-            self._orbit_space = realize_orbit_space(self.primitive_orbit_space, self.index)
-            validate_realization_identifiability(
-                self.primitive_orbit_space, self.index, realized=self._orbit_space
+            self._realized_orbit_space = realize_interaction_space(
+                self.primitive_orbit_space, self.index
             )
-            dimensions = sum(orbit.dimension for orbit in self._orbit_space.orbits)
-            logger.info("%d cluster equivalence classes", len(self._orbit_space.orbits))
+            dimensions = sum(orbit.dimension for orbit in self._realized_orbit_space.orbits)
+            logger.info("%d cluster equivalence classes", len(self._realized_orbit_space.orbits))
             logger.info("%d independent tensor parameters", dimensions)
             if self.config.max_body_order is not None:
                 logger.info("Maximum body order: %d", self.config.max_body_order)
-        return self._orbit_space
+        return self._realized_orbit_space
 
 
 __all__ = ["InteractionSettings", "InteractionSpace", "ReferenceFrame"]

@@ -11,12 +11,12 @@ from mlfcs.constraints.translational import (
 from mlfcs.finite_difference.sampling import DisplacementKey
 from mlfcs.force_constants.expansion import expand_primitive_parameters
 from mlfcs.force_constants.representation import SparseOrderForceConstants
-from mlfcs.interactions.orbits import OrbitSpace
+from mlfcs.interactions.models import RealizedInteractionSpace
 from mlfcs.structure.supercell_mapping import PeriodicIndex
 
 
 def reconstruct_sparse(
-    orbit_space: OrbitSpace,
+    orbit_space: RealizedInteractionSpace,
     index: PeriodicIndex,
     derivatives: dict[DisplacementKey, np.ndarray],
     *,

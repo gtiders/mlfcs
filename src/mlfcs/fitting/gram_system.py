@@ -29,7 +29,7 @@ def _orbit_parameter_groups(calculations):
     groups = []
     offset = 0
     for calculation in calculations:
-        for orbit in calculation.orbit_space.orbits:
+        for orbit in calculation.realized_orbit_space.orbits:
             groups.append(slice(offset, offset + orbit.dimension))
             offset += orbit.dimension
     return tuple(groups)

@@ -140,7 +140,7 @@ class ForceConstantFitter:
             tensor, offset = pack_order(calculation, offset)
             tensors.append(tensor)
             logger.info(
-                f"- FC{tensor.order}: {len(calculation.orbit_space.orbits)} orbits, "
+                f"- FC{tensor.order}: {len(calculation.realized_orbit_space.orbits)} orbits, "
                 f"{np.count_nonzero(tensor.parameter_mask)} parameters"
             )
         self.order_tensors = tuple(tensors)
@@ -314,7 +314,7 @@ class ForceConstantFitter:
         solve_constraints = _normalize_constraint_rows(scaled_constraints)
         effective_noise_scale = 0.0
         active_orbits = sum(
-            len(calculation.orbit_space.orbits) for calculation in self.calculations
+            len(calculation.realized_orbit_space.orbits) for calculation in self.calculations
         )
         admm_primal = 0.0
         admm_dual = 0.0
@@ -394,7 +394,7 @@ class ForceConstantFitter:
         else:
             validation_metrics = training_metrics
         counts = [
-            sum(orbit.dimension for orbit in calculation.orbit_space.orbits)
+            sum(orbit.dimension for orbit in calculation.realized_orbit_space.orbits)
             for calculation in self.calculations
         ]
         if periodic_space is not None:
@@ -550,7 +550,7 @@ class ForceConstantFitter:
         logger.info("Column-norm preconditioning (exact from streamed Gram matrix)")
         offset = 0
         for calculation in self.calculations:
-            count = sum(orbit.dimension for orbit in calculation.orbit_space.orbits)
+            count = sum(orbit.dimension for orbit in calculation.realized_orbit_space.orbits)
             values = parameter_scale[offset : offset + count]
             active = values[values > 0]
             if len(active):

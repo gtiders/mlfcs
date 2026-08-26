@@ -6,11 +6,11 @@ import numpy as np
 
 from mlfcs.exceptions import InteractionAliasingError
 from mlfcs.interactions.keys import InteractionKey
-from mlfcs.interactions.orbits import (
-    ClusterOrbit,
-    OrbitImage,
-    OrbitSpace,
+from mlfcs.interactions.models import (
     PrimitiveInteractionSpace,
+    RealizedInteractionOrbit,
+    RealizedInteractionSpace,
+    RealizedOrbitImage,
 )
 
 
@@ -19,7 +19,7 @@ def validate_realization_identifiability(
     index,
     *,
     tolerance: float = 1e-10,
-    realized: OrbitSpace | None = None,
+    realized: RealizedInteractionSpace | None = None,
 ) -> None:
     """Reject a finite reference that cannot identify primitive parameters.
 
@@ -111,9 +111,9 @@ def validate_realization_identifiability(
             )
 
 
-def realize_orbit_space(space: PrimitiveInteractionSpace, index) -> OrbitSpace:
+def _realize_orbit_space(space: PrimitiveInteractionSpace, index) -> RealizedInteractionSpace:
     """Realize an exact primitive orbit space in one finite reference frame."""
-    realized: list[ClusterOrbit] = []
+    realized: list[RealizedInteractionOrbit] = []
     for orbit in space.orbits:
         representative = _realize_key(orbit.representative, index)
         images = []
@@ -124,16 +124,45 @@ def realize_orbit_space(space: PrimitiveInteractionSpace, index) -> OrbitSpace:
             # The design kernel scatters every image contribution and thereby
             # forms the correct periodized sum.  Identifiability is a property
             # of the complete constrained design, not of this local mapping.
-            images.append(OrbitImage(cluster, image.action))
+            images.append(RealizedOrbitImage(cluster, image.action))
         realized.append(
-            ClusterOrbit(
+            RealizedInteractionOrbit(
                 representative,
                 orbit.basis,
                 orbit.pivots,
                 tuple(images),
             )
         )
-    return OrbitSpace(space.order, tuple(realized), space.cutoff, space.max_body_order)
+    return RealizedInteractionSpace(space.order, tuple(realized), space.cutoff, space.max_body_order)
+
+
+def realize_interaction_space(
+    space: PrimitiveInteractionSpace,
+    index,
+    *,
+    validate_identifiability: bool = True,
+    tolerance: float = 1e-10,
+) -> RealizedInteractionSpace:
+    """Realize primitive exact-R interactions in one reference cell."""
+    result = _realize_orbit_space(space, index)
+    if validate_identifiability:
+        validate_realization_identifiability(
+            space, index, tolerance=tolerance, realized=result
+        )
+    return RealizedInteractionSpace(
+        result.order,
+        tuple(
+            RealizedInteractionOrbit(
+                orbit.representative,
+                orbit.basis,
+                orbit.pivots,
+                tuple(RealizedOrbitImage(image.cluster, image.action) for image in orbit.images),
+            )
+            for orbit in result.orbits
+        ),
+        result.cutoff,
+        result.max_body_order,
+    )
 
 
 def _realize_key(key: InteractionKey, index) -> tuple[int, ...]:

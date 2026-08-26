@@ -24,6 +24,12 @@ from mlfcs.constraints.rotational import enforce_rotational_sum_rules
 from mlfcs.finite_difference.calculation import FiniteDifferenceCalculation
 from mlfcs.force_constants.realization import realize_force_constants
 from mlfcs.force_constants.representation import ForceConstants
+from mlfcs.interactions import (
+    InteractionSpace,
+    PrimitiveInteractionSpace,
+    RealizedInteractionSpace,
+    ReferenceFrame,
+)
 from mlfcs.io.hdf5 import read_hdf5
 from mlfcs.io.write import write_force_constants
 from mlfcs.physics.scph.solver import LoopSCPH
@@ -35,8 +41,12 @@ __all__ = [
     "FiniteDifferenceCalculation",
     "ForceConstantFitter",
     "ForceConstants",
+    "InteractionSpace",
     "LoopSCPH",
     "MLFCSCalculator",
+    "PrimitiveInteractionSpace",
+    "RealizedInteractionSpace",
+    "ReferenceFrame",
     "build_supercell",
     "enforce_rotational_sum_rules",
     "perturb_structures",
