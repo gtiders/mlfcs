@@ -1,0 +1,35 @@
+{
+  "case": "Si FC2-FC4",
+  "device": "JAX CPU",
+  "frames": 8,
+  "blas_threads": 1,
+  "physical_parameters": 574,
+  "reduced_parameters": 310,
+  "reduction_nnz": 10701,
+  "batch_1_physical": {
+    "feature_seconds": 29.697205355070764,
+    "assembly_seconds": 0.051810743258101866,
+    "blas_seconds": 0.007560890982858837,
+    "total_seconds": 29.770528635999653,
+    "max_rss_kib": 1345444
+  },
+  "batch_4_physical": {
+    "feature_seconds": 15.437974282045616,
+    "assembly_seconds": 0.127259358036099,
+    "blas_seconds": 0.005122900998685509,
+    "total_seconds": 15.58338432299206,
+    "max_rss_kib": 1165836
+  },
+  "batch_4_fused": {
+    "feature_seconds": 15.23900305092684,
+    "assembly_seconds": 0.5250456960930023,
+    "blas_seconds": 0.004434395988937467,
+    "total_seconds": 15.81997413400677,
+    "workspace_bytes": 2329296,
+    "gram_relative_error": 5.3132834598181915e-17,
+    "rhs_relative_error": 4.924553948529153e-16
+  },
+  "batch_4_to_batch_1_time_ratio": 0.523446677953315,
+  "batch_4_to_batch_1_rss_ratio": 0.8664953413147096,
+  "fused_to_physical_batch_4_time_ratio": 1.0151821841848334
+}
