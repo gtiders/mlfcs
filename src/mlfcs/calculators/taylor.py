@@ -57,11 +57,6 @@ class TaylorPotential:
         self.relation = relation
         self.maximum_displacement = maximum_displacement
         self._terms = self._prepare_terms()
-        self._periodic_fc2 = (
-            realized.periodic_fc2_completion.full_hessian(relation.reference)
-            if realized.periodic_fc2_completion is not None
-            else None
-        )
 
     def _prepare_terms(self) -> tuple[_TaylorTerms, ...]:
         cells = self.relation.index.cell_representatives
@@ -102,11 +97,6 @@ class TaylorPotential:
             raise ValueError(f"displacement must have shape {expected}")
         energy = 0.0
         forces = np.zeros_like(u)
-        if self._periodic_fc2 is not None:
-            forces -= np.einsum("ijab,jb->ia", self._periodic_fc2, u, optimize=True)
-            energy += 0.5 * float(
-                np.einsum("ia,ijab,jb->", u, self._periodic_fc2, u, optimize=True)
-            )
         for terms in self._terms:
             order = terms.order
             denominator = factorial(order)

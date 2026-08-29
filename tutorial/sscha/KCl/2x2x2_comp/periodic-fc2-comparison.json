@@ -1,0 +1,34 @@
+{
+  "snapshots": 10,
+  "periodic_fc2_completion": true,
+  "nac": false,
+  "polymlp_phonopy_force_constants": "FORCE_CONSTANTS_POLYMLP_PHONOPY",
+  "path": [
+    [
+      "GAMMA",
+      "X"
+    ],
+    [
+      "X",
+      "U"
+    ],
+    [
+      "K",
+      "GAMMA"
+    ],
+    [
+      "GAMMA",
+      "L"
+    ],
+    [
+      "L",
+      "W"
+    ],
+    [
+      "W",
+      "X"
+    ]
+  ],
+  "exact_training_relative_force_error": 0.13215236651350792,
+  "periodic_training_relative_force_error": 0.029456839262583807
+}

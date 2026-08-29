@@ -1,0 +1,15 @@
+{
+  "iterations": 10,
+  "training_force_rmse": 0.0028123675388251564,
+  "validation_force_rmse": 0.0028123675388251564,
+  "training_relative_force_error": 0.13215236651350792,
+  "validation_relative_force_error": 0.13215236651350792,
+  "order_force_rms": {
+    "2": 0.02109460089295966
+  },
+  "stop_code": 0,
+  "maximum_constraint_residual": 9.974659986866641e-18,
+  "maximum_reference_force": 0.0,
+  "maximum_snapshot_net_force": 7.211102549056875e-08,
+  "maximum_center_of_mass_displacement": 1.0004884030540553e-09
+}

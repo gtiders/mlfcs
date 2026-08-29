@@ -63,10 +63,6 @@ def enforce_rotational_sum_rules(
         raise ValueError("tolerance must be positive")
     if force_constants.relation is None:
         raise ValueError("rotational sum rules require a verified StructureRelation")
-    if force_constants.periodic_fc2_completion is not None:
-        raise ValueError(
-            "rotational postprocessing is not defined for source-periodic FC2 completion"
-        )
     if 2 not in force_constants.sparse:
         raise ValueError("rotational sum rules require lattice-labelled sparse FC2")
 
