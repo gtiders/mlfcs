@@ -11,7 +11,7 @@ from supercell_helpers import make_supercell
 
 from mlfcs import write_force_constants
 from mlfcs.io.hdf5 import read_hdf5
-from mlfcs.physics.sscha.solver import SSCHA
+from mlfcs.phonon.sscha.solver import SSCHA
 
 
 class TranslationalHarmonic(Calculator):

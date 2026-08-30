@@ -9,7 +9,7 @@ from ase import Atoms
 
 from mlfcs.force_constants.realization import realize_force_constants
 from mlfcs.force_constants.representation import ForceConstants
-from mlfcs.sampling.harmonic import HarmonicSampler, SamplingState
+from mlfcs.phonon.sampling.harmonic import HarmonicSampler, SamplingState
 
 logger = logging.getLogger(__name__)
 

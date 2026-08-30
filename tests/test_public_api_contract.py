@@ -93,8 +93,8 @@ def test_low_level_packages_do_not_depend_on_workflow_or_writer_modules():
                 (
                     "mlfcs.io",
                     "mlfcs.fitting",
-                    "mlfcs.physics.scph.solver",
-                    "mlfcs.physics.sscha.solver",
+                    "mlfcs.phonon.scph.solver",
+                    "mlfcs.phonon.sscha.solver",
                 )
             )
             for value in imports
@@ -113,8 +113,8 @@ def test_low_level_packages_do_not_depend_on_workflow_or_writer_modules():
                 (
                     "mlfcs.finite_difference.calculation",
                     "mlfcs.fitting",
-                    "mlfcs.physics.sscha.solver",
-                    "mlfcs.physics.scph.solver",
+                    "mlfcs.phonon.sscha.solver",
+                    "mlfcs.phonon.scph.solver",
                 )
             )
             for value in imports

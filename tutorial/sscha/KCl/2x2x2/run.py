@@ -13,7 +13,7 @@ from ase.io import read
 from pypolymlp.calculator.utils.ase_calculator import PolymlpASECalculator
 
 from mlfcs import write_force_constants
-from mlfcs.physics.sscha.solver import SSCHA
+from mlfcs.phonon.sscha.solver import SSCHA
 
 ROOT = Path(__file__).resolve().parent
 CASE = ROOT.parent

@@ -4,7 +4,7 @@ from ase.build import bulk
 from supercell_helpers import make_supercell
 
 from mlfcs import FiniteDifferenceCalculation, build_supercell
-from mlfcs.physics.sscha.solver import SSCHA
+from mlfcs.phonon.sscha.solver import SSCHA
 
 
 def test_supercell_index_roundtrip():

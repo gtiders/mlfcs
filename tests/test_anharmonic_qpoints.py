@@ -3,12 +3,12 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from mlfcs.physics.temperature import normalize_temperature_schedule
-from mlfcs.structure.integer_lattice import adjugate_3x3, determinant_3x3, residue_key
-from mlfcs.structure.reciprocal import (
+from mlfcs.phonon.reciprocal import (
     quotient_qpoints,
     reciprocal_quotient_grid,
 )
+from mlfcs.physics.temperature import normalize_temperature_schedule
+from mlfcs.structure.integer_lattice import adjugate_3x3, determinant_3x3, residue_key
 
 
 def _point_set(points: np.ndarray) -> set[tuple[float, float, float]]:

@@ -18,7 +18,8 @@ from mlfcs.force_constants.dense import lattice_fc2, replace_lattice_fc2
 from mlfcs.force_constants.representation import (
     ForceConstants,
 )
-from mlfcs.physics.scph.fourier import (
+from mlfcs.phonon.reciprocal import quotient_qpoints
+from mlfcs.phonon.scph.fourier import (
     _dynamical,
     _dynamical_batch,
     _fourier_terms,
@@ -26,9 +27,8 @@ from mlfcs.physics.scph.fourier import (
     _needed_covariances,
     _validate_relation,
 )
+from mlfcs.phonon.statistics import HBAR_ASE, OMEGA_TO_THZ, mode_sigma
 from mlfcs.physics.temperature import TemperatureSeriesResult, normalize_temperature_schedule
-from mlfcs.sampling.mode_statistics import HBAR_ASE, OMEGA_TO_THZ, mode_sigma
-from mlfcs.structure.reciprocal import quotient_qpoints
 
 _HBAR_ASE = HBAR_ASE
 _OMEGA_TO_THZ = OMEGA_TO_THZ

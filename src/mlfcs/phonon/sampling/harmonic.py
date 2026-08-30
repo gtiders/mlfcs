@@ -7,8 +7,8 @@ from typing import Literal
 import numpy as np
 from ase import Atoms, units
 
-from mlfcs.sampling.mode_statistics import HBAR_ASE, OMEGA_TO_THZ, mode_sigma
-from mlfcs.structure.reciprocal import reciprocal_quotient_grid
+from mlfcs.phonon.reciprocal import reciprocal_quotient_grid
+from mlfcs.phonon.statistics import HBAR_ASE, OMEGA_TO_THZ, mode_sigma
 from mlfcs.structure.supercell_mapping import PeriodicIndex
 
 Statistics = Literal["quantum", "classical"]

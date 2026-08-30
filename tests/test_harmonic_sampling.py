@@ -3,7 +3,7 @@ import pytest
 from ase import Atoms, units
 from supercell_helpers import make_supercell
 
-from mlfcs.sampling.harmonic import HarmonicSampler
+from mlfcs.phonon.sampling.harmonic import HarmonicSampler
 
 
 def _chain(spring=1.0):

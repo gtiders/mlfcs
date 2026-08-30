@@ -32,8 +32,6 @@ from mlfcs.interactions import (
 )
 from mlfcs.io.hdf5 import read_hdf5
 from mlfcs.io.write import write_force_constants
-from mlfcs.physics.scph.solver import LoopSCPH
-from mlfcs.sampling import perturb_structures
 from mlfcs.structure.supercell import build_supercell
 
 __all__ = [
@@ -62,6 +60,10 @@ def __getattr__(name: str):
     """Load fitting and SSCHA APIs only when explicitly requested."""
     if name == "ForceConstantFitter":
         return getattr(import_module("mlfcs.fitting"), name)
+    if name == "LoopSCPH":
+        return getattr(import_module("mlfcs.phonon.scph.solver"), name)
     if name == "SSCHA":
-        return getattr(import_module("mlfcs.physics.sscha.solver"), name)
+        return getattr(import_module("mlfcs.phonon.sscha.solver"), name)
+    if name == "perturb_structures":
+        return getattr(import_module("mlfcs.phonon.sampling.structures"), name)
     raise AttributeError(name)

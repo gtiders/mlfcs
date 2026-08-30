@@ -66,6 +66,13 @@ def _action_signature(action: TensorAction) -> tuple[tuple[float, ...], tuple[in
     return rotation, action.permutation
 
 
+def _same_action(left: TensorAction, right: TensorAction) -> bool:
+    """Compare finite action matrices without NumPy's general allclose path."""
+    return left.permutation == right.permutation and np.array_equal(
+        left.rotation, right.rotation
+    )
+
+
 def traverse_indexed_orbit(
     seed: np.ndarray,
     generators: tuple[IndexedGenerator, ...],
@@ -124,10 +131,7 @@ def traverse_indexed_orbit(
         for location, target in enumerate(known):
             candidate_action = candidate_actions[location]
             previous_action = transports[int(target)]
-            if (
-                candidate_action.permutation == previous_action.permutation
-                and np.allclose(candidate_action.rotation, previous_action.rotation, atol=tolerance)
-            ):
+            if _same_action(candidate_action, previous_action):
                 continue
             stabilizer = compose_actions(inverse_action(previous_action), candidate_action)
             stabilizers.setdefault(_action_signature(stabilizer), stabilizer)
