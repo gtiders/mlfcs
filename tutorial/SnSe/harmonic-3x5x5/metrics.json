@@ -1,8 +1,7 @@
 {
   "atoms": 600,
-  "fitting_basis": "taylor",
   "frames": 10,
-  "maximum_constraint_residual": 1.3292318634672284e-16,
+  "maximum_constraint_residual": 1.734723475976807e-16,
   "orbits": 125,
   "parameters": 923,
   "requested_cutoff": null,

@@ -1,1 +1,0 @@
-"""Temperature-dependent phonon workflows."""

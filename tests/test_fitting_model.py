@@ -21,6 +21,19 @@ from mlfcs.fitting.parameterization import OrderParameterization as _OrderTensor
 from mlfcs.fitting.taylor.features import taylor_axis_derivatives as _taylor_axis_derivatives
 
 
+def _design_prediction(operator, parameters):
+    """Build prediction rows explicitly for design-kernel regression tests."""
+    rows = int(np.prod(operator.force_shape))
+    result = np.zeros(rows)
+    for group in operator.program.groups:
+        tiles = group.kernel(
+            jnp.asarray(operator.displacements), operator.basis_state, *group.device_arguments
+        )
+        for tile, columns in zip(tiles, group.columns, strict=True):
+            result += np.asarray(tile).reshape(rows, -1) @ np.asarray(parameters)[columns]
+    return result
+
+
 def test_fitter_fit_exposes_only_strict_solver_controls():
     signature = inspect.signature(ForceConstantFitter.fit)
     assert "damping" not in signature.parameters
@@ -176,7 +189,7 @@ def test_streaming_gram_recovers_force_constant_and_force_error():
         axis_derivatives=_taylor_axis_derivatives,
     )
     expected = np.array([2.75])
-    target = operator.matvec(expected)
+    target = _design_prediction(operator, expected)
     gram = GramBuilder.from_operator(operator, target)
     scale = gram.exact_column_scale()
     actual = (
@@ -189,14 +202,13 @@ def test_streaming_gram_recovers_force_constant_and_force_error():
         * scale
     )
     np.testing.assert_allclose(actual, expected, rtol=1e-12, atol=1e-12)
-    predicted = operator.matvec(actual)
+    predicted = _design_prediction(operator, actual)
     residual = predicted - target
     rmse = float(np.sqrt(np.mean(residual**2)))
     relative = float(np.linalg.norm(residual) / np.linalg.norm(target))
     assert rmse < 1e-12
     assert 100 * relative < 1e-9
     assert operator.program.gram_feature_passes == 1
-    assert operator.program.prediction_feature_passes == 2
 
 
 def test_physical_design_tiles_equal_matrix_free_operator():
@@ -236,14 +248,11 @@ def test_physical_design_tiles_equal_matrix_free_operator():
     parameters = rng.normal(size=n_orbits)
     np.testing.assert_allclose(
         design @ parameters,
-        operator.matvec(parameters),
+        _design_prediction(operator, parameters),
         rtol=1e-12,
         atol=1e-12,
     )
-    by_order = operator.matvec_by_order(parameters)
-    np.testing.assert_allclose(sum(by_order.values()), design @ parameters, rtol=1e-12, atol=1e-12)
     assert operator.with_displacements(displacements[:2]).program is operator.program
-    assert operator.program.prediction_feature_passes == 2
 
 
 def test_physical_tile_shape_splits_large_single_high_order_orbit():
@@ -294,7 +303,7 @@ def test_device_gram_pipeline_matches_cpu_with_a_sparse_null_space_map():
         batch_size=2,
         axis_derivatives=_taylor_axis_derivatives,
     )
-    target = physical.matvec(np.asarray(parameter_map @ np.array([1.75])).reshape(-1))
+    target = _design_prediction(physical, np.asarray(parameter_map @ np.array([1.75])).reshape(-1))
     cpu = _BatchedForceOperator(
         displacements,
         np.eye(3),

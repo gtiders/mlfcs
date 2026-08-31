@@ -7,6 +7,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import seekpath
+from ase.io import read
 from matplotlib import colormaps
 from matplotlib.lines import Line2D
 from phonopy import Phonopy
@@ -23,7 +24,9 @@ def _phonon(source: Path) -> Phonopy:
     if cell is None:
         raise ValueError(f"cannot read {SUPERCELL}")
     phonon = Phonopy(cell, np.eye(3, dtype=int), primitive_matrix="auto")
-    phonon.force_constants = realize_force_constants(read_hdf5(source), reference=SUPERCELL).materialize(2)
+    phonon.force_constants = realize_force_constants(
+        read_hdf5(source), reference=read(SUPERCELL)
+    ).materialize(2)
     return phonon
 
 
@@ -47,7 +50,7 @@ def _band_data(source: Path):
 
 
 def _pretty_label(label: str) -> str:
-    return {"GAMMA": r"$\\Gamma$", "SIGMA_0": r"$\\Sigma_0$", "E_0": r"$E_0$"}.get(
+    return {"GAMMA": r"$\Gamma$", "SIGMA_0": r"$\Sigma_0$", "E_0": r"$E_0$"}.get(
         label, label
     )
 
@@ -64,10 +67,18 @@ def main() -> None:
     harmonic, labels = _band_data(ROOT / "source/mlfcs.h5")
     figure, axis = plt.subplots(figsize=(9.2, 5.6), constrained_layout=True)
     ticks: dict[float, str] = {}
-    for distance, (start, end) in zip(harmonic.distances, labels, strict=True):
+    for distance, frequencies, (start, end) in zip(
+        harmonic.distances, harmonic.frequencies, labels, strict=True
+    ):
         ticks.setdefault(float(distance[0]), _pretty_label(start))
         ticks.setdefault(float(distance[-1]), _pretty_label(end))
-        axis.plot(distance, np.asarray(harmonic.frequencies), color="#6b7280", linestyle="--", linewidth=1.0)
+        axis.plot(
+            distance,
+            np.asarray(frequencies),
+            color="#6b7280",
+            linestyle="--",
+            linewidth=1.0,
+        )
 
     colors = colormaps["viridis"](np.linspace(0.18, 0.88, len(sources)))
     legend = [Line2D([0], [0], color="#6b7280", linestyle="--", label="Harmonic")]

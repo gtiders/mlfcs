@@ -6,7 +6,6 @@ import logging
 from dataclasses import dataclass
 from functools import cache
 from math import factorial
-from time import perf_counter
 
 import jax
 import jax.numpy as jnp
@@ -15,7 +14,6 @@ import numpy as np
 logger = logging.getLogger(__name__)
 from scipy import sparse
 
-from mlfcs.fitting.jax_runtime import transfer_guard
 from mlfcs.fitting.parameterization import OrderParameterization, image_parameter_basis
 
 
@@ -206,86 +204,6 @@ class ForceDesignOperator:
             plan = prepare_device_reduction(self.parameter_map, force_rows, self.program.device)
             self._device_reductions[force_rows] = plan
         return plan
-
-    def matvec(self, parameters):
-        """Predict forces through bounded physical-design groups.
-
-        Passing the parameterization arrays as dynamic group arguments avoids
-        capturing a multi-gigabyte interaction space as constants in one JAX
-        lowering, which is particularly important for validation after a
-        high-order fit.
-        """
-        started = perf_counter()
-        self.program.prediction_feature_passes += 1
-        with transfer_guard():
-            parameters = jax.device_put(
-                np.asarray(parameters, dtype=float).reshape(-1), self.program.device
-            )
-            output = np.empty(self.force_shape, dtype=float)
-            groups = self.program.groups
-            effective_batch_size = self.batch_size
-            rows_per_structure = int(np.prod(self.force_shape[1:]))
-            for begin in range(0, len(self.displacements), effective_batch_size):
-                end = min(begin + effective_batch_size, len(self.displacements))
-                force_rows = (end - begin) * rows_per_structure
-                displacement_batch = jax.device_put(
-                    self.displacements[begin:end], self.program.device
-                )
-                predicted = jax.device_put(np.zeros(force_rows, dtype=float), self.program.device)
-                for group in groups:
-                    contributions = group.kernel(
-                        displacement_batch,
-                        self.basis_state,
-                        *group.device_arguments,
-                    )
-                    predicted += predict_group(contributions, group.device_columns, parameters)
-                output[begin:end] = np.asarray(jax.device_get(predicted)).reshape(
-                    output[begin:end].shape
-                )
-        logger.debug(
-            f"- Bounded force prediction: {len(self.displacements)} structures in "
-            f"{perf_counter() - started:.2f} s"
-        )
-        return output.reshape(-1)
-
-    def matvec_by_order(self, parameters):
-        """Predict every IFC-order contribution in one shared feature pass."""
-        started = perf_counter()
-        self.program.prediction_feature_passes += 1
-        with transfer_guard():
-            parameters = jax.device_put(
-                np.asarray(parameters, dtype=float).reshape(-1), self.program.device
-            )
-            orders = tuple(sorted({group.order for group in self.program.groups}))
-            output = {order: np.empty(self.force_shape, dtype=float) for order in orders}
-            rows_per_structure = int(np.prod(self.force_shape[1:]))
-            for begin in range(0, len(self.displacements), self.batch_size):
-                end = min(begin + self.batch_size, len(self.displacements))
-                force_rows = (end - begin) * rows_per_structure
-                displacement_batch = jax.device_put(
-                    self.displacements[begin:end], self.program.device
-                )
-                predicted = {
-                    order: jax.device_put(np.zeros(force_rows, dtype=float), self.program.device)
-                    for order in orders
-                }
-                for group in self.program.groups:
-                    contributions = group.kernel(
-                        displacement_batch, self.basis_state, *group.device_arguments
-                    )
-                    predicted[group.order] += predict_group(
-                        contributions, group.device_columns, parameters
-                    )
-                for order in orders:
-                    output[order][begin:end] = np.asarray(jax.device_get(predicted[order])).reshape(
-                        output[order][begin:end].shape
-                    )
-        logger.debug(
-            f"- Bounded order-resolved force prediction: {len(self.displacements)} "
-            f"structures in {perf_counter() - started:.2f} s"
-        )
-        return {order: values.reshape(-1) for order, values in output.items()}
-
 
 def prepare_design_kernel_groups(operator):
     """Return an operator's already-prepared bounded design groups.

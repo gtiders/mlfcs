@@ -39,7 +39,7 @@ def test_builder_has_no_calculation_or_workflow_dependency():
         if isinstance(node, ast.ImportFrom) and node.module is not None
     }
     assert not any(
-        value.startswith(("mlfcs.fitting", "mlfcs.io", "mlfcs.physics")) for value in imports
+        value.startswith(("mlfcs.fitting", "mlfcs.io", "mlfcs.phonon")) for value in imports
     )
 
 

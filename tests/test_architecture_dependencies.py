@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import ast
-from pathlib import Path
 
-ROOT = Path(__file__).parents[1] / "src" / "mlfcs"
+from _architecture_helpers import ROOT, internal_dependencies
 
 ALLOWED = {
     "structure": set(),
@@ -14,41 +13,22 @@ ALLOWED = {
     "constraints": {"force_constants", "interactions", "structure"},
     "finite_difference": {"constraints", "force_constants", "interactions", "structure"},
     "fitting": {"constraints", "force_constants", "interactions", "structure"},
-    "sampling": {"force_constants", "structure"},
-    "physics": {
-        "constraints",
-        "fitting",
-        "force_constants",
-        "interactions",
-        "sampling",
-        "structure",
-    },
+    # SCPH/SSCHA consume force constants and the fitter, while fitting itself
+    # remains independent of phonon workflows.
+    "phonon": {"fitting", "force_constants", "structure"},
     "io": {"force_constants", "structure"},
 }
 
 
-def _internal_dependencies(package: str) -> set[str]:
-    dependencies: set[str] = set()
-    for path in (ROOT / package).rglob("*.py"):
-        tree = ast.parse(path.read_text())
-        for node in ast.walk(tree):
-            modules = []
-            if isinstance(node, ast.ImportFrom) and node.module:
-                modules.append(node.module)
-            elif isinstance(node, ast.Import):
-                modules.extend(alias.name for alias in node.names)
-            for module in modules:
-                if module.startswith("mlfcs."):
-                    dependency = module.split(".", 2)[1]
-                    if dependency != package:
-                        dependencies.add(dependency)
-    return dependencies
-
-
 def test_package_dependencies_follow_the_locked_dag():
     for package, allowed in ALLOWED.items():
-        unexpected = _internal_dependencies(package) - allowed
+        unexpected = internal_dependencies(package) - allowed
         assert not unexpected, f"{package} has forbidden dependencies: {sorted(unexpected)}"
+
+
+def test_mainline_packages_do_not_depend_on_phonon_workflows():
+    for package in ("structure", "interactions", "force_constants", "constraints", "finite_difference", "fitting"):
+        assert "phonon" not in internal_dependencies(package), package
 
 
 def test_historical_ambiguous_packages_are_removed():

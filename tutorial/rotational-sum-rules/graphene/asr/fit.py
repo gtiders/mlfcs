@@ -56,7 +56,7 @@ def _run() -> None:
         max_body_orders={2: 2},
     )
     gram = fitter.prepare_gram([snapshot], acoustic_sum_rule=True)
-    result = fitter.fit(gram, acoustic_sum_rule=True)
+    result = fitter.fit(gram)
     write_force_constants(result.force_constants, ROOT / "mlfcs.h5", format="hdf5")
     write_force_constants(result.force_constants, ROOT / "FORCE_CONSTANTS_2ND", format="phonopy", order=2)
     (ROOT / "metrics.json").write_text(

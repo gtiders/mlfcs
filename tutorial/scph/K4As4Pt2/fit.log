@@ -1,0 +1,109 @@
+An NVIDIA GPU may be present on this machine, but a CUDA-enabled jaxlib is not installed. Falling back to cpu.
+INFO mlfcs.fitting.fitter: Preparing independent FC2+FC3+FC4 fitting parameterization
+INFO mlfcs.interactions.space: Creating reference supercell with matrix [[2, 0, 0], [0, 2, 0], [0, 0, 3]]
+INFO mlfcs.interactions.space: 10 primitive atoms, 120 supercell atoms
+INFO mlfcs.interactions.space: Resolving the interaction cutoff
+INFO mlfcs.interactions.space: Cutoff radius: 6.5000000000 Å
+INFO mlfcs.interactions.space: Analyzing crystal symmetries
+INFO mlfcs.interactions.space: Space group Cmcm
+INFO mlfcs.interactions.space: 8 symmetry operations
+INFO mlfcs.interactions.space: Creating reference supercell with matrix [[2, 0, 0], [0, 2, 0], [0, 0, 3]]
+INFO mlfcs.interactions.space: 10 primitive atoms, 120 supercell atoms
+INFO mlfcs.interactions.space: Resolving the interaction cutoff
+INFO mlfcs.interactions.space: Cutoff radius: 6.3501265268 Å
+INFO mlfcs.interactions.space: Analyzing crystal symmetries
+INFO mlfcs.interactions.space: Space group Cmcm
+INFO mlfcs.interactions.space: 8 symmetry operations
+INFO mlfcs.interactions.space: Creating reference supercell with matrix [[2, 0, 0], [0, 2, 0], [0, 0, 3]]
+INFO mlfcs.interactions.space: 10 primitive atoms, 120 supercell atoms
+INFO mlfcs.interactions.space: Resolving the interaction cutoff
+INFO mlfcs.interactions.space: Cutoff radius: 4.2334176845 Å
+INFO mlfcs.interactions.space: Analyzing crystal symmetries
+INFO mlfcs.interactions.space: Space group Cmcm
+INFO mlfcs.interactions.space: 8 symmetry operations
+INFO mlfcs.interactions.space: Finding symmetry-inequivalent order-2 interaction clusters
+INFO mlfcs.interactions.space: 42 cluster equivalence classes
+INFO mlfcs.interactions.space: 253 independent tensor parameters
+INFO mlfcs.interactions.space: Maximum body order: 2
+INFO mlfcs.fitting.fitter: - FC2: 42 orbits, 253 parameters
+INFO mlfcs.interactions.space: Finding symmetry-inequivalent order-3 interaction clusters
+INFO mlfcs.interactions.space: 219 cluster equivalence classes
+INFO mlfcs.interactions.space: 4247 independent tensor parameters
+INFO mlfcs.interactions.space: Maximum body order: 3
+INFO mlfcs.fitting.fitter: - FC3: 219 orbits, 4247 parameters
+INFO mlfcs.interactions.space: Finding symmetry-inequivalent order-4 interaction clusters
+INFO mlfcs.interactions.space: 72 cluster equivalence classes
+INFO mlfcs.interactions.space: 2349 independent tensor parameters
+INFO mlfcs.interactions.space: Maximum body order: 3
+INFO mlfcs.fitting.fitter: - FC4: 72 orbits, 2349 parameters
+INFO mlfcs.fitting.fitter: - Joint parameter count: 6849
+INFO mlfcs.fitting.linear_solvers: Explicit constraint parameterization: 6849 -> 4784 parameters in 112 blocks, rank=2065, nnz=245286
+INFO mlfcs.fitting.design_operator: - Prepared JAX feature program: 36 signatures, 134 tiles, 139.6 MiB static buffers
+INFO mlfcs.fitting.gram.builder: Accumulating streamed Gram system: 4784 x 4784 (174.6 MiB), effective_batch_size=4, backend=SciPy/OpenBLAS CPU
+INFO mlfcs.fitting.gram.builder: - Physical design kernel groups: 36, 134 bounded tiles
+INFO mlfcs.fitting.gram.builder: - Compiled FC2 physical design kernel in 0.13 s
+INFO mlfcs.fitting.gram.builder: - Compiled FC2 physical design kernel in 0.08 s
+INFO mlfcs.fitting.gram.builder: - Compiled FC2 physical design kernel in 0.08 s
+INFO mlfcs.fitting.gram.builder: - Compiled FC2 physical design kernel in 0.08 s
+INFO mlfcs.fitting.gram.builder: - Compiled FC2 physical design kernel in 0.09 s
+INFO mlfcs.fitting.gram.builder: - Compiled FC2 physical design kernel in 0.09 s
+INFO mlfcs.fitting.gram.builder: - Compiled FC2 physical design kernel in 0.10 s
+INFO mlfcs.fitting.gram.builder: - Compiled FC3 physical design kernel in 0.10 s
+INFO mlfcs.fitting.gram.builder: - Compiled FC3 physical design kernel in 0.09 s
+INFO mlfcs.fitting.gram.builder: - Compiled FC3 physical design kernel in 0.09 s
+INFO mlfcs.fitting.gram.builder: - Compiled FC3 physical design kernel in 0.09 s
+INFO mlfcs.fitting.gram.builder: - Compiled FC3 physical design kernel in 0.12 s
+INFO mlfcs.fitting.gram.builder: - Compiled FC3 physical design kernel in 0.14 s
+INFO mlfcs.fitting.gram.builder: - Compiled FC3 physical design kernel in 0.11 s
+INFO mlfcs.fitting.gram.builder: - Compiled FC3 physical design kernel in 0.13 s
+INFO mlfcs.fitting.gram.builder: - Compiled FC3 physical design kernel in 0.15 s
+INFO mlfcs.fitting.gram.builder: - Compiled FC3 physical design kernel in 0.18 s
+INFO mlfcs.fitting.gram.builder: - Compiled FC3 physical design kernel in 0.12 s
+INFO mlfcs.fitting.gram.builder: - Compiled FC3 physical design kernel in 0.17 s
+INFO mlfcs.fitting.gram.builder: - Compiled FC3 physical design kernel in 0.23 s
+INFO mlfcs.fitting.gram.builder: - Compiled FC3 physical design kernel in 0.66 s
+INFO mlfcs.fitting.gram.builder: - Compiled FC3 physical design kernel in 0.15 s
+INFO mlfcs.fitting.gram.builder: - Compiled FC4 physical design kernel in 0.12 s
+INFO mlfcs.fitting.gram.builder: - Compiled FC4 physical design kernel in 0.10 s
+INFO mlfcs.fitting.gram.builder: - Compiled FC4 physical design kernel in 0.11 s
+INFO mlfcs.fitting.gram.builder: - Compiled FC4 physical design kernel in 0.15 s
+INFO mlfcs.fitting.gram.builder: - Compiled FC4 physical design kernel in 0.17 s
+INFO mlfcs.fitting.gram.builder: - Compiled FC4 physical design kernel in 0.15 s
+INFO mlfcs.fitting.gram.builder: - Compiled FC4 physical design kernel in 0.16 s
+INFO mlfcs.fitting.gram.builder: - Compiled FC4 physical design kernel in 0.18 s
+INFO mlfcs.fitting.gram.builder: - Compiled FC4 physical design kernel in 0.29 s
+INFO mlfcs.fitting.gram.builder: - Compiled FC4 physical design kernel in 0.22 s
+INFO mlfcs.fitting.gram.builder: - Compiled FC4 physical design kernel in 0.29 s
+INFO mlfcs.fitting.gram.builder: - Compiled FC4 physical design kernel in 0.27 s
+INFO mlfcs.fitting.gram.builder: - Compiled FC4 physical design kernel in 1.67 s
+INFO mlfcs.fitting.gram.builder: - Compiled FC4 physical design kernel in 0.53 s
+INFO mlfcs.fitting.gram.builder: - Gram structures: 4/250, elapsed=7.91 s
+INFO mlfcs.fitting.gram.builder: - Gram structures: 20/250, elapsed=23.99 s
+INFO mlfcs.fitting.gram.builder: - Gram structures: 40/250, elapsed=42.23 s
+INFO mlfcs.fitting.gram.builder: - Gram structures: 60/250, elapsed=59.91 s
+INFO mlfcs.fitting.gram.builder: - Gram structures: 80/250, elapsed=77.15 s
+INFO mlfcs.fitting.gram.builder: - Gram structures: 100/250, elapsed=94.78 s
+INFO mlfcs.fitting.gram.builder: - Gram structures: 120/250, elapsed=112.28 s
+INFO mlfcs.fitting.gram.builder: - Gram structures: 140/250, elapsed=129.77 s
+INFO mlfcs.fitting.gram.builder: - Gram structures: 160/250, elapsed=147.38 s
+INFO mlfcs.fitting.gram.builder: - Gram structures: 180/250, elapsed=164.85 s
+INFO mlfcs.fitting.gram.builder: - Gram structures: 200/250, elapsed=182.48 s
+INFO mlfcs.fitting.gram.builder: - Gram structures: 220/250, elapsed=200.54 s
+INFO mlfcs.fitting.gram.builder: - Gram structures: 240/250, elapsed=219.67 s
+INFO mlfcs.fitting.gram.builder: - Gram structures: 250/250, elapsed=233.49 s
+INFO mlfcs.fitting.gram.builder: - Streamed Gram system ready in 233.95 s
+INFO mlfcs.fitting.gram.builder: - Gram phase timing: kernel=210.79 s, transfer=0.06 s, scatter=5.71 s, constraint reduction=7.34 s, BLAS=9.50 s
+INFO mlfcs.fitting.fitter: Constraint system: 2276 rows after duplicate removal (76446 ASR before compression)
+INFO mlfcs.fitting.fitter: Column-norm preconditioning in constrained coordinates
+INFO mlfcs.fitting.fitter: - Inverse column scale: 1.939636e-02 to 9.309741e+00
+INFO mlfcs.fitting.fitter: Solving the force-only least-squares problem with streamed Gram
+INFO mlfcs.fitting.fitter: - Equations: 90000, unknowns: 4784
+INFO mlfcs.fitting.fitter: - Maximum joint constraint residual: 1.318390e-14
+INFO mlfcs.fitting.fitter: Force fitting summary
+INFO mlfcs.fitting.fitter: - Training relative error: 5.903222 %
+INFO mlfcs.fitting.fitter: - Training force RMSE: 1.6698304657e-02 eV/Å
+INFO mlfcs.fitting.fitter: - JAX execution guard: 1 prepared program, independent Gram statistics
+INFO mlfcs.fitting.fitter: - Solver iterations=4699, stop_code=0
+INFO mlfcs.fitting.fitter: Expanding fitted Taylor parameters into sparse physical IFCs
+INFO mlfcs.fitting.fitter: - Expanded 11028 sparse tensors in 0.29 s
+INFO mlfcs.force_constants.realization: Export view cache miss; constructing new view

@@ -28,7 +28,7 @@ from mlfcs.phonon.scph.fourier import (
     _validate_relation,
 )
 from mlfcs.phonon.statistics import HBAR_ASE, OMEGA_TO_THZ, mode_sigma
-from mlfcs.physics.temperature import TemperatureSeriesResult, normalize_temperature_schedule
+from mlfcs.phonon.temperature import TemperatureSeriesResult, normalize_temperature_schedule
 
 _HBAR_ASE = HBAR_ASE
 _OMEGA_TO_THZ = OMEGA_TO_THZ

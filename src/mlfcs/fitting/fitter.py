@@ -333,6 +333,32 @@ class ForceConstantFitter:
         )
         return result
 
+    def evaluate_force_error(
+        self,
+        result: FittingResult,
+        structures: list[Atoms] | tuple[Atoms, ...],
+    ) -> tuple[float, float]:
+        """Evaluate RMSE and relative force error for any supplied structures.
+
+        The structures are evaluated through the public Taylor calculator;
+        this method does not use or mutate the Gram cache and makes no
+        distinction between training and test data.
+        """
+        if not isinstance(result, FittingResult):
+            raise TypeError("result must be a FittingResult")
+        dataset = FitDataset.from_atoms(self.geometry, structures)
+        from mlfcs.calculators.ase import MLFCSCalculator
+
+        calculator = MLFCSCalculator(result.force_constants, reference=self.reference)
+        predicted = calculator.force_design_batch(dataset.displacements)
+        residual = predicted - dataset.forces
+        squared = float(np.sum(residual**2))
+        count = residual.size
+        target_squared = float(np.sum(dataset.forces**2))
+        rmse = float(np.sqrt(squared / count)) if count else 0.0
+        relative = float(np.sqrt(squared / target_squared)) if target_squared else (0.0 if squared == 0 else float("inf"))
+        return rmse, relative
+
     def prepare_gram(
         self,
         structures: list[Atoms] | tuple[Atoms, ...],

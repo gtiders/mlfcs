@@ -85,5 +85,14 @@ class MLFCSCalculator(Calculator):
         energy, forces = self.potential.evaluate_displacement(displacement)
         self.results = {"energy": energy, "forces": forces}
 
+    def force_design_batch(self, displacements: np.ndarray) -> np.ndarray:
+        """Evaluate forces for a batch of reference-relative displacements."""
+        values = np.asarray(displacements, dtype=float)
+        if values.ndim != 3:
+            raise ValueError("displacements must have shape (batch, atoms, 3)")
+        return np.asarray(
+            [self.potential.evaluate_displacement(value)[1] for value in values]
+        )
+
 
 __all__ = ["MLFCSCalculator"]

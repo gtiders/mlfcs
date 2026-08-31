@@ -48,7 +48,6 @@ def _fit(name: str, dataset: str):
     gram = fitter.prepare_gram(structures, acoustic_sum_rule=True)
     result = fitter.fit(
         gram,
-        acoustic_sum_rule=True,
         tolerance=1e-10,
         max_iterations=10_000,
     )

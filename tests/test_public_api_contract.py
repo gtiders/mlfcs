@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import ast
 import inspect
-from pathlib import Path
+
+from _architecture_helpers import module_imports
 
 from mlfcs import (
     SSCHA,
@@ -67,17 +67,6 @@ def test_top_level_api_is_the_locked_whitelist():
     }
 
 
-def _imports(module: str) -> set[str]:
-    path = Path(__file__).parents[1] / "src" / "mlfcs" / Path(*module.split("."))
-    source = path.with_suffix(".py").read_text()
-    tree = ast.parse(source)
-    return {
-        node.module
-        for node in ast.walk(tree)
-        if isinstance(node, ast.ImportFrom) and node.module is not None
-    }
-
-
 def test_low_level_packages_do_not_depend_on_workflow_or_writer_modules():
     for module in (
         "structure.periodic_geometry",
@@ -87,7 +76,7 @@ def test_low_level_packages_do_not_depend_on_workflow_or_writer_modules():
         "constraints.rotational",
         "constraints.translational",
     ):
-        imports = _imports(module)
+        imports = module_imports(module)
         assert not any(
             value.startswith(
                 (
@@ -100,14 +89,14 @@ def test_low_level_packages_do_not_depend_on_workflow_or_writer_modules():
             for value in imports
         ), module
 
-    force_constant_imports = _imports("force_constants.representation")
+    force_constant_imports = module_imports("force_constants.representation")
     assert not any(
-        value.startswith(("mlfcs.fitting", "mlfcs.physics", "mlfcs.io", "mlfcs.constraints"))
+        value.startswith(("mlfcs.fitting", "mlfcs.phonon", "mlfcs.io", "mlfcs.constraints"))
         for value in force_constant_imports
     )
 
     for module in ("io.alamode", "io.hdf5", "io.phonon_hdf5", "io.phonopy", "io.shengbte"):
-        imports = _imports(module)
+        imports = module_imports(module)
         assert not any(
             value.startswith(
                 (

@@ -1,0 +1,11 @@
+{
+  "temperature_K": 300,
+  "mesh": [
+    10,
+    10,
+    10
+  ],
+  "isotope_scattering": true,
+  "method": "phono3py-command-line-RTA",
+  "kappa_file": "kappa-m101010.m101010.hdf5"
+}
