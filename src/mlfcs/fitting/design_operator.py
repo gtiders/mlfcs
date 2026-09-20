@@ -1,421 +1,305 @@
-"""JAX force prediction and bounded design-matrix execution."""
+"""Compiled force-design construction for the joint Taylor IFC fit.
+
+A design row is one force component of one snapshot and a design column is one
+independent fitting parameter.  Every orbital image contributes
+
+``-1/order! * (leave-one-axis monomial) * (rotated parameter tensor)``
+
+to the force row of each cluster slot.  ``ForceDesignPlan`` compiles one order's
+parameterization into the ragged arrays that a compiled parallel loop consumes:
+one snapshot at a time becomes its ``(rows, n_parameters)`` design matrix, and
+the Gram matrix is then accumulated by OpenBLAS from those rows.
+"""
 
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from functools import cache
 from math import factorial
 
-import jax
-import jax.numpy as jnp
 import numpy as np
-
-logger = logging.getLogger(__name__)
-from scipy import sparse
+from numba import get_num_threads, get_thread_id, njit, prange
 
 from mlfcs.fitting.parameterization import OrderParameterization, image_parameter_basis
 
+logger = logging.getLogger(__name__)
+
+
+@njit(cache=True, parallel=True, nogil=True)
+def _accumulate_design(
+    displacement,
+    out,
+    orbit_pair_offsets,
+    orbit_parameter_bases,
+    orbit_dimensions,
+    pair_atoms,
+    pair_basis,
+    pair_basis_offsets,
+    components,
+    factor,
+    block,
+):
+    """Add one IFC order's contribution to one snapshot's design matrix.
+
+    ``displacement`` holds the flat force components of a single snapshot and
+    ``out`` is its ``(rows, n_parameters)`` design matrix.  Tasks are interaction
+    orbits: orbits own disjoint parameter columns, and each thread accumulates an
+    orbit into its own block before flushing it once, so no task writes a cell
+    another task writes and hot threads stay off each other's cache lines.
+    """
+    n_orbits = orbit_pair_offsets.shape[0] - 1
+    n_translations = pair_atoms.shape[1]
+    order = pair_atoms.shape[2]
+    n_components = components.shape[0]
+    n_rows = displacement.size
+    for orbit in prange(n_orbits):
+        thread = get_thread_id()
+        orbit_block = block[thread]
+        dimensions = orbit_dimensions[orbit]
+        parameter_base = orbit_parameter_bases[orbit]
+        for row in range(n_rows):
+            for dimension in range(dimensions):
+                orbit_block[row, dimension] = 0.0
+        for pair in range(orbit_pair_offsets[orbit], orbit_pair_offsets[orbit + 1]):
+            basis_begin = pair_basis_offsets[pair]
+            for translation in range(n_translations):
+                for component in range(n_components):
+                    for axis in range(order):
+                        row = 3 * pair_atoms[pair, translation, axis] + components[component, axis]
+                        monomial = 1.0
+                        for other in range(order):
+                            if other != axis:
+                                monomial *= displacement[
+                                    3 * pair_atoms[pair, translation, other]
+                                    + components[component, other]
+                                ]
+                        value = -factor * monomial
+                        basis_row = basis_begin + component * dimensions
+                        for dimension in range(dimensions):
+                            orbit_block[row, dimension] += value * pair_basis[basis_row + dimension]
+        for row in range(n_rows):
+            for dimension in range(dimensions):
+                out[row, parameter_base + dimension] += orbit_block[row, dimension]
+
 
 @dataclass(frozen=True, slots=True)
-class DesignKernelGroup:
-    """Same-shaped physical-design tiles and their persistent device buffers."""
+class OrderPlan:
+    """Ragged host arrays describing one IFC order's design contribution.
 
-    order: int
-    kernel: object
-    columns: np.ndarray
-    device_columns: jax.Array
-    arguments: tuple[np.ndarray, ...]
-    device_arguments: tuple[jax.Array, ...]
-
-    @property
-    def tile_count(self) -> int:
-        return len(self.columns)
-
-
-class PreparedDesignProgram:
-    """One immutable, reusable compiled representation of an interaction space.
-
-    Parameterization arrays and backend state are host data while this object is
-    prepared, then transferred to the selected JAX device once.  Training,
-    validation, and post-fit diagnostics can subsequently change only the
-    displacement batch and the parameter vector.
+    One *pair* is one orbital image.  Basis tensors are concatenated per pair in
+    component-major order and addressed through ``pair_basis_offsets``, so no
+    orbit pays for the widest orbit's image or parameter count.  Orbit-level data
+    (parameter block start, block width) is stored once per orbit, pair-level data
+    (cluster atoms, basis block) once per image.
     """
 
-    def __init__(self, basis_state, parameterizations, batch_size, device, axis_derivatives):
-        self.device = jax.devices()[0] if device is None else device
-        self.basis_state = jax.device_put(np.asarray(basis_state, dtype=float), self.device)
-        self.batch_size = batch_size
-        # Retain the compact host parameterization for reproducible Gram-cache
-        # fingerprints.  It is also reused by validation operators, so this is
-        # metadata rather than an additional physical-design allocation.
-        self.parameterizations = tuple(parameterizations)
-        self.groups = _build_design_kernel_groups(
-            self.parameterizations, batch_size, self.device, axis_derivatives
-        )
-        self.additional_cache_arrays = []
-        self.gram_feature_passes = 0
-        self.prediction_feature_passes = 0
+    factor: float
+    components: np.ndarray
+    orbit_pair_offsets: np.ndarray
+    orbit_parameter_bases: np.ndarray
+    orbit_dimensions: np.ndarray
+    pair_atoms: np.ndarray
+    pair_basis: np.ndarray
+    pair_basis_offsets: np.ndarray
 
     @property
-    def tile_count(self) -> int:
-        return sum(group.tile_count for group in self.groups)
+    def orbit_count(self) -> int:
+        return int(self.orbit_dimensions.size)
 
     @property
-    def static_device_bytes(self) -> int:
+    def pair_count(self) -> int:
+        return int(self.pair_atoms.shape[0])
+
+    @property
+    def max_dimensions(self) -> int:
+        """Largest parameter block over this order's orbits."""
+        return int(self.orbit_dimensions.max()) if self.orbit_dimensions.size else 0
+
+    @property
+    def n_bytes(self) -> int:
         return int(
-            self.basis_state.nbytes
-            + sum(
-                group.columns.nbytes + sum(argument.nbytes for argument in group.arguments)
-                for group in self.groups
-            )
+            self.components.nbytes
+            + self.orbit_pair_offsets.nbytes
+            + self.orbit_parameter_bases.nbytes
+            + self.orbit_dimensions.nbytes
+            + self.pair_atoms.nbytes
+            + self.pair_basis.nbytes
+            + self.pair_basis_offsets.nbytes
         )
 
 
 @dataclass(frozen=True, slots=True)
-class DeviceReductionPlan:
-    """Bounded device-resident sparse map from physical to fit coordinates."""
+class ForceDesignPlan:
+    """Reusable compiled design source for one joint fitting parameterization."""
 
-    n_reduced: int
-    chunks: tuple[tuple[jax.Array, jax.Array, jax.Array], ...]
+    n_parameters: int
+    orders: tuple[OrderPlan, ...]
 
-    def apply(self, design):
-        reduced = jax.device_put(
-            np.zeros((design.shape[0], self.n_reduced), dtype=float), design.device
+    @classmethod
+    def compile(cls, parameterizations) -> ForceDesignPlan:
+        orders = tuple(_compile_order(item) for item in parameterizations)
+        return cls(sum(int(order.orbit_dimensions.sum()) for order in orders), orders)
+
+    @property
+    def orbit_count(self) -> int:
+        return sum(order.orbit_count for order in self.orders)
+
+    @property
+    def static_bytes(self) -> int:
+        return sum(order.n_bytes for order in self.orders)
+
+    def scratch(self, rows: int) -> tuple[np.ndarray, ...]:
+        """Return one per-thread accumulation block per order for ``rows`` rows."""
+        threads = get_num_threads()
+        return tuple(
+            np.zeros((threads, rows, order.max_dimensions), dtype=float) for order in self.orders
         )
-        for rows, columns, values in self.chunks:
-            reduced = _accumulate_sparse_reduction(reduced, design, rows, columns, values)
-        return reduced
 
-
-def prepare_device_reduction(parameter_map, force_rows, device):
-    """Upload a sparse null-space map in bounded COO chunks.
-
-    The intermediate has ``force_rows * chunk_entries`` elements, so a fixed
-    internal budget bounds memory without exposing an expert-only API knob.
-    """
-    mapping = sparse.coo_matrix(parameter_map)
-    if mapping.nnz == 0:
-        return DeviceReductionPlan(mapping.shape[1], ())
-    chunk_entries = min(
-        mapping.nnz,
-        max(1, 8_000_000 // max(int(force_rows), 1)),
-    )
-    chunks = []
-    for begin in range(0, mapping.nnz, chunk_entries):
-        end = min(begin + chunk_entries, mapping.nnz)
-        size = chunk_entries
-        rows = np.zeros(size, dtype=np.int32)
-        columns = np.zeros(size, dtype=np.int32)
-        values = np.zeros(size, dtype=float)
-        count = end - begin
-        rows[:count] = mapping.row[begin:end]
-        columns[:count] = mapping.col[begin:end]
-        values[:count] = mapping.data[begin:end]
-        chunks.append(
-            (
-                jax.device_put(rows, device),
-                jax.device_put(columns, device),
-                jax.device_put(values, device),
+    def accumulate(self, displacement: np.ndarray, out: np.ndarray, scratch) -> None:
+        """Add every order's contribution to one snapshot's design matrix."""
+        for order, block in zip(self.orders, scratch, strict=True):
+            _accumulate_design(
+                displacement,
+                out,
+                order.orbit_pair_offsets,
+                order.orbit_parameter_bases,
+                order.orbit_dimensions,
+                order.pair_atoms,
+                order.pair_basis,
+                order.pair_basis_offsets,
+                order.components,
+                order.factor,
+                block,
             )
-        )
-    return DeviceReductionPlan(mapping.shape[1], tuple(chunks))
 
 
-@jax.jit
-def _accumulate_sparse_reduction(reduced, design, rows, columns, values):
-    return reduced.at[:, columns].add(design[:, rows] * values)
+def _orbit_blocks(parameterization: OrderParameterization):
+    """Return per-orbit image counts, parameter counts and parameter block starts.
+
+    Both invariants come from ``pack_order``: a mask selects a leading block of
+    every row, and an orbit's parameters are one contiguous range of the joint
+    parameter vector.  They are checked here because the compiled kernel relies on
+    them for its loop bounds and unit-stride column updates.
+    """
+    image_counts = _prefix_counts(parameterization.image_mask, "image")
+    dimensions = _prefix_counts(parameterization.parameter_mask, "parameter")
+    indices = parameterization.parameter_indices
+    bases = np.zeros(dimensions.size, dtype=np.int32)
+    for orbit, width in enumerate(dimensions):
+        if width:
+            block = indices[orbit, :width]
+            bases[orbit] = block[0]
+            if not np.array_equal(block, bases[orbit] + np.arange(width, dtype=indices.dtype)):
+                raise ValueError(
+                    "fitting parameters of one orbit must form one contiguous block; "
+                    f"orbit {orbit} maps to {block.tolist()}"
+                )
+    return image_counts, dimensions.astype(np.int32), bases
 
 
-@jax.jit
-def accumulate_physical_design(design, contributions, columns):
-    """Scatter one same-shaped tile group into a physical design matrix."""
-    values = jnp.transpose(contributions, (1, 2, 0, 3)).reshape((design.shape[0], -1))
-    return design.at[:, columns.reshape(-1)].add(values)
+def _prefix_counts(mask, label):
+    """Return per-row counts and require each mask row to be a true prefix."""
+    counts = np.count_nonzero(mask, axis=1).astype(np.int64)
+    expected = np.arange(mask.shape[1], dtype=np.int64)[None, :] < counts[:, None]
+    if not np.array_equal(mask, expected):
+        raise ValueError(f"{label} masks must select a leading block of every row")
+    return counts
 
 
-@jax.jit
-def predict_group(contributions, columns, parameters):
-    """Contract all local tiles of one IFC order into force rows at once."""
-    values = jnp.transpose(contributions, (1, 2, 0, 3)).reshape((-1, columns.size))
-    return values @ parameters[columns.reshape(-1)]
+def _compile_order(parameterization: OrderParameterization) -> OrderPlan:
+    """Compile one order's parameterization into immutable ragged design arrays."""
+    order = parameterization.order
+    image_counts, dimensions, bases = _orbit_blocks(parameterization)
+    n_pairs = int(image_counts.sum())
+
+    orbit_pair_offsets = np.zeros(dimensions.size + 1, dtype=np.int64)
+    np.cumsum(image_counts, out=orbit_pair_offsets[1:])
+    pair_basis, pair_basis_offsets = image_parameter_basis(parameterization, image_counts)
+
+    atoms = np.empty((n_pairs, *parameterization.coordinates.shape[2:]), dtype=np.int32)
+    pair = 0
+    for orbit, image_count in enumerate(image_counts):
+        for image in range(int(image_count)):
+            atoms[pair] = parameterization.coordinates[orbit, image]
+            pair += 1
+
+    return OrderPlan(
+        factor=1.0 / factorial(order),
+        components=np.ascontiguousarray(
+            np.asarray(tuple(np.ndindex((3,) * order)), dtype=np.int32)
+        ),
+        orbit_pair_offsets=orbit_pair_offsets,
+        orbit_parameter_bases=bases,
+        orbit_dimensions=dimensions,
+        pair_atoms=np.ascontiguousarray(atoms),
+        pair_basis=np.ascontiguousarray(pair_basis, dtype=float),
+        pair_basis_offsets=pair_basis_offsets,
+    )
 
 
 class ForceDesignOperator:
-    """Batched force predictor and source data for streamed Gram construction."""
+    """Snapshot displacements plus the design plan and constraint coordinates.
+
+    Snapshots are processed one at a time: one design matrix fits the working set
+    of one structure, and the compiled kernel takes its parallelism from the orbit
+    dimension instead of from a snapshot batch.
+    """
 
     def __init__(
         self,
         displacements,
-        basis_state,
-        parameterizations,
-        n_parameters,
-        batch_size,
+        parameterizations=(),
+        *,
         parameter_map=None,
-        program: PreparedDesignProgram | None = None,
-        device=None,
-        device_gram: bool | None = None,
-        axis_derivatives=None,
+        plan: ForceDesignPlan | None = None,
     ):
-        self.displacements = np.asarray(displacements)
-        self.n_parameters = n_parameters
+        values = np.ascontiguousarray(displacements, dtype=float)
+        if values.ndim != 3 or values.shape[2] != 3:
+            raise ValueError("displacements must have shape (snapshots, atoms, 3)")
+        self.displacements = values
+        self.force_shape = self.displacements.shape
+        self.rows_per_snapshot = int(np.prod(self.force_shape[1:]))
+        self.plan = ForceDesignPlan.compile(parameterizations) if plan is None else plan
+        if parameter_map is not None and parameter_map.shape[0] != self.plan.n_parameters:
+            raise ValueError("the constraint map does not match the compiled design columns")
         self.parameter_map = parameter_map
         self.fit_n_parameters = (
-            parameter_map.shape[1] if parameter_map is not None else n_parameters
+            parameter_map.shape[1] if parameter_map is not None else self.plan.n_parameters
         )
-        self.batch_size = batch_size
-        self.force_shape = self.displacements.shape
-        self._device_reductions = {}
-        self.program = (
-            PreparedDesignProgram(
-                basis_state, parameterizations, batch_size, device, axis_derivatives
-            )
-            if program is None
-            else program
-        )
-        self.basis_state = self.program.basis_state
-        self.device_gram = (
-            self.program.device.platform == "gpu" if device_gram is None else bool(device_gram)
-        )
-        if program is None:
+        self._scratch = None
+        if plan is None:
+            pairs = sum(order.pair_count for order in self.plan.orders)
             logger.info(
-                f"- Prepared JAX feature program: {len(self.program.groups)} signatures, "
-                f"{self.program.tile_count} tiles, "
-                f"{self.program.static_device_bytes / 1024**2:.1f} MiB static buffers"
+                f"- Compiled design plan: {len(self.plan.orders)} orders, "
+                f"{self.plan.orbit_count} orbits, {pairs} image pairs, "
+                f"{self.plan.static_bytes / 1024**2:.1f} MiB arrays"
             )
 
-    def with_displacements(self, displacements):
-        """Reuse static kernels and device buffers for another snapshot subset."""
+    @property
+    def n_parameters(self) -> int:
+        return self.plan.n_parameters
+
+    def with_displacements(self, displacements) -> ForceDesignOperator:
+        """Reuse one compiled plan for another snapshot subset."""
         return ForceDesignOperator(
             displacements,
-            None,
-            (),
-            self.n_parameters,
-            self.batch_size,
-            program=self.program,
-            device_gram=self.device_gram,
+            parameter_map=self.parameter_map,
+            plan=self.plan,
         )
 
-    def device_reduction(self, force_rows):
-        """Return a reusable bounded device map for one batch row shape."""
-        if self.parameter_map is None:
-            return None
-        plan = self._device_reductions.get(force_rows)
-        if plan is None:
-            plan = prepare_device_reduction(self.parameter_map, force_rows, self.program.device)
-            self._device_reductions[force_rows] = plan
-        return plan
-
-
-def prepare_design_kernel_groups(operator):
-    """Return an operator's already-prepared bounded design groups.
-
-    Kept as a private compatibility helper for internal tests and Gram code;
-    it performs no packing, upload, or compilation work.
-    """
-    return operator.program.groups, operator.program.batch_size
-
-
-def _build_design_kernel_groups(parameterizations, batch_size, device, axis_derivatives):
-    """Pack and upload bounded orbit/image/parameter tiles exactly once."""
-    tiles_by_shape = {}
-    for parameterization in parameterizations:
-        order = parameterization.order
-        image_counts = np.sum(parameterization.image_mask, axis=1)
-        dimension_counts = np.sum(parameterization.parameter_mask, axis=1)
-        shapes = sorted(set(zip(image_counts.tolist(), dimension_counts.tolist())))
-        for n_images, n_dimensions in shapes:
-            selected = np.flatnonzero(
-                (image_counts == n_images) & (dimension_counts == n_dimensions)
-            )
-            orbit_batch, image_batch, dimension_batch = physical_tile_shape(
-                order,
-                len(selected),
-                n_images,
-                n_dimensions,
-                batch_size,
-                parameterization.coordinates.shape[2],
-            )
-            for begin in range(0, len(selected), orbit_batch):
-                orbit_indices = selected[begin : begin + orbit_batch]
-                for image_begin in range(0, n_images, image_batch):
-                    image_end = min(image_begin + image_batch, n_images)
-                    for dimension_begin in range(0, n_dimensions, dimension_batch):
-                        dimension_end = min(dimension_begin + dimension_batch, n_dimensions)
-                        tile = tile_parameterization(
-                            parameterization,
-                            orbit_indices,
-                            slice(image_begin, image_end),
-                            slice(dimension_begin, dimension_end),
-                        )
-                        global_columns = tile.parameter_indices.ravel().copy()
-                        local_indices = np.arange(len(global_columns), dtype=np.int32).reshape(
-                            tile.parameter_indices.shape
-                        )
-                        tile = OrderParameterization(
-                            tile.order,
-                            local_indices,
-                            tile.parameter_mask,
-                            tile.representative_from_pivots,
-                            tile.rotations,
-                            tile.component_permutations,
-                            tile.coordinates,
-                            tile.image_mask,
-                        )
-                        image_basis = image_parameter_basis(tile)
-                        key = (
-                            order,
-                            *tile.parameter_indices.shape,
-                            tile.rotations.shape[1],
-                            len(global_columns),
-                        )
-                        tiles_by_shape.setdefault(key, []).append(
-                            (
-                                global_columns,
-                                tile.parameter_indices,
-                                tile.parameter_mask,
-                                tile.representative_from_pivots,
-                                tile.rotations,
-                                tile.component_permutations,
-                                tile.coordinates,
-                                tile.image_mask,
-                                image_basis,
-                            )
-                        )
-    groups = []
-    for key, tiles in tiles_by_shape.items():
-        order = key[0]
-        values = tuple(np.stack(items) for items in zip(*tiles, strict=True))
-        columns, arguments = values[0], values[1:]
-        groups.append(
-            DesignKernelGroup(
-                order=order,
-                kernel=compile_design_tile_group(order, key[-1], axis_derivatives),
-                columns=columns,
-                device_columns=jax.device_put(columns, device),
-                arguments=arguments,
-                device_arguments=tuple(jax.device_put(value, device) for value in arguments),
-            )
-        )
-    return tuple(groups)
-
-
-@cache
-def compile_design_tile_group(order, n_local, axis_derivatives):
-    """Compile one shape-polymorphic kernel returning only local tile columns.
-
-    Large backend-state and interaction arrays are dynamic arguments.  In
-    particular, the kernel neither captures them as XLA constants nor emits a
-    full ``n_parameters``-wide matrix for every physical tile.
-    """
-
-    def design_tile_group(displacements, basis_state, *tile_arguments):
-        def one_tile(values):
-            (
-                parameter_indices,
-                parameter_mask,
-                representative,
-                rotations,
-                permutations,
-                coordinates,
-                image_mask,
-                image_basis,
-            ) = values
-            dynamic = OrderParameterization(
-                order,
-                parameter_indices,
-                parameter_mask,
-                representative,
-                rotations,
-                permutations,
-                coordinates,
-                image_mask,
-            )
-            return force_design_batch(
-                displacements,
-                basis_state,
-                (dynamic,),
-                (image_basis,),
-                n_local,
-                axis_derivatives,
-            )
-
-        return jax.lax.map(one_tile, tile_arguments)
-
-    return jax.jit(design_tile_group)
-
-
-def physical_tile_shape(order, n_orbits, n_images, n_dimensions, structure_batch, translations):
-    """Bound the full contraction volume, including periodic translations."""
-    scalar_budget = 32_000_000
-    fixed = max(structure_batch * translations * 3**order * order, 1)
-    capacity = max(1, scalar_budget // fixed)
-    dimension_batch = min(n_dimensions, capacity)
-    image_batch = min(n_images, max(1, capacity // dimension_batch))
-    orbit_batch = min(n_orbits, max(1, capacity // (dimension_batch * image_batch)))
-    return orbit_batch, image_batch, dimension_batch
-
-
-def tile_parameterization(parameterization, selected, images, dimensions):
-    """Slice an exact-shape orbit group along images and parameter dimensions."""
-    return OrderParameterization(
-        parameterization.order,
-        parameterization.parameter_indices[selected, dimensions],
-        parameterization.parameter_mask[selected, dimensions],
-        parameterization.representative_from_pivots[selected, :, dimensions],
-        parameterization.rotations[selected, images],
-        parameterization.component_permutations[selected, images],
-        parameterization.coordinates[selected, images],
-        parameterization.image_mask[selected, images],
-    )
-
-
-def force_design_batch(
-    displacements,
-    basis_state,
-    parameterizations,
-    image_bases,
-    n_parameters,
-    axis_derivatives,
-):
-    """Construct exact force-design rows directly from the linear FC basis."""
-
-    def one_structure(displacement):
-        design = jnp.zeros((displacement.size, n_parameters), dtype=jnp.float64)
-        for parameterization, image_basis in zip(parameterizations, image_bases, strict=True):
-            order = parameterization.order
-            atom_coordinates = jnp.asarray(parameterization.coordinates)
-            components = jnp.asarray(tuple(np.ndindex((3,) * order)), dtype=jnp.int32)
-            coordinates = atom_coordinates[..., None, :] * 3 + components
-            parameter_indices = jnp.asarray(parameterization.parameter_indices)
-            coefficient_mask = (
-                jnp.asarray(parameterization.image_mask)[:, :, None, None, None]
-                * jnp.asarray(parameterization.parameter_mask)[:, None, None, None, :]
-            )
-            basis = jnp.asarray(image_basis)[:, :, None, :, :]
-            lowers = axis_derivatives(displacement, basis_state, coordinates, order)
-            for axis, lower in enumerate(lowers):
-                contribution = -lower[..., None] * basis * coefficient_mask / factorial(order)
-                force_coordinates = coordinates[..., axis, None]
-                parameter_coordinates = parameter_indices[:, None, None, None, :]
-                design = design.at[force_coordinates, parameter_coordinates].add(contribution)
+    def design(self, index: int) -> np.ndarray:
+        """Return the physical design matrix of one snapshot."""
+        if self._scratch is None:
+            self._scratch = self.plan.scratch(self.rows_per_snapshot)
+        design = np.zeros((self.rows_per_snapshot, self.plan.n_parameters), dtype=float)
+        self.plan.accumulate(self.displacements[index].reshape(-1), design, self._scratch)
         return design
 
-    return jax.vmap(one_structure)(displacements)
+    def reduce(self, design: np.ndarray) -> np.ndarray:
+        """Map physical columns onto the independent constrained coordinates."""
+        if self.parameter_map is None:
+            return design
+        return np.asarray(self.parameter_map.T @ design.T).T
 
 
-def rotate_tensor(tensor, rotation, order):
-    result = tensor
-    for axis in range(order):
-        result = jnp.tensordot(rotation, result, axes=((1,), (axis,)))
-        result = jnp.moveaxis(result, 0, axis)
-    return result
-
-
-def rotate_images(tensors, rotations, order):
-    def one_tensor(tensor, operations):
-        return jax.vmap(lambda operation: rotate_tensor(tensor, operation, order).reshape(-1))(
-            operations
-        )
-
-    return jax.vmap(one_tensor)(tensors, rotations)
+__all__ = ["ForceDesignOperator", "ForceDesignPlan", "OrderPlan"]

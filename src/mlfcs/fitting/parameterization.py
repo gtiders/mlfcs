@@ -83,22 +83,40 @@ def pack_order(calculation, offset):
     )
 
 
-def image_parameter_basis(parameterization):
-    """Map each symmetry-image tensor component to independent parameters."""
+def image_parameter_basis(parameterization, image_counts=None):
+    """Map every symmetry image's tensor components to independent parameters.
+
+    Returns the concatenated per-image basis blocks and the pair offsets, so a
+    caller never materializes a padded ``(orbits, images, 3**order, dimensions)``
+    array just to slice it per image again.  Block ``pair`` occupies
+    ``blocks[offsets[pair] : offsets[pair + 1]]`` in component-major order with
+    ``dimensions`` columns.
+    """
     order = parameterization.order
     representative = parameterization.representative_from_pivots
-    result = np.zeros(
-        (*parameterization.rotations.shape[:2], 3**order, representative.shape[-1]),
-        dtype=float,
-    )
-    for orbit in range(len(representative)):
-        for image in range(parameterization.rotations.shape[1]):
-            rotation = parameterization.rotations[orbit, image]
-            for dimension in range(representative.shape[-1]):
+    rotations = parameterization.rotations
+    permutations = parameterization.component_permutations
+    if image_counts is None:
+        image_counts = np.count_nonzero(parameterization.image_mask, axis=1)
+    dimension_counts = np.count_nonzero(parameterization.parameter_mask, axis=1)
+    n_pairs = int(np.sum(image_counts))
+    offsets = np.zeros(n_pairs + 1, dtype=np.int64)
+    blocks = []
+    pair = 0
+    for orbit, image_count in enumerate(image_counts):
+        dimensions = int(dimension_counts[orbit])
+        for image in range(int(image_count)):
+            rotation = rotations[orbit, image]
+            block = np.zeros((3**order, dimensions))
+            for dimension in range(dimensions):
                 value = representative[orbit, :, dimension].reshape((3,) * order)
                 for axis in range(order):
                     value = np.tensordot(rotation, value, axes=((1,), (axis,)))
                     value = np.moveaxis(value, 0, axis)
-                result[orbit, image, :, dimension] = value.reshape(-1)
-    component_indices = parameterization.component_permutations[..., None]
-    return np.take_along_axis(result, component_indices, axis=2)
+                block[:, dimension] = value.reshape(-1)
+            block = np.take_along_axis(block, permutations[orbit, image][:, None], axis=0)
+            blocks.append(np.ascontiguousarray(block).reshape(-1))
+            offsets[pair + 1] = offsets[pair] + 3**order * dimensions
+            pair += 1
+    concatenated = np.concatenate(blocks) if blocks else np.zeros(0, dtype=float)
+    return concatenated, offsets

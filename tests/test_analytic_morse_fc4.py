@@ -20,7 +20,7 @@ def test_ASE_relaxation_recovers_analytic_FCC_Morse_equilibrium():
     assert np.max(np.abs(atoms.get_stress())) < 1.0e-11
 
 
-def test_FC4_matches_independent_JAX_Morse_derivative_and_converges_quadratically():
+def test_FC4_matches_independent_symbolic_Morse_derivative_and_converges_quadratically():
     errors = []
     for displacement in (0.01, 0.005, 0.0025):
         actual, exact = finite_difference_fc4(displacement)

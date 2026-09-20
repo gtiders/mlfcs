@@ -20,6 +20,6 @@ For an existing environment:
 python -m pip install .
 ```
 
-The base dependencies are ASE, NumPy, SciPy, spglib, h5py, and JAX. Calculator packages and
+The base dependencies are ASE, NumPy, SciPy, spglib, h5py, and Numba. Calculator packages and
 downstream readers are intentionally optional. For example, install plotting dependencies only
 when running the phonopy/SeeK-path example with `uv run --with phonopy --with seekpath`.

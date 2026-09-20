@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from functools import partial
+from functools import cache
+from itertools import product
 
-import jax
-import jax.numpy as jnp
 import numpy as np
+import sympy
 from ase import Atoms
 from ase.build import bulk
 from ase.calculators.morse import MorsePotential
@@ -62,24 +62,45 @@ def calculation(displacement: float) -> FiniteDifferenceCalculation:
     )
 
 
-@partial(jax.jit, static_argnums=())
-def _bond_fourth_derivative(vectors: jax.Array) -> jax.Array:
-    def energy(relative_displacement: jax.Array, vector: jax.Array) -> jax.Array:
-        distance = jnp.linalg.norm(vector + relative_displacement)
-        exponential = jnp.exp(RHO0 * (1.0 - distance / R0))
-        return EPSILON * exponential * (exponential - 2.0)
+@cache
+def _bond_fourth_derivative_evaluators():
+    """Return one NumPy evaluator per fourth-derivative tensor component."""
+    x, y, z, vx, vy, vz = sympy.symbols("x y z vx vy vz")
+    distance = sympy.sqrt((vx + x) ** 2 + (vy + y) ** 2 + (vz + z) ** 2)
+    exponential = sympy.exp(RHO0 * (1.0 - distance / R0))
+    energy = EPSILON * exponential * (exponential - 2.0)
+    origin = {x: 0, y: 0, z: 0}
+    coordinates = (x, y, z)
+    evaluators = []
+    for indices in product(range(3), repeat=4):
+        component = energy
+        for index in indices:
+            component = sympy.diff(component, coordinates[index])
+        evaluators.append(sympy.lambdify((vx, vy, vz), component.subs(origin), "numpy"))
+    return tuple(evaluators)
 
-    derivative = energy
-    for _ in range(4):
-        derivative = jax.jacfwd(derivative, argnums=0)
-    return jax.vmap(lambda vector: derivative(jnp.zeros(3), vector))(vectors)
+
+def _bond_fourth_derivative(vectors: np.ndarray) -> np.ndarray:
+    """Exact fourth derivative of the Morse pair energy at zero displacement.
+
+    The bond energy is differentiated symbolically in the three components of
+    the relative displacement and evaluated at the origin, so this oracle is
+    independent of any finite-difference or automatic-differentiation backend.
+    """
+    evaluators = _bond_fourth_derivative_evaluators()
+    tensors = np.empty((len(vectors), 3, 3, 3, 3))
+    for position, indices in enumerate(product(range(3), repeat=4)):
+        tensors[(slice(None), *indices)] = evaluators[position](
+            vectors[:, 0], vectors[:, 1], vectors[:, 2]
+        )
+    return tensors
 
 
 def exact_sparse_fc4(
     calculation: FiniteDifferenceCalculation,
     clusters: np.ndarray,
 ) -> np.ndarray:
-    """Evaluate exact FC4 on MLFCS clusters from an independent JAX energy."""
+    """Evaluate exact FC4 on MLFCS clusters from an independent symbolic energy."""
     supercell = calculation.supercell
     first, second, shifts = neighbor_list("ijS", supercell, RCUT2 * R0)
     unique = first < second
@@ -94,7 +115,7 @@ def exact_sparse_fc4(
     assert len(vectors) == 162
     assert np.allclose(np.linalg.norm(vectors, axis=1), R0, atol=1.0e-12, rtol=0)
 
-    bond_fc4 = np.asarray(_bond_fourth_derivative(jnp.asarray(vectors)))
+    bond_fc4 = _bond_fourth_derivative(vectors)
     tensors = np.zeros((len(clusters), 3, 3, 3, 3))
     for cluster_index, cluster in enumerate(clusters):
         for atom_a, atom_b, derivative in zip(first, second, bond_fc4, strict=True):

@@ -12,7 +12,6 @@ from mlfcs.constraints.translational import project_parameters
 from mlfcs.fitting.constraints import build_joint_constraints
 from mlfcs.fitting.dataset import FitDataset
 from mlfcs.fitting.gram import GramBuilder, GramStatistics
-from mlfcs.fitting.jax_runtime import JaxPlatform, resolve_jax_device
 from mlfcs.fitting.linear_solvers import (
     explicit_constraint_null_space,
     solve_scaled_group_lasso,
@@ -59,9 +58,7 @@ class ForceConstantFitter:
         cutoffs: dict[int, float | int | None] | None = None,
         max_body_orders: dict[int, int | None] | None = None,
         symprec: float = 1e-5,
-        jax_platform: JaxPlatform = "auto",
     ):
-        self.jax_device = resolve_jax_device(jax_platform)
         frame = ReferenceFrame.from_atoms(primitive, reference, symprec=symprec)
         self.geometry = frame.relation
         self.primitive = self.geometry.primitive
@@ -83,7 +80,6 @@ class ForceConstantFitter:
             )
         self.max_body_orders = dict(max_body_orders or {})
         self.symprec = symprec
-        self.jax_platform = jax_platform
         self._taylor = TaylorModel()
         order_text = "+".join(f"FC{order}" for order in self.orders)
         logger.info(f"Preparing independent {order_text} fitting parameterization")
@@ -269,7 +265,7 @@ class ForceConstantFitter:
         logger.info(f"- Training force RMSE: {training_metrics[0]:.10e} eV/Å")
         for order, rms in order_force_rms.items():
             logger.info(f"- FC{order} force contribution RMS: {rms:.10e} eV/Å")
-        logger.info("- JAX execution guard: 1 prepared program, independent Gram statistics")
+        logger.info("- Independent Gram statistics: one compiled design plan")
         logger.info(f"- Solver iterations={iterations}, stop_code={stop_code}")
         if stop_code != 0:
             logger.warning(
@@ -308,7 +304,6 @@ class ForceConstantFitter:
                 },
                 "acoustic_sum_rule": acoustic_sum_rule,
                 "training_equations": gram.n_equations,
-                "jax_platform": self.jax_platform,
             },
             sparse=sparse_values,
             relation=self.geometry,
@@ -368,12 +363,9 @@ class ForceConstantFitter:
         self,
         structures: list[Atoms] | tuple[Atoms, ...],
         *,
-        batch_size: int = 1,
         acoustic_sum_rule: bool = True,
     ) -> GramStatistics:
         """Build independent training statistics for a user-owned dataset."""
-        if batch_size < 1 or batch_size > 4:
-            raise ValueError("batch_size must be between 1 and 4")
         dataset = FitDataset.from_atoms(self.geometry, structures)
         constraints = build_joint_constraints(self.calculations, acoustic=acoustic_sum_rule)
         parameter_map = None
@@ -383,15 +375,11 @@ class ForceConstantFitter:
             calculations=self.calculations,
             training_displacements=dataset.displacements,
             parameterizations=self.order_tensors,
-            n_parameters=self.n_parameters,
-            batch_size=batch_size,
             parameter_map=parameter_map,
-            device=self.jax_device,
         )
         return GramBuilder.from_operator(
             prepared.operator,
             dataset.forces.reshape(-1),
-            batch_size=batch_size,
         )
 
     def _orbit_parameter_groups(self):

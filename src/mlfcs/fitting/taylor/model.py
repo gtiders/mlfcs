@@ -7,7 +7,6 @@ from dataclasses import dataclass
 import numpy as np
 
 from mlfcs.fitting.design_operator import ForceDesignOperator
-from mlfcs.fitting.taylor.features import taylor_axis_derivatives
 
 
 @dataclass(frozen=True, slots=True)
@@ -33,20 +32,12 @@ class TaylorModel:
         calculations,
         training_displacements,
         parameterizations,
-        n_parameters,
-        batch_size,
         parameter_map,
-        device,
     ) -> PreparedTaylorBasis:
         operator = ForceDesignOperator(
             training_displacements,
-            np.empty(0, dtype=float),
             parameterizations,
-            n_parameters,
-            batch_size,
             parameter_map=parameter_map,
-            device=device,
-            axis_derivatives=taylor_axis_derivatives,
         )
         return PreparedTaylorBasis(tuple(calculations), operator)
 

@@ -6,6 +6,18 @@
 
 ## 4.0.0a6 — 2026-09-20
 
+### 变化
+
+- 顶层命名空间改为直接导入全部工作流：`ForceConstantFitter`、`LoopSCPH`、`SSCHA`、
+  `perturb_structures` 的 `__getattr__` 延迟加载器已删除，`import mlfcs` 会一并加载拟合与
+  有限温度栈。
+- `prepare_gram()` 不再接受 `batch_size`：构型逐个流式处理，编译后的设计核从相互作用 orbit
+  获取并行度，因此不再暴露构型批次开关，设计矩阵的工作集也只对应单个构型。
+- 力设计矩阵与 Gram 统计改由 Numba 编译核构造，不再使用 JAX。GPU 路径、`jax_platform`
+  拟合参数以及 `jax` 运行时依赖全部移除：`prepare_gram()` 对每个 IFC order 只执行一次编译核，
+  Gram 矩阵由 OpenBLAS 累加，拟合栈因此可移植，也不再需要物化 XLA 分块缓冲。力常数元数据
+  不再包含 `jax_platform` 字段。
+
 ### 修复
 
 - `PeriodicGeometry` 改由 ASE 的 Minkowski 约化搜索求最小像，不再调用
