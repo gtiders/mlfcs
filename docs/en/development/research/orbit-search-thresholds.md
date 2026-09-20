@@ -142,6 +142,13 @@ The frame insight does transfer, with fast integer algebra instead of sympy:
 
 - spglib scaled rotations are exact integers for every cell tested (cubic, hexagonal, fcc primitive
   $60^\circ$), while the Cartesian ones are not;
+- the rank is certified in *both* directions by modular arithmetic: a full column rank modulo
+  a prime is immediate, and a deficient verdict adds primes until their product exceeds the
+  Hadamard bound of the largest minors (exact `isqrt` row norms; a floating point bound loses
+  precision and would certify a false answer), after which one prime must be good.  The
+  fraction-free elimination that used to settle the deficient verdict is gone: certifying all
+  twelve Grams of an order-4 space costs 378 ms, and a rejected reference is now reported in
+  1–48 ms instead of the 14 s that elimination needed for a single 27 by 27 Gram
 - an integer action is exact in `int64` Kronecker contraction, and the constraint block is
   $3^{\text{order}} \times C$; the kernel dimension is $C - \operatorname{rank}_\mathbb{Q}(G)$ with
   $G = B^T B$, and a rank modulo a large prime ($2^{31}-1$) is decisive here because

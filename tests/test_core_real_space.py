@@ -6,6 +6,8 @@ from ase.build import bulk
 from mlfcs import FiniteDifferenceCalculation, build_supercell, realize_force_constants
 from mlfcs.force_constants.representation import ForceConstants, SparseOrderForceConstants
 from mlfcs.interactions.algebra.actions import scaled_to_cartesian_matrix
+from mlfcs.interactions.algebra.exact import RANK_PRIMES as _RANK_PRIMES
+from mlfcs.interactions.algebra.exact import certified_rank
 from mlfcs.interactions.keys import InteractionKey
 from mlfcs.interactions.primitive.builder import (
     build_primitive_interaction_space,
@@ -266,3 +268,46 @@ def test_exact_fc2_realization_into_sheared_supercell_matches_residue_mapping():
         assert len(matches) == 1
         expected[0, matches[0]] += tensor
     np.testing.assert_allclose(actual, expected, atol=0.0, rtol=0.0)
+
+
+def _fraction_free_rank(rows) -> int:
+    """Reference exact rank by fraction-free elimination, used to check the certificate."""
+    matrix = [list(map(int, row)) for row in np.atleast_2d(rows)]
+    if not matrix or not matrix[0]:
+        return 0
+    n_rows, n_columns, rank = len(matrix), len(matrix[0]), 0
+    for column in range(n_columns):
+        pivot_row = next((row for row in range(rank, n_rows) if matrix[row][column]), None)
+        if pivot_row is None:
+            continue
+        matrix[rank], matrix[pivot_row] = matrix[pivot_row], matrix[rank]
+        pivot = matrix[rank][column]
+        for row in range(rank + 1, n_rows):
+            value = matrix[row][column]
+            if value:
+                matrix[row] = [
+                    pivot * entry - value * reference
+                    for entry, reference in zip(matrix[row], matrix[rank], strict=True)
+                ]
+        rank += 1
+        if rank == n_rows:
+            break
+    return rank
+
+
+def test_certified_rank_matches_fraction_free_elimination():
+    """The modular certificate must agree with exact elimination, including bad primes."""
+    rng = np.random.default_rng(5)
+    for _ in range(60):
+        shape = (int(rng.integers(1, 7)), int(rng.integers(1, 7)))
+        matrix = rng.integers(-4, 5, size=shape)
+        assert certified_rank(matrix) == _fraction_free_rank(matrix)
+
+    prime, other = _RANK_PRIMES
+    for matrix in (
+        np.diag([prime, prime]),
+        np.diag([prime * other, prime * other]),
+        np.array([[prime * other, 1], [0, 1]]),
+        np.array([[prime * other, 0], [1, 1]]),
+    ):
+        assert certified_rank(matrix) == _fraction_free_rank(matrix)
