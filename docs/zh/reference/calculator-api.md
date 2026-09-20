@@ -10,7 +10,7 @@ code_verified: 4.0.0a6
 # ASE Calculator
 
 `MLFCSCalculator` 将已经保存的 canonical Taylor 力常数解释为固定晶格上的多项式势能，提供
-ASE 标准的相对能量与原子力接口。它不重新拟合，不加载 JAX，也不依赖训练数据。
+ASE 标准的相对能量与原子力接口。它不重新拟合，不加载 Numba，也不依赖训练数据。
 
 ## 完整签名
 

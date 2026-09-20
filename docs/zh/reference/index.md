@@ -32,8 +32,8 @@ import mlfcs
 | realization | `realize_force_constants` | 将 primitive exact-$R$ IFC 展开到合法目标超胞 |
 | I/O | `read_hdf5`、`write_force_constants` | 读取原生 HDF5，写出原生或外部格式 |
 
-`mlfcs.__version__` 返回当前版本。`ForceConstantFitter` 和 `SSCHA` 延迟加载，因此
-`import mlfcs` 不会主动初始化 JAX。
+`mlfcs.__version__` 返回当前版本。顶层命名空间直接导入全部公共工作流，因此 `import mlfcs`
+会一并加载拟合与有限温度栈（含 Numba 编译后端）。
 
 ## 高级但有用的子模块对象
 
@@ -47,7 +47,7 @@ from mlfcs.physics.temperature import TemperatureSeriesResult
 from mlfcs.structure.relation import StructureRelation, align_structures
 ```
 
-这些对象适合结果分析、诊断和高级工作流；整数格、orbit、JAX packing 等内部实现不构成公共兼容承诺。
+这些对象适合结果分析、诊断和高级工作流；整数格、orbit、design packing 等内部实现不构成公共兼容承诺。
 
 ## 页面导航
 

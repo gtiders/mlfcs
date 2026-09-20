@@ -16,7 +16,7 @@ code_verified: 4.0.0a6
 | `TypeError` | 不是 ASE `Atoms`/`Calculator`/`ForceConstants` | 对象类型与导入来源 |
 | `ValueError` | 参数范围、结构关系、shape、order 或格式不合法 | 完整消息、reference 与单位 |
 | `KeyError` | 请求不存在的 IFC order 或温度 | `force_constants.orders`、温度序列 |
-| `RuntimeError` | 数值秩、JAX 设备、正规形或迭代内部保证失败 | 同一调用日志和秩信息 |
+| `RuntimeError` | 数值秩、正规形或迭代内部保证失败 | 同一调用日志和秩信息 |
 | `MemoryError` | 目标稠密张量超过可用内存 | 保持 sparse HDF5，避免高阶 materialization |
 | `AlamodeMirrorImageError` | 目标超胞不能表达 ALAMODE 27-image 编码 | 更换目标超胞或输出格式 |
 
