@@ -100,8 +100,7 @@ def test_force_is_negative_energy_gradient():
             plus[atom, axis] += step
             minus[atom, axis] -= step
             numerical[atom, axis] = -(
-                potential.evaluate_displacement(plus)[0]
-                - potential.evaluate_displacement(minus)[0]
+                potential.evaluate_displacement(plus)[0] - potential.evaluate_displacement(minus)[0]
             ) / (2 * step)
     np.testing.assert_allclose(forces, numerical, atol=2e-11, rtol=2e-9)
 

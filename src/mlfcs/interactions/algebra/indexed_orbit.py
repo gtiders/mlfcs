@@ -35,7 +35,9 @@ class IndexedOrbitResult:
 
 def _row_keys(values: np.ndarray) -> np.ndarray:
     contiguous = np.ascontiguousarray(values)
-    return contiguous.view(np.dtype((np.void, contiguous.dtype.itemsize * contiguous.shape[1]))).ravel()
+    return contiguous.view(
+        np.dtype((np.void, contiguous.dtype.itemsize * contiguous.shape[1]))
+    ).ravel()
 
 
 def _lookup_rows(haystack: np.ndarray, needles: np.ndarray) -> np.ndarray:
@@ -68,9 +70,7 @@ def _action_signature(action: TensorAction) -> tuple[tuple[float, ...], tuple[in
 
 def _same_action(left: TensorAction, right: TensorAction) -> bool:
     """Compare finite action matrices without NumPy's general allclose path."""
-    return left.permutation == right.permutation and np.array_equal(
-        left.rotation, right.rotation
-    )
+    return left.permutation == right.permutation and np.array_equal(left.rotation, right.rotation)
 
 
 def traverse_indexed_orbit(

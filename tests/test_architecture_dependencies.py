@@ -27,7 +27,14 @@ def test_package_dependencies_follow_the_locked_dag():
 
 
 def test_mainline_packages_do_not_depend_on_phonon_workflows():
-    for package in ("structure", "interactions", "force_constants", "constraints", "finite_difference", "fitting"):
+    for package in (
+        "structure",
+        "interactions",
+        "force_constants",
+        "constraints",
+        "finite_difference",
+        "fitting",
+    ):
         assert "phonon" not in internal_dependencies(package), package
 
 

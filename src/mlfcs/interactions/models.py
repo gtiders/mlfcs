@@ -77,7 +77,11 @@ class RealizedInteractionSpace:
         for orbit in self.orbits:
             for component in orbit.pivots:
                 directions = np.unravel_index(int(component), (3,) * self.order)
-                keys.add(tuple((orbit.representative[i], int(directions[i])) for i in range(self.order - 1)))
+                keys.add(
+                    tuple(
+                        (orbit.representative[i], int(directions[i])) for i in range(self.order - 1)
+                    )
+                )
         return tuple(sorted(keys))
 
 

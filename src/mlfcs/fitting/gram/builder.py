@@ -186,11 +186,15 @@ class GramAccumulator:
                 )
         target_norm = float(np.vdot(target, target))
         return GramStatistics(
-            np.asarray(gram), np.asarray(rhs), target_norm, len(target),
+            np.asarray(gram),
+            np.asarray(rhs),
+            target_norm,
+            len(target),
             {
                 "parameter_map": operator.parameter_map,
             },
         )
+
 
 class GramBuilder:
     """Explicit entry point for one-shot, device-independent Gram construction."""

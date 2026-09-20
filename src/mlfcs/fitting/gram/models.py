@@ -43,7 +43,9 @@ class GramStatistics:
 
     def force_metrics(self, parameters):
         residual_squared = max(
-            float(parameters @ self.gram @ parameters - 2 * parameters @ self.rhs + self.target_norm),
+            float(
+                parameters @ self.gram @ parameters - 2 * parameters @ self.rhs + self.target_norm
+            ),
             0.0,
         )
         relative = (
@@ -68,8 +70,13 @@ class GramStatistics:
         from mlfcs.fitting.linear_solvers import solve_gram_system
 
         return solve_gram_system(
-            self.gram, self.rhs, self.target_norm, scale, constraints,
-            tolerance=tolerance, max_iterations=max_iterations,
+            self.gram,
+            self.rhs,
+            self.target_norm,
+            scale,
+            constraints,
+            tolerance=tolerance,
+            max_iterations=max_iterations,
         )
 
     def save(self, path: str | Path) -> None:
@@ -86,7 +93,8 @@ class GramStatistics:
         serializable = {
             key: value
             for key, value in self.metadata.items()
-            if not isinstance(value, np.ndarray) and isinstance(value, (str, int, float, bool, type(None)))
+            if not isinstance(value, np.ndarray)
+            and isinstance(value, (str, int, float, bool, type(None)))
         }
         for key in tuple(serializable):
             if key == "parameter_map":

@@ -47,8 +47,12 @@ def test_sscha_uses_taylor_coordinates():
     reference = make_supercell(primitive_atoms, (2, 2, 2))[0]
     calculator = TranslationalHarmonic(reference)
     solver = SSCHA(
-        primitive_atoms, reference=reference, cutoff=-1, snapshots=8,
-        max_iterations=0, random_seed=31,
+        primitive_atoms,
+        reference=reference,
+        cutoff=-1,
+        snapshots=8,
+        max_iterations=0,
+        random_seed=31,
     )
     solver.step(calculator, calculate_free_energy=False)
     assert solver.force_constants is not None

@@ -195,6 +195,7 @@ class ForceDesignOperator:
             program=self.program,
             device_gram=self.device_gram,
         )
+
     def device_reduction(self, force_rows):
         """Return a reusable bounded device map for one batch row shape."""
         if self.parameter_map is None:
@@ -204,6 +205,7 @@ class ForceDesignOperator:
             plan = prepare_device_reduction(self.parameter_map, force_rows, self.program.device)
             self._device_reductions[force_rows] = plan
         return plan
+
 
 def prepare_design_kernel_groups(operator):
     """Return an operator's already-prepared bounded design groups.
