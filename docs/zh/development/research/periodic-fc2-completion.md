@@ -41,6 +41,3 @@ fitter = ForceConstantFitter(
 到不同大小超胞。Si 三帧测试显示新增自由度可能过拟合；NaCl 两帧官方 DFT 数据中，hybrid
 相对 phonopy FC2 的差异从 0.0405 降至 0.00882，且不开 NAC 的声子频率 RMS 差异从
 0.1273 THz 降至 0.000328 THz。
-
-完整推导、symfc 对照、内存分析和复现脚本位于
-`research/periodic_fc2_completion/`。

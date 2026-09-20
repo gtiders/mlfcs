@@ -10,7 +10,7 @@
 
 本文件保存早期设计与原型结论。正式 Calculator 只承诺求值 canonical Taylor IFC，不宣称
 严格复现训练期 Wick predictor。Wick folding 限制仍记录于
-`research/wick_contraction_folding/README.md`，但它不阻止零 FC1 的 Taylor artifact 作为独立
+`wick-contraction-folding.md`，但它不阻止零 FC1 的 Taylor artifact 作为独立
 多项式势使用。HDF5 schema 仍不增加 FC1 或绝对参考能量。
 
 ## 1. 结论
@@ -153,7 +153,7 @@ covariance folding 是否产生 transferable FC2 span 之外的 finite harmonic 
 source-only companion 保存，否则必须拒绝转换，不能静默投影。
 
 当前项目决定暂不实施该 guard，并将这一现象作为可接受的建模假设独立记录在
-`research/wick_contraction_folding/README.md`。该限制适用于所有 FC$n$→FC$(n-2p)$ Wick
+`wick-contraction-folding.md`。该限制适用于所有 FC$n$→FC$(n-2p)$ Wick
 contraction，不只 FC4→FC2。
 
 ## 5. HDF5 v3 自包含性
