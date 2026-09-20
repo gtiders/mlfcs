@@ -19,7 +19,9 @@ def invariant_basis_from_gram(gram: np.ndarray, *, tolerance: float) -> np.ndarr
 def _label_symmetric_basis(cluster: tuple[int, ...]) -> np.ndarray:
     groups = []
     for atom in dict.fromkeys(cluster):
-        positions = np.asarray([i for i, value in enumerate(cluster) if value == atom], dtype=np.int32)
+        positions = np.asarray(
+            [i for i, value in enumerate(cluster) if value == atom], dtype=np.int32
+        )
         if len(positions) > 1:
             groups.append(positions)
     size = 3 ** len(cluster)
@@ -38,9 +40,8 @@ def _label_symmetric_basis(cluster: tuple[int, ...]) -> np.ndarray:
         basis[members, column] = 1.0 / np.sqrt(len(members))
     return basis
 
-def select_independent_rows(
-    basis: np.ndarray, *, tolerance: float
-) -> np.ndarray:
+
+def select_independent_rows(basis: np.ndarray, *, tolerance: float) -> np.ndarray:
     if basis.shape[1] == 0:
         return np.empty(0, dtype=np.int32)
     selected = []

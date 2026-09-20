@@ -90,9 +90,7 @@ class MLFCSCalculator(Calculator):
         values = np.asarray(displacements, dtype=float)
         if values.ndim != 3:
             raise ValueError("displacements must have shape (batch, atoms, 3)")
-        return np.asarray(
-            [self.potential.evaluate_displacement(value)[1] for value in values]
-        )
+        return np.asarray([self.potential.evaluate_displacement(value)[1] for value in values])
 
 
 __all__ = ["MLFCSCalculator"]

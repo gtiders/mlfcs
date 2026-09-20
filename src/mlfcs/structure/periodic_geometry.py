@@ -6,17 +6,21 @@ from dataclasses import dataclass, field
 from itertools import product
 
 import numpy as np
-from ase.geometry import find_mic, minkowski_reduce
+from ase.geometry import minkowski_reduce
+from ase.geometry.geometry import general_find_mic
 
 
 @dataclass(frozen=True, slots=True)
 class PeriodicGeometry:
-    """One reduced-lattice implementation of periodic distance operations.
+    """One reduced-lattice implementation of exact periodic distance operations.
 
+    The minimum image is always resolved through ASE's Minkowski-reduction
+    based search (``general_find_mic``) rather than through its ``find_mic``
+    dispatcher, whose skewed-cell shortcut can return a non-minimum image.
     The main calculation never enumerates a fixed image box in the supplied
-    cell basis.  ASE selects a general minimum image; the reduced lattice is
-    then used only to recover all images tied at that minimum.  This keeps
-    skewed and unimodularly transformed frames on the same geometry rule.
+    cell basis; the reduced lattice is then used only to recover all images
+    tied at that minimum.  This keeps skewed and unimodularly transformed
+    frames on the same geometry rule.
     """
 
     cell: np.ndarray
@@ -46,12 +50,29 @@ class PeriodicGeometry:
         object.__setattr__(self, "_minimum_length_cache", {})
 
     def mic(self, vectors: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-        """Return ASE's general minimum-image vectors and their lengths."""
+        """Return the exact minimum-image vectors and their lengths.
+
+        ASE's ``find_mic`` cannot be used here: it skips the Minkowski
+        reduction whenever the folded vector is shorter than
+        ``0.5 * min(cell.lengths())``, and that bound is not the inradius of
+        the Wigner-Seitz cell, so skewed cells receive a non-minimum image.
+        ``general_find_mic`` always reduces first and is exact for any cell.
+
+        A ``(3,)`` input returns one vector and a scalar length; an ``(n, 3)``
+        input returns ``(n, 3)`` vectors and ``(n,)`` lengths.
+        """
         values = np.asarray(vectors, dtype=float)
-        return find_mic(values, self.cell, pbc=self.pbc)
+        single = values.ndim == 1
+        values = np.atleast_2d(values)
+        if values.ndim != 2 or values.shape[1] != 3:
+            raise ValueError("mic expects a (3,) or (n, 3) Cartesian array")
+        minimum, lengths = general_find_mic(values, self.cell, pbc=self.pbc)
+        if single:
+            return minimum[0], lengths[0]
+        return minimum, lengths
 
     def pair_distances(self, positions: np.ndarray) -> np.ndarray:
-        """Return the complete general-MIC distance matrix for ``positions``."""
+        """Return the complete minimum-image distance matrix for ``positions``."""
         values = np.asarray(positions, dtype=float)
         if values.ndim != 2 or values.shape[1] != 3:
             raise ValueError("pair_distances expects an (n, 3) Cartesian array")
@@ -64,7 +85,8 @@ class PeriodicGeometry:
         Shifts are row-vector integer coefficients of ``cell``.  The first
         returned array contains Cartesian image vectors; the second contains
         the matching shifts.  The search is local in a Minkowski-reduced
-        basis around ASE's MIC result, rather than in a fixed source-cell box.
+        basis around the exact minimum image, rather than in a fixed
+        source-cell box.
         """
         value = np.asarray(vector, dtype=float)
         if value.shape != (3,):
@@ -73,9 +95,9 @@ class PeriodicGeometry:
         cached = self._closest_cache.get(key)
         if cached is not None:
             return cached
-        mic, length = find_mic(value[None, :], self.cell, pbc=self.pbc)
-        minimum = float(np.asarray(length).reshape(-1)[0])
-        centre = np.rint((mic.reshape(3) - value) @ np.linalg.inv(self.cell)).astype(np.int32)
+        minimum_vector, length = self.mic(value)
+        minimum = float(length)
+        centre = np.rint((minimum_vector - value) @ np.linalg.inv(self.cell)).astype(np.int32)
         local = np.asarray(tuple(product((-1, 0, 1), repeat=3)), dtype=np.int32)
         shifts = centre + local @ self._reduction
         images = value + shifts @ self.cell
@@ -92,7 +114,7 @@ class PeriodicGeometry:
         return result
 
     def minimum_length(self, vector: np.ndarray) -> float:
-        """Return a cached general-MIC length for one Cartesian vector."""
+        """Return a cached minimum-image length for one Cartesian vector."""
         value = np.asarray(vector, dtype=float)
         if value.shape != (3,):
             raise ValueError("minimum_length expects one Cartesian 3-vector")
@@ -100,8 +122,8 @@ class PeriodicGeometry:
         cached = self._minimum_length_cache.get(key)
         if cached is not None:
             return cached
-        _, length = self.mic(value[None, :])
-        result = float(np.asarray(length).reshape(-1)[0])
+        _, length = self.mic(value)
+        result = float(length)
         self._minimum_length_cache[key] = result
         return result
 

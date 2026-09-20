@@ -37,15 +37,11 @@ def select_group_generators(
             candidates.append((int(candidate.order()), -index, permutation, candidate))
         if not candidates:
             raise ValueError("permutations are not closed under the generated group")
-        _order, _negative_index, permutation, group = max(
-            candidates, key=lambda value: value[:2]
-        )
+        _order, _negative_index, permutation, group = max(candidates, key=lambda value: value[:2])
         selected.append(permutation)
     group.schreier_sims()
     if group.order() != expected_order:
-        raise ValueError(
-            f"generator group has order {group.order()}, expected {expected_order}"
-        )
+        raise ValueError(f"generator group has order {group.order()}, expected {expected_order}")
     return tuple(selected)
 
 

@@ -141,7 +141,11 @@ class ForceConstantFitter:
             f"({constraints.translational_rows} ASR before compression)"
         )
         parameter_map = gram.metadata.get("parameter_map")
-        if parameter_map is None and normalized_regularization == "none" and constraints.matrix.shape[0]:
+        if (
+            parameter_map is None
+            and normalized_regularization == "none"
+            and constraints.matrix.shape[0]
+        ):
             parameter_map = explicit_constraint_null_space(
                 constraints.matrix,
                 tolerance=1e-11,
@@ -265,10 +269,7 @@ class ForceConstantFitter:
         logger.info(f"- Training force RMSE: {training_metrics[0]:.10e} eV/Å")
         for order, rms in order_force_rms.items():
             logger.info(f"- FC{order} force contribution RMS: {rms:.10e} eV/Å")
-        logger.info(
-            "- JAX execution guard: 1 prepared program, "
-            "independent Gram statistics"
-        )
+        logger.info("- JAX execution guard: 1 prepared program, independent Gram statistics")
         logger.info(f"- Solver iterations={iterations}, stop_code={stop_code}")
         if stop_code != 0:
             logger.warning(
@@ -356,7 +357,11 @@ class ForceConstantFitter:
         count = residual.size
         target_squared = float(np.sum(dataset.forces**2))
         rmse = float(np.sqrt(squared / count)) if count else 0.0
-        relative = float(np.sqrt(squared / target_squared)) if target_squared else (0.0 if squared == 0 else float("inf"))
+        relative = (
+            float(np.sqrt(squared / target_squared))
+            if target_squared
+            else (0.0 if squared == 0 else float("inf"))
+        )
         return rmse, relative
 
     def prepare_gram(

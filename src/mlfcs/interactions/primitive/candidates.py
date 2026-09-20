@@ -34,9 +34,7 @@ def resolve_primitive_cutoff(
             "ijSd", reference, upper, self_interaction=False
         )
         by_pair: dict[tuple[int, int], list[tuple[float, tuple[int, int, int]]]] = {}
-        for atom_i, atom_j, shift, distance in zip(
-            first, second, shifts, distances, strict=True
-        ):
+        for atom_i, atom_j, shift, distance in zip(first, second, shifts, distances, strict=True):
             by_pair.setdefault((int(atom_i), int(atom_j)), []).append(
                 (float(distance), tuple(int(value) for value in shift))
             )
@@ -64,9 +62,7 @@ def resolve_primitive_cutoff(
         raise ValueError("neighbor shell must be positive")
     radius = max(float(np.min(np.linalg.norm(np.asarray(primitive.cell), axis=1))), 1.0)
     for _ in range(16):
-        first, _second, distances = neighbor_list(
-            "ijd", primitive, radius, self_interaction=False
-        )
+        first, _second, distances = neighbor_list("ijd", primitive, radius, self_interaction=False)
         shells = []
         for site in range(len(primitive)):
             try:
@@ -74,9 +70,7 @@ def resolve_primitive_cutoff(
             except ValueError:
                 shells.append([])
         if all(len(values) > shell for values in shells):
-            return float(
-                max((values[shell - 1] + values[shell]) / 2.0 for values in shells)
-            )
+            return float(max((values[shell - 1] + values[shell]) / 2.0 for values in shells))
         radius *= 2.0
     raise RuntimeError("could not resolve the requested primitive neighbor shell")
 
@@ -86,9 +80,7 @@ def _primitive_neighbors(primitive: Atoms, cutoff: float):
         "ijSd", primitive, cutoff, self_interaction=True
     )
     result: list[list[tuple[int, int, int, int]]] = [[] for _ in primitive]
-    for anchor, site, shift, distance in zip(
-        first, second, shifts, distances, strict=True
-    ):
+    for anchor, site, shift, distance in zip(first, second, shifts, distances, strict=True):
         if float(distance) < cutoff:
             result[int(anchor)].append((int(site), *(int(value) for value in shift)))
     return [tuple(sorted(set(values))) for values in result]
@@ -109,10 +101,7 @@ def _compatible_tails(candidates, length, primitive: Atoms, cutoff: float):
         for location in range(start, len(candidates)):
             candidate = candidates[location]
             point = coordinate(candidate)
-            if all(
-                np.linalg.norm(point - coordinate(previous)) < cutoff
-                for previous in prefix
-            ):
+            if all(np.linalg.norm(point - coordinate(previous)) < cutoff for previous in prefix):
                 prefix.append(candidate)
                 yield from extend(location)
                 prefix.pop()

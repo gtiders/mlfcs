@@ -79,13 +79,19 @@ def tensor_action_matrix(
 def compose_actions(after: TensorAction, before: TensorAction) -> TensorAction:
     if after.order != before.order:
         raise ValueError("cannot compose tensor actions of different orders")
-    return TensorAction(after.rotation @ before.rotation,
-                        tuple(before.permutation[i] for i in after.permutation), after.order)
+    return TensorAction(
+        after.rotation @ before.rotation,
+        tuple(before.permutation[i] for i in after.permutation),
+        after.order,
+    )
 
 
 def inverse_action(action: TensorAction) -> TensorAction:
-    return TensorAction(np.linalg.inv(action.rotation),
-                        tuple(int(value) for value in np.argsort(action.permutation)), action.order)
+    return TensorAction(
+        np.linalg.inv(action.rotation),
+        tuple(int(value) for value in np.argsort(action.permutation)),
+        action.order,
+    )
 
 
 def apply_action_columns(action: TensorAction, values: np.ndarray) -> np.ndarray:

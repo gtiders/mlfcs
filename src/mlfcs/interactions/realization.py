@@ -133,7 +133,9 @@ def _realize_orbit_space(space: PrimitiveInteractionSpace, index) -> RealizedInt
                 tuple(images),
             )
         )
-    return RealizedInteractionSpace(space.order, tuple(realized), space.cutoff, space.max_body_order)
+    return RealizedInteractionSpace(
+        space.order, tuple(realized), space.cutoff, space.max_body_order
+    )
 
 
 def realize_interaction_space(
@@ -146,9 +148,7 @@ def realize_interaction_space(
     """Realize primitive exact-R interactions in one reference cell."""
     result = _realize_orbit_space(space, index)
     if validate_identifiability:
-        validate_realization_identifiability(
-            space, index, tolerance=tolerance, realized=result
-        )
+        validate_realization_identifiability(space, index, tolerance=tolerance, realized=result)
     return RealizedInteractionSpace(
         result.order,
         tuple(

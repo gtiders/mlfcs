@@ -2,25 +2,25 @@
 
 from __future__ import annotations
 
-import jax.numpy as jnp
-
-
-def taylor(displacement, _state, coordinates, order):
-    """Evaluate one multivariate Taylor monomial."""
-    values = displacement.reshape(-1)[coordinates]
-    return jnp.prod(values[..., :order], axis=-1)
+import numpy as np
 
 
 def taylor_axis_derivatives(displacement, _state, coordinates, order):
-    """Return the leave-one-axis monomial for every tensor axis."""
+    """Return the leave-one-axis monomial for every tensor axis.
+
+    This feature is evaluated inside jitted design kernels.  ``np.prod`` and
+    ``np.asarray`` are used only on a host-side axis index, so numpy dispatches
+    the reduction to the array's own ``prod`` and the values stay traced; the
+    monomial is never materialised on the host.
+    """
     values = displacement.reshape(-1)[coordinates]
     return tuple(
-        jnp.prod(
-            values[..., jnp.asarray([other for other in range(order) if other != axis])],
+        np.prod(
+            values[..., np.asarray([other for other in range(order) if other != axis])],
             axis=-1,
         )
         for axis in range(order)
     )
 
 
-__all__ = ["taylor", "taylor_axis_derivatives"]
+__all__ = ["taylor_axis_derivatives"]

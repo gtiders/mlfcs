@@ -27,6 +27,7 @@ dependencies = [
     "ase>=3.23",
     "h5py>=3.10",
     "jax>=0.4.31",
+    "numba>=0.67.0",
     "numpy>=1.26",
     "scipy>=1.11",
     "spglib>=2.5",
@@ -48,7 +49,7 @@ docs = [
 ]
 
 [[tool.uv.index]]
-url = "https://mirrors.ustc.edu.cn/pypi/web/simple"
+url = "https://pypi.mirrors.ustc.edu.cn/simple"
 default = true
 
 [build-system]

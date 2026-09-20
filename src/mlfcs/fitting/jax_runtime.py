@@ -1,13 +1,10 @@
 from __future__ import annotations
 
-import os
-from contextlib import nullcontext
 from typing import Literal
 
 import jax
 
 JaxPlatform = Literal["auto", "cpu", "gpu"]
-TransferGuard = Literal["log", "disallow", "log_explicit", "disallow_explicit"]
 
 
 def resolve_jax_device(platform: JaxPlatform = "auto") -> jax.Device:
@@ -35,20 +32,3 @@ def resolve_jax_device(platform: JaxPlatform = "auto") -> jax.Device:
 def configure_jax(platform: JaxPlatform = "auto") -> None:
     """Validate legacy explicit JAX selection without changing global backend state."""
     resolve_jax_device(platform)
-
-
-def transfer_guard():
-    """Enable optional transfer auditing through ``MLFCS_JAX_TRANSFER_GUARD``.
-
-    The default is inert.  CI or a developer can set the environment variable
-    to a documented JAX guard level and turn accidental host/device copies
-    into log entries or errors without adding a user-facing fitting parameter.
-    """
-    level = os.environ.get("MLFCS_JAX_TRANSFER_GUARD")
-    if level is None:
-        return nullcontext()
-    if level not in {"log", "disallow", "log_explicit", "disallow_explicit"}:
-        raise ValueError(
-            "MLFCS_JAX_TRANSFER_GUARD must be log, disallow, log_explicit, or disallow_explicit"
-        )
-    return jax.transfer_guard(level)

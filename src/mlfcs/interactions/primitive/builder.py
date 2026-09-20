@@ -69,9 +69,7 @@ def build_primitive_interaction_space(
             for row, action in zip(orbit.result.states, orbit.result.actions, strict=True)
         )
         result.append(
-            PrimitiveInteractionOrbit(
-                orbit.representative, orbit.basis, orbit.pivots, images
-            )
+            PrimitiveInteractionOrbit(orbit.representative, orbit.basis, orbit.pivots, images)
         )
     return PrimitiveInteractionSpace(
         primitive, order, radius, max_body_order, symmetry, tuple(result)
@@ -99,7 +97,9 @@ def _operation_signature(symmetry: PrimitiveSymmetryOperations, operation: int) 
 
 def operation_composition_table(symmetry: PrimitiveSymmetryOperations) -> np.ndarray:
     """Build the exact affine operation table used to create a SymPy group."""
-    lookup = {_operation_signature(symmetry, operation): operation for operation in range(symmetry.size)}
+    lookup = {
+        _operation_signature(symmetry, operation): operation for operation in range(symmetry.size)
+    }
     table = np.empty((symmetry.size, symmetry.size), dtype=np.int32)
     for after in range(symmetry.size):
         for before in range(symmetry.size):
@@ -125,7 +125,10 @@ def sympy_space_group_generators(
 ) -> tuple[tuple[int, ...], PermutationGroup]:
     """Select deterministic affine generators using SymPy group orders."""
     table = operation_composition_table(symmetry)
-    regular = tuple(Permutation([int(table[operation, value]) for value in range(symmetry.size)]) for operation in range(symmetry.size))
+    regular = tuple(
+        Permutation([int(table[operation, value]) for value in range(symmetry.size)])
+        for operation in range(symmetry.size)
+    )
     selected_permutations = select_group_generators(regular)
     selected = tuple(regular.index(permutation) for permutation in selected_permutations)
     group = PermutationGroup(list(selected_permutations))
@@ -215,9 +218,7 @@ def generated_orbit(
         seed_basis=label_basis,
         canonical_columns=tuple(range(0, seed.order * 4, 4))
         + tuple(
-            column
-            for axis in range(1, seed.order)
-            for column in range(axis * 4 + 1, axis * 4 + 4)
+            column for axis in range(1, seed.order) for column in range(axis * 4 + 1, axis * 4 + 4)
         )
         + tuple(range(1, 4)),
         tolerance=tolerance,
