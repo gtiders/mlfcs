@@ -146,8 +146,10 @@ The frame insight does transfer, with fast integer algebra instead of sympy:
   a prime is immediate, and a deficient verdict adds primes until their product exceeds the
   Hadamard bound of the largest minors (exact `isqrt` row norms; a floating point bound loses
   precision and would certify a false answer), after which one prime must be good.  The
-  primes come from an unbounded deterministic stream, because a matrix whose entries reach
-  $2^{31}$ needs dozens of them.  A deficient matrix keeps its low rank however many primes are
+  primes come from an unbounded stream of the existing `sympy` dependency
+  (`ntheory.generate.prevprime`, definitive below $2^{64}$ and measured at 38 µs per prime
+  against 97 µs for a hand-written test), because a matrix whose entries reach $2^{31}$ needs
+  dozens of them.  A deficient matrix keeps its low rank however many primes are
   added, since a modular rank never exceeds the exact one; the fraction-free elimination that
   used to settle that verdict is gone, certifying all twelve Grams of an order-4 space costs
   378 ms, and a rejected reference is now reported in 1–48 ms instead of the 14 s that

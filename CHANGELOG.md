@@ -24,7 +24,7 @@ All notable changes are documented here. Releases follow semantic versioning.
 
 ### Changed
 
-- The exact rank used by identifiability is now proven in both directions by modular arithmetic: a full rank modulo a prime settles it, and a deficient verdict adds primes until their product exceeds the exact Hadamard bound of the largest minors (which guarantees one good prime). The fraction-free elimination that used to settle the deficient verdict is removed, so a rejected reference is reported in milliseconds rather than seconds to minutes.
+- The exact rank used by identifiability is now proven in both directions by modular arithmetic: a full rank modulo a prime settles it, and a deficient verdict adds primes until their product exceeds the exact Hadamard bound of the largest minors (which guarantees one good prime). The fraction-free elimination that used to settle the deficient verdict is removed, so a rejected reference is reported in milliseconds rather than seconds to minutes. The primes themselves come from `sympy.ntheory.generate.prevprime` instead of a hand-written primality test, which is both faster and one less thing to own.
 
 - Primitive orbit bases are decided in the lattice (scaled) frame. spglib rotations are integer
   matrices there for every cell, so the invariant kernel, its dimension and the orbit basis come

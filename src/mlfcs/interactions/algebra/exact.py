@@ -117,35 +117,18 @@ def certified_rank(rows: list[list[int]] | np.ndarray) -> int:
 
 
 def prime_stream() -> Iterator[int]:
-    """Yield distinct primes below $2^{31}$ in descending order, lazily."""
-    yield from RANK_PRIMES
-    candidate = RANK_PRIMES[-1] - 2
-    while candidate > 1:
-        if _is_prime(candidate):
-            yield candidate
-        candidate -= 2
+    """Yield distinct primes below $2^{31}$ in descending order.
 
+    ``sympy.ntheory.generate.prevprime`` decides primality definitively below $2^{64}$,
+    which covers this range, and it is faster than walking candidates with a hand-written
+    test; the import is deferred so that the module stays cheap to import.
+    """
+    from sympy.ntheory.generate import prevprime
 
-def _is_prime(value: int) -> bool:
-    """Return whether ``value`` is prime, by trial division and Miller-Rabin."""
-    if value < 2:
-        return False
-    for small in (2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37):
-        if value % small == 0:
-            return value == small
-    shift = (value - 1) & -(value - 1)
-    odd = (value - 1) // shift
-    for base in (2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37):
-        power = pow(base, odd, value)
-        if power in (1, value - 1):
-            continue
-        for _ in range(shift.bit_length() - 1):
-            power = power * power % value
-            if power == value - 1:
-                break
-        else:
-            return False
-    return True
+    candidate = 1 << 31
+    while candidate > 2:
+        candidate = int(prevprime(candidate))
+        yield candidate
 
 
 __all__ = [

@@ -1,3 +1,5 @@
+import itertools
+
 import numpy as np
 import pytest
 from ase import Atoms
@@ -7,7 +9,7 @@ from mlfcs import FiniteDifferenceCalculation, build_supercell, realize_force_co
 from mlfcs.force_constants.representation import ForceConstants, SparseOrderForceConstants
 from mlfcs.interactions.algebra.actions import scaled_to_cartesian_matrix
 from mlfcs.interactions.algebra.exact import RANK_PRIMES as _RANK_PRIMES
-from mlfcs.interactions.algebra.exact import certified_rank
+from mlfcs.interactions.algebra.exact import certified_rank, prime_stream
 from mlfcs.interactions.keys import InteractionKey
 from mlfcs.interactions.primitive.builder import (
     build_primitive_interaction_space,
@@ -312,6 +314,7 @@ def test_certified_rank_matches_fraction_free_elimination():
     ):
         assert certified_rank(matrix) == _fraction_free_rank(matrix)
 
+    assert tuple(itertools.islice(prime_stream(), 2)) == _RANK_PRIMES
     # A genuinely deficient matrix keeps its rank however many primes are added, and a
     # certificate whose Hadamard bound needs dozens of primes still terminates.
     assert certified_rank(np.array([[1, 2, 3], [2, 4, 6], [1, 2, 3]])) == 1
