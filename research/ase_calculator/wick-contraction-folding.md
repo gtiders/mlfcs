@@ -146,5 +146,4 @@ transferable span，并将 span 外 residual 作为诊断或 source-only compani
 相关原型和数值结果位于：
 
 - `research/ase_calculator/prototype.py`；
-- `research/ase_calculator/results.json`；
-- `research/fc2_observable_closure/`。
+- `research/ase_calculator/results.json`。
