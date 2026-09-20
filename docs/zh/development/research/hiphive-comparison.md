@@ -1,5 +1,5 @@
 ---
-title: 与 hiPhive 的对比：初始化与表示
+title: "与 hiPhive 的对比：初始化与表示"
 audience:
   - advanced
   - developer

@@ -1,5 +1,5 @@
 ---
-title: hiPhive Comparison: Initialization and Representation
+title: "hiPhive Comparison: Initialization and Representation"
 audience:
   - advanced
   - developer
