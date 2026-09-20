@@ -254,11 +254,9 @@ class ForceDesignOperator:
         plan: ForceDesignPlan | None = None,
     ):
         values = np.ascontiguousarray(displacements, dtype=float)
-        if values.ndim != 3 or values.shape[2] != 3:
-            raise ValueError("displacements must have shape (snapshots, atoms, 3)")
-        self.displacements = values
-        self.force_shape = self.displacements.shape
-        self.rows_per_snapshot = int(np.prod(self.force_shape[1:]))
+        self.force_shape = values.shape
+        self.displacements = values.reshape(len(values), -1)
+        self.rows_per_snapshot = self.displacements.shape[1]
         self.plan = ForceDesignPlan.compile(parameterizations) if plan is None else plan
         if parameter_map is not None and parameter_map.shape[0] != self.plan.n_parameters:
             raise ValueError("the constraint map does not match the compiled design columns")

@@ -37,8 +37,6 @@ class PeriodicGeometry:
 
     def __post_init__(self) -> None:
         cell = np.asarray(self.cell, dtype=float)
-        if cell.shape != (3, 3) or abs(np.linalg.det(cell)) < 1e-12:
-            raise ValueError("periodic geometry requires a nonsingular 3x3 cell")
         pbc = np.broadcast_to(np.asarray(self.pbc, dtype=bool), (3,)).copy()
         if not np.all(pbc):
             raise ValueError("MLFCS periodic geometry requires three periodic directions")
