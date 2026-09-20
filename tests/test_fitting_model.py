@@ -1,7 +1,5 @@
 import inspect
 
-import jax
-import jax.numpy as jnp
 import numpy as np
 import pytest
 from ase import Atoms
@@ -9,29 +7,12 @@ from ase.calculators.singlepoint import SinglePointCalculator
 from scipy import sparse
 
 from mlfcs.fitting import ForceConstantFitter
-from mlfcs.fitting.design_operator import ForceDesignOperator as _BatchedForceOperator
-from mlfcs.fitting.design_operator import physical_tile_shape as _physical_tile_shape
-from mlfcs.fitting.design_operator import (
-    prepare_design_kernel_groups as _prepare_physical_design_builders,
-)
-from mlfcs.fitting.design_operator import prepare_device_reduction as _prepare_device_reduction
+from mlfcs.fitting.design_operator import ForceDesignOperator as _ForceDesignOperator
+from mlfcs.fitting.design_operator import ForceDesignPlan as _ForceDesignPlan
 from mlfcs.fitting.gram import GramBuilder, GramStatistics
 from mlfcs.fitting.linear_solvers import explicit_constraint_null_space
 from mlfcs.fitting.parameterization import OrderParameterization as _OrderTensor
-from mlfcs.fitting.taylor.features import taylor_axis_derivatives as _taylor_axis_derivatives
-
-
-def _design_prediction(operator, parameters):
-    """Build prediction rows explicitly for design-kernel regression tests."""
-    rows = int(np.prod(operator.force_shape))
-    result = np.zeros(rows)
-    for group in operator.program.groups:
-        tiles = group.kernel(
-            jnp.asarray(operator.displacements), operator.basis_state, *group.device_arguments
-        )
-        for tile, columns in zip(tiles, group.columns, strict=True):
-            result += np.asarray(tile).reshape(rows, -1) @ np.asarray(parameters)[columns]
-    return result
+from mlfcs.fitting.parameterization import image_parameter_basis
 
 
 def test_fitter_fit_exposes_only_strict_solver_controls():
@@ -60,20 +41,55 @@ def test_explicit_constraint_parameterization_preserves_null_space():
     assert np.linalg.matrix_rank(parameter_map.toarray()) == 2
 
 
-def _one_parameter_fc2_tensor():
+def _one_parameter_fc2_tensor(n_orbits: int = 1, n_parameters: int = 1):
     representative = np.zeros((1, 9, 1))
     representative[0, 0, 0] = 1.0
     coordinates = np.zeros((1, 1, 1, 2), dtype=np.int32)
     return _OrderTensor(
         order=2,
-        parameter_indices=np.zeros((1, 1), dtype=np.int32),
-        parameter_mask=np.ones((1, 1), dtype=bool),
-        representative_from_pivots=representative,
-        rotations=np.eye(3).reshape(1, 1, 3, 3),
-        component_permutations=np.arange(9).reshape(1, 1, 9),
-        coordinates=coordinates,
-        image_mask=np.ones((1, 1), dtype=bool),
+        parameter_indices=np.arange(n_parameters, dtype=np.int32).reshape(-1, 1),
+        parameter_mask=np.ones((n_orbits, 1), dtype=bool),
+        representative_from_pivots=np.repeat(representative, n_orbits, axis=0),
+        rotations=np.eye(3).reshape(1, 1, 3, 3).repeat(n_orbits, axis=0),
+        component_permutations=np.arange(9).reshape(1, 1, 9).repeat(n_orbits, axis=0),
+        coordinates=np.repeat(coordinates, n_orbits, axis=0),
+        image_mask=np.ones((n_orbits, 1), dtype=bool),
     )
+
+
+def _numpy_reference_design(displacement, parameterization, n_parameters):
+    """Independent NumPy transcription of the documented design contribution."""
+    from math import factorial
+
+    order = parameterization.order
+    components = np.array(tuple(np.ndindex((3,) * order)))
+    image_counts = np.count_nonzero(parameterization.image_mask, axis=1)
+    dimension_counts = np.count_nonzero(parameterization.parameter_mask, axis=1)
+    basis, basis_offsets = image_parameter_basis(parameterization, image_counts)
+    out = np.zeros((displacement.size, n_parameters))
+    pair = 0
+    for orbit in range(parameterization.coordinates.shape[0]):
+        dimensions = int(dimension_counts[orbit])
+        for image in range(int(image_counts[orbit])):
+            begin = int(basis_offsets[pair])
+            block = basis[begin : begin + 3**order * dimensions].reshape(3**order, dimensions)
+            flat = np.asarray(parameterization.coordinates[orbit, image])[..., None, :] * 3
+            flat = flat + components
+            values = displacement.reshape(-1)[flat]
+            for axis in range(order):
+                others = [slot for slot in range(order) if slot != axis]
+                monomial = np.prod(values[..., others], axis=-1)
+                contribution = monomial[..., None] * block[None, :, :]
+                rows = np.broadcast_to(flat[..., axis][..., None], contribution.shape).reshape(-1)
+                columns = np.broadcast_to(
+                    parameterization.parameter_indices[orbit, :dimensions][None, None, :],
+                    contribution.shape,
+                ).reshape(-1)
+                values_flat = -contribution.reshape(-1) / factorial(order)
+                keep = values_flat != 0.0
+                np.add.at(out, (rows[keep], columns[keep]), values_flat[keep])
+            pair += 1
+    return out
 
 
 def test_unconverged_fit_requires_explicit_opt_in_and_exposes_gram_cache(monkeypatch, tmp_path):
@@ -178,18 +194,11 @@ def test_public_fitter_exposes_scaled_orbit_group_lasso():
 def test_streaming_gram_recovers_force_constant_and_force_error():
     rng = np.random.default_rng(12)
     displacement = rng.normal(size=(9, 1, 3))
-    covariance = np.eye(3)
     tensor = _one_parameter_fc2_tensor()
-    operator = _BatchedForceOperator(
-        displacement,
-        covariance,
-        (tensor,),
-        1,
-        batch_size=4,
-        axis_derivatives=_taylor_axis_derivatives,
-    )
+    operator = _ForceDesignOperator(displacement, (tensor,))
+    design = np.concatenate([operator.design(index) for index in range(len(displacement))])
     expected = np.array([2.75])
-    target = _design_prediction(operator, expected)
+    target = design @ expected
     gram = GramBuilder.from_operator(operator, target)
     scale = gram.exact_column_scale()
     actual = (
@@ -202,128 +211,99 @@ def test_streaming_gram_recovers_force_constant_and_force_error():
         * scale
     )
     np.testing.assert_allclose(actual, expected, rtol=1e-12, atol=1e-12)
-    predicted = _design_prediction(operator, actual)
-    residual = predicted - target
+    residual = design @ actual - target
     rmse = float(np.sqrt(np.mean(residual**2)))
     relative = float(np.linalg.norm(residual) / np.linalg.norm(target))
     assert rmse < 1e-12
     assert 100 * relative < 1e-9
-    assert operator.program.gram_feature_passes == 1
 
 
-def test_physical_design_tiles_equal_matrix_free_operator():
-    rng = np.random.default_rng(21)
-    n_orbits = 35
-    base = _one_parameter_fc2_tensor()
-    tensor = _OrderTensor(
-        order=2,
-        parameter_indices=np.arange(n_orbits, dtype=np.int32).reshape(-1, 1),
-        parameter_mask=np.ones((n_orbits, 1), dtype=bool),
-        representative_from_pivots=np.repeat(base.representative_from_pivots, n_orbits, axis=0),
-        rotations=np.repeat(base.rotations, n_orbits, axis=0),
-        component_permutations=np.repeat(base.component_permutations, n_orbits, axis=0),
-        coordinates=np.repeat(base.coordinates, n_orbits, axis=0),
-        image_mask=np.repeat(base.image_mask, n_orbits, axis=0),
-    )
+def test_snapshot_design_matches_the_numpy_reference():
+    rng = np.random.default_rng(23)
+    n_orbits = 7
+    tensor = _one_parameter_fc2_tensor(n_orbits=n_orbits, n_parameters=n_orbits)
     displacements = rng.normal(size=(5, 1, 3))
-    operator = _BatchedForceOperator(
-        displacements,
-        np.eye(3),
-        (tensor,),
-        n_orbits,
-        batch_size=4,
-        axis_derivatives=_taylor_axis_derivatives,
-    )
-    builders, _ = _prepare_physical_design_builders(operator)
-    assert builders
+    operator = _ForceDesignOperator(displacements, (tensor,))
 
-    rows = int(np.prod(operator.force_shape))
-    design = np.zeros((rows, n_orbits))
-    displacement_batch = jnp.asarray(displacements)
-    for group in builders:
-        tiles = group.kernel(displacement_batch, operator.basis_state, *group.device_arguments)
-        for tile, columns in zip(tiles, group.columns, strict=True):
-            design[:, columns] += np.asarray(tile).reshape(rows, -1)
-
-    parameters = rng.normal(size=n_orbits)
-    np.testing.assert_allclose(
-        design @ parameters,
-        _design_prediction(operator, parameters),
-        rtol=1e-12,
-        atol=1e-12,
-    )
-    assert operator.with_displacements(displacements[:2]).program is operator.program
+    for index, displacement in enumerate(displacements):
+        design = operator.design(index)
+        reference = _numpy_reference_design(displacement, tensor, n_orbits)
+        np.testing.assert_allclose(design, reference, rtol=1e-12, atol=1e-14)
 
 
-def test_physical_tile_shape_splits_large_single_high_order_orbit():
-    orbit_batch, image_batch, dimension_batch = _physical_tile_shape(
-        order=5,
-        n_orbits=1,
-        n_images=480,
-        n_dimensions=162,
-        structure_batch=4,
-        translations=12,
-    )
+def test_operator_reuses_one_plan_for_another_snapshot_subset():
+    rng = np.random.default_rng(31)
+    tensor = _one_parameter_fc2_tensor()
+    displacements = rng.normal(size=(4, 1, 3))
+    operator = _ForceDesignOperator(displacements, (tensor,))
 
-    assert orbit_batch == 1
-    assert image_batch < 480
-    assert dimension_batch <= 162
-    assert 4 * orbit_batch * image_batch * 12 * 3**5 * dimension_batch * 5 <= 32_000_000
+    subset = operator.with_displacements(displacements[:1])
+
+    assert subset.plan is operator.plan
+    assert subset.fit_n_parameters == operator.fit_n_parameters
+    np.testing.assert_allclose(subset.design(0), operator.design(0))
 
 
-def test_device_sparse_reduction_matches_scipy_without_host_round_trip():
+def test_design_reduction_matches_sparse_constraint_map():
     mapping = sparse.csc_matrix([[1.0, 0.0], [0.5, -1.0], [0.0, 2.0], [-3.0, 0.0]])
     design = np.arange(12, dtype=float).reshape(3, 4)
-    plan = _prepare_device_reduction(mapping, len(design), jax.devices()[0])
-    actual = np.asarray(plan.apply(jax.device_put(design)))
-    expected = np.asarray(mapping.T @ design.T).T
-    np.testing.assert_allclose(actual, expected, rtol=0.0, atol=0.0)
+    tensor = _one_parameter_fc2_tensor(n_orbits=4, n_parameters=4)
+    operator = _ForceDesignOperator(np.zeros((1, 1, 3)), (tensor,), parameter_map=mapping)
 
-
-def test_device_gram_pipeline_matches_cpu_with_a_sparse_null_space_map():
-    rng = np.random.default_rng(81)
-    base = _one_parameter_fc2_tensor()
-    tensor = _OrderTensor(
-        order=2,
-        parameter_indices=np.arange(2, dtype=np.int32).reshape(-1, 1),
-        parameter_mask=np.ones((2, 1), dtype=bool),
-        representative_from_pivots=np.repeat(base.representative_from_pivots, 2, axis=0),
-        rotations=np.repeat(base.rotations, 2, axis=0),
-        component_permutations=np.repeat(base.component_permutations, 2, axis=0),
-        coordinates=np.repeat(base.coordinates, 2, axis=0),
-        image_mask=np.repeat(base.image_mask, 2, axis=0),
+    assert operator.fit_n_parameters == 2
+    np.testing.assert_allclose(
+        operator.reduce(design), np.asarray(mapping.T @ design.T).T, rtol=0.0, atol=0.0
     )
+
+
+def test_constrained_gram_matches_the_reduced_design():
+    rng = np.random.default_rng(81)
+    tensor = _one_parameter_fc2_tensor(n_orbits=2, n_parameters=2)
     displacements = rng.normal(size=(5, 1, 3))
     parameter_map = sparse.csc_matrix([[1.0], [-0.5]])
-    physical = _BatchedForceOperator(
-        displacements,
-        np.eye(3),
-        (tensor,),
-        2,
-        batch_size=2,
-        axis_derivatives=_taylor_axis_derivatives,
+    operator = _ForceDesignOperator(displacements, (tensor,), parameter_map=parameter_map)
+    reduced = np.concatenate(
+        [operator.reduce(operator.design(index)) for index in range(len(displacements))]
     )
-    target = _design_prediction(physical, np.asarray(parameter_map @ np.array([1.75])).reshape(-1))
-    cpu = _BatchedForceOperator(
-        displacements,
-        np.eye(3),
-        (tensor,),
-        2,
-        batch_size=2,
-        parameter_map=parameter_map,
-        axis_derivatives=_taylor_axis_derivatives,
+    target = reduced @ np.array([1.75])
+
+    statistics = GramBuilder.from_operator(operator, target)
+
+    np.testing.assert_allclose(statistics.gram, reduced.T @ reduced, rtol=1e-12, atol=1e-12)
+    np.testing.assert_allclose(statistics.rhs, reduced.T @ target, rtol=1e-12, atol=1e-12)
+    assert statistics.metadata["parameter_map"] is parameter_map
+
+
+def test_order_design_rejects_non_prefix_parameter_masks():
+    tensor = _one_parameter_fc2_tensor(n_orbits=2, n_parameters=3)
+    parameter_mask = np.asarray([[True, True, False], [True, False, True]])
+    masked = _OrderTensor(
+        order=tensor.order,
+        parameter_indices=np.asarray([[0, 1, 2], [3, 4, 5]], dtype=np.int32),
+        parameter_mask=parameter_mask,
+        representative_from_pivots=np.repeat(tensor.representative_from_pivots, 2, axis=0),
+        rotations=np.repeat(tensor.rotations, 2, axis=0),
+        component_permutations=np.repeat(tensor.component_permutations, 2, axis=0),
+        coordinates=np.repeat(tensor.coordinates, 2, axis=0),
+        image_mask=np.ones((2, 1), dtype=bool),
     )
-    device = _BatchedForceOperator(
-        displacements,
-        np.eye(3),
-        (tensor,),
-        2,
-        batch_size=2,
-        parameter_map=parameter_map,
-        device_gram=True,
-        axis_derivatives=_taylor_axis_derivatives,
+
+    with pytest.raises(ValueError, match="leading block"):
+        _ForceDesignPlan.compile((masked,))
+
+
+def test_order_design_rejects_non_contiguous_parameter_blocks():
+    tensor = _one_parameter_fc2_tensor()
+    scrambled = _OrderTensor(
+        order=tensor.order,
+        parameter_indices=np.asarray([[0, 2]], dtype=np.int32),
+        parameter_mask=np.ones((1, 2), dtype=bool),
+        representative_from_pivots=np.repeat(tensor.representative_from_pivots, 1, axis=0),
+        rotations=np.repeat(tensor.rotations, 1, axis=0),
+        component_permutations=np.repeat(tensor.component_permutations, 1, axis=0),
+        coordinates=np.repeat(tensor.coordinates, 1, axis=0),
+        image_mask=np.ones((1, 1), dtype=bool),
     )
-    expected = GramBuilder.from_operator(cpu, target)
-    actual = GramBuilder.from_operator(device, target)
-    np.testing.assert_allclose(actual.gram, expected.gram, rtol=1e-12, atol=1e-12)
-    np.testing.assert_allclose(actual.rhs, expected.rhs, rtol=1e-12, atol=1e-12)
+
+    with pytest.raises(ValueError, match="contiguous block"):
+        _ForceDesignPlan.compile((scrambled,))

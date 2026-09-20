@@ -14,7 +14,7 @@ class TensorAction:
     Orbit enumeration, constraint construction, and finite-difference
     reconstruction invoke this operation frequently on small, irregular
     tensors.  Keeping it in NumPy avoids device dispatch and transfer costs;
-    the fitting-only JAX feature kernels implement their own batched form.
+    the compiled fitting kernels implement their own batched form.
     """
 
     rotation: np.ndarray

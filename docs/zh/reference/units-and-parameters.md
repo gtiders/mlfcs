@@ -44,11 +44,6 @@ code_verified: 4.0.0a6
 
 这些参数都不会修改 interaction cutoff，也不会把小 IFC 元素直接归零。
 
-## `batch_size`
-
-拟合中的 `batch_size` 只能取 1–4。它控制一次送入 design kernel 的结构帧数，影响吞吐量和临时内存，
-不会重复样本或重复求解。MLFCS 不自动猜测硬件饱和点，用户应在相同数值设置下自行比较。
-
 ## `mixing`
 
 SCPH 和 SSCHA 使用

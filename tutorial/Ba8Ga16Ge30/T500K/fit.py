@@ -57,7 +57,6 @@ def _fit() -> None:
     gram = fitter.prepare_gram(
         snapshots,
         acoustic_sum_rule=True,
-        batch_size=1,
     )
     result = fitter.fit(
         gram,

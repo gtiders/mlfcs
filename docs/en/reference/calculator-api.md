@@ -11,7 +11,7 @@ code_verified: 4.0.0a6
 
 `MLFCSCalculator` interprets stored canonical Taylor force constants as a fixed-cell polynomial
 potential and exposes standard ASE relative-energy and atomic-force properties. It performs no
-fitting, does not load JAX, and does not require the training data.
+fitting, does not load Numba, and does not require the training data.
 
 ## Signatures
 

@@ -1,9 +1,9 @@
 import numpy as np
 import pytest
 from ase import Atoms
+from supercell_helpers import monoatomic_periodic
 
 from mlfcs import perturb_structures
-from supercell_helpers import monoatomic_periodic
 
 
 def test_gaussian_sampling_is_reproducible_and_centered():

@@ -7,7 +7,6 @@ from ase.calculators.calculator import Calculator, all_changes
 from supercell_helpers import make_supercell
 
 from mlfcs import FiniteDifferenceCalculation
-from mlfcs.fitting.jax_runtime import configure_jax
 
 
 class ZeroCalculator(Calculator):
@@ -109,8 +108,3 @@ def test_stage_reporting_can_be_disabled_completely(capsys):
     forces = job.evaluate(ZeroCalculator())
     job.reap(forces)
     assert capsys.readouterr().out == ""
-
-
-def test_invalid_jax_platform_is_rejected():
-    with pytest.raises(ValueError, match="jax_platform"):
-        configure_jax("tpu")

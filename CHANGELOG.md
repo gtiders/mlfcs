@@ -4,6 +4,22 @@
 
 All notable changes are documented here. Releases follow semantic versioning.
 
+## 4.0.0a6 — 2026-09-20
+
+### Changed
+
+- The public namespace imports every workflow eagerly: the lazy `__getattr__` loader for
+  `ForceConstantFitter`, `LoopSCPH`, `SSCHA`, and `perturb_structures` is gone, so `import mlfcs`
+  loads the fitting and finite-temperature stacks together.
+- `prepare_gram()` no longer takes a `batch_size`: snapshots are streamed one at a time and the
+  compiled design kernel draws its parallelism from interaction orbits, so no snapshot batching
+  knob is exposed and the design matrix working set is one structure's.
+- Force-design construction and Gram statistics are built by compiled Numba kernels instead of
+  JAX. The GPU path, the `jax_platform` fitting argument, and the `jax` runtime dependency are
+  removed: `prepare_gram()` runs one compiled parallel design kernel per IFC order and accumulates
+  the Gram matrix with OpenBLAS, so the fitting stack is portable and no longer materializes XLA
+  tile buffers. Force-constant metadata no longer carries a `jax_platform` field.
+
 ## 4.0.0a5 — 2026-08-24
 
 ### Changed
