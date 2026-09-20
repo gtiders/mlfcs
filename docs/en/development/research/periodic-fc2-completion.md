@@ -29,5 +29,4 @@ $$
 
 Enable it with `periodic_fc2_completion=True` in `ForceConstantFitter`. It is off by default. The
 sidecar can be reordered only inside the same source translation quotient and cannot be exported to
-a different-size supercell. The full derivation, symfc comparison, memory analysis, and benchmark
-script are in `research/periodic_fc2_completion/`.
+a different-size supercell.
