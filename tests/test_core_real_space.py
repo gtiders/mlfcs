@@ -311,3 +311,10 @@ def test_certified_rank_matches_fraction_free_elimination():
         np.array([[prime * other, 0], [1, 1]]),
     ):
         assert certified_rank(matrix) == _fraction_free_rank(matrix)
+
+    # A genuinely deficient matrix keeps its rank however many primes are added, and a
+    # certificate whose Hadamard bound needs dozens of primes still terminates.
+    assert certified_rank(np.array([[1, 2, 3], [2, 4, 6], [1, 2, 3]])) == 1
+    wide = np.tile(np.arange(64, dtype=np.int64) + 2**31, (64, 1))
+    wide[1:] = wide[0] * 3
+    assert certified_rank(wide) == 1

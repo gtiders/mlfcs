@@ -18,7 +18,7 @@ that used to settle the deficient verdict is no longer needed.  Everything stays
 
 from __future__ import annotations
 
-from functools import cache
+from collections.abc import Iterator
 from math import isqrt
 
 import numpy as np
@@ -86,34 +86,44 @@ def hadamard_bound(matrix: np.ndarray, size: int) -> int:
 
 
 def certified_rank(rows: list[list[int]] | np.ndarray) -> int:
-    """Return the exact rank of an integer matrix, proving it with modular arithmetic."""
+    """Return the exact rank of an integer matrix, proving it with modular arithmetic.
+
+    A prime can never report more than the exact rank, so the running maximum only grows
+    while it is still below it: a genuinely deficient matrix keeps its low rank no matter
+    how many primes are added, while for a full-rank matrix one prime is enough.  The
+    deficient case terminates because the primes keep accumulating until their product
+    exceeds the Hadamard bound of the largest minors, at which point at least one of them
+    must attain the exact rank.
+    """
     array = np.asarray(rows, dtype=np.int64)
     if array.ndim != 2 or not array.size:
         return 0
     width = int(min(array.shape))
     bound = hadamard_bound(array, width)
+    # Each prime contributes more than 30 bits, so the certificate cannot need more than
+    # this many of them; the check below only guards the bound calculation itself.
+    limit = bound.bit_length() // 30 + 2
     best = 0
     product = 1
-    for prime in rank_primes():
+    for used, prime in enumerate(prime_stream(), start=1):
+        if used > limit:
+            raise RuntimeError("rank certificate did not terminate below the Hadamard bound")
         best = max(best, modular_rank(array, prime))
         if best == width:
             return width
         product *= prime
         if product > bound:
             return best
-    raise RuntimeError("rank certificate ran out of primes below the int64 product range")
 
 
-@cache
-def rank_primes(count: int = 64) -> tuple[int, ...]:
-    """Return distinct primes below $2^{31}$, deterministically and in descending order."""
-    primes: list[int] = list(RANK_PRIMES)
-    candidate = primes[-1] - 2
-    while len(primes) < count:
+def prime_stream() -> Iterator[int]:
+    """Yield distinct primes below $2^{31}$ in descending order, lazily."""
+    yield from RANK_PRIMES
+    candidate = RANK_PRIMES[-1] - 2
+    while candidate > 1:
         if _is_prime(candidate):
-            primes.append(candidate)
+            yield candidate
         candidate -= 2
-    return tuple(primes)
 
 
 def _is_prime(value: int) -> bool:
@@ -144,5 +154,5 @@ __all__ = [
     "hadamard_bound",
     "modular_echelon",
     "modular_rank",
-    "rank_primes",
+    "prime_stream",
 ]
