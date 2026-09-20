@@ -5,6 +5,9 @@ from mlfcs.interactions.algebra.actions import (
     apply_action_columns,
     compose_actions,
     inverse_action,
+    scaled_action_matrix,
+    scaled_to_cartesian_matrix,
+    scaled_to_cartesian_rotation,
 )
 from mlfcs.interactions.algebra.generators import (
     GeneratorAction,
@@ -12,8 +15,8 @@ from mlfcs.interactions.algebra.generators import (
     validate_group_order,
 )
 from mlfcs.interactions.algebra.invariants import (
-    invariant_basis_from_gram,
-    normalize_pivot_basis,
+    invariant_kernel,
+    label_symmetric_basis,
     select_independent_rows,
 )
 
@@ -22,9 +25,12 @@ __all__ = [
     "TensorAction",
     "apply_action_columns",
     "compose_actions",
-    "invariant_basis_from_gram",
+    "invariant_kernel",
     "inverse_action",
-    "normalize_pivot_basis",
+    "label_symmetric_basis",
+    "scaled_action_matrix",
+    "scaled_to_cartesian_matrix",
+    "scaled_to_cartesian_rotation",
     "select_group_generators",
     "select_independent_rows",
     "validate_group_order",

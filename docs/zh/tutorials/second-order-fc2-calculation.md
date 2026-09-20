@@ -347,21 +347,9 @@ uv run python plot.py
 训练集和测试集分别构造独立的 Gram 对象。`fit()` 不再隐式划分验证集或预测测试集力；
 测试误差应由用户使用 `MLFCSCalculator` 显式计算。
 
-默认情况下：
-
-```python
-regularization=None
-```
-
-表示进行不带正则项的拟合。
-
-如果希望对轨道组施加稀疏约束，可以显式设置：
-
-```python
-regularization="scaled_group_lasso"
-```
-
-使用正则化后，应结合 `result` 中的收敛信息和力误差判断拟合结果是否可靠。
+拟合是不带正则项的最小二乘：`fit()` 只求解 Gram 系统并重建 Taylor IFC，没有可选的稀疏惩罚项。
+约束（ASR）与可辨识性由前置阶段决定；若某个参考胞信息不足，会在构建阶段就被拒绝，而不是靠正则化
+掩盖。
 
 ## 结果检查与导出
 

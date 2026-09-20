@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fit harmonic SnSe FC2 with cutoff=None in a 2x4x4 supercell."""
+"""Fit harmonic SnSe FC2 with an explicit cutoff in a 2x4x4 supercell."""
 
 from __future__ import annotations
 
@@ -39,7 +39,7 @@ def _fit() -> None:
         primitive,
         supercell,
         orders=(2,),
-        cutoffs={2: None},
+        cutoffs={2: 8.338178280000003},
         max_body_orders={2: 2},
         symprec=1e-4,
     )
@@ -57,7 +57,7 @@ def _fit() -> None:
         "supercell_matrix": [[2, 0, 0], [0, 4, 0], [0, 0, 4]],
         "atoms": len(supercell),
         "frames": len(snapshots),
-        "requested_cutoff": None,
+        "requested_cutoff": 8.338178280000003,
         "resolved_cutoff_angstrom": fitter.calculations[0].cutoff,
         "orbits": len(fitter.calculations[0].realized_orbit_space.orbits),
         "parameters": fitter.n_parameters,

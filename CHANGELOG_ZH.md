@@ -6,8 +6,27 @@
 
 ## 4.0.0a6 — 2026-09-20
 
+### 移除
+
+- 删除“由参考胞解析截断”（`cutoff=None`）这一模式：`InteractionSpace`、`FiniteDifferenceCalculation`、
+  `ForceConstantFitter` 现在必须给出距离或负的邻居壳层序号，SSCHA 求解器也只接受距离。半径选错导致的
+  混叠由 `validate_realization_identifiability` 接手——它会报错，而不是把相互作用静默折叠进同一个团簇；
+  各教程把“该参考胞解析出的半径”记为显式数值（取自它们自己提交的 metadata）。
+
+- 删除 scaled orbit-group LASSO 拟合选项：`ForceConstantFitter.fit()` 不再接受 `regularization`，
+  `FittingResult` 不再包含 `regularization`、`effective_noise_scale`、`active_orbits`、
+  `admm_primal_residual`、`admm_dual_residual`，`solve_scaled_group_lasso` 已删除。拟合即对
+  流式 Gram 系统做纯力的最小二乘；参考胞若无法辨识参数，会在构建阶段被拒绝，而不是用正则化掩盖。
+
 ### 变化
 
+- 原胞轨道基改在分数（scaled）坐标系中判定。spglib 旋转在任何晶胞下都是分数坐标中的整数矩阵，
+  因此不变量核、其维数与轨道基全部由精确整数运算得出，不再依赖笛卡尔本征值阈值。
+  `PrimitiveInteractionOrbit.basis` 现在就是该整数基，拟合参数是它的系数，且**不做规范形**；
+  消费者通过 cell 一次性映射得到物理张量，因此重建的力常数不变（实测相对偏差 $2\times10^{-16}$），
+  只有参数坐标因换基而不同。轨道入口（`build_primitive_interaction_space`、`generated_orbit`、
+  `traverse_indexed_orbit`）不再接受 `tolerance`，`RealizedInteractionSpace` 现在携带其轨道所在
+  的 `cell`。
 - 顶层命名空间改为直接导入全部工作流：`ForceConstantFitter`、`LoopSCPH`、`SSCHA`、
   `perturb_structures` 的 `__getattr__` 延迟加载器已删除，`import mlfcs` 会一并加载拟合与
   有限温度栈。
@@ -20,6 +39,15 @@
 
 ### 修复
 
+- 声子求和规则的系数守卫与去重经实测保持原样：这些行是代数量在笛卡尔分量下的求值，"同一条约束"
+  无法用整数键判定；删掉守卫后同一条约束的各行支撑不再一致，带约束拟合被移动了整整一倍。该守卫把
+  代数零与真实系数分开了数个数量级，理由已写在代码旁。
+- `cutoff=None` 的壳层解析改用 `np.nextafter(最短长度, inf)` 找到正好落在周期边界上的邻居，替换原来的
+  `+1e-8 Å` 外扩；其相对混叠边界的下留余量保持不变。
+- 可辨识性判定对任何晶胞给出一致结论。`validate_realization_identifiability` 现在对整数分数
+  坐标实现矩阵求秩，并用精确分数自由消元确认秩亏，系数不会再被过滤条件丢弃、也不会被四舍五入
+  成整数矩阵。笛卡尔旋转为无理数的原胞（fcc 原胞 $60^\circ$、六方与三方晶胞）也能正常构建轨道
+  并实现相互作用，不再报错。
 - `PeriodicGeometry` 改由 ASE 的 Minkowski 约化搜索求最小像，不再调用
   `ase.geometry.find_mic`。`find_mic` 在折叠向量短于 `0.5 * min(cell.lengths())` 时跳过约化，
   而该阈值并非 Wigner-Seitz 胞的内切半径，斜胞因此会得到非最小像。最小像长度、简并像集合

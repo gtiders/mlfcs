@@ -27,7 +27,7 @@ class InteractionSettings:
 
     order: int
     supercell: object
-    cutoff: float | int | None
+    cutoff: float | int
     max_body_order: int | None = None
     displacement: float = 0.01
     symprec: float = 1e-5
@@ -70,7 +70,7 @@ class InteractionSpace:
         *,
         order: int,
         reference: Atoms,
-        cutoff: float | None,
+        cutoff: float,
         max_body_order: int | None = None,
         symprec: float = 1e-5,
         displacement: float = 0.01,
@@ -91,7 +91,7 @@ class InteractionSpace:
         frame: ReferenceFrame,
         *,
         order: int,
-        cutoff: float | None,
+        cutoff: float,
         max_body_order: int | None = None,
         symprec: float = 1e-5,
         displacement: float = 0.01,
@@ -113,7 +113,7 @@ class InteractionSpace:
         frame: ReferenceFrame,
         *,
         order: int,
-        cutoff: float | None,
+        cutoff: float,
         max_body_order: int | None,
         symprec: float,
         displacement: float,
@@ -137,7 +137,7 @@ class InteractionSpace:
             "%d primitive atoms, %d supercell atoms", len(self.primitive), len(self.supercell)
         )
         logger.info("Resolving the interaction cutoff")
-        self.cutoff = resolve_primitive_cutoff(self.primitive, cutoff, reference=self.supercell)
+        self.cutoff = resolve_primitive_cutoff(self.primitive, cutoff)
         logger.info("Cutoff radius: %.10f Å", self.cutoff)
         logger.info("Analyzing crystal symmetries")
         self.symmetry = frame.symmetry

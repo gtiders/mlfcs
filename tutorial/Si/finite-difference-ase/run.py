@@ -40,11 +40,13 @@ def _run() -> None:
     reference = build_supercell(primitive, (4, 4, 4))
     write("SPOSCAR", reference, format="vasp", direct=True, sort=False, vasp5=True)
     calculator = CPUNEP(str(MODEL))
+    # This is the radius the committed 4x4x4 reference resolves (see metadata.json); a radius
+    # that folds interactions into one cluster is rejected by the realization check.
     calculation = FiniteDifferenceCalculation(
         primitive,
         order=2,
         reference=reference,
-        cutoff=None,
+        cutoff=7.723740495133356,
         displacement=0.01,
     )
     force_constants = calculation.run(calculator)

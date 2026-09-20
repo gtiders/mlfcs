@@ -6,8 +6,33 @@ All notable changes are documented here. Releases follow semantic versioning.
 
 ## 4.0.0a6 — 2026-09-20
 
+### Removed
+
+- The reference-resolved cutoff (`cutoff=None`) is gone: `InteractionSpace`, `FiniteDifferenceCalculation`
+  and `ForceConstantFitter` now require a distance or a negative neighbour-shell index, and the SSCHA
+  solver takes a distance too. Aliasing from a badly chosen radius is caught by
+  `validate_realization_identifiability`, which raises instead of folding interactions into one
+  cluster; the tutorials carry the radius their reference resolves as an explicit number taken from
+  their own committed metadata.
+
+- The scaled orbit-group LASSO fitting option is gone: `ForceConstantFitter.fit()` no longer takes
+  `regularization`, and `FittingResult` no longer carries `regularization`,
+  `effective_noise_scale`, `active_orbits`, `admm_primal_residual` or `admm_dual_residual`.
+  `solve_scaled_group_lasso` is deleted. Fitting is the force-only least-squares solve of the
+  streamed Gram system; a reference that does not identify its parameters is rejected while it is
+  built rather than regularized away.
+
 ### Changed
 
+- Primitive orbit bases are decided in the lattice (scaled) frame. spglib rotations are integer
+  matrices there for every cell, so the invariant kernel, its dimension and the orbit basis come
+  from exact integer arithmetic instead of a Cartesian eigenvalue threshold.
+  `PrimitiveInteractionOrbit.basis` is now that integer basis and the fitted parameters are its
+  coefficients, with no canonicalization; consumers render physical tensors through the cell once,
+  so reconstructed force constants are unchanged (verified to a relative $2\times10^{-16}$) while
+  parameter coordinates differ. The orbit entry points (`build_primitive_interaction_space`,
+  `generated_orbit`, `traverse_indexed_orbit`) no longer take a `tolerance`, and
+  `RealizedInteractionSpace` carries the `cell` that its orbits are expressed in.
 - The public namespace imports every workflow eagerly: the lazy `__getattr__` loader for
   `ForceConstantFitter`, `LoopSCPH`, `SSCHA`, and `perturb_structures` is gone, so `import mlfcs`
   loads the fitting and finite-temperature stacks together.
@@ -22,6 +47,21 @@ All notable changes are documented here. Releases follow semantic versioning.
 
 ### Fixed
 
+- The acoustic-sum-rule coefficient guard and de-duplication are unchanged after
+  measurement: the rows are Cartesian components of algebraic numbers, so "the same
+  constraint" cannot be decided by an integer key, and removing the guard lets one
+  constraint's rows diverge in support, which moved a constrained fit by a factor of two.
+  The guard separates algebraic zeros from genuine coefficients with orders of magnitude to
+  spare, and the reason is documented next to it.
+- The `cutoff=None` shell resolver finds an exactly attained periodic boundary through
+  `np.nextafter(shortest length, inf)` instead of a `+1e-8 Å` padding, and its margin below
+  the aliasing boundary is unchanged.
+- Identifiability gives the same answer for every cell. `validate_realization_identifiability`
+  ranks the integer lattice-frame realization matrix and decides a deficient component with exact
+  fraction-free elimination, so a coefficient can no longer be dropped by a filter or rounded into
+  an integer matrix. Primitive cells whose Cartesian rotations are irrational (an fcc primitive
+  $60^\circ$ cell, hexagonal and rhombohedral cells) build their orbits and realize their
+  interactions instead of failing.
 - `PeriodicGeometry` now resolves the minimum image through ASE's Minkowski-reduction based search
   instead of `ase.geometry.find_mic`. `find_mic` skips the reduction whenever the folded vector is
   shorter than `0.5 * min(cell.lengths())`, and that bound is not the inradius of the Wigner-Seitz

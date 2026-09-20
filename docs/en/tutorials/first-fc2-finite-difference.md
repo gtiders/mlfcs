@@ -32,7 +32,9 @@ calculation = FiniteDifferenceCalculation(
     primitive,
     reference=reference,
     order=2,
-    cutoff=None,
+    # Stays below half of the shortest periodic translation of the 2x2x2 reference (4.05 A);
+    # a radius that folds interactions into one cluster is rejected by the realization check.
+    cutoff=4.0,
     displacement=0.01,
 )
 force_constants = calculation.run(EMT())

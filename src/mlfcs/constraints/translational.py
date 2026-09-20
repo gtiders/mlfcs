@@ -8,35 +8,47 @@ import numpy as np
 from scipy import sparse
 from scipy.sparse.linalg import lsmr
 
+from mlfcs.interactions.algebra.actions import scaled_to_cartesian_matrix
+
 
 def build_translational_constraints(
     orbit_space,
     *,
     tolerance: float = 1e-12,
 ) -> sparse.csr_matrix:
-    """Build the order-local acoustic sum-rule matrix."""
+    """Build the order-local acoustic sum-rule matrix.
+
+    A coefficient is dropped only below ``tolerance``, which separates the floating point
+    noise of an algebraically zero component (measured at $3.5\times10^{-15}$ for a row
+    scale of $59$) from genuine coefficients by orders of magnitude.  Dropping the noise is
+    what keeps the rows of one physical constraint identical, which the fitting stage then
+    de-duplicates and ranks, and that de-duplication normalizes the rows so the rank tests
+    are scale free.
+    """
+    order = orbit_space.order
     dimensions = [orbit.dimension for orbit in orbit_space.orbits]
     offsets = np.cumsum([0, *dimensions])
+    frame = scaled_to_cartesian_matrix(orbit_space.cell, order)
     equations: dict[tuple[int, ...], int] = {}
     rows: list[int] = []
     columns: list[int] = []
     data: list[float] = []
     for orbit_index, orbit in enumerate(orbit_space.orbits):
-        representative_from_pivots = orbit.basis @ np.linalg.inv(orbit.basis[orbit.pivots])
+        cartesian_basis = frame @ np.asarray(orbit.basis, dtype=np.int64)
         for image in orbit.images:
-            image_from_pivots = image.action.apply_columns(representative_from_pivots)
-            for component in range(3**orbit_space.order):
-                directions = np.unravel_index(component, (3,) * orbit_space.order)
+            image_from_coefficients = image.action.apply_columns(cartesian_basis)
+            for component in range(3**order):
+                directions = np.unravel_index(component, (3,) * order)
                 labels = image.key.labels if hasattr(image, "key") else image.cluster
                 key = tuple(labels[:-1]) + tuple(int(value) for value in directions)
                 equation = equations.setdefault(key, len(equations))
-                nonzero = np.flatnonzero(np.abs(image_from_pivots[component]) > tolerance)
+                column_values = image_from_coefficients[component]
+                nonzero = np.flatnonzero(np.abs(column_values) > tolerance)
                 rows.extend([equation] * len(nonzero))
                 columns.extend(int(offsets[orbit_index] + value) for value in nonzero)
-                data.extend(float(image_from_pivots[component, value]) for value in nonzero)
+                data.extend(float(image_from_coefficients[component, value]) for value in nonzero)
     return sparse.coo_matrix(
-        (data, (rows, columns)),
-        shape=(len(equations), int(offsets[-1])),
+        (data, (rows, columns)), shape=(len(equations), int(offsets[-1]))
     ).tocsr()
 
 

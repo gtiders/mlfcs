@@ -62,11 +62,13 @@ def _run() -> None:
         vasp5=True,
     )
     calculator = CPUNEP(str(MODEL))
+    # Same reference and radius as run.py; a radius that folds interactions into one cluster is
+    # rejected by the realization check.
     calculation = FiniteDifferenceCalculation(
         primitive,
         order=2,
         reference=reference,
-        cutoff=None,
+        cutoff=7.723740495133356,
         displacement=0.01,
     )
     force_constants = calculation.run(

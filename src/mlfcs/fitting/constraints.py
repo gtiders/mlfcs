@@ -35,7 +35,7 @@ def build_joint_constraints(
     """
     dimensions = [_parameter_count(calculation) for calculation in calculations]
     total = sum(dimensions)
-    translational = []
+    blocks: list[sparse.csr_matrix] = []
     if acoustic:
         for index, calculation in enumerate(calculations):
             primitive_space = getattr(calculation, "primitive_orbit_space", None)
@@ -44,7 +44,7 @@ def build_joint_constraints(
             local = build_translational_constraints(primitive_space)
             left = sum(dimensions[:index])
             right = total - left - dimensions[index]
-            translational.append(
+            blocks.append(
                 sparse.hstack(
                     [
                         sparse.csr_matrix((local.shape[0], left)),
@@ -54,36 +54,38 @@ def build_joint_constraints(
                     format="csr",
                 )
             )
-    matrices = translational
-    matrix = sparse.vstack(matrices, format="csr") if matrices else sparse.csr_matrix((0, total))
+    matrix = sparse.vstack(blocks, format="csr") if blocks else sparse.csr_matrix((0, total))
     matrix = _compress_rows(matrix)
-    return JointConstraints(
-        matrix,
-        sum(item.shape[0] for item in translational),
-    )
+    return JointConstraints(matrix, sum(block.shape[0] for block in blocks))
 
 
 def _compress_rows(matrix, tolerance=1e-12):
-    """Drop empty rows, normalize, and remove numerically identical constraints."""
+    """Drop empty rows, normalize, and remove numerically identical constraints.
+
+    The constraint rows are Cartesian components of algebraic numbers, so "the same
+    constraint" is an algebraic statement that no integer key can decide; it is settled
+    here by rounding, and again downstream by the rank tests.  The threshold stays
+    explicit for that reason, and rows that are exactly empty are dropped without it.
+    """
     matrix = matrix.tocsr()
     matrix.eliminate_zeros()
     norms = np.sqrt(np.asarray(matrix.multiply(matrix).sum(axis=1)).reshape(-1))
     matrix = matrix[norms > tolerance]
     norms = norms[norms > tolerance]
+    if not norms.size:
+        return matrix
     matrix = sparse.diags(1.0 / norms) @ matrix
     rounded = matrix.copy()
     rounded.data = np.round(rounded.data, 12)
-    keys = []
+    keep: list[int] = []
+    seen: set[tuple[bytes, bytes]] = set()
     for row in range(rounded.shape[0]):
         begin, end = rounded.indptr[row : row + 2]
         indices = rounded.indices[begin:end]
         values = rounded.data[begin:end]
-        if len(values) and values[0] < 0:
+        if len(values) and values[0] < 0.0:
             values = -values
-        keys.append((indices.tobytes(), values.tobytes()))
-    keep = []
-    seen = set()
-    for row, key in enumerate(keys):
+        key = (indices.tobytes(), values.tobytes())
         if key not in seen:
             seen.add(key)
             keep.append(row)

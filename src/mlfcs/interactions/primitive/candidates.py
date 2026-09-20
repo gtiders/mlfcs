@@ -6,52 +6,16 @@ from collections.abc import Iterator
 
 import numpy as np
 from ase import Atoms
-from ase.geometry import minkowski_reduce
 from ase.neighborlist import neighbor_list
 
 from mlfcs.interactions.keys import InteractionKey
 from mlfcs.structure.periodic_geometry import unique_periodic_distances
 
 
-def resolve_primitive_cutoff(
-    primitive: Atoms,
-    cutoff: float | None,
-    *,
-    reference: Atoms | None = None,
-) -> float:
-    """Resolve a distance, neighbor shell, or finite-reference cutoff."""
+def resolve_primitive_cutoff(primitive: Atoms, cutoff: float) -> float:
+    """Resolve a positive distance or a negative neighbor-shell index."""
     if cutoff is None:
-        if reference is None:
-            raise ValueError("cutoff=None requires an explicit reference supercell")
-        reduced_cell, _operation = minkowski_reduce(reference.cell, pbc=reference.pbc)
-        periodic_lengths = np.linalg.norm(
-            np.asarray(reduced_cell)[np.asarray(reference.pbc)], axis=1
-        )
-        if not len(periodic_lengths):
-            raise ValueError("cutoff=None requires at least one periodic direction")
-        upper = float(np.min(periodic_lengths)) + 1e-8
-        first, second, shifts, distances = neighbor_list(
-            "ijSd", reference, upper, self_interaction=False
-        )
-        by_pair: dict[tuple[int, int], list[tuple[float, tuple[int, int, int]]]] = {}
-        for atom_i, atom_j, shift, distance in zip(first, second, shifts, distances, strict=True):
-            by_pair.setdefault((int(atom_i), int(atom_j)), []).append(
-                (float(distance), tuple(int(value) for value in shift))
-            )
-        boundaries = []
-        for (atom_i, atom_j), images in by_pair.items():
-            ordered = sorted(set(images))
-            if atom_i == atom_j and ordered:
-                boundaries.append(ordered[0][0])
-            elif atom_i != atom_j and len(ordered) > 1:
-                boundaries.append(ordered[1][0])
-        if not boundaries:
-            raise RuntimeError("could not determine a finite-cell cutoff boundary")
-        resolved = min(boundaries) - 0.01
-        if resolved <= 0:
-            raise ValueError("reference supercell is too small for cutoff=None")
-        return float(resolved)
-
+        raise ValueError("cutoff must be a distance or a negative integer shell")
     value = float(cutoff)
     if value > 0:
         return value

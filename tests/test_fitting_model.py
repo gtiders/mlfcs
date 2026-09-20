@@ -157,40 +157,6 @@ def test_fitter_reuses_one_reference_and_symmetry_frame_across_orders():
     assert first.frame.primitive_symmetry is second.frame.primitive_symmetry
 
 
-def test_public_fitter_exposes_scaled_orbit_group_lasso():
-    primitive = Atoms("Ar", cell=np.eye(3) * 4, scaled_positions=[[0, 0, 0]], pbc=True)
-    reference = primitive.repeat((2, 1, 1))
-    structures = []
-    for displacement in (-0.04, -0.02, 0.02, 0.04):
-        atoms = reference.copy()
-        atoms.positions[0, 0] += displacement
-        forces = np.zeros((2, 3))
-        forces[0, 0] = -2.0 * displacement
-        forces[1, 0] = 2.0 * displacement
-        atoms.calc = SinglePointCalculator(atoms, forces=forces)
-        structures.append(atoms)
-    fitter = ForceConstantFitter(
-        primitive,
-        reference,
-        orders=(2,),
-        cutoffs={2: 4.1},
-    )
-    gram = fitter.prepare_gram(structures, acoustic_sum_rule=False)
-    result = fitter.fit(
-        gram,
-        acoustic_sum_rule=False,
-        regularization="scaled_group_lasso",
-        tolerance=1e-6,
-        max_iterations=500,
-    )
-
-    assert result.stop_code == 0
-    assert result.regularization == "scaled_group_lasso"
-    assert result.effective_noise_scale > 0
-    assert result.active_orbits == 2
-    assert result.force_constants.metadata["regularization"] == "scaled_group_lasso"
-
-
 def test_streaming_gram_recovers_force_constant_and_force_error():
     rng = np.random.default_rng(12)
     displacement = rng.normal(size=(9, 1, 3))

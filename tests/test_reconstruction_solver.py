@@ -4,6 +4,7 @@ from ase.build import bulk
 from supercell_helpers import make_supercell
 
 from mlfcs.finite_difference.reconstruction import reconstruct_sparse
+from mlfcs.interactions.algebra.actions import scaled_to_cartesian_matrix
 from mlfcs.interactions.primitive.builder import build_primitive_interaction_space
 from mlfcs.interactions.realization import realize_interaction_space
 
@@ -24,10 +25,11 @@ def test_reconstructs_every_orbit_from_independent_components(order):
     derivatives = {
         key: np.zeros((len(supercell), 3), dtype=float) for key in space.displacement_keys
     }
+    frame = scaled_to_cartesian_matrix(space.cell, order)
     expected = {}
     for orbit_number, orbit in enumerate(space.orbits, start=1):
         coefficients = np.arange(1, orbit.dimension + 1, dtype=float) / orbit_number
-        representative = orbit.basis @ coefficients
+        representative = frame @ (orbit.basis @ coefficients)
         for pivot in orbit.pivots:
             components = np.unravel_index(int(pivot), (3,) * order)
             key = tuple(

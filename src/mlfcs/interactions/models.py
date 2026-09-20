@@ -18,6 +18,15 @@ class PrimitiveOrbitImage:
 
 @dataclass(frozen=True, slots=True)
 class PrimitiveInteractionOrbit:
+    """One symmetry-inequivalent primitive interaction cluster.
+
+    ``basis`` is the exact integer basis of the invariant subspace in lattice (scaled)
+    coordinates, one column per fitted parameter, and ``pivots`` the component rows whose
+    integer block accepts those parameter values.  Lattice coordinates keep the symmetry
+    algebra exact for every cell; consumers map to Cartesian components through the cell
+    of the space when they need physical tensors.
+    """
+
     representative: InteractionKey
     basis: np.ndarray
     pivots: np.ndarray
@@ -36,6 +45,11 @@ class PrimitiveInteractionSpace:
     max_body_order: int | None
     symmetry: object
     orbits: tuple[PrimitiveInteractionOrbit, ...]
+
+    @property
+    def cell(self) -> np.ndarray:
+        """ndarray : primitive cell matrix, the lattice frame of every orbit basis."""
+        return np.asarray(self.primitive.cell.array, dtype=float)
 
     @property
     def n_parameters(self) -> int:
@@ -62,8 +76,16 @@ class RealizedInteractionOrbit:
 
 @dataclass(frozen=True, slots=True)
 class RealizedInteractionSpace:
+    """One primitive orbit space realized in a finite reference.
+
+    Orbits keep their lattice-frame integer basis, and ``cell`` is the primitive cell
+    they are expressed in, so consumers render Cartesian components through
+    ``scaled_to_cartesian_matrix(cell, order)``.
+    """
+
     order: int
     orbits: tuple[RealizedInteractionOrbit, ...]
+    cell: np.ndarray
     cutoff: float
     max_body_order: int | None = None
 

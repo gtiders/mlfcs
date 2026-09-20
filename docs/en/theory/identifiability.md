@@ -10,7 +10,9 @@ code_verified: 4.0.0a6
 
 ## Motivation
 
-Separate periodic folding, finite-supercell aliasing, numerical rank deficiency, and regularization. Regularization selects a solution but cannot create information absent from one reference supercell.
+Separate periodic folding, finite-supercell aliasing, and numerical rank deficiency. A regularized
+fit would select a solution but cannot create information absent from one reference supercell, so
+aliasing is rejected while the reference is built instead of being hidden in the solve.
 
 ## Mathematical object
 

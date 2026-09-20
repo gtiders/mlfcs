@@ -5,6 +5,7 @@ from __future__ import annotations
 import numpy as np
 
 from mlfcs.force_constants.representation import SparseOrderForceConstants
+from mlfcs.interactions.algebra.actions import scaled_to_cartesian_matrix
 from mlfcs.interactions.models import PrimitiveInteractionSpace
 
 
@@ -22,10 +23,11 @@ def expand_primitive_parameters(
     tensors = []
     offset = 0
     shape = (3,) * interaction_space.order
+    frame = scaled_to_cartesian_matrix(interaction_space.cell, interaction_space.order)
     for orbit in interaction_space.orbits:
-        pivot_values = values[offset : offset + orbit.dimension]
+        coefficients = values[offset : offset + orbit.dimension]
         offset += orbit.dimension
-        representative = orbit.basis @ np.linalg.solve(orbit.basis[orbit.pivots], pivot_values)
+        representative = frame @ (orbit.basis @ coefficients)
         for image in orbit.images:
             key = image.key
             sites.append(key.sites)

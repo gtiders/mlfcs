@@ -6,6 +6,8 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from mlfcs.interactions.algebra.actions import scaled_to_cartesian_matrix
+
 
 @dataclass(frozen=True, slots=True)
 class OrderParameterization:
@@ -49,15 +51,14 @@ def pack_order(calculation, offset):
     )
     image_mask = np.zeros((n_orbits, max_images), dtype=bool)
     translations = calculation.index.cell_representatives
+    frame = scaled_to_cartesian_matrix(orbit_space.cell, order)
     base = np.arange(3**order).reshape((3,) * order)
     for orbit_index, orbit in enumerate(orbits):
         dimension = orbit.dimension
         images = len(orbit.images)
         parameter_indices[orbit_index, :dimension] = np.arange(offset, offset + dimension)
         parameter_mask[orbit_index, :dimension] = True
-        representatives[orbit_index, :, :dimension] = np.linalg.solve(
-            orbit.basis[orbit.pivots].T, orbit.basis.T
-        ).T
+        representatives[orbit_index, :, :dimension] = frame @ orbit.basis
         for image_index, image in enumerate(orbit.images):
             rotations[orbit_index, image_index] = image.action.rotation
             permutations[orbit_index, image_index] = base.transpose(
