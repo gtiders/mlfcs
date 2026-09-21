@@ -1,7 +1,8 @@
+from itertools import product
+
 import numpy as np
 import pytest
 from ase import Atoms
-from ase.geometry import find_mic
 from supercell_helpers import make_supercell
 
 from mlfcs.finite_difference.calculation import FiniteDifferenceCalculation
@@ -120,21 +121,49 @@ def test_reference_matrix_argument_is_rejected_from_calculation_api():
         )
 
 
-def test_periodic_geometry_uses_general_mic_and_returns_degenerate_images():
+def _brute_force_minimum_image(vector: np.ndarray, cell: np.ndarray):
+    shifts = np.asarray(tuple(product(range(-3, 4), repeat=3)), dtype=np.int32)
+    images = vector + shifts @ cell
+    lengths = np.linalg.norm(images, axis=1)
+    index = int(np.argmin(lengths))
+    return images[index], float(lengths[index])
+
+
+def test_periodic_geometry_returns_degenerate_images_at_the_minimum_image():
     cell = np.asarray([[2.0, 0.0, 0.0], [1.9, 0.25, 0.0], [0.3, 0.1, 2.0]])
     geometry = PeriodicGeometry(cell)
     vector = np.asarray([1.1, 0.3, 0.0])
-    expected, expected_length = find_mic(vector[None, :], cell, pbc=True)
+    expected, expected_length = _brute_force_minimum_image(vector, cell)
     actual, shifts = geometry.closest_images(vector)
 
-    np.testing.assert_allclose(np.linalg.norm(actual, axis=1), expected_length[0])
-    assert any(np.allclose(image, expected[0]) for image in actual)
+    np.testing.assert_allclose(np.linalg.norm(actual, axis=1), expected_length)
+    assert any(np.allclose(image, expected) for image in actual)
     np.testing.assert_allclose(actual, vector + shifts @ cell)
 
     cubic = PeriodicGeometry(np.eye(3) * 2)
     images, shifts = cubic.closest_images(np.asarray([1.0, 0.0, 0.0]))
     assert len(images) == 2
     np.testing.assert_array_equal(np.sort(shifts[:, 0]), [-1, 0])
+
+
+def test_periodic_geometry_mic_is_exact_for_a_skewed_cell():
+    # ase.geometry.find_mic returns 0.1708800749 here: its fast path skips the
+    # Minkowski reduction because the folded vector is shorter than
+    # 0.5 * min(cell.lengths()) = 0.3, which is not a sufficient criterion.
+    cell = np.asarray([[0.6, 0.0, 0.0], [-1.0, 0.1, 0.0], [-0.4, -0.5, 0.1]])
+    geometry = PeriodicGeometry(cell)
+    vector = np.asarray([0.12, 0.12, -0.02])
+
+    expected, expected_length = _brute_force_minimum_image(vector, cell)
+    minimum, length = geometry.mic(vector)
+
+    np.testing.assert_allclose(expected, [-0.08, 0.02, -0.02])
+    np.testing.assert_allclose(minimum, expected)
+    np.testing.assert_allclose(float(length), expected_length)
+
+    batch, lengths = geometry.mic(vector[None, :])
+    np.testing.assert_allclose(batch[0], expected)
+    np.testing.assert_allclose(lengths, expected_length)
 
 
 def test_periodic_geometry_resolves_only_jointly_compatible_cluster_images():

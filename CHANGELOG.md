@@ -20,6 +20,15 @@ All notable changes are documented here. Releases follow semantic versioning.
   the Gram matrix with OpenBLAS, so the fitting stack is portable and no longer materializes XLA
   tile buffers. Force-constant metadata no longer carries a `jax_platform` field.
 
+### Fixed
+
+- `PeriodicGeometry` now resolves the minimum image through ASE's Minkowski-reduction based search
+  instead of `ase.geometry.find_mic`. `find_mic` skips the reduction whenever the folded vector is
+  shorter than `0.5 * min(cell.lengths())`, and that bound is not the inradius of the Wigner-Seitz
+  cell, so skewed cells received a non-minimum image. Minimum-image lengths, degenerate image sets,
+  and cluster image selection now agree with the true minimum image for skewed and unimodularly
+  transformed frames; the `mic()` calling convention is unchanged.
+
 ## 4.0.0a5 — 2026-08-24
 
 ### Changed
