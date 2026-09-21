@@ -34,4 +34,4 @@ Constraints:
     Acoustic: True
     Number of degrees of freedom: {2: 74}
     Total number of degrees of freedom: 74
-wrote official-style hiPhive direct and corrected FC2 to /home/gwins/codespace/mlfcs-new/tutorial/long-range-electrostatics/NaCl
+wrote official-style hiPhive direct and corrected FC2 to /home/gwins/codespace/mlfcs-new/.worktrees/reflector/tutorial/long-range-electrostatics/NaCl
