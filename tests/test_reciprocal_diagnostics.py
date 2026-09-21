@@ -249,6 +249,20 @@ def test_the_sampler_expansion_is_checked_against_each_member_matrix(monkeypatch
     assert "label" in message and "residual" in message
 
 
+def test_the_sampler_records_both_tolerances_with_its_state() -> None:
+    """The geometric and the physical tolerance travel with the state they produced."""
+    from test_reciprocal_sampling_path import _sampler
+
+    sampler = _sampler("hcp_2x1x1")
+    state = sampler.state
+    assert state.symprec == sampler.symprec == 1e-5
+    assert state.symmetry_tolerance == sampler.symmetry_tolerance == 1e-6
+    assert state.n_qpoints >= state.n_irreducible
+
+    strict = _sampler("hcp_2x1x1", symmetry_tolerance=None)
+    assert strict.state.symmetry_tolerance is None
+
+
 def test_an_undetermined_spglib_symmetry_names_the_cell_and_tolerance(monkeypatch) -> None:
     """A structure spglib cannot classify is reported with the data that was passed."""
     from ase.build import bulk

@@ -153,6 +153,11 @@ class SamplingState:
     maximum_sampled_displacement: float
     clipped_atoms: int
     affected_snapshots: int
+    #: The geometric tolerance that identified the structure and the relative physical
+    #: tolerance the force constants had to satisfy; both are recorded with the state they
+    #: produced rather than left as module constants.
+    symprec: float
+    symmetry_tolerance: float | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -631,6 +636,8 @@ class HarmonicSampler:
             maximum_sampled,
             clipped_atoms,
             affected_snapshots,
+            float(self.symprec),
+            self.symmetry_tolerance,
         )
 
 
