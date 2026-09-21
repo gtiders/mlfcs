@@ -18,6 +18,13 @@
   Gram 矩阵由 OpenBLAS 累加，拟合栈因此可移植，也不再需要物化 XLA 分块缓冲。力常数元数据
   不再包含 `jax_platform` 字段。
 
+### 修复
+
+- `PeriodicGeometry` 改由 ASE 的 Minkowski 约化搜索求最小像，不再调用
+  `ase.geometry.find_mic`。`find_mic` 在折叠向量短于 `0.5 * min(cell.lengths())` 时跳过约化，
+  而该阈值并非 Wigner-Seitz 胞的内切半径，斜胞因此会得到非最小像。最小像长度、简并像集合
+  与团簇像选择现在都与真实最小像一致；`mic()` 的调用约定保持不变。
+
 ## 4.0.0a5 — 2026-08-24
 
 ### 变化
