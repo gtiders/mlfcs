@@ -28,12 +28,13 @@ from mlfcs.reciprocal.grid import (
 )
 from mlfcs.reciprocal.sampling.harmonic import HarmonicSampler, SamplingState
 from mlfcs.reciprocal.sampling.structures import SamplingBatch, perturb_structures
-from mlfcs.reciprocal.scph.fourier import harmonic_frequencies
+from mlfcs.reciprocal.scph.fourier import HarmonicMeshResult, harmonic_frequencies
 from mlfcs.reciprocal.scph.solver import LoopSCPH, LoopSCPHIteration, LoopSCPHResult
 from mlfcs.reciprocal.sscha.solver import SSCHA, SSCHAIteration, SSCHAResult
 
 __all__ = [
     "SSCHA",
+    "HarmonicMeshResult",
     "HarmonicSampler",
     "IrreducibleReciprocalGrid",
     "LoopSCPH",
