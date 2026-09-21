@@ -491,28 +491,42 @@ def test_scph_refuses_a_non_covariant_updated_force_constants() -> None:
 
 
 def test_sscha_propagates_the_reciprocal_tolerances() -> None:
-    """SSCHA has to hand its own symprec and symmetry tolerance to every sampler it builds."""
+    """SSCHA hands its own symprec and symmetry tolerance to every sampler it builds.
+
+    The sampler identifies the structure itself, so a default would silently validate a
+    different structure than the caller configured; the temperature schedule builds children,
+    and those must keep the same policy.
+    """
+    from ase.build import bulk
     from ase.calculators.lj import LennardJones
 
     from mlfcs.reciprocal.sscha.solver import SSCHA
 
-    force_constants, _ = scph_case("cubic_2x1x1")
-    relation = force_constants.relation
+    primitive = bulk("Ar", "fcc", a=5.26)
+    matrix = np.diag((2, 2, 2)).astype(np.int64)
+    reference = build_supercell(primitive, matrix)
+    force_constants, _ = pair_bond_force_constants(
+        primitive, matrix, cutoff=3.0, spring=1.0, bend=0.5
+    )
     common = {
-        "reference": relation.reference,
-        "cutoff": 3.2,
+        "reference": reference,
+        "cutoff": -1,
         "symprec": 2.5e-4,
         "symmetry_tolerance": 3.0e-8,
-        "max_iterations": 1,
-        "snapshots": 32,
-        "initial_displacement": 0.02,
+        "max_iterations": 0,
+        "snapshots": 16,
+        "random_seed": 31,
     }
-    solver = SSCHA(relation.primitive, temperature=300.0, **common)
+
+    solver = SSCHA(primitive, temperature=300.0, **common)
     ensemble = solver._make_ensemble(force_constants.materialize(2))
     assert ensemble.symprec == 2.5e-4
     assert ensemble.symmetry_tolerance == 3.0e-8
+    # The sampler only supports real force constants and real displacements, so its q/-q
+    # pairing is closed by time reversal and the state records that policy.
+    assert ensemble.state.time_reversal is True
 
-    scheduled = SSCHA(relation.primitive, temperature=[300.0, 400.0], **common)
+    scheduled = SSCHA(primitive, temperature=[300.0, 400.0], **common)
     results = scheduled.run(LennardJones(epsilon=1.0, sigma=3.0, rc=9.0))
     assert len(results) == 2
     for result in results:

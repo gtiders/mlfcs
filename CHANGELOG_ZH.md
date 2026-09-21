@@ -39,8 +39,10 @@
   `weights` 与该网格的星分解,并提供 `full_qpoints()` 与 `expand_frequencies()` 显式展开完整网格。
   `HarmonicSampler` 中含义含混的 `qpoints` 被 `irreducible_qpoints`、`weights` 与 `full_qpoints()`
   取代,`SamplingState`/`SSCHAIteration` 同时报告 `n_qpoints` 与 `n_irreducible`。
-- `symprec` 与 `time_reversal` 成为 `LoopSCPH`、`harmonic_frequencies` 与 `HarmonicSampler` 的公开参数,
-  并记录在结果中,不再是模块常量。
+- `symprec` 与 `symmetry_tolerance` 成为 `LoopSCPH`、`harmonic_frequencies`、`HarmonicSampler` 与
+  `SSCHA` 的公开参数,并记录在结果与有效力常数元数据中,不再是模块常量。`LoopSCPH` 与
+  `harmonic_frequencies` 另有显式的 `time_reversal`;`HarmonicSampler` 不暴露该参数,因为实采样器只支持
+  实力常数与实位移,其 `q/-q` 配对始终由时间反演闭合,并由 state 记录这一策略。
 - `scripts/benchmark_reciprocal_reduction.py` 输出不可约路径相对完整网格的约化比、对角化次数、
   耗时与峰值内存。
 - 新增 `SymmetryViolationError`,并在 `LoopSCPH`、`HarmonicSampler` 与 `harmonic_frequencies` 上提供

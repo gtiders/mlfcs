@@ -51,8 +51,12 @@ All notable changes are documented here. Releases follow semantic versioning.
   `HarmonicSampler.qpoints` property is replaced by `irreducible_qpoints`, `weights` and
   `full_qpoints()`, and `SamplingState`/`SSCHAIteration` report both `n_qpoints` and
   `n_irreducible`.
-- `symprec` and `time_reversal` are public arguments of `LoopSCPH`, `harmonic_frequencies`
-  and `HarmonicSampler`, recorded in their results, instead of module constants.
+- `symprec` and `symmetry_tolerance` are public arguments of `LoopSCPH`,
+  `harmonic_frequencies`, `HarmonicSampler` and `SSCHA`, recorded in their results and in the
+  effective force-constant metadata instead of being module constants. `LoopSCPH` and
+  `harmonic_frequencies` also take an explicit `time_reversal`; `HarmonicSampler` does not
+  expose it, because a real sampler only supports real force constants and real displacements
+  and therefore always closes its `q/-q` pairing with time reversal, which its state records.
 - `SymmetryViolationError` and an explicit `symmetry_tolerance` on `LoopSCPH`,
   `HarmonicSampler` and `harmonic_frequencies`: every reciprocal consumer now checks that the
   force constants are covariant on the little group of each star representative before it
