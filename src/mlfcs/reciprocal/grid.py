@@ -346,6 +346,21 @@ class IrreducibleReciprocalGrid:
     def __post_init__(self) -> None:
         _validate_irreducible_grid(self)
 
+    @property
+    def n_qpoints(self) -> int:
+        """Number of q points of the full grid."""
+        return len(self.full.labels)
+
+    @property
+    def n_irreducible(self) -> int:
+        """Number of irreducible representative q points."""
+        return len(self.representatives)
+
+    @property
+    def reduction_ratio(self) -> float:
+        """How many full q points one representative stands for."""
+        return self.n_qpoints / self.n_irreducible
+
 
 def _validate_irreducible_grid(result: IrreducibleReciprocalGrid) -> None:
     """Raise ``RuntimeError`` unless the stars partition the grid with exact weights."""

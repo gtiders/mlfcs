@@ -51,7 +51,7 @@ from typing import NamedTuple
 import numpy as np
 
 from mlfcs.reciprocal.fourier import FourierTerm, dynamical_matrix
-from mlfcs.reciprocal.grid import rotate_label
+from mlfcs.reciprocal.grid import IrreducibleReciprocalGrid, rotate_label
 from mlfcs.structure.symmetry import PrimitiveSymmetryOperations
 
 
@@ -93,6 +93,87 @@ def displacement_representation(
         target = int(permutation[site])
         unitary[3 * target : 3 * target + 3, 3 * site : 3 * site + 3] = block
     return unitary
+
+
+def star_member_operator(
+    symmetry: PrimitiveSymmetryOperations,
+    grid: IrreducibleReciprocalGrid,
+    member: int,
+) -> tuple[np.ndarray, bool]:
+    r"""Return the unitary carrying star data from a representative onto one member.
+
+    ``member`` is a full-grid index; the star decomposition records, for it, the
+    primitive operation that maps the representative of its star onto it, and whether
+    that map also applies time reversal.  A quantity defined at the representative is
+    therefore expanded by
+
+    .. math::
+
+        W(gq_s) = U_g\, W(q_s)\, U_g^{\dagger}, \qquad
+        W(g(-q_s)) = U_g\, \overline{W(q_s)}\, U_g^{\dagger},
+
+    and a *vector* by ``u'(gq) = U_g u(q)``, again conjugated first on an antiunitary
+    member.  The phase of :math:`U_g` is one global scalar per operation, so it drops out
+    of every similarity transform and only matters for vectors; a vector expansion must
+    synthesize its plane waves in the gauge of :mod:`mlfcs.reciprocal.fourier`.
+    """
+    index = int(member)
+    if index < 0 or index >= len(grid.full.labels):
+        raise ValueError(f"member {index} is not a full-grid index of this decomposition")
+    star = int(grid.full_to_irreducible[index])
+    representative = int(grid.representatives[star])
+    operation = int(grid.full_operations[index])
+    unitary = displacement_representation(
+        symmetry, operation, grid.full.labels[representative], grid.full.denominator
+    )
+    return unitary, bool(grid.full_antiunitary[index])
+
+
+def expand_star_values(values: np.ndarray, grid: IrreducibleReciprocalGrid) -> np.ndarray:
+    """Return the full-grid array of a quantity defined on star representatives.
+
+    Star members carry the *same* eigenvalue data as their representative: the
+    covariance relation is a unitary similarity, so frequencies and any other spectral
+    quantity of ``D(q)`` are equal on the whole star.  Only the ordering inside a
+    degenerate subspace may differ, which is why quantities compared across a star have
+    to be spectral (sorted eigenvalues, projectors, covariance matrices).
+    """
+    array = np.asarray(values)
+    if array.shape[:1] != (len(grid.representatives),):
+        raise ValueError(
+            f"expected one entry per representative ({len(grid.representatives)}), "
+            f"got shape {array.shape}"
+        )
+    return array[grid.full_to_irreducible]
+
+
+def expand_star_matrices(
+    matrices: np.ndarray,
+    grid: IrreducibleReciprocalGrid,
+    symmetry: PrimitiveSymmetryOperations,
+) -> np.ndarray:
+    """Return the full-grid matrices ``W(gq_s)`` of per-representative matrices.
+
+    This is the exact expansion of stage E: every member is reached by applying the
+    recorded operation to the representative, with a complex conjugation first when the
+    member is antiunitary.  It never averages and never multiplies a representative by a
+    star weight.
+    """
+    values = np.asarray(matrices)
+    n_irreducible = len(grid.representatives)
+    if values.shape[:1] != (n_irreducible,):
+        raise ValueError(
+            f"expected one matrix per representative ({n_irreducible}), got shape {values.shape}"
+        )
+    if values.ndim != 3 or values.shape[1] != values.shape[2]:
+        raise ValueError(f"expected square matrices, got shape {values.shape}")
+    expanded = np.empty((len(grid.full.labels),) + values.shape[1:], dtype=values.dtype)
+    for member in range(len(grid.full.labels)):
+        star = int(grid.full_to_irreducible[member])
+        unitary, antiunitary = star_member_operator(symmetry, grid, member)
+        source = np.conjugate(values[star]) if antiunitary else values[star]
+        expanded[member] = unitary @ source @ unitary.conj().T
+    return expanded
 
 
 def conjugate_matrix(matrix: np.ndarray) -> np.ndarray:
@@ -172,5 +253,8 @@ __all__ = [
     "conjugate_matrix",
     "covariance_residuals",
     "displacement_representation",
+    "expand_star_matrices",
+    "expand_star_values",
     "maximum_covariance_residual",
+    "star_member_operator",
 ]

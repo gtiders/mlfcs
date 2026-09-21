@@ -99,7 +99,9 @@ def test_loop_scph_qpoint_workers_preserve_covariance():
         max_iterations=1,
         qpoint_workers=2,
     ).run()
-    np.testing.assert_allclose(serial.frequencies, parallel.frequencies, rtol=1e-12, atol=1e-12)
+    np.testing.assert_allclose(
+        serial.expand_frequencies(), parallel.expand_frequencies(), rtol=1e-12, atol=1e-12
+    )
 
 
 def test_loop_scph_temperature_series_uses_previous_effective_fc2():
@@ -125,7 +127,7 @@ def test_loop_scph_temperature_series_uses_previous_effective_fc2():
         max_iterations=1,
         warm_start=series[0].force_constants,
     ).run()
-    np.testing.assert_allclose(series[1].frequencies, direct.frequencies)
+    np.testing.assert_allclose(series[1].expand_frequencies(), direct.expand_frequencies())
 
 
 def test_loop_scph_temperature_range_runs_continuation():
@@ -143,9 +145,14 @@ def test_loop_scph_temperature_range_runs_continuation():
     assert tuple(result.temperature for result in results) == (300.0, 600.0, 900.0)
 
 
-def test_loop_scph_uses_alamode_rms_frequency_stopping_metric():
+def test_loop_scph_uses_the_star_weighted_rms_frequency_stopping_metric():
+    """The stopping metric is the full-grid RMS, computed from the star representatives.
+
+    The weighted sum over representatives must reproduce the RMS of the expanded change,
+    so the reduction is a bookkeeping change and not a different convergence criterion.
+    """
     fc2, fc4 = _force_constants()
-    _, initial = harmonic_frequencies(fc2, 1)
+    mesh = harmonic_frequencies(fc2, 1)
     result = LoopSCPH(
         fc2=fc2,
         fc4=fc4,
@@ -155,8 +162,16 @@ def test_loop_scph_uses_alamode_rms_frequency_stopping_metric():
         mixing=1.0,
         max_iterations=1,
     ).run()
-    expected = np.sqrt(np.mean((result.frequencies - initial) ** 2))
-    assert result.history[0].frequency_change_thz == pytest.approx(expected)
+    expanded_change = result.expand_frequencies() - mesh.expand_frequencies()
+    expected = np.sqrt(np.mean(expanded_change**2))
+    assert result.history[0].frequency_change_thz == pytest.approx(expected, rel=1e-12)
+
+    # The irreducible arrays alone give the same number through the star weights.
+    delta = result.irreducible_frequencies - mesh.irreducible_frequencies
+    weights = np.asarray(result.weights, dtype=float)
+    weighted = np.sqrt(np.sum(weights[:, None] * delta**2) / (result.n_qpoints * delta.shape[1]))
+    assert weighted == pytest.approx(expected, rel=1e-12)
+    assert int(weights.sum()) == result.n_qpoints
 
 
 def test_loop_scph_rejects_incompatible_force_constant_frames():
@@ -236,4 +251,4 @@ def test_loop_scph_convergence_does_not_require_positive_frequencies():
         max_iterations=1,
     ).run()
     assert result.converged
-    assert np.min(result.frequencies) < 0.0
+    assert np.min(result.irreducible_frequencies) < 0.0

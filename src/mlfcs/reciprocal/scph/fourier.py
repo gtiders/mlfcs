@@ -2,39 +2,108 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import numpy as np
 
 from mlfcs.force_constants.dense import lattice_fc2
 from mlfcs.force_constants.representation import ForceConstants, SparseOrderForceConstants
 from mlfcs.reciprocal.fourier import (
-    dynamical_matrix,
+    dynamical_matrices,
     fourier_terms,
 )
-from mlfcs.reciprocal.grid import quotient_qpoints
+from mlfcs.reciprocal.grid import (
+    IrreducibleReciprocalGrid,
+    irreducible_reciprocal_grid,
+)
 from mlfcs.reciprocal.statistics import OMEGA_TO_THZ as _OMEGA_TO_THZ
+from mlfcs.reciprocal.symmetry import expand_star_values
+from mlfcs.structure.symmetry import PrimitiveSymmetryOperations
+
+
+@dataclass(frozen=True, slots=True)
+class HarmonicMeshResult:
+    r"""Harmonic frequencies on the irreducible wedge of one q grid.
+
+    Only the representative q points of the star decomposition are stored; the full mesh
+    is available through :meth:`expand_frequencies`, which is exact because the
+    covariance relation ``D(gq) = U_g(q) D(q) U_g(q)^dagger`` is a unitary similarity, so
+    a whole star carries the eigenvalues of its representative.  Nothing here is
+    approximate and nothing is weighted: the weights are the star sizes that sum to the
+    number of full q points.
+
+    The names are deliberately explicit.  A caller that wants the full mesh has to ask
+    for it, so a plain ``qpoints`` cannot be mistaken for either set.
+    """
+
+    irreducible_qpoints: np.ndarray
+    irreducible_frequencies: np.ndarray
+    weights: np.ndarray
+    grid: IrreducibleReciprocalGrid
+    symprec: float
+    time_reversal: bool
+
+    @property
+    def n_qpoints(self) -> int:
+        """Number of q points of the full grid."""
+        return len(self.grid.full.labels)
+
+    @property
+    def n_irreducible(self) -> int:
+        """Number of irreducible representative q points."""
+        return len(self.grid.representatives)
+
+    @property
+    def reduction_ratio(self) -> float:
+        """How many full q points one representative stands for."""
+        return self.n_qpoints / self.n_irreducible
+
+    def full_qpoints(self) -> np.ndarray:
+        """Return the q points of the full grid, in full-grid order."""
+        return self.grid.full.points
+
+    def expand_frequencies(self) -> np.ndarray:
+        """Return the full-grid frequencies, in full-grid order."""
+        return expand_star_values(self.irreducible_frequencies, self.grid)
 
 
 def harmonic_frequencies(
-    fc2: ForceConstants, interpolation_multiplier: int = 1
-) -> tuple[np.ndarray, np.ndarray]:
-    """Return harmonic frequencies on a reference-supercell-derived q grid.
+    fc2: ForceConstants,
+    interpolation_multiplier: int = 1,
+    *,
+    symprec: float = 1e-5,
+    time_reversal: bool = True,
+) -> HarmonicMeshResult:
+    """Return harmonic frequencies on the irreducible wedge of a q grid.
 
-    Frequencies are gauge invariant, but the dynamical matrices come from
-    :mod:`mlfcs.reciprocal.fourier`, so this path and the harmonic sampler share one
-    convention.
+    The dynamical matrices come from :mod:`mlfcs.reciprocal.fourier`, so this path and the
+    harmonic sampler share one gauge, and they are diagonalized once per star
+    representative.  ``symprec`` is the geometric tolerance used to identify the primitive
+    symmetry; it is a distinct quantity from any dynamical-matrix tolerance and is
+    recorded in the result rather than hidden in a module constant.
     """
     if 2 not in fc2.orders or fc2.relation is None:
         raise ValueError("fc2 must contain order-2 force constants and a structure relation")
-    masses = np.asarray(fc2.relation.primitive.get_masses(), dtype=float)
+    primitive = fc2.relation.primitive
+    masses = np.asarray(primitive.get_masses(), dtype=float)
     lattice = lattice_fc2(fc2)
-    terms = fourier_terms(lattice, fc2.relation.primitive)
+    terms = fourier_terms(lattice, primitive)
     multiplier = _multiplier(interpolation_multiplier, "interpolation_multiplier")
-    qpoints = quotient_qpoints(multiplier * fc2.relation.supercell_matrix)
-    frequencies = []
-    for q in qpoints:
-        values = np.linalg.eigvalsh(dynamical_matrix(terms, masses, q))
-        frequencies.append(np.sqrt(np.abs(values)) * np.sign(values) * _OMEGA_TO_THZ)
-    return qpoints, np.asarray(frequencies)
+    symmetry = PrimitiveSymmetryOperations.from_atoms(primitive, symprec=symprec)
+    grid = irreducible_reciprocal_grid(
+        multiplier * fc2.relation.supercell_matrix, symmetry, time_reversal=time_reversal
+    )
+    qpoints = grid.full.points[grid.representatives]
+    eigenvalues = np.linalg.eigvalsh(dynamical_matrices(terms, masses, qpoints))
+    frequencies = np.sqrt(np.abs(eigenvalues)) * np.sign(eigenvalues) * _OMEGA_TO_THZ
+    return HarmonicMeshResult(
+        irreducible_qpoints=np.asarray(qpoints, dtype=float),
+        irreducible_frequencies=np.asarray(frequencies, dtype=float),
+        weights=np.asarray(grid.weights, dtype=np.int64),
+        grid=grid,
+        symprec=float(symprec),
+        time_reversal=bool(time_reversal),
+    )
 
 
 def _multiplier(value: int, name: str) -> int:
@@ -71,4 +140,4 @@ def _needed_covariances(
     return result
 
 
-__all__ = ["harmonic_frequencies"]
+__all__ = ["HarmonicMeshResult", "harmonic_frequencies"]

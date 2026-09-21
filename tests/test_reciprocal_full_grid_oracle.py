@@ -120,6 +120,7 @@ from mlfcs.reciprocal.grid import reciprocal_quotient_grid
 from mlfcs.reciprocal.sampling.harmonic import HarmonicSampler
 from mlfcs.reciprocal.scph.fourier import _needed_covariances, harmonic_frequencies
 from mlfcs.reciprocal.scph.solver import LoopSCPH
+from mlfcs.reciprocal.symmetry import expand_star_values
 from mlfcs.structure.relation import StructureRelation
 from mlfcs.structure.supercell_mapping import PeriodicIndex
 
@@ -415,6 +416,11 @@ _CASE_NAMES = sorted(_CASES)
 def _force_constants(name: str):
     model, matrix, cutoff, parameters, _ = _CASES[name]
     return pair_bond_force_constants(model(), matrix, cutoff=cutoff, **parameters)
+
+
+def scph_case(name: str) -> tuple[ForceConstants, ForceConstants]:
+    """Return the ``(fc2, fc4)`` pair of one pinned case, for other test modules."""
+    return _force_constants(name)
 
 
 def _multiplier(name: str) -> int:
@@ -832,7 +838,9 @@ def test_harmonic_frequencies_pin_every_qpoint(name):
     multiplier = _multiplier(name)
     force_constants = _force_constants(name)[0]
     expected = _FREQUENCIES[name]
-    qpoints, frequencies = harmonic_frequencies(force_constants, multiplier)
+    mesh = harmonic_frequencies(force_constants, multiplier)
+    qpoints = mesh.full_qpoints()
+    frequencies = mesh.expand_frequencies()
 
     np.testing.assert_array_equal(qpoints, np.asarray(expected["qpoints"]))
     n_modes = 3 * len(force_constants.relation.primitive)
@@ -856,7 +864,9 @@ def test_full_grid_contains_gamma_boundary_and_general_pair():
         if tuple(label) != gamma and boundary_grid.negative_label(label) == tuple(label)
     ]
     assert boundary == [(1, 0, 0)]
-    _, boundary_frequencies = harmonic_frequencies(_force_constants("cubic_2x1x1")[0], 1)
+    boundary_frequencies = harmonic_frequencies(
+        _force_constants("cubic_2x1x1")[0], 1
+    ).expand_frequencies()
     # Gamma: the acoustic sum rule leaves three numerical-zero frequencies.
     np.testing.assert_allclose(boundary_frequencies[0], 0.0, atol=FREQUENCY_ATOL)
 
@@ -869,7 +879,9 @@ def test_full_grid_contains_gamma_boundary_and_general_pair():
         if tuple(label) != gamma and pair_grid.negative_label(label) != tuple(label)
     ]
     assert pairs == [(1, (2, 0, 0)), (2, (1, 0, 0))]
-    _, pair_frequencies = harmonic_frequencies(_force_constants("cubic_3x1x1")[0], 1)
+    pair_frequencies = harmonic_frequencies(
+        _force_constants("cubic_3x1x1")[0], 1
+    ).expand_frequencies()
     np.testing.assert_allclose(
         pair_frequencies[1], pair_frequencies[2], rtol=FREQUENCY_RTOL, atol=FREQUENCY_ATOL
     )
@@ -881,12 +893,20 @@ def test_scph_frequencies_are_pinned_for_bare_and_corrected_lattice(name):
     force_constants = _force_constants(name)[0]
     solver = _solver(name, mixing=0.7, max_iterations=3)
 
-    qpoints, bare = solver._frequencies(lattice_fc2(force_constants), 1)
+    qpoints, irreducible_bare = solver._irreducible_frequencies(lattice_fc2(force_constants), 1)
     result = solver._run_single(TEMPERATURE, None)
-    corrected_qpoints, corrected = solver._frequencies(lattice_fc2(result.force_constants), 1)
+    corrected_qpoints, irreducible_corrected = solver._irreducible_frequencies(
+        lattice_fc2(result.force_constants), 1
+    )
 
-    np.testing.assert_array_equal(qpoints, np.asarray(expected["qpoints"]))
-    np.testing.assert_array_equal(corrected_qpoints, np.asarray(expected["qpoints"]))
+    # The irreducible arrays are expanded before they are compared with the full-grid
+    # numbers this module pinned, so the pins still measure the physics and not the
+    # bookkeeping.
+    bare = expand_star_values(irreducible_bare, solver._mesh(1))
+    corrected = expand_star_values(irreducible_corrected, solver._mesh(1))
+    np.testing.assert_array_equal(qpoints, np.asarray(expected["qpoints"])[: len(qpoints)])
+    np.testing.assert_array_equal(corrected_qpoints, np.asarray(expected["qpoints"])[: len(qpoints)])
+    np.testing.assert_array_equal(solver._qpoints(1), np.asarray(expected["qpoints"]))
     np.testing.assert_allclose(bare, expected["bare"], rtol=FREQUENCY_RTOL, atol=FREQUENCY_ATOL)
     np.testing.assert_allclose(
         corrected, expected["corrected"], rtol=FREQUENCY_RTOL, atol=FREQUENCY_ATOL
@@ -951,13 +971,15 @@ def test_scph_single_trajectory_is_pinned():
         rtol=STATISTICS_RTOL,
         atol=1e-15,
     )
-    np.testing.assert_array_equal(result.qpoints, np.asarray(_TRAJECTORY["qpoints"]))
+    np.testing.assert_array_equal(result.full_qpoints(), np.asarray(_TRAJECTORY["qpoints"]))
     np.testing.assert_allclose(
-        result.frequencies,
+        result.expand_frequencies(),
         _TRAJECTORY["frequencies"],
         rtol=FREQUENCY_RTOL,
         atol=FREQUENCY_ATOL,
     )
+    assert int(result.weights.sum()) == result.n_qpoints
+    assert result.n_irreducible <= result.n_qpoints
     assert result.converged is False
 
 

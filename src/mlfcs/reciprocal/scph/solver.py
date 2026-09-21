@@ -18,15 +18,20 @@ from mlfcs.force_constants.dense import lattice_fc2, replace_lattice_fc2
 from mlfcs.force_constants.representation import (
     ForceConstants,
 )
-from mlfcs.reciprocal.fourier import dynamical_matrices, dynamical_matrix, fourier_terms
-from mlfcs.reciprocal.grid import quotient_qpoints
+from mlfcs.reciprocal.fourier import dynamical_matrices, fourier_terms
+from mlfcs.reciprocal.grid import (
+    IrreducibleReciprocalGrid,
+    irreducible_reciprocal_grid,
+)
 from mlfcs.reciprocal.scph.fourier import (
     _multiplier,
     _needed_covariances,
     _validate_relation,
 )
 from mlfcs.reciprocal.statistics import HBAR_ASE, OMEGA_TO_THZ, mode_sigma
+from mlfcs.reciprocal.symmetry import expand_star_values
 from mlfcs.reciprocal.temperature import TemperatureSeriesResult, normalize_temperature_schedule
+from mlfcs.structure.symmetry import PrimitiveSymmetryOperations
 
 _HBAR_ASE = HBAR_ASE
 _OMEGA_TO_THZ = OMEGA_TO_THZ
@@ -42,9 +47,19 @@ class LoopSCPHIteration:
 
 @dataclass(slots=True)
 class LoopSCPHResult:
+    """One converged SCPH temperature on the irreducible wedge of its q grid.
+
+    The frequencies are stored per star representative.  ``expand_frequencies`` returns
+    the full mesh exactly, without another diagonalization, because a star carries the
+    eigenvalues of its representative.
+    """
+
     temperature: float
-    qpoints: np.ndarray
-    frequencies: np.ndarray
+    irreducible_qpoints: np.ndarray
+    irreducible_frequencies: np.ndarray
+    weights: np.ndarray
+    grid: IrreducibleReciprocalGrid
+    symprec: float
     force_constants: ForceConstants
     history: tuple[LoopSCPHIteration, ...]
     converged: bool
@@ -52,6 +67,29 @@ class LoopSCPHResult:
     @property
     def iterations(self) -> int:
         return len(self.history)
+
+    @property
+    def n_qpoints(self) -> int:
+        """Number of q points of the full grid."""
+        return len(self.grid.full.labels)
+
+    @property
+    def n_irreducible(self) -> int:
+        """Number of irreducible representative q points."""
+        return len(self.grid.representatives)
+
+    @property
+    def reduction_ratio(self) -> float:
+        """How many full q points one representative stands for."""
+        return self.n_qpoints / self.n_irreducible
+
+    def full_qpoints(self) -> np.ndarray:
+        """Return the q points of the full grid, in full-grid order."""
+        return self.grid.full.points
+
+    def expand_frequencies(self) -> np.ndarray:
+        """Return the full-grid frequencies, in full-grid order."""
+        return expand_star_values(self.irreducible_frequencies, self.grid)
 
 
 class LoopSCPH:
@@ -78,6 +116,8 @@ class LoopSCPH:
         warm_start: ForceConstants | None = None,
         continuation: bool = True,
         qpoint_workers: int = 1,
+        symprec: float = 1e-5,
+        time_reversal: bool = True,
     ) -> None:
         if not isinstance(fc2, ForceConstants) or not isinstance(fc4, ForceConstants):
             raise TypeError("fc2 and fc4 must be ForceConstants objects")
@@ -120,6 +160,15 @@ class LoopSCPH:
         self._primitive = fc2.relation.primitive if fc2.relation is not None else None
         if self._primitive is None:
             raise ValueError("fc2 must contain an explicit StructureRelation")
+        # The geometric tolerance that identifies the primitive symmetry is a different
+        # quantity from any dynamical-matrix tolerance, so it is a public argument and is
+        # recorded in every result instead of being a module constant.
+        self.symprec = float(symprec)
+        self.time_reversal = bool(time_reversal)
+        self._symmetry = PrimitiveSymmetryOperations.from_atoms(
+            self._primitive, symprec=self.symprec
+        )
+        self._meshes: dict[int, IrreducibleReciprocalGrid] = {}
 
     def run(self) -> LoopSCPHResult | TemperatureSeriesResult[LoopSCPHResult]:
         """Run one temperature or an ascending temperature schedule."""
@@ -145,7 +194,12 @@ class LoopSCPH:
             else lattice_fc2(warm_start)
         )
         history: list[LoopSCPHIteration] = []
-        previous_frequencies = self._frequencies(current, self.interpolation_multiplier)[1]
+        mesh = self._mesh(self.interpolation_multiplier)
+        diagonalizations = 0
+        qpoints, previous_frequencies = self._irreducible_frequencies(
+            current, self.interpolation_multiplier
+        )
+        diagonalizations += mesh.n_irreducible
         converged = False
         previous_covariance: dict[tuple[int, int, tuple[int, int, int]], np.ndarray] | None = None
         for iteration in range(1, self.max_iterations + 1):
@@ -161,17 +215,22 @@ class LoopSCPH:
             )
             keys = bare.keys() | correction.keys()
             updated = {key: bare.get(key, 0.0) + correction.get(key, 0.0) for key in keys}
-            frequencies = self._frequencies(updated, self.interpolation_multiplier)[1]
-            frequency_change = float(np.sqrt(np.mean((frequencies - previous_frequencies) ** 2)))
+            last_qpoints, frequencies = self._irreducible_frequencies(
+                updated, self.interpolation_multiplier
+            )
+            diagonalizations += mesh.n_irreducible
+            frequency_change = self._frequency_change(frequencies, previous_frequencies, mesh)
             history.append(LoopSCPHIteration(iteration, frequency_change, correction_norm))
             logger.info(
                 f"SCPH iteration {iteration}: delta_omega={frequency_change:.6e} THz, "
                 f"frequency_min={np.min(frequencies):.6e} THz, "
                 f"frequency_max={np.max(frequencies):.6e} THz, "
-                f"correction_norm={correction_norm:.6e}",
+                f"correction_norm={correction_norm:.6e}, "
+                f"q_points={mesh.n_qpoints}, irreducible={mesh.n_irreducible}, "
+                f"reduction={mesh.reduction_ratio:.2f}, diagonalizations={diagonalizations}",
             )
             current = updated
-            previous_frequencies = frequencies
+            qpoints, previous_frequencies = last_qpoints, frequencies
             previous_covariance = covariance
             # Convergence is a fixed-point criterion.  An imaginary mode is a
             # physical diagnostic of the current solution, not an additional
@@ -192,14 +251,18 @@ class LoopSCPH:
             current,
             metadata={"method": "loop_scph", "temperature": temperature},
         )
-        qpoints, frequencies = self._frequencies(current, self.interpolation_multiplier)
+        # The final iterate's frequencies were already computed by the last sweep, so the
+        # result reuses them instead of paying another ``N_irr`` diagonalizations.
         return LoopSCPHResult(
-            temperature,
-            qpoints,
-            frequencies,
-            effective,
-            tuple(history),
-            converged,
+            temperature=temperature,
+            irreducible_qpoints=qpoints,
+            irreducible_frequencies=frequencies,
+            weights=np.asarray(mesh.weights, dtype=np.int64),
+            grid=mesh,
+            symprec=self.symprec,
+            force_constants=effective,
+            history=tuple(history),
+            converged=converged,
         )
 
     def _covariance(
@@ -273,26 +336,64 @@ class LoopSCPH:
             result[key] = result.get(key, 0.0) + value.real
         return result
 
-    def _frequencies(
+    def _irreducible_frequencies(
         self,
         lattice: dict[tuple[int, int, tuple[int, int, int]], np.ndarray],
         multiplier: int,
     ) -> tuple[np.ndarray, np.ndarray]:
+        """Return the frequencies of the star representatives of one grid.
+
+        The dynamical matrices are built and diagonalized once per representative; a star
+        member never reaches an eigensolver, because its spectrum is its representative's.
+        """
         relation = self.fc2.relation
         assert relation is not None
         masses = np.asarray(relation.primitive.get_masses(), dtype=float)
         terms = fourier_terms(lattice, relation.primitive)
-        values = []
-        qpoints = self._qpoints(multiplier)
-        for q in qpoints:
-            eigenvalues = np.linalg.eigvalsh(dynamical_matrix(terms, masses, q))
-            values.append(np.sqrt(np.abs(eigenvalues)) * np.sign(eigenvalues) * _OMEGA_TO_THZ)
+        grid = self._mesh(multiplier)
+        qpoints = grid.full.points[grid.representatives]
+        eigenvalues = np.linalg.eigvalsh(dynamical_matrices(terms, masses, qpoints))
+        values = np.sqrt(np.abs(eigenvalues)) * np.sign(eigenvalues) * _OMEGA_TO_THZ
         return np.asarray(qpoints), np.asarray(values)
 
+    def _frequency_change(
+        self,
+        frequencies: np.ndarray,
+        previous: np.ndarray,
+        grid: IrreducibleReciprocalGrid,
+    ) -> float:
+        r"""Return the star-weighted RMS frequency change over the full grid.
+
+        .. math::
+
+            \Delta\omega = \sqrt{\frac{1}{N_q N_b}\sum_s w_s
+                \lVert\omega_s^{(n)} - \omega_s^{(n-1)}\rVert_2^2},
+
+        which is the full-grid RMS of the expanded change: every member of a star carries
+        the same change as its representative, so summing with the star weights is the
+        full sum without materializing it.
+        """
+        delta = np.asarray(frequencies, dtype=float) - np.asarray(previous, dtype=float)
+        n_q = len(grid.full.labels)
+        n_b = delta.shape[1]
+        weights = np.asarray(grid.weights, dtype=float)
+        return float(np.sqrt(np.sum(weights[:, None] * delta**2) / (n_q * n_b)))
+
     def _qpoints(self, multiplier: int) -> np.ndarray:
-        relation = self.fc2.relation
-        assert relation is not None
-        return quotient_qpoints(multiplier * relation.supercell_matrix)
+        """Return the full-grid q points of one multiplier, in full-grid order."""
+        return self._mesh(multiplier).full.points
+
+    def _mesh(self, multiplier: int) -> IrreducibleReciprocalGrid:
+        """Return the cached star decomposition of the grid of one multiplier."""
+        if multiplier not in self._meshes:
+            relation = self.fc2.relation
+            assert relation is not None
+            self._meshes[multiplier] = irreducible_reciprocal_grid(
+                multiplier * relation.supercell_matrix,
+                self._symmetry,
+                time_reversal=self.time_reversal,
+            )
+        return self._meshes[multiplier]
 
     @staticmethod
     def _copy_order(source: ForceConstants, order: int) -> ForceConstants:
