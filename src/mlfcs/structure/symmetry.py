@@ -64,7 +64,12 @@ class PrimitiveSymmetryOperations:
         )
         dataset = spglib.get_symmetry_dataset(cell, symprec=symprec)
         if dataset is None:
-            raise ValueError("spglib could not determine the primitive crystal symmetry")
+            raise ValueError(
+                "spglib could not determine the crystal symmetry of the primitive cell: "
+                f"{len(primitive)} atoms, cell {np.asarray(primitive.cell).tolist()}, "
+                f"symprec {symprec:g}. The cell may be non-periodic, degenerate, or its "
+                "positions may be too noisy for the requested tolerance."
+            )
         rotations = np.asarray(dataset.rotations, dtype=np.int32)
         translations = np.asarray(dataset.translations, dtype=float)
         lattice = np.asarray(primitive.cell)

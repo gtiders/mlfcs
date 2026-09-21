@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import partial
 
 import numpy as np
 
@@ -17,7 +18,11 @@ from mlfcs.reciprocal.grid import (
     irreducible_reciprocal_grid,
 )
 from mlfcs.reciprocal.statistics import OMEGA_TO_THZ as _OMEGA_TO_THZ
-from mlfcs.reciprocal.symmetry import expand_star_values
+from mlfcs.reciprocal.symmetry import (
+    expand_star_values,
+    require_little_group_covariance,
+    validate_site_masses,
+)
 from mlfcs.structure.symmetry import PrimitiveSymmetryOperations
 
 
@@ -42,6 +47,7 @@ class HarmonicMeshResult:
     grid: IrreducibleReciprocalGrid
     symprec: float
     time_reversal: bool
+    symmetry_tolerance: float | None
 
     @property
     def n_qpoints(self) -> int:
@@ -73,6 +79,7 @@ def harmonic_frequencies(
     *,
     symprec: float = 1e-5,
     time_reversal: bool = True,
+    symmetry_tolerance: float | None = 1e-6,
 ) -> HarmonicMeshResult:
     """Return harmonic frequencies on the irreducible wedge of a q grid.
 
@@ -90,8 +97,20 @@ def harmonic_frequencies(
     terms = fourier_terms(lattice, primitive)
     multiplier = _multiplier(interpolation_multiplier, "interpolation_multiplier")
     symmetry = PrimitiveSymmetryOperations.from_atoms(primitive, symprec=symprec)
+    validate_site_masses(symmetry, masses, context="harmonic_frequencies")
     grid = irreducible_reciprocal_grid(
         multiplier * fc2.relation.supercell_matrix, symmetry, time_reversal=time_reversal
+    )
+    # The star expansion is only legitimate if the dynamical matrix is covariant on the
+    # little group of every representative; a model that breaks it is reported here rather
+    # than averaged into a symmetric mesh.
+    require_little_group_covariance(
+        partial(dynamical_matrices, terms, masses),
+        masses,
+        symmetry,
+        grid,
+        tolerance=symmetry_tolerance,
+        context="harmonic_frequencies",
     )
     qpoints = grid.full.points[grid.representatives]
     eigenvalues = np.linalg.eigvalsh(dynamical_matrices(terms, masses, qpoints))
@@ -103,6 +122,7 @@ def harmonic_frequencies(
         grid=grid,
         symprec=float(symprec),
         time_reversal=bool(time_reversal),
+        symmetry_tolerance=None if symmetry_tolerance is None else float(symmetry_tolerance),
     )
 
 

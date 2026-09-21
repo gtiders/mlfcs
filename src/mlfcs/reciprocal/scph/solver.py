@@ -18,7 +18,7 @@ from mlfcs.force_constants.dense import lattice_fc2, replace_lattice_fc2
 from mlfcs.force_constants.representation import (
     ForceConstants,
 )
-from mlfcs.reciprocal.fourier import dynamical_matrices, fourier_terms
+from mlfcs.reciprocal.fourier import dynamical_matrices, dynamical_matrix, fourier_terms
 from mlfcs.reciprocal.grid import (
     IrreducibleReciprocalGrid,
     irreducible_reciprocal_grid,
@@ -31,8 +31,11 @@ from mlfcs.reciprocal.scph.fourier import (
 from mlfcs.reciprocal.statistics import HBAR_ASE, OMEGA_TO_THZ, mode_sigma
 from mlfcs.reciprocal.symmetry import (
     expand_star_values,
+    require_hermitian,
+    require_little_group_covariance,
     star_member_gauge,
     star_member_operator,
+    validate_site_masses,
 )
 from mlfcs.reciprocal.temperature import TemperatureSeriesResult, normalize_temperature_schedule
 from mlfcs.structure.symmetry import PrimitiveSymmetryOperations
@@ -64,6 +67,7 @@ class LoopSCPHResult:
     weights: np.ndarray
     grid: IrreducibleReciprocalGrid
     symprec: float
+    symmetry_tolerance: float | None
     force_constants: ForceConstants
     history: tuple[LoopSCPHIteration, ...]
     converged: bool
@@ -122,6 +126,7 @@ class LoopSCPH:
         qpoint_workers: int = 1,
         symprec: float = 1e-5,
         time_reversal: bool = True,
+        symmetry_tolerance: float | None = 1e-6,
     ) -> None:
         if not isinstance(fc2, ForceConstants) or not isinstance(fc4, ForceConstants):
             raise TypeError("fc2 and fc4 must be ForceConstants objects")
@@ -169,8 +174,18 @@ class LoopSCPH:
         # recorded in every result instead of being a module constant.
         self.symprec = float(symprec)
         self.time_reversal = bool(time_reversal)
+        if symmetry_tolerance is not None and symmetry_tolerance < 0:
+            raise ValueError("symmetry_tolerance must be non-negative or None")
+        self.symmetry_tolerance = (
+            None if symmetry_tolerance is None else float(symmetry_tolerance)
+        )
         self._symmetry = PrimitiveSymmetryOperations.from_atoms(
             self._primitive, symprec=self.symprec
+        )
+        validate_site_masses(
+            self._symmetry,
+            np.asarray(self._primitive.get_masses(), dtype=float),
+            context="LoopSCPH",
         )
         self._meshes: dict[int, IrreducibleReciprocalGrid] = {}
 
@@ -198,6 +213,10 @@ class LoopSCPH:
             else lattice_fc2(warm_start)
         )
         history: list[LoopSCPHIteration] = []
+        for multiplier in dict.fromkeys((self.scph_multiplier, self.interpolation_multiplier)):
+            self._check_symmetry(
+                current, multiplier, f"LoopSCPH at {temperature} K (multiplier {multiplier})"
+            )
         mesh = self._mesh(self.interpolation_multiplier)
         diagonalizations = 0
         qpoints, previous_frequencies = self._irreducible_frequencies(
@@ -253,7 +272,13 @@ class LoopSCPH:
         effective = replace_lattice_fc2(
             base,
             current,
-            metadata={"method": "loop_scph", "temperature": temperature},
+            metadata={
+                "method": "loop_scph",
+                "temperature": temperature,
+                "symprec": self.symprec,
+                "symmetry_tolerance": self.symmetry_tolerance,
+                "time_reversal": self.time_reversal,
+            },
         )
         # The final iterate's frequencies were already computed by the last sweep, so the
         # result reuses them instead of paying another ``N_irr`` diagonalizations.
@@ -264,6 +289,7 @@ class LoopSCPH:
             weights=np.asarray(mesh.weights, dtype=np.int64),
             grid=mesh,
             symprec=self.symprec,
+            symmetry_tolerance=self.symmetry_tolerance,
             force_constants=effective,
             history=tuple(history),
             converged=converged,
@@ -339,6 +365,14 @@ class LoopSCPH:
                     expanded = unitary @ source @ unitary.conj().T
                     if np.any(gauge != 1.0):
                         expanded = gauge[:, None] * expanded * gauge.conj()[None, :]
+                    require_hermitian(
+                        expanded,
+                        scale=float(np.max(np.abs(weighted[local]))),
+                        tolerance=self.symmetry_tolerance,
+                        label=tuple(int(value) for value in grid.full.labels[member]),
+                        operation=int(grid.full_operations[member]),
+                        context="LoopSCPH covariance",
+                    )
                     qpoint = grid.full.points[member]
                     for a, b, r in needed:
                         block = expanded[3 * a : 3 * a + 3, 3 * b : 3 * b + 3] / np.sqrt(
@@ -445,6 +479,31 @@ class LoopSCPH:
                 time_reversal=self.time_reversal,
             )
         return self._meshes[multiplier]
+
+    def _check_symmetry(
+        self,
+        lattice: dict[tuple[int, int, tuple[int, int, int]], np.ndarray],
+        multiplier: int,
+        context: str,
+    ) -> None:
+        """Raise unless the current force constants are covariant on every little group.
+
+        Every consumer of a star decomposition relies on that covariance, so it is checked
+        once per run on the lattice that is actually being used, and the failure names the
+        operation, the label and the residual.
+        """
+        relation = self.fc2.relation
+        assert relation is not None
+        masses = np.asarray(relation.primitive.get_masses(), dtype=float)
+        terms = fourier_terms(lattice, relation.primitive)
+        require_little_group_covariance(
+            lambda qpoint: dynamical_matrix(terms, masses, qpoint),
+            masses,
+            self._symmetry,
+            self._mesh(multiplier),
+            tolerance=self.symmetry_tolerance,
+            context=context,
+        )
 
     @staticmethod
     def _copy_order(source: ForceConstants, order: int) -> ForceConstants:

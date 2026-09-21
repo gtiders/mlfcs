@@ -53,6 +53,11 @@ All notable changes are documented here. Releases follow semantic versioning.
   `n_irreducible`.
 - `symprec` and `time_reversal` are public arguments of `LoopSCPH`, `harmonic_frequencies`
   and `HarmonicSampler`, recorded in their results, instead of module constants.
+- `SymmetryViolationError` and an explicit `symmetry_tolerance` on `LoopSCPH`,
+  `HarmonicSampler` and `harmonic_frequencies`: every reciprocal consumer now checks that the
+  force constants are covariant on the little group of each star representative before it
+  expands, reports the operation, label, residual and scale of a violation instead of
+  averaging it away, and records the tolerance in its results and metadata.
 - `scripts/benchmark_reciprocal_reduction.py` reports the reduction ratio, the
   diagonalization counts, the timings and the peak memory of the irreducible paths against a
   full-grid reference.
@@ -68,6 +73,10 @@ All notable changes are documented here. Releases follow semantic versioning.
 
 ### Fixed
 
+- The crystal-symmetry gate is on by default, so a hand-built or heavily truncated model that
+  does not satisfy its own space group is now rejected with the offending operation and label.
+  `symmetry_tolerance=None` switches the check off explicitly for such fixtures; a structure
+  whose symmetry spglib cannot determine now reports the atom count, cell and `symprec`.
 - Harmonic sampling kept the full random degrees of freedom: every full q point draws its
   own coefficient, a `q/-q` pair draws on one side and takes the real part of that single
   complex amplitude, and a label with `q = -q + G` spans its real amplitude space. Two

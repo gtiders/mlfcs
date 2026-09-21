@@ -118,10 +118,15 @@ from typing import Literal
 import numpy as np
 from ase import Atoms, units
 
+from mlfcs.exceptions import SymmetryViolationError
 from mlfcs.reciprocal.fourier import compact_dynamical_matrix
 from mlfcs.reciprocal.grid import IrreducibleReciprocalGrid, irreducible_reciprocal_grid
 from mlfcs.reciprocal.statistics import HBAR_ASE, OMEGA_TO_THZ, mode_sigma
-from mlfcs.reciprocal.symmetry import star_member_gauge, star_member_operator
+from mlfcs.reciprocal.symmetry import (
+    star_member_gauge,
+    star_member_operator,
+    validate_site_masses,
+)
 from mlfcs.structure.supercell_mapping import PeriodicIndex
 from mlfcs.structure.symmetry import PrimitiveSymmetryOperations
 
@@ -198,6 +203,7 @@ class HarmonicSampler:
         imaginary_tolerance: float = 1e-6,
         max_displacement: float | None = None,
         symprec: float = 1e-5,
+        symmetry_tolerance: float | None = 1e-6,
     ) -> None:
         if temperature < 0:
             raise ValueError("temperature must be non-negative")
@@ -209,6 +215,8 @@ class HarmonicSampler:
             raise ValueError("imaginary_modes must be 'error', 'absolute', or 'exclude'")
         if max_displacement is not None and max_displacement <= 0:
             raise ValueError("max_displacement must be positive or None")
+        if symmetry_tolerance is not None and symmetry_tolerance < 0:
+            raise ValueError("symmetry_tolerance must be non-negative or None")
 
         self.primitive = primitive.copy()
         self.supercell = supercell.copy()
@@ -228,6 +236,12 @@ class HarmonicSampler:
         # The tolerance that identifies the primitive symmetry is a geometric quantity and
         # is therefore an explicit argument, recorded next to the decomposition it built.
         self.symprec = float(symprec)
+        # A physical covariance check tolerance, distinct from symprec: symprec decides
+        # which operations the structure has, this decides how exactly the force constants
+        # must respect them.  None switches the check off explicitly.
+        self.symmetry_tolerance = (
+            None if symmetry_tolerance is None else float(symmetry_tolerance)
+        )
         self._compact = np.asarray(compact_fc2, dtype=float)
         self._n_primitive = len(primitive)
         self._translations = np.asarray(supercell.arrays["cell_translation"], dtype=np.int64)
@@ -264,8 +278,10 @@ class HarmonicSampler:
         self._grid = irreducible_reciprocal_grid(
             self._index.supercell_matrix, self._symmetry, time_reversal=True
         )
+        validate_site_masses(self._symmetry, self._masses, context="HarmonicSampler")
         self._stars = self._prepare_irreducible()
         self._members = self._expand_full_grid()
+        self._validate_expansion()
         self._last_state: SamplingState | None = None
 
     @property
@@ -403,10 +419,7 @@ class HarmonicSampler:
         bases = self._translation_basis()
         gamma = self._gamma_star()
         if gamma is not None:
-            projected = matrices[gamma].real
-            projected = projected - bases @ (bases.T @ projected)
-            projected = projected - (projected @ bases) @ bases.T
-            matrices[gamma] = projected
+            matrices[gamma] = self._project_gamma(matrices[gamma], bases)
         eigenvalues, eigenvectors = np.linalg.eigh(matrices)
         stars = []
         imaginary_count = 0
@@ -487,6 +500,61 @@ class HarmonicSampler:
                 )
             )
         return tuple(members)
+
+    def _project_gamma(self, matrix: np.ndarray, bases: np.ndarray) -> np.ndarray:
+        """Return the Gamma matrix with the uniform translations projected out.
+
+        The three acoustic zero modes of a translation-invariant model are not sampled modes,
+        so the representative that carries Gamma is diagonalized in the orthogonal complement
+        of the mass-weighted translations.  Every later comparison has to use the same
+        projected matrix, otherwise it would compare a reconstruction with a matrix that was
+        never diagonalized.
+        """
+        projected = np.asarray(matrix).real
+        projected = projected - bases @ (bases.T @ projected)
+        projected = projected - (projected @ bases) @ bases.T
+        return projected
+
+    def _validate_expansion(self) -> None:
+        r"""Raise unless every expanded eigenbasis reproduces its member's own matrix.
+
+        The sampler synthesizes a displacement field from ``w(gq) = Gamma_G U_g w(q_s)``, so
+        the whole construction is only as sound as that identity.  Rebuilding
+        ``E diag(lambda) E^dagger`` from the stored member basis and comparing it with the
+        member's own dynamical matrix validates the rotation, the site permutation, the
+        positional gauge and the antiunitary conjugation at once, on every full q point --
+        including the members whose label reduction bites and the pairs whose partner is
+        represented by a conjugate amplitude.  A reconstruction that fails it would still
+        produce a plausible-looking spectrum, which is why it is checked rather than assumed.
+        """
+        tolerance = self.symmetry_tolerance
+        if tolerance is None:
+            return
+        gamma = self._gamma_star()
+        bases = self._translation_basis()
+        matrices = [self._dynamical_matrix(member.qpoint) for member in self._members]
+        for index, member in enumerate(self._members):
+            if member.star == gamma:
+                matrices[index] = self._project_gamma(matrices[index], bases)
+        # The scale is the largest element over the whole mesh, not per member: a Gamma
+        # matrix of a translation-invariant model is zero by construction, so a per-member
+        # scale would turn its rounding noise into a violation.
+        scale = max((float(np.max(np.abs(matrix))) for matrix in matrices), default=0.0)
+        allowed = tolerance * scale if scale > 0 else tolerance
+        for member, direct in zip(self._members, matrices, strict=True):
+            star = self._stars[member.star]
+            reconstructed = (member.eigenvectors * star.eigenvalues[None, :]) @ (
+                member.eigenvectors.conj().T
+            )
+            residual = float(np.max(np.abs(reconstructed - direct)))
+            if residual > allowed:
+                raise SymmetryViolationError(
+                    f"HarmonicSampler: the modes expanded for label {list(member.label)} do "
+                    f"not reproduce that member's dynamical matrix: residual {residual:.6e} "
+                    f"against an allowed {allowed:.6e} (mesh scale {scale:.6e}). The star "
+                    "expansion, the positional gauge or the antiunitary conjugation is "
+                    "inconsistent with the force constants."
+                )
 
     def _translation_basis(self) -> np.ndarray:
         """Return the orthonormal mass-weighted uniform translations, one per column."""
