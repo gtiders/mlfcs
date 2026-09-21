@@ -17,6 +17,7 @@ from mlfcs.reciprocal.grid import (
     IrreducibleReciprocalGrid,
     irreducible_reciprocal_grid,
 )
+from mlfcs.reciprocal.plan import ReciprocalExpansionPlan
 from mlfcs.reciprocal.statistics import OMEGA_TO_THZ as _OMEGA_TO_THZ
 from mlfcs.reciprocal.symmetry import (
     expand_star_values,
@@ -110,13 +111,16 @@ def harmonic_frequencies(
     # The star expansion is only legitimate if every member the expansion produces agrees
     # with the matrix built directly at that member's own label; the little group alone does
     # not certify that, so the full star is checked before anything is diagonalized.
+    positions = np.asarray(primitive.get_scaled_positions(wrap=False), dtype=float)
+    plan = ReciprocalExpansionPlan.from_grid(symmetry, grid, positions)
     require_star_covariance(
         partial(dynamical_matrices, terms, masses),
         symmetry,
         grid,
-        np.asarray(primitive.get_scaled_positions(wrap=False), dtype=float),
+        positions,
         tolerance=symmetry_tolerance,
         context="harmonic_frequencies",
+        plan=plan,
     )
     qpoints = grid.full.points[grid.representatives]
     eigenvalues = np.linalg.eigvalsh(dynamical_matrices(terms, masses, qpoints))

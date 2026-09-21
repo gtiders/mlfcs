@@ -15,7 +15,6 @@ constant to fix.
 
 from __future__ import annotations
 
-from dataclasses import replace
 from functools import partial
 
 import numpy as np
@@ -243,20 +242,20 @@ def test_the_sampler_expansion_is_checked_against_each_member_matrix(monkeypatch
     )
     _sampler_of(force_constants)  # the honest sampler must construct without complaining
 
-    import mlfcs.reciprocal.sampling.harmonic as harmonic_module
+    from mlfcs.reciprocal.plan import ReciprocalExpansionPlan
 
-    honest = harmonic_module.star_member_action
-
-    def without_rotation(symmetry, grid, member, positions):
-        action = honest(symmetry, grid, member, positions)
-        return replace(action, unitary=np.eye(len(action.unitary), dtype=complex))
-
-    monkeypatch.setattr(harmonic_module, "star_member_action", without_rotation)
+    monkeypatch.setattr(
+        ReciprocalExpansionPlan,
+        "unitary",
+        lambda self, member: np.eye(3 * self.site_permutations.shape[1], dtype=complex),
+    )
     with pytest.raises(SymmetryViolationError) as failure:
         _sampler_of(force_constants)
+    # The full-star gate runs before the sampler's own basis check, so either message is the
+    # right answer; both name the member and the residual.
     message = str(failure.value)
-    assert "do not reproduce that member's dynamical matrix" in message
-    assert "label" in message and "residual" in message
+    assert "member" in message or "do not reproduce" in message
+    assert "residual" in message
 
 
 def test_the_sampler_records_both_tolerances_with_its_state() -> None:
@@ -599,6 +598,41 @@ def test_public_matrix_expansion_applies_the_stored_label_gauge(case: str) -> No
         source = np.conjugate(representatives[star]) if antiunitary else representatives[star]
         without[member] = unitary @ source @ unitary.conj().T
     assert float(np.max(np.abs(without - direct))) > 1e-3 * scale
+
+
+@pytest.mark.parametrize("case", ("diamond", "hcp", "GaAs"))
+def test_the_shared_plan_reproduces_the_uncached_expansion(case: str) -> None:
+    """The cached plan is a representation change: assembling from it is bit-identical."""
+    from mlfcs.reciprocal.plan import ReciprocalExpansionPlan
+    from mlfcs.reciprocal.symmetry import expand_star_matrices, star_member_action
+
+    force_constants = _gauge_case(case)
+    relation = force_constants.relation
+    positions = np.asarray(relation.primitive.get_scaled_positions(wrap=False), dtype=float)
+    symmetry = PrimitiveSymmetryOperations.from_atoms(relation.primitive, symprec=1e-5)
+    decomposition = irreducible_reciprocal_grid(2 * relation.supercell_matrix, symmetry)
+    plan = ReciprocalExpansionPlan.from_grid(symmetry, decomposition, positions)
+
+    rng = np.random.default_rng(0)
+    n = 3 * len(relation.primitive)
+    matrices = rng.normal(size=(len(decomposition.representatives), n, n))
+    matrices = matrices + matrices.swapaxes(-1, -2)
+    vectors = rng.normal(size=(n, n))
+
+    cached = expand_star_matrices(
+        matrices, decomposition, symmetry, positions, plan=plan
+    )
+    uncached = expand_star_matrices(matrices, decomposition, symmetry, positions)
+    np.testing.assert_array_equal(cached, uncached)
+    for member in range(len(decomposition.full.labels)):
+        action = star_member_action(symmetry, decomposition, member, positions)
+        np.testing.assert_array_equal(
+            plan.apply_to_matrix(member, matrices[plan.star(member)]),
+            action.apply_to_matrix(matrices[action.star]),
+        )
+        np.testing.assert_array_equal(
+            plan.apply_to_vectors(member, vectors), action.apply_to_vectors(vectors)
+        )
 
 
 def test_pair_bond_models_are_accepted_by_the_gate() -> None:
