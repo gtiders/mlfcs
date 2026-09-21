@@ -244,6 +244,23 @@ def test_operator_reuses_one_plan_for_another_snapshot_subset():
     np.testing.assert_allclose(subset.design(0), operator.design(0))
 
 
+@pytest.mark.parametrize("shape", [(3, 3), (1, 1, 3, 1)])
+def test_operator_rejects_displacements_without_snapshot_atom_axis_layout(shape):
+    tensor = _one_parameter_fc2_tensor()
+
+    with pytest.raises(ValueError, match=r"\(snapshots, atoms, 3\)"):
+        _ForceDesignOperator(np.zeros(shape), (tensor,))
+
+
+def test_operator_normalizes_valid_displacements_to_force_rows():
+    tensor = _one_parameter_fc2_tensor()
+    operator = _ForceDesignOperator(np.zeros((4, 1, 3)), (tensor,))
+
+    assert operator.force_shape == (4, 1, 3)
+    assert operator.displacements.shape == (4, 3)
+    assert operator.rows_per_snapshot == 3
+
+
 def test_design_reduction_matches_sparse_constraint_map():
     mapping = sparse.csc_matrix([[1.0, 0.0], [0.5, -1.0], [0.0, 2.0], [-3.0, 0.0]])
     design = np.arange(12, dtype=float).reshape(3, 4)

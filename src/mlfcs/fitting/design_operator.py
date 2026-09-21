@@ -256,9 +256,9 @@ class ForceDesignOperator:
         values = np.ascontiguousarray(displacements, dtype=float)
         if values.ndim != 3 or values.shape[2] != 3:
             raise ValueError("displacements must have shape (snapshots, atoms, 3)")
-        self.displacements = values
-        self.force_shape = self.displacements.shape
+        self.force_shape = values.shape
         self.rows_per_snapshot = int(np.prod(self.force_shape[1:]))
+        self.displacements = values.reshape(len(values), self.rows_per_snapshot)
         self.plan = ForceDesignPlan.compile(parameterizations) if plan is None else plan
         if parameter_map is not None and parameter_map.shape[0] != self.plan.n_parameters:
             raise ValueError("the constraint map does not match the compiled design columns")
@@ -292,7 +292,7 @@ class ForceDesignOperator:
         if self._scratch is None:
             self._scratch = self.plan.scratch(self.rows_per_snapshot)
         design = np.zeros((self.rows_per_snapshot, self.plan.n_parameters), dtype=float)
-        self.plan.accumulate(self.displacements[index].reshape(-1), design, self._scratch)
+        self.plan.accumulate(self.displacements[index], design, self._scratch)
         return design
 
     def reduce(self, design: np.ndarray) -> np.ndarray:
