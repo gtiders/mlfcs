@@ -7,10 +7,8 @@ import inspect
 from _architecture_helpers import module_imports
 
 from mlfcs import (
-    SSCHA,
     FiniteDifferenceCalculation,
     ForceConstantFitter,
-    LoopSCPH,
     MLFCSCalculator,
     enforce_rotational_sum_rules,
     perturb_structures,
@@ -18,6 +16,7 @@ from mlfcs import (
     realize_force_constants,
     write_force_constants,
 )
+from mlfcs.reciprocal import LoopSCPH, SSCHA
 
 
 def test_public_callables_have_explicit_documented_signatures():
@@ -50,7 +49,6 @@ def test_top_level_api_is_the_locked_whitelist():
         "ForceConstantFitter",
         "ForceConstants",
         "InteractionSpace",
-        "LoopSCPH",
         "MLFCSCalculator",
         "PrimitiveInteractionSpace",
         "RealizedInteractionSpace",
@@ -62,6 +60,20 @@ def test_top_level_api_is_the_locked_whitelist():
         "realize_force_constants",
         "enforce_rotational_sum_rules",
     }
+
+
+def test_reciprocal_workflows_are_not_root_exports():
+    """Harmonic sampling, SCPH and SSCHA belong to `mlfcs.reciprocal`.
+
+    Importing the reciprocal workflows from the root namespace would make every mainline
+    consumer look like a reciprocal-space user, which is exactly what the one-way
+    dependency rule forbids.
+    """
+    import mlfcs
+
+    for name in ("LoopSCPH", "SSCHA", "HarmonicSampler", "harmonic_frequencies"):
+        assert not hasattr(mlfcs, name), name
+        assert name not in mlfcs.__all__
 
 
 def test_low_level_packages_do_not_depend_on_workflow_or_writer_modules():
@@ -79,8 +91,8 @@ def test_low_level_packages_do_not_depend_on_workflow_or_writer_modules():
                 (
                     "mlfcs.io",
                     "mlfcs.fitting",
-                    "mlfcs.phonon.scph.solver",
-                    "mlfcs.phonon.sscha.solver",
+                    "mlfcs.reciprocal.scph.solver",
+                    "mlfcs.reciprocal.sscha.solver",
                 )
             )
             for value in imports
@@ -88,7 +100,7 @@ def test_low_level_packages_do_not_depend_on_workflow_or_writer_modules():
 
     force_constant_imports = module_imports("force_constants.representation")
     assert not any(
-        value.startswith(("mlfcs.fitting", "mlfcs.phonon", "mlfcs.io", "mlfcs.constraints"))
+        value.startswith(("mlfcs.fitting", "mlfcs.reciprocal", "mlfcs.io", "mlfcs.constraints"))
         for value in force_constant_imports
     )
 
@@ -99,8 +111,8 @@ def test_low_level_packages_do_not_depend_on_workflow_or_writer_modules():
                 (
                     "mlfcs.finite_difference.calculation",
                     "mlfcs.fitting",
-                    "mlfcs.phonon.sscha.solver",
-                    "mlfcs.phonon.scph.solver",
+                    "mlfcs.reciprocal.sscha.solver",
+                    "mlfcs.reciprocal.scph.solver",
                 )
             )
             for value in imports

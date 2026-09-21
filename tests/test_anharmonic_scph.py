@@ -7,9 +7,9 @@ from ase import Atoms
 from mlfcs import write_force_constants
 from mlfcs.force_constants.representation import ForceConstants, SparseOrderForceConstants
 from mlfcs.io.hdf5 import read_hdf5
-from mlfcs.phonon.scph.fourier import _fourier_terms, harmonic_frequencies
-from mlfcs.phonon.scph.solver import LoopSCPH
-from mlfcs.phonon.statistics import mode_sigma
+from mlfcs.reciprocal.scph.fourier import _fourier_terms, harmonic_frequencies
+from mlfcs.reciprocal.scph.solver import LoopSCPH
+from mlfcs.reciprocal.statistics import mode_sigma
 from mlfcs.structure.relation import StructureRelation
 
 
