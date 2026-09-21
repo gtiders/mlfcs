@@ -6,8 +6,17 @@ from ase import Atoms
 from supercell_helpers import make_supercell
 
 from mlfcs.finite_difference.calculation import FiniteDifferenceCalculation
+from mlfcs.finite_difference.plan_identity import ForceBatch
 from mlfcs.structure.periodic_geometry import PeriodicGeometry
 from mlfcs.structure.relation import StructureRelation, align_structures
+
+
+def _batch(job, forces):
+    return ForceBatch(
+        fingerprint=job.manifest.fingerprint,
+        configuration_ids=tuple(range(len(forces))),
+        forces=forces,
+    )
 
 
 def test_relation_preserves_reference_order_for_a_nondiagonal_supercell():
@@ -90,8 +99,8 @@ def test_finite_difference_reap_is_invariant_to_reference_atom_permutation():
     # each calculation's own public atom order.
     forces_a = np.asarray([-(atoms.positions - generated.positions) for atoms in canonical.sow()])
     forces_b = np.asarray([-(atoms.positions - reordered.positions) for atoms in shuffled.sow()])
-    fc_a = canonical.reap(forces_a, acoustic_sum_rule=False).sparse[2]
-    fc_b = shuffled.reap(forces_b, acoustic_sum_rule=False).sparse[2]
+    fc_a = canonical.reap(_batch(canonical, forces_a), acoustic_sum_rule=False).sparse[2]
+    fc_b = shuffled.reap(_batch(shuffled, forces_b), acoustic_sum_rule=False).sparse[2]
 
     order_a = np.lexsort((*fc_a.translations.reshape(len(fc_a.tensors), -1).T, *fc_a.sites.T))
     order_b = np.lexsort((*fc_b.translations.reshape(len(fc_b.tensors), -1).T, *fc_b.sites.T))
