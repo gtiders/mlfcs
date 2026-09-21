@@ -119,10 +119,16 @@ import numpy as np
 from ase import Atoms, units
 
 from mlfcs.exceptions import SymmetryViolationError
-from mlfcs.reciprocal.fourier import compact_dynamical_matrix
+from mlfcs.reciprocal.fourier import compact_dynamical_matrices, compact_dynamical_matrix
 from mlfcs.reciprocal.grid import IrreducibleReciprocalGrid, irreducible_reciprocal_grid
 from mlfcs.reciprocal.statistics import HBAR_ASE, OMEGA_TO_THZ, mode_sigma
-from mlfcs.reciprocal.symmetry import star_member_action, validate_site_masses
+from mlfcs.reciprocal.symmetry import (
+    require_star_covariance,
+    star_member_action,
+    validate_site_masses,
+    validate_symmetry_tolerance,
+    validate_symprec,
+)
 from mlfcs.structure.supercell_mapping import PeriodicIndex
 from mlfcs.structure.symmetry import PrimitiveSymmetryOperations
 
@@ -216,8 +222,7 @@ class HarmonicSampler:
             raise ValueError("imaginary_modes must be 'error', 'absolute', or 'exclude'")
         if max_displacement is not None and max_displacement <= 0:
             raise ValueError("max_displacement must be positive or None")
-        if symmetry_tolerance is not None and symmetry_tolerance < 0:
-            raise ValueError("symmetry_tolerance must be non-negative or None")
+
 
         self.primitive = primitive.copy()
         self.supercell = supercell.copy()
@@ -236,12 +241,12 @@ class HarmonicSampler:
         self.max_displacement = max_displacement
         # The tolerance that identifies the primitive symmetry is a geometric quantity and
         # is therefore an explicit argument, recorded next to the decomposition it built.
-        self.symprec = float(symprec)
+        self.symprec = validate_symprec(symprec, context="HarmonicSampler")
         # A physical covariance check tolerance, distinct from symprec: symprec decides
         # which operations the structure has, this decides how exactly the force constants
         # must respect them.  None switches the check off explicitly.
-        self.symmetry_tolerance = (
-            None if symmetry_tolerance is None else float(symmetry_tolerance)
+        self.symmetry_tolerance = validate_symmetry_tolerance(
+            symmetry_tolerance, context="HarmonicSampler"
         )
         self._compact = np.asarray(compact_fc2, dtype=float)
         self._n_primitive = len(primitive)
@@ -280,6 +285,14 @@ class HarmonicSampler:
             self._index.supercell_matrix, self._symmetry, time_reversal=True
         )
         validate_site_masses(self._symmetry, self._masses, context="HarmonicSampler")
+        require_star_covariance(
+            self._dynamical_matrices,
+            self._symmetry,
+            self._grid,
+            self._positions,
+            tolerance=self.symmetry_tolerance,
+            context="HarmonicSampler",
+        )
         self._stars = self._prepare_irreducible()
         self._members = self._expand_full_grid()
         self._validate_expansion()
@@ -572,11 +585,24 @@ class HarmonicSampler:
             raise RuntimeError("the Gamma point must be the representative of its own star")
         return star
 
-    def _dynamical_matrix(self, qpoint: np.ndarray) -> np.ndarray:
-        """Return the mass-weighted dynamical matrix in the positional gauge.
+    def _dynamical_matrices(self, qpoints: np.ndarray) -> np.ndarray:
+        """Return the dynamical matrices of the compact FC2 for a batch of q points."""
+        return compact_dynamical_matrices(
+            self._compact,
+            self._cell_atoms,
+            self._cell_translations,
+            self._positions,
+            self._masses,
+            qpoints,
+        )
 
-        The kernel lives in :mod:`mlfcs.reciprocal.fourier`, so this sampler and the SCPH
-        path build the same matrix and can share one symmetry representation.
+    def _dynamical_matrix(self, qpoint: np.ndarray) -> np.ndarray:
+        """Return the dynamical matrix of one q point, in the sampler's positional gauge.
+
+        The diagonalization input is built point by point on purpose: the sampled fields are a
+        pinned contract, and a batched build changes the last bits of the matrix, which moves
+        the eigenvector gauge and therefore the drawn numbers.  The batched kernel is used
+        where no such contract exists -- the star validation sweep.
         """
         return compact_dynamical_matrix(
             self._compact,
@@ -584,7 +610,7 @@ class HarmonicSampler:
             self._cell_translations,
             self._positions,
             self._masses,
-            qpoint,
+            np.asarray(qpoint, dtype=float),
         )
 
     def _mode_sigma(self, eigenvalues: np.ndarray) -> np.ndarray:
