@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import ast
+import subprocess
+import sys
 
 from _architecture_helpers import ROOT, internal_dependencies
 
@@ -47,6 +49,68 @@ def test_mainline_packages_do_not_depend_on_reciprocal_workflows():
         "calculators",
     ):
         assert "reciprocal" not in internal_dependencies(package), package
+
+
+def test_no_module_outside_the_reciprocal_package_imports_it():
+    """A file-level scan, because the root namespace is not a package of its own.
+
+    ``internal_dependencies`` walks one package at a time, so a stray import in
+    ``src/mlfcs/__init__.py`` or in any other module outside the reciprocal tree would slip
+    through.  The plan makes this boundary the merge gate, so it is checked directly.
+    """
+    offenders = []
+    for path in sorted(ROOT.rglob("*.py")):
+        if "reciprocal" in path.relative_to(ROOT).parts:
+            continue
+        tree = ast.parse(path.read_text())
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom):
+                imported = [node.module] if node.module else []
+            elif isinstance(node, ast.Import):
+                imported = [alias.name for alias in node.names]
+            else:
+                continue
+            if any(
+                name == "mlfcs.reciprocal" or name.startswith("mlfcs.reciprocal.")
+                for name in imported
+                if name
+            ):
+                offenders.append(f"{path.relative_to(ROOT)}:{node.lineno}")
+    assert not offenders, offenders
+
+
+def test_every_public_subpackage_imports_on_its_own():
+    """A fresh interpreter per subpackage catches import cycles and missing optionals.
+
+    Importing the package in a subprocess is the only way to see a cycle: an in-process
+    import would already be satisfied by whatever the test session imported earlier.
+    """
+    modules = (
+        "mlfcs.reciprocal",
+        "mlfcs.reciprocal.grid",
+        "mlfcs.reciprocal.fourier",
+        "mlfcs.reciprocal.symmetry",
+        "mlfcs.reciprocal.sampling",
+        "mlfcs.reciprocal.scph",
+        "mlfcs.reciprocal.sscha",
+        "mlfcs.sampling",
+        "mlfcs.structure",
+        "mlfcs.interactions",
+        "mlfcs.force_constants",
+        "mlfcs.constraints",
+        "mlfcs.finite_difference",
+        "mlfcs.fitting",
+        "mlfcs.io",
+        "mlfcs.calculators",
+    )
+    for module in modules:
+        completed = subprocess.run(
+            [sys.executable, "-c", f"import {module}"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert completed.returncode == 0, f"{module}: {completed.stderr.strip()}"
 
 
 def test_legacy_phonon_package_is_removed():
