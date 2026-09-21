@@ -143,7 +143,7 @@ transferable primitive FC1 无法完整代表的 source-only finite response。
 transferable span，并将 span 外 residual 作为诊断或 source-only companion；在此之前不改变
 生产路径。
 
-相关原型和数值结果位于：
-
-- `research/ase_calculator/prototype.py`；
-- `research/ase_calculator/results.json`。
+相关数值结果位于 `research/ase_calculator/results.json`。生成它的原型
+`research/ase_calculator/prototype.py` 已删除：它导入已移除的 `mlfcs.fitting.backends.wick`
+包和 JAX（已不是项目依赖），因此在仓库声明的环境里无法运行；结论与数据保留在
+`results.json` 与本文件中。

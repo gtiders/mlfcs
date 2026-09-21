@@ -1,22 +1,22 @@
 {
   "cutoff_angstrom": 11.0,
   "direct_total": {
-    "maximum_constraint_residual": 6.071532165918825e-18,
+    "maximum_constraint_residual": 2.168404344971009e-17,
     "orbits": 23,
     "parameters": 76,
-    "solver_iterations": 19,
+    "solver_iterations": 16,
     "solver_stop_code": 0,
-    "training_force_rmse_ev_per_angstrom": 2.651939354365933e-05,
-    "training_relative_force_error": 0.045556394169375625
+    "training_force_rmse_ev_per_angstrom": 2.6519393543680623e-05,
+    "training_relative_force_error": 0.0455563941694122
   },
   "frames": 2,
   "short_range": {
-    "maximum_constraint_residual": 8.673617379884035e-18,
+    "maximum_constraint_residual": 1.5233040523421337e-17,
     "orbits": 23,
     "parameters": 76,
-    "solver_iterations": 19,
+    "solver_iterations": 16,
     "solver_stop_code": 0,
-    "training_force_rmse_ev_per_angstrom": 1.484222611000188e-05,
-    "training_relative_force_error": 0.024691623576418457
+    "training_force_rmse_ev_per_angstrom": 1.4842226110120773e-05,
+    "training_relative_force_error": 0.02469162357661625
   }
 }

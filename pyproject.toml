@@ -43,6 +43,13 @@ dev = [
     "pytest>=8",
     "ruff>=0.9",
 ]
+# Oracles for the cross-checks against phonopy/phono3py. They are heavy C-extension
+# packages and no production code imports them, so they live in their own group: the
+# default environment skips those tests, and this group runs the whole suite.
+reference = [
+    "phonopy>=2.20",
+    "phono3py>=3.0",
+]
 docs = [
     "mkdocs-material>=9.5",
 ]

@@ -12,6 +12,7 @@ INFO mlfcs.interactions.space: 28 independent tensor parameters
 INFO mlfcs.finite_difference.calculation: Building the central-difference displacement plan
 INFO mlfcs.finite_difference.calculation: 3 displacement keys
 INFO mlfcs.finite_difference.calculation: 6 force calculations required
+INFO mlfcs.finite_difference.calculation: Fingerprinting the central displacement plan
 INFO mlfcs.finite_difference.calculation: Evaluating 6 configurations with CPUNEP
 INFO mlfcs.finite_difference.calculation: Forces: 1/6 (17%)
 INFO mlfcs.finite_difference.calculation: Forces: 2/6 (33%)
@@ -24,7 +25,7 @@ INFO mlfcs.finite_difference.calculation: Validated 6 force configurations
 INFO mlfcs.finite_difference.calculation: Contracted 3 finite-difference derivatives
 INFO mlfcs.finite_difference.calculation: Reconstructing symmetry-expanded force constants (ASR enabled)
 INFO mlfcs.finite_difference.calculation: - Max drift of fc2: 1.1203260210e-01 -> 5.3290705182e-15 eV/angstrom^2
-INFO mlfcs.finite_difference.calculation: - ASR parameter correction: maximum=2.5866113040e-03 eV/angstrom^2, relative L2=3.2643774750e-04
+INFO mlfcs.finite_difference.calculation: - ASR parameter correction: maximum=2.9544473395e-03 eV/angstrom^2, relative L2=2.4304709071e-04
 INFO mlfcs.finite_difference.calculation: Reconstructed 174 sparse cluster tensors
 INFO mlfcs.force_constants.realization: Export view cache miss; constructing new view
 INFO mlfcs.force_constants.realization: Export view cache hit; reusing existing view

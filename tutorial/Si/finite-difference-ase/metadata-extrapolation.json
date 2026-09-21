@@ -1,6 +1,6 @@
 {
   "order": 2,
-  "cutoff_angstrom": 7.723740495133356,
+  "cutoff_angstrom": 7.7237404951,
   "displacement_angstrom": 0.01,
   "spacegroup": "Fd-3m",
   "acoustic_sum_rule": true,
@@ -14,7 +14,9 @@
     0.014
   ],
   "extrapolation_degree": 1,
-  "extrapolation_maximum_correction": 0.0005231486402692553,
-  "extrapolation_relative_l2_correction": 4.989034819055332e-05,
-  "extrapolation_maximum_fit_residual": 4.1060470579168395e-08
+  "plan_schema_version": 1,
+  "plan_fingerprint": "be9f67cf7a3080d91d1c47e299e5408fb2f43ec521384adf5a77e761033339c9",
+  "extrapolation_maximum_correction": 0.0005231486400045782,
+  "extrapolation_relative_l2_correction": 4.989034817244746e-05,
+  "extrapolation_maximum_fit_residual": 4.105996254111233e-08
 }

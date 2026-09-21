@@ -4,6 +4,7 @@ import ast
 from pathlib import Path
 
 import numpy as np
+import pytest
 from ase import Atoms
 
 from mlfcs import build_supercell
@@ -44,6 +45,7 @@ def test_builder_has_no_calculation_or_workflow_dependency():
 
 
 def test_fallback_is_identical_to_phonopy_old_style_for_a_general_matrix():
+    pytest.importorskip("phonopy", reason="phonopy is a reference-test oracle")
     primitive = _primitive()
     matrix = normalize_supercell_matrix([[2, 1, 0], [0, 2, 0], [0, 0, 1]])
     phonopy = _from_phonopy(primitive, matrix, symprec=1e-5)
