@@ -5,6 +5,7 @@ import pytest
 from ase import Atoms
 
 from mlfcs import write_force_constants
+from mlfcs.force_constants.dense import lattice_fc2
 from mlfcs.force_constants.representation import ForceConstants, SparseOrderForceConstants
 from mlfcs.io.hdf5 import read_hdf5
 from mlfcs.reciprocal.fourier import fourier_terms
@@ -77,9 +78,10 @@ def test_loop_correction_has_quartic_one_half_factor():
     assert result.history[0].correction_norm == pytest.approx(expected, rel=1e-12, abs=1e-12)
 
 
-def test_loop_scph_qpoint_workers_preserve_covariance():
+def test_loop_scph_covariance_is_serial_and_repeatable():
+    """One sweep has no thread pool: the same call gives the same numbers, twice."""
     fc2, fc4 = _force_constants()
-    serial = LoopSCPH(
+    solver = LoopSCPH(
         fc2=fc2,
         fc4=fc4,
         temperature=300,
@@ -87,21 +89,12 @@ def test_loop_scph_qpoint_workers_preserve_covariance():
         scph_multiplier=2,
         mixing=1.0,
         max_iterations=1,
-        qpoint_workers=1,
-    ).run()
-    parallel = LoopSCPH(
-        fc2=fc2,
-        fc4=fc4,
-        temperature=300,
-        interpolation_multiplier=1,
-        scph_multiplier=2,
-        mixing=1.0,
-        max_iterations=1,
-        qpoint_workers=2,
-    ).run()
-    np.testing.assert_allclose(
-        serial.expand_frequencies(), parallel.expand_frequencies(), rtol=1e-12, atol=1e-12
     )
+    first = solver._covariance(lattice_fc2(fc2), 2, 300.0)
+    second = solver._covariance(lattice_fc2(fc2), 2, 300.0)
+    assert set(first) == set(second)
+    for key in sorted(first):
+        np.testing.assert_array_equal(first[key], second[key])
 
 
 def test_loop_scph_temperature_series_uses_previous_effective_fc2():

@@ -10,7 +10,6 @@ from __future__ import annotations
 import hashlib
 import logging
 from collections.abc import Sequence
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from functools import partial
 
@@ -128,7 +127,6 @@ class LoopSCPH:
         frequency_cutoff_thz: float = 0.0,
         warm_start: ForceConstants | None = None,
         continuation: bool = True,
-        qpoint_workers: int = 1,
         symprec: float = 1e-5,
         time_reversal: bool = True,
         symmetry_tolerance: float | None = 1e-6,
@@ -159,9 +157,6 @@ class LoopSCPH:
         self.tolerance = float(tolerance)
         self.max_iterations = int(max_iterations)
         self.frequency_cutoff_thz = float(frequency_cutoff_thz)
-        if qpoint_workers < 1:
-            raise ValueError("qpoint_workers must be positive")
-        self.qpoint_workers = int(qpoint_workers)
         if self.frequency_cutoff_thz < 0:
             raise ValueError("frequency_cutoff_thz must be non-negative")
         _validate_relation(fc2, fc4)
@@ -407,19 +402,10 @@ class LoopSCPH:
                         result[key] = result.get(key, 0.0) + block * phase / n_q
             return result
 
-        star_indices = np.arange(len(grid.stars), dtype=np.int64)
-        chunk_count = min(self.qpoint_workers, len(star_indices))
-        chunks = tuple(np.array_split(star_indices, chunk_count))
-        if self.qpoint_workers == 1 or chunk_count == 1:
-            parts = (covariance_of_stars(chunk) for chunk in chunks)
-        else:
-            with ThreadPoolExecutor(max_workers=self.qpoint_workers) as pool:
-                parts = pool.map(covariance_of_stars, chunks)
-        covariance: dict[tuple[int, int, tuple[int, int, int]], np.ndarray] = {}
-        for part in parts:
-            for key, value in part.items():
-                covariance[key] = covariance.get(key, 0.0) + value
-        return covariance
+        # One pass over the stars: a thread pool over them measured slower than the serial
+        # loop (the per-star work is numpy under the GIL, so the threads only queue and add
+        # overhead), and the plan forbids keeping a knob whose only effect is a regression.
+        return covariance_of_stars(np.arange(len(grid.stars), dtype=np.int64))
 
     def _loop_correction(
         self, covariance: dict[tuple[int, int, tuple[int, int, int]], np.ndarray]

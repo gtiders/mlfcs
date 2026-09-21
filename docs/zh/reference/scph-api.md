@@ -28,7 +28,6 @@ LoopSCPH(
     frequency_cutoff_thz: float = 0.0,
     warm_start: ForceConstants | None = None,
     continuation: bool = True,
-    qpoint_workers: int = 1,
     symprec: float = 1e-5,
     time_reversal: bool = True,
 )
@@ -48,7 +47,6 @@ LoopSCPH(
 | `frequency_cutoff_thz` | 低于该绝对频率的模态不进入协方差，必须非负。 |
 | `warm_start` | 可选初始有效 FC2，必须与输入结构关系兼容。 |
 | `continuation` | 多温度时是否用前一温度结果初始化下一温度。 |
-| `qpoint_workers` | CPU 线程数，至少 1；线程按不可约代表点切分，不改变结果顺序。 |
 | `symprec` | 识别原胞对称性的几何容差；与任何动力学矩阵数值容差是两回事，会被记录在结果里。 |
 | `time_reversal` | 是否把时间反演作为反幺正成员参与星分解；关闭后不可约点只会更多。 |
 
