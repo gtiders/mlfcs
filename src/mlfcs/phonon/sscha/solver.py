@@ -66,7 +66,7 @@ class SSCHA:
         atoms: Atoms,
         *,
         reference: Atoms,
-        cutoff: float | None,
+        cutoff: float,
         temperature: float | Sequence[float] = 300.0,
         statistics: Literal["quantum", "classical"] = "quantum",
         snapshots: int | Literal["auto"] = 1000,
@@ -118,7 +118,12 @@ class SSCHA:
         self.initial_displacement = float(initial_displacement)
         self.random_seed = random_seed
         self.symprec = symprec
-        self.cutoff = None if cutoff is None else float(cutoff)
+        if cutoff is None:
+            raise ValueError(
+                "cutoff must be a positive distance in angstrom or a negative neighbour-shell "
+                "index; the reference-resolved cutoff=None is not supported"
+            )
+        self.cutoff = float(cutoff)
         self.cutoff_frequency = float(cutoff_frequency)
         self.imaginary_modes = imaginary_modes
         self.imaginary_tolerance = float(imaginary_tolerance)

@@ -87,7 +87,7 @@ def main() -> None:
         primitive,
         order=2,
         reference=reference,
-        cutoff=None,
+        cutoff=7.7237404951,
         displacement=0.01,
     )
     force_constants = calculation.run(calculator)
@@ -117,7 +117,7 @@ if __name__ == "__main__":
 
 这里的 `primitive` 是从 `POSCAR.vasp` 读取的 Si 原胞，`reference` 是通过 `(4, 4, 4)` 复制得到的 128 原子参考超胞。`SPOSCAR` 保存的就是这个参考超胞，后续 phonopy 读取它来计算声子谱。
 
-`FiniteDifferenceCalculation(order=2)` 指定计算二阶力常数。`displacement=0.01` 的单位是 Å，表示对称有限差分所使用的位移幅度；`cutoff=None` 表示由程序根据周期超胞自动选择不会产生周期像歧义的截断范围。脚本默认使用中心差分，并施加声学和规则 ASR。
+`FiniteDifferenceCalculation(order=2)` 指定计算二阶力常数。`displacement=0.01` 的单位是 Å，表示对称有限差分所使用的位移幅度；`cutoff=7.7237404951` 是本案例 $4\times4\times4$ 参考超胞实际解析出的周期边界；cutoff 属于 primitive 模型本身，必须显式给出（正数表示 Å，负整数表示邻居壳层），不会根据参考超胞自动变短，参考是否足以辨识该模型由 realization identifiability 单独判定。脚本默认使用中心差分，并施加声学和规则 ASR。
 
 运行完成后会得到以下文件：
 
@@ -287,7 +287,7 @@ fitter = ForceConstantFitter(
     primitive,
     reference,
     orders=(2,),
-    cutoffs={2: None},
+    cutoffs={2: 7.7237404951},
 )
 
 gram = fitter.prepare_gram(

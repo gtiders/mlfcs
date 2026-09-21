@@ -55,7 +55,7 @@ class ForceConstantFitter:
         reference: Atoms,
         *,
         orders: tuple[int, ...] = (2, 3),
-        cutoffs: dict[int, float | int | None] | None = None,
+        cutoffs: dict[int, float | int] | None = None,
         max_body_orders: dict[int, int | None] | None = None,
         symprec: float = 1e-5,
     ):
@@ -87,7 +87,7 @@ class ForceConstantFitter:
             InteractionSpace.from_frame(
                 frame,
                 order=order,
-                cutoff=self.cutoffs.get(order),
+                cutoff=self.cutoffs[order],
                 max_body_order=self.max_body_orders.get(order),
                 symprec=symprec,
             )
@@ -137,7 +137,11 @@ class ForceConstantFitter:
             f"({constraints.translational_rows} ASR before compression)"
         )
         parameter_map = gram.metadata.get("parameter_map")
-        if parameter_map is None and normalized_regularization == "none" and constraints.matrix.shape[0]:
+        if (
+            parameter_map is None
+            and normalized_regularization == "none"
+            and constraints.matrix.shape[0]
+        ):
             parameter_map = explicit_constraint_null_space(
                 constraints.matrix,
                 tolerance=1e-11,
@@ -348,7 +352,11 @@ class ForceConstantFitter:
         count = residual.size
         target_squared = float(np.sum(dataset.forces**2))
         rmse = float(np.sqrt(squared / count)) if count else 0.0
-        relative = float(np.sqrt(squared / target_squared)) if target_squared else (0.0 if squared == 0 else float("inf"))
+        relative = (
+            float(np.sqrt(squared / target_squared))
+            if target_squared
+            else (0.0 if squared == 0 else float("inf"))
+        )
         return rmse, relative
 
     def prepare_gram(

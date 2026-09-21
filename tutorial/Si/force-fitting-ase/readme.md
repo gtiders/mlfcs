@@ -36,7 +36,7 @@ fitter = ForceConstantFitter(
     primitive,
     reference,
     orders=(2,),
-    cutoffs={2: None},
+    cutoffs={2: 7.7237404951},
 )
 gram = fitter.prepare_gram(training)
 result = fitter.fit(gram)

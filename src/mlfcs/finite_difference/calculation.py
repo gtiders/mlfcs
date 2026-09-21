@@ -29,7 +29,7 @@ class FiniteDifferenceCalculation:
         *,
         order: int,
         reference: Atoms,
-        cutoff: float | None = -5,
+        cutoff: float = -5,
         max_body_order: int | None = None,
         displacement: float = 0.01,
         symprec: float = 1e-5,

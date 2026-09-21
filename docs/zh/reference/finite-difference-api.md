@@ -29,7 +29,7 @@ FiniteDifferenceCalculation(
 | `atoms` | primitive ASE `Atoms`。首个位置参数不是 reference。 |
 | `order` | 目标 IFC 阶数，必须至少为 2。一次对象只重建一个阶。 |
 | `reference` | 显式训练/位移超胞，决定原子顺序和可辨识性。 |
-| `cutoff` | 正 Å、负整数壳层或 `None` 安全最大半径。 |
+| `cutoff` | 必填：正数表示 Å 半径，负整数表示 primitive 邻居壳层。不接受 `None`；参考超胞只决定模型是否可辨识，不会缩短模型。 |
 | `max_body_order` | cluster 中允许的最大不同 `(site,R)` 数；`None` 表示不额外限制。 |
 | `displacement` | 中心差分基础步长，单位 Å，默认 0.01。 |
 | `symprec` | 结构对应与空间群容差。 |
@@ -93,7 +93,7 @@ central 模式下提供任何非默认 extrapolation 参数会被拒绝，避免
 
 ```python
 calculation = FiniteDifferenceCalculation(
-    primitive, order=2, reference=reference, cutoff=None
+    primitive, order=2, reference=reference, cutoff=7.7237404951
 )
 fc2 = calculation.run(calculator, acoustic_sum_rule=True)
 ```
