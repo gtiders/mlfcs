@@ -13,6 +13,9 @@ happens on integers:
 * the kernel basis is the *saturated* integer kernel of that constraint matrix, so the
   parameter columns span exactly the integer solutions and no scale of a solution is
   missing;
+* those columns are then put in canonical form (the column Hermite normal form), so the
+  parameterization is a function of the invariant subspace alone: two equivalent
+  descriptions of the same crystal return the same integers, comparable bit by bit;
 * the result is verified against the constraint matrix in exact integer arithmetic
   before it is returned.
 
@@ -28,7 +31,12 @@ from collections.abc import Sequence
 import numpy as np
 
 from mlfcs.interactions.algebra.actions import as_int64
-from mlfcs.interactions.algebra.exact import certified_pivots, saturated_kernel, verify_kernel
+from mlfcs.interactions.algebra.exact import (
+    canonical_lattice_basis,
+    certified_pivots,
+    saturated_kernel,
+    verify_kernel,
+)
 
 
 def label_symmetric_basis(cluster: Sequence[int]) -> np.ndarray:
@@ -92,11 +100,17 @@ def invariant_kernel(
     *,
     order: int,
 ) -> tuple[np.ndarray, int]:
-    """Return an integer basis of the lattice invariant subspace and its dimension.
+    """Return a canonical integer basis of the lattice invariant subspace and its dimension.
 
     The dimension is certified exactly (a modular rank never overestimates it, and the
     Hadamard certificate settles deficient matrices), so a shorter basis can never be
     returned silently.
+
+    The columns are canonical, which is what makes ``exact_lattice_basis`` comparable
+    across descriptions of the same crystal: the Smith-normal-form kernel is a basis of the
+    right lattice but not a *unique* one, so the columns are finally put in the column
+    Hermite normal form of that lattice.  An atom permutation or an equivalent unimodular
+    primitive cell of the same crystal therefore yields the same integers, bit for bit.
     """
     label = as_int64(np.asarray(label_basis), context="label basis")
     expected = 3**order
@@ -114,7 +128,14 @@ def invariant_kernel(
             f"the saturated kernel of the stabilizer constraints has {basis.shape[1]} "
             f"columns, but the certified invariant dimension is {dimension}"
         )
-    basis = primitive_columns(basis)
+    # The gcd scaling cannot change the lattice on this path.  The integer kernel of an
+    # integer matrix is saturated in Z^n (``k x`` in the kernel implies ``x`` in it), and
+    # every vector of a basis of a saturated lattice is already primitive: a content
+    # ``g > 1`` would put ``b / g`` in the lattice, hence ``b`` equal to ``g`` times a
+    # basis combination, which independence forbids in the leading coordinate.  The
+    # division stays as the explicit statement that the parameters are as small as the
+    # subspace allows; canonicalization afterwards pins the column order and the sign.
+    basis = canonical_lattice_basis(primitive_columns(basis))
     verify_kernel(rows, basis)
     return basis, dimension
 
@@ -122,11 +143,14 @@ def invariant_kernel(
 def primitive_columns(basis: np.ndarray) -> np.ndarray:
     """Divide every column by the greatest common divisor of its entries.
 
-    The solved columns carry an arbitrary integer scale from the kernel construction;
-    removing it keeps the parameterization as small as the subspace allows, which the
-    fitted parameter magnitudes and the downstream conditioning assume.  The lattice is
-    unchanged: a saturated kernel contains every division of its own vectors by their
-    content.
+    On a *saturated* basis this cannot change the lattice, and in fact cannot do anything
+    at all: the integer kernel of an integer matrix is saturated in ``Z^n``, and every
+    vector of a basis of a saturated lattice is primitive (a content ``g > 1`` would put
+    ``b / g`` in the lattice and make the basis vector ``b`` a non-trivial integer multiple
+    of a lattice vector, which independence forbids).  The function is kept as the explicit
+    statement that the parameterization is as small as the subspace allows -- applying it
+    to an unsaturated basis would *enlarge* the lattice, so it may only ever run on a
+    saturated kernel.
     """
     reduced = as_int64(np.asarray(basis), context="invariant basis").copy()
     for column in range(reduced.shape[1]):

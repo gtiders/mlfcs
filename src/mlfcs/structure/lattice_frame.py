@@ -270,10 +270,18 @@ class LatticeFrame:
     positions: np.ndarray
     """``(n, 3)`` float64 fractional coordinates in the algebra cell, canonical atom order."""
     source_positions: np.ndarray
-    """``(n, 3)`` float64 wrapped source fractional coordinates, same atoms, same order.
+    """``(n, 3)`` float64 wrapped source fractional coordinates, canonical atom order.
 
-    ``positions[i]`` and ``source_positions[i]`` are the same physical atom, whose
-    index in the source ``Atoms`` is ``atom_map[i]``.
+    Three different indices meet here and none of them may be substituted for another:
+
+    * ``i`` -- the canonical algebra site index: the row of ``positions[i]`` and of
+      ``source_positions[i]``, and the ``site`` entry of a label row;
+    * ``source_positions[i]`` -- the wrapped fractional coordinate, *in the source cell*,
+      of the same atom ``i``, still in the canonical order;
+    * ``atom_map[i]`` -- the index of that same atom in the source ``Atoms``.
+
+    ``positions[i]``, ``source_positions[i]`` and the atom ``atom_map[i]`` are one and the
+    same physical atom, so ``source_positions[i]`` may never be indexed by ``atom_map``.
     """
     numbers: np.ndarray
     """``(n,)`` int32 atomic numbers in the same canonical order."""
@@ -332,13 +340,22 @@ class LatticeFrame:
     def source_labels(self, labels: np.ndarray) -> np.ndarray:
         """Map ``(site, translation)`` label rows from the algebra frame to the source frame.
 
-        ``labels`` is an ``(..., 4)`` integer array of ``(algebra site, t_x, t_y, t_z)``
-        and describes the atom anchored at ``positions[site] + t``.  The result has the
-        same shape, with ``(source site, t_x, t_y, t_z)`` describing the same physical
-        atom in the source cell: ``source_positions[source site] + t`` is that atom's
-        source fractional coordinate, and both descriptions share the same Cartesian
-        position.  Translations are exact integers and are never wrapped or reduced; a
-        non-integral residual means the two frames do not describe the same lattice.
+        ``labels`` is an ``(..., 4)`` integer array of ``(algebra site, t_x, t_y, t_z)`` and
+        describes the atom anchored at ``positions[site] + t``, where ``site`` is the
+        *canonical algebra site index* -- the row of ``positions`` and ``source_positions``,
+        not an index into the source ``Atoms``.
+
+        The result has the same shape, ``(source site, t_x, t_y, t_z)``, and describes the
+        same physical atom in the source cell.  Its site entry is ``atom_map[site]``, the
+        index of that atom in the source ``Atoms``, while its translations are computed from
+        ``source_positions[site]``, the source fractional coordinate of that same canonical
+        atom: the anchor is ``positions[site] + t``, mapped into the source cell and reduced
+        to the nearest lattice translation.  ``source_positions`` is already in the canonical
+        order, so looking the coordinate up through ``atom_map``
+        (``source_positions[atom_map[site]]``) would apply the canonical permutation a second
+        time and anchor a different atom.  Translations are exact integers and are never
+        wrapped or reduced; a non-integral residual means the two frames do not describe the
+        same lattice.
         """
         values = _label_array(labels)
         site = values[..., 0]

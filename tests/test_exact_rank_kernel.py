@@ -17,8 +17,10 @@ from sympy import GF, Matrix
 from sympy.polys.matrices import DomainMatrix
 
 from mlfcs.exceptions import IntegerRangeError, RankCertificateError
+from mlfcs.interactions.algebra.actions import TensorAction
 from mlfcs.interactions.algebra.exact import (
     RANK_PRIMES,
+    canonical_lattice_basis,
     certified_pivots,
     certified_rank,
     hadamard_bound,
@@ -29,6 +31,7 @@ from mlfcs.interactions.algebra.exact import (
     to_python_rows,
     verify_kernel,
 )
+from mlfcs.interactions.algebra.invariants import invariant_kernel, label_symmetric_basis
 
 SEED = 20240921
 _BOX = 3
@@ -496,3 +499,235 @@ def test_to_python_rows_accepts_every_integer_representation():
 def test_to_python_rows_rejects_non_integer_input(invalid):
     with pytest.raises(ValueError):
         to_python_rows(invalid)
+
+
+# The canonical form is a function of the lattice alone, so every check below compares two
+# descriptions of the *same* lattice.  The cases cover the shapes the orbit algebra
+# produces: rank 0, rank 1, full rank, hand-built saturated kernels, and the primitive
+# rational-nullspace basis of ``[[2, 1, 1]]``, which is not saturated and therefore spans a
+# properly smaller lattice than the saturated kernel of the same matrix.
+
+_CANONICAL_CASES = {
+    "rank_zero": np.zeros((3, 0), dtype=np.int64),
+    "rank_one_third_axis": np.array([[0], [0], [6]], dtype=np.int64),
+    "rank_one_primitive": np.array([[3], [4], [0]], dtype=np.int64),
+    "full_rank_identity": np.eye(3, dtype=np.int64),
+    "full_rank_unimodular": np.array([[2, 1, 0], [1, 1, 0], [0, 0, 1]], dtype=np.int64),
+    "unsaturated_rational_kernel": np.array([[-1, -1], [2, 0], [0, 2]], dtype=np.int64),
+    "saturated_primitive_kernel": np.array([[1, 0], [0, 1], [-2, -1]], dtype=np.int64),
+    "saturated_kernel_of_two_constraints": saturated_kernel([[2, 1, 1, 0], [0, 1, -1, 3]]),
+}
+
+
+def _unimodular(size: int, rng) -> np.ndarray:
+    """A random unimodular ``size`` x ``size`` matrix, i.e. an exact change of lattice basis."""
+    matrix = np.eye(size, dtype=np.int64)
+    for _ in range(4 * size + 4):
+        left, right = (int(value) for value in rng.integers(0, size, 2))
+        if left == right:
+            continue
+        matrix[:, left] += int(rng.choice([-3, -2, -1, 1, 2, 3])) * matrix[:, right]
+    assert abs(int(Matrix(matrix.tolist()).det())) == 1
+    return matrix
+
+
+def _lattice_coordinates(basis: np.ndarray, vector, bound: int = _COEFFICIENT_BOUND):
+    """Exact bounded search for integer coordinates of ``vector`` in ``basis`` columns.
+
+    Independent of the module under test: it enumerates integer coefficient vectors and
+    multiplies them out in Python integers.  ``None`` means "no representation with
+    coefficients of magnitude at most ``bound``", which for the small cases used here is the
+    same as "not in the lattice".
+    """
+    rows = basis.tolist()
+    for coefficients in itertools.product(range(-bound, bound + 1), repeat=basis.shape[1]):
+        if all(
+            sum(entry * coefficient for entry, coefficient in zip(row, coefficients))
+            == vector[position]
+            for position, row in enumerate(rows)
+        ):
+            return list(coefficients)
+    return None
+
+
+def _assert_canonical_structure(canonical: np.ndarray) -> None:
+    """Check the documented column structure of a canonical basis."""
+    rows = canonical.tolist()
+    previous_pivot = -1
+    for column in range(canonical.shape[1]):
+        nonzero = [row for row in range(canonical.shape[0]) if rows[row][column] != 0]
+        assert nonzero, "a canonical column is zero"
+        pivot = nonzero[-1]
+        assert rows[pivot][column] > 0, "the pivot of a column must be positive"
+        assert pivot > previous_pivot, "pivot rows must increase from column to column"
+        assert all(rows[pivot][left] == 0 for left in range(column)), "pivot row not cleared"
+        previous_pivot = pivot
+
+
+@pytest.mark.parametrize("name", sorted(_CANONICAL_CASES))
+def test_canonical_lattice_basis_depends_on_the_lattice_alone(name):
+    basis = np.asarray(_CANONICAL_CASES[name], dtype=np.int64)
+    rng = np.random.default_rng(SEED + len(name))
+    columns = int(basis.shape[1])
+    canonical = canonical_lattice_basis(basis)
+
+    assert canonical.dtype == np.int64
+    assert canonical.shape == (basis.shape[0], _oracle_rank(basis))
+    _assert_canonical_structure(canonical)
+
+    variants = [basis, np.hstack([basis, basis]), np.hstack([basis, -basis])]
+    if columns:
+        variants.append(basis @ _unimodular(columns, rng))
+        variants.append(basis[:, rng.permutation(columns)])
+        variants.append(np.hstack([basis, basis @ _unimodular(columns, rng)]))
+    for variant in variants:
+        np.testing.assert_array_equal(canonical_lattice_basis(variant), canonical)
+
+
+@pytest.mark.parametrize("name", sorted(_CANONICAL_CASES))
+def test_canonical_lattice_basis_spans_the_input_lattice_both_ways(name):
+    basis = np.asarray(_CANONICAL_CASES[name], dtype=np.int64)
+    canonical = canonical_lattice_basis(basis)
+
+    for column in range(canonical.shape[1]):
+        vector = [int(value) for value in canonical[:, column]]
+        assert _lattice_coordinates(basis, vector) is not None
+    for column in range(basis.shape[1]):
+        vector = [int(value) for value in basis[:, column]]
+        assert _lattice_coordinates(canonical, vector) is not None
+    assert int(Matrix(basis.tolist()).rank()) == int(Matrix(canonical.tolist()).rank())
+
+
+def test_canonical_lattice_basis_preserves_the_lattice_without_saturating_it():
+    # The primitive rational-nullspace columns of [[2, 1, 1]] miss (1, 1, -3), so they span
+    # a sublattice of the saturated kernel: canonicalizing must not repair that.
+    unsaturated = np.array([[-1, -1], [2, 0], [0, 2]], dtype=np.int64)
+    saturated = canonical_lattice_basis(saturated_kernel([[2, 1, 1]]))
+
+    canonical = canonical_lattice_basis(unsaturated)
+
+    assert _lattice_coordinates(canonical, (1, 1, -3)) is None
+    assert _lattice_coordinates(saturated, (1, 1, -3)) is not None
+    assert not np.array_equal(canonical, saturated)
+    assert _lattice_coordinates(canonical, (1, 1, -3)) is None
+    for column in range(canonical.shape[1]):
+        vector = [int(value) for value in canonical[:, column]]
+        assert _lattice_coordinates(unsaturated, vector) is not None
+
+
+_CANONICAL_FORM_CASES = {
+    "zero_columns": (np.zeros((3, 0), dtype=np.int64), np.zeros((3, 0), dtype=np.int64)),
+    "empty": (np.zeros((0, 0), dtype=np.int64), np.zeros((0, 0), dtype=np.int64)),
+    "no_rows": (np.zeros((0, 3), dtype=np.int64), np.zeros((0, 0), dtype=np.int64)),
+    "all_zero": (np.zeros((3, 2), dtype=np.int64), np.zeros((3, 0), dtype=np.int64)),
+    "already_canonical": (
+        np.array([[4], [2], [0]], dtype=np.int64),
+        np.array([[4], [2], [0]], dtype=np.int64),
+    ),
+    "negative_pivot": (
+        np.array([[0], [-5]], dtype=np.int64),
+        np.array([[0], [5]], dtype=np.int64),
+    ),
+    "primitive_single_row": (
+        np.array([[2, 1, 1]], dtype=np.int64),
+        np.array([[1]], dtype=np.int64),
+    ),
+    "dependent_columns": (
+        np.array([[1, 2], [2, 4]], dtype=np.int64),
+        np.array([[1], [2]], dtype=np.int64),
+    ),
+    "both_columns_kept": (
+        np.array([[2, 4], [0, 2]], dtype=np.int64),
+        np.array([[2, 0], [0, 2]], dtype=np.int64),
+    ),
+    "sheared_triangle": (
+        np.array([[3, 0], [2, 5]], dtype=np.int64),
+        np.array([[15, 9], [0, 1]], dtype=np.int64),
+    ),
+}
+
+
+@pytest.mark.parametrize("name", sorted(_CANONICAL_FORM_CASES))
+def test_canonical_lattice_basis_documented_conventions(name):
+    basis, expected = _CANONICAL_FORM_CASES[name]
+
+    canonical = canonical_lattice_basis(basis)
+
+    assert canonical.dtype == np.int64
+    np.testing.assert_array_equal(canonical, expected)
+    _assert_canonical_structure(canonical)
+    # Canonicalizing is idempotent, which is what "canonical" means operationally.
+    np.testing.assert_array_equal(canonical_lattice_basis(canonical), canonical)
+
+
+def test_canonical_lattice_basis_raises_for_entries_that_do_not_fit_int64():
+    # The canonical form is exact, so it has to *refuse* to enter the int64 tensor layer.
+    with pytest.raises(IntegerRangeError):
+        canonical_lattice_basis([[2**70]])
+    with pytest.raises(IntegerRangeError):
+        canonical_lattice_basis(np.array([[2**63], [1]], dtype=object))
+    with pytest.raises(IntegerRangeError):
+        canonical_lattice_basis(np.array([[10**25, 1], [0, 3]], dtype=object))
+
+    # The boundary is exactly int64, not a margin below it.
+    np.testing.assert_array_equal(
+        canonical_lattice_basis(np.array([[2**62]], dtype=object)),
+        np.array([[2**62]], dtype=np.int64),
+    )
+
+
+def test_invariant_kernel_returns_canonical_columns():
+    # A 2-atom cluster with one label, so the label basis is symmetric under the atom swap,
+    # plus the lattice-frame mirror diag(1, 1, -1) as its only stabilizer constraint.
+    label = label_symmetric_basis([0, 0])
+    mirror = TensorAction(
+        rotation=np.eye(3),
+        permutation=(0, 1),
+        order=2,
+        scaled_rotation=np.diag(np.array([1, 1, -1], dtype=np.int64)),
+    )
+
+    basis, dimension = invariant_kernel(label, [mirror], order=2)
+
+    assert basis.dtype == np.int64
+    # Six label-symmetric classes survive the mirror only if they carry no z axis, so the
+    # invariant dimension is four and the canonical basis selects exactly those columns.
+    assert dimension == 4
+    assert basis.shape == (label.shape[1], 4)
+    # Every column is invariant under the stabilizer once expanded into component space,
+    # and each one is a label-class indicator, so it is a column of the label basis.
+    exact = label @ basis
+    np.testing.assert_array_equal(mirror.apply_scaled_columns(exact), exact)
+    label_columns = {tuple(int(value) for value in column) for column in label.T}
+    assert {tuple(int(value) for value in column) for column in exact.T} <= label_columns
+    np.testing.assert_array_equal(basis, canonical_lattice_basis(basis))
+    # The stored columns are canonical, so an exact change of parameter basis is invisible.
+    rng = np.random.default_rng(SEED + 7)
+    np.testing.assert_array_equal(
+        canonical_lattice_basis(basis @ _unimodular(dimension, rng)), basis
+    )
+
+
+@pytest.mark.parametrize("corruption", ["scaled_column", "dropped_column"])
+def test_canonical_lattice_basis_rejects_a_result_that_changes_the_lattice(monkeypatch, corruption):
+    # The lattice check inside the function is the only thing standing between a wrong
+    # Hermite call and a parameterization that silently fits the wrong subspace, so it is
+    # exercised with a deliberately corrupted normal form.
+    from sympy.matrices import normalforms
+
+    honest = normalforms.hermite_normal_form
+
+    def corrupted(matrix):
+        result = honest(matrix)
+        if corruption == "scaled_column":
+            # A basis vector doubled spans a proper sublattice of the input lattice.
+            result[:, 0] = 2 * result[:, 0]
+        else:
+            # A dropped basis vector leaves a rank-deficient result.
+            result = result[:, 1:]
+        return result
+
+    monkeypatch.setattr(normalforms, "hermite_normal_form", corrupted)
+
+    with pytest.raises(RuntimeError, match="integer combination"):
+        canonical_lattice_basis([[2, 1], [1, 3]])
