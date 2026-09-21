@@ -121,10 +121,10 @@ from ase import Atoms, units
 from mlfcs.exceptions import SymmetryViolationError
 from mlfcs.reciprocal.fourier import compact_dynamical_matrices, compact_dynamical_matrix
 from mlfcs.reciprocal.grid import IrreducibleReciprocalGrid, irreducible_reciprocal_grid
+from mlfcs.reciprocal.plan import ReciprocalExpansionPlan
 from mlfcs.reciprocal.statistics import HBAR_ASE, OMEGA_TO_THZ, mode_sigma
 from mlfcs.reciprocal.symmetry import (
     require_star_covariance,
-    star_member_action,
     validate_site_masses,
     validate_symmetry_tolerance,
     validate_symprec,
@@ -288,6 +288,9 @@ class HarmonicSampler:
             self._index.supercell_matrix, self._symmetry, time_reversal=True
         )
         validate_site_masses(self._symmetry, self._masses, context="HarmonicSampler")
+        self._plan = ReciprocalExpansionPlan.from_grid(
+            self._symmetry, self._grid, self._positions
+        )
         require_star_covariance(
             self._dynamical_matrices,
             self._symmetry,
@@ -295,6 +298,7 @@ class HarmonicSampler:
             self._positions,
             tolerance=self.symmetry_tolerance,
             context="HarmonicSampler",
+            plan=self._plan,
         )
         self._stars = self._prepare_irreducible()
         self._members = self._expand_full_grid()
@@ -496,7 +500,6 @@ class HarmonicSampler:
         for index in range(len(labels)):
             star = int(grid.full_to_irreducible[index])
             record = self._stars[star]
-            action = star_member_action(self._symmetry, grid, index, self._positions)
             label = tuple(int(value) for value in labels[index])
             negative = tuple(int(value) for value in np.mod(-np.asarray(label), denominator))
             members.append(
@@ -506,9 +509,9 @@ class HarmonicSampler:
                     grid.full.points[index],
                     star,
                     lookup[negative],
-                    action.antiunitary,
+                    bool(self._plan.antiunitary[index]),
                     record.eigenvalues,
-                    action.apply_to_vectors(record.eigenvectors),
+                    self._plan.apply_to_vectors(index, record.eigenvectors),
                     record.frequencies_thz,
                     record.included,
                     record.translations,

@@ -25,6 +25,7 @@ from mlfcs.reciprocal.grid import (
     IrreducibleReciprocalGrid,
     irreducible_reciprocal_grid,
 )
+from mlfcs.reciprocal.plan import ReciprocalExpansionPlan
 from mlfcs.reciprocal.scph.fourier import (
     _multiplier,
     _needed_covariances,
@@ -35,7 +36,6 @@ from mlfcs.reciprocal.symmetry import (
     expand_star_values,
     require_hermitian,
     require_star_covariance,
-    star_member_action,
     validate_site_masses,
     validate_symmetry_tolerance,
     validate_symprec,
@@ -190,6 +190,9 @@ class LoopSCPH:
             context="LoopSCPH",
         )
         self._meshes: dict[int, IrreducibleReciprocalGrid] = {}
+        # One plan per grid: the integer inverse, the permutation and the gauge of every member
+        # are computed once and shared by the validation gate and the covariance.
+        self._plans: dict[int, ReciprocalExpansionPlan] = {}
         # Content-addressed certificates: a lattice mapping that has already been validated
         # for a multiplier is never validated twice, and an object identity is never used as
         # the key, because the same content has to be reusable across temperatures.
@@ -364,13 +367,7 @@ class LoopSCPH:
         members = tuple(star.members for star in grid.stars)
         # One composite action per member: the operation, the antiunitary flag and the
         # positional gauge that brings the result onto the label the grid stores.
-        actions = tuple(
-            tuple(
-                star_member_action(self._symmetry, grid, int(member), primitive_positions)
-                for member in star.members
-            )
-            for star in grid.stars
-        )
+        plan = self._plan(multiplier)
         def covariance_of_stars(star_chunk: np.ndarray) -> dict[tuple, np.ndarray]:
             result: dict[tuple[int, int, tuple[int, int, int]], np.ndarray] = {}
             points = grid.full.points[representatives[star_chunk]]
@@ -386,9 +383,8 @@ class LoopSCPH:
             )
             weighted = (vectors * sigma2[..., None, :]) @ vectors.conj().swapaxes(-1, -2)
             for local, star in enumerate(star_chunk.tolist()):
-                for position, member in enumerate(members[star].tolist()):
-                    action = actions[star][position]
-                    expanded = action.apply_to_matrix(weighted[local])
+                for member in members[star].tolist():
+                    expanded = plan.apply_to_matrix(int(member), weighted[local])
                     require_hermitian(
                         expanded,
                         scale=float(np.max(np.abs(weighted[local]))),
@@ -503,6 +499,18 @@ class LoopSCPH:
             )
         return self._meshes[multiplier]
 
+    def _plan(self, multiplier: int) -> ReciprocalExpansionPlan:
+        """Return the cached expansion plan of one grid."""
+        if multiplier not in self._plans:
+            relation = self.fc2.relation
+            assert relation is not None
+            self._plans[multiplier] = ReciprocalExpansionPlan.from_grid(
+                self._symmetry,
+                self._mesh(multiplier),
+                np.asarray(relation.primitive.get_scaled_positions(wrap=False), dtype=float),
+            )
+        return self._plans[multiplier]
+
     def _lattice_fingerprint(
         self, lattice: dict[tuple[int, int, tuple[int, int, int]], np.ndarray]
     ) -> bytes:
@@ -569,6 +577,7 @@ class LoopSCPH:
             np.asarray(relation.primitive.get_scaled_positions(wrap=False), dtype=float),
             tolerance=self.symmetry_tolerance,
             context=context,
+            plan=self._plan(multiplier),
         )
 
     @staticmethod

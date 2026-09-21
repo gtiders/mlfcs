@@ -275,12 +275,16 @@ class StarCovarianceResidual:
     residual: float
 
 
-def _star_expansion(build, symmetry, grid, primitive_positions):
+def _star_expansion(build, symmetry, grid, primitive_positions, *, plan=None):
     """Return ``(direct, expanded)`` full-grid matrices of one star expansion."""
     representatives = np.asarray(grid.representatives, dtype=np.int64)
     direct = build(grid.full.points)
     expanded = expand_star_matrices(
-        build(grid.full.points[representatives]), grid, symmetry, primitive_positions
+        build(grid.full.points[representatives]),
+        grid,
+        symmetry,
+        primitive_positions,
+        plan=plan,
     )
     return direct, expanded
 
@@ -328,6 +332,7 @@ def require_star_covariance(
     *,
     tolerance: float | None,
     context: str = "the model",
+    plan: object | None = None,
 ) -> float:
     r"""Raise unless every expanded star member matches the matrix built at its own label.
 
@@ -337,7 +342,7 @@ def require_star_covariance(
     """
     if tolerance is None:
         return 0.0
-    direct, expanded = _star_expansion(build, symmetry, grid, primitive_positions)
+    direct, expanded = _star_expansion(build, symmetry, grid, primitive_positions, plan=plan)
     residuals = _star_residuals(direct, expanded, grid)
     if not residuals:
         return 0.0
@@ -386,6 +391,8 @@ def expand_star_matrices(
     grid: IrreducibleReciprocalGrid,
     symmetry: PrimitiveSymmetryOperations,
     primitive_positions: np.ndarray,
+    *,
+    plan: object | None = None,
 ) -> np.ndarray:
     r"""Expand representative matrices onto every full-grid member, gauge included.
 
@@ -423,6 +430,12 @@ def expand_star_matrices(
         raise ValueError("no representative matrices were supplied")
     dtype = np.result_type(values.dtype, np.complex128)
     expanded = np.empty((len(grid.full.labels),) + values.shape[1:], dtype=dtype)
+    if plan is not None:
+        # A shared plan has already computed the integer inverse, the permutation and the
+        # gauge of every member; assembling from it is bit-identical to the uncached path.
+        for member in range(len(grid.full.labels)):
+            expanded[member] = plan.apply_to_matrix(member, values[plan.star(member)])
+        return expanded
     for member in range(len(grid.full.labels)):
         action = star_member_action(symmetry, grid, member, positions)
         expanded[member] = action.apply_to_matrix(values[action.star])
