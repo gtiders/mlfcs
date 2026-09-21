@@ -44,9 +44,39 @@ All notable changes are documented here. Releases follow semantic versioning.
 - `mlfcs.reciprocal.fourier` exposes the phase vector and tensor of every primitive-lattice
   term of an order-2 force-constant set, so the lattice gauge and the compact kernel of the
   samplers can be compared term by term.
+- The frequency, covariance and sampling paths report their irreducible wedge:
+  `harmonic_frequencies` returns a `HarmonicMeshResult` and `LoopSCPHResult` carries
+  `irreducible_qpoints`, `irreducible_frequencies`, `weights` and the star decomposition,
+  with `full_qpoints()` and `expand_frequencies()` for the explicit full mesh. The ambiguous
+  `HarmonicSampler.qpoints` property is replaced by `irreducible_qpoints`, `weights` and
+  `full_qpoints()`, and `SamplingState`/`SSCHAIteration` report both `n_qpoints` and
+  `n_irreducible`.
+- `symprec` and `time_reversal` are public arguments of `LoopSCPH`, `harmonic_frequencies`
+  and `HarmonicSampler`, recorded in their results, instead of module constants.
+- `scripts/benchmark_reciprocal_reduction.py` reports the reduction ratio, the
+  diagonalization counts, the timings and the peak memory of the irreducible paths against a
+  full-grid reference.
+
+### Changed
+
+- SCPH frequencies, the SCPH covariance and harmonic sampling now diagonalize only star
+  representatives and expand to the full grid exactly, through the space-group
+  representation and the positional gauge; expansion never re-enters an eigensolver, the
+  covariance sum still runs over every full q point, workers are scheduled over
+  representatives, and the SCPH stopping metric is the star-weighted full-grid RMS
+  `sqrt(sum_s w_s ||w_s^n - w_s^{n-1}||^2 / (N_q N_b))`.
 
 ### Fixed
 
+- Harmonic sampling kept the full random degrees of freedom: every full q point draws its
+  own coefficient, a `q/-q` pair draws on one side and takes the real part of that single
+  complex amplitude, and a label with `q = -q + G` spans its real amplitude space. Two
+  defects are fixed by that: the pair branch used to carry half of the physical variance on
+  grids with a general `q/-q` pair, and a self-conjugate label used a single draw whose
+  discarded imaginary part made the covariance depend on the arbitrary eigensolver phase.
+  The sampled numbers change for those grids; the sampler-implied covariance now equals the
+  exact Cartesian supercell covariance, and the mean-zero and second-moment checks against
+  theory are kept.
 - The covariance relation is evaluated on the *unreduced* rotated q label. Reducing modulo the
   grid first is a primitive reciprocal lattice translation, and the positional gauge of the
   dynamical matrix turns such a translation into the site-diagonal factor

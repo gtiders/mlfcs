@@ -34,9 +34,29 @@
   若某组力常数破坏其晶体的对称性,诊断会报告具体的操作、q 标签与残差,而不是把它平均成对称的力常数。
 - `mlfcs.reciprocal.fourier` 公开二阶力常数每个原始晶格项的相位向量与张量,使晶格规范与采样器的
   紧致核可以逐项比较。
+- 频率、协方差与采样路径都会报告自己的不可约部分:`harmonic_frequencies` 返回
+  `HarmonicMeshResult`,`LoopSCPHResult` 携带 `irreducible_qpoints`、`irreducible_frequencies`、
+  `weights` 与该网格的星分解,并提供 `full_qpoints()` 与 `expand_frequencies()` 显式展开完整网格。
+  `HarmonicSampler` 中含义含混的 `qpoints` 被 `irreducible_qpoints`、`weights` 与 `full_qpoints()`
+  取代,`SamplingState`/`SSCHAIteration` 同时报告 `n_qpoints` 与 `n_irreducible`。
+- `symprec` 与 `time_reversal` 成为 `LoopSCPH`、`harmonic_frequencies` 与 `HarmonicSampler` 的公开参数,
+  并记录在结果中,不再是模块常量。
+- `scripts/benchmark_reciprocal_reduction.py` 输出不可约路径相对完整网格的约化比、对角化次数、
+  耗时与峰值内存。
+
+### 变化
+
+- SCPH 频率、SCPH 协方差与谐波采样只在星代表点上对角化,再通过空间群表示与位置规范精确展开到完整网格;
+  展开过程不会再次进入对角化器,协方差求和仍然是完整网格求和,线程按代表点调度,SCPH 停止判据是
+  星权重下的完整网格 RMS `sqrt(sum_s w_s ||w_s^n - w_s^{n-1}||^2 / (N_q N_b))`。
 
 ### 修复
 
+- 谐波采样保留完整的随机自由度:每个完整 q 点都抽取独立系数,`q/-q` 对只抽一侧并取该复振幅的实部,
+  满足 `q = -q + G` 的标签展开其实振幅空间。由此修复两处缺陷:对含一般 `q/-q` 对的网格,原先的配对分支
+  只携带了一半的物理方差;自共轭标签原先用单次抽取,被丢弃的虚部使协方差依赖任意本征矢相位。
+  这些网格的采样数值因此改变;采样器隐含的协方差现在等于精确的 Cartesian 超胞协方差,均值为零与
+  二阶矩对理论的检验保持不变。
 - 协变关系在**未约化**的旋转 q 标签上求值。先对网格取模是一次原始倒格矢平移,而动力学矩阵的
   位置规范会把这种平移变成一个对角规范因子 `diag(exp(2 pi i G . tau_a))`;因此对任何单胞含多个原子的
   晶格,约化后的标签都会让本该成立的群操作看起来像是对称性破缺。`rotate_labels` 与 `rotate_label`

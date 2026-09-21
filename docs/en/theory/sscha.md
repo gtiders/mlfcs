@@ -115,6 +115,21 @@ the self-consistent effective FC2. It has the same structure relation and sparse
 as finite-difference and fitting results. History stores diagnostics only; compact arrays are obtained
 explicitly with `result.force_constants.materialize(2)` when needed.
 
+## Irreducible computation, complete random degrees of freedom
+
+The sampler diagonalizes irreducible representatives only and expands the eigensolutions onto
+the full grid through the space-group representation, but **the random degrees of freedom do
+not shrink with it**: every full q point still draws an independent coefficient, a q/-q pair
+draws on one side and takes the real part of that complex amplitude (the other side is its
+conjugate), a boundary label with q = -q + G spans its real amplitude space, and the stream of
+a label is derived from the global seed plus the exact full-grid label, so the order in which
+spglib returned the operations cannot move a single sample. Star weights enter the statistics
+(free energy, mode counts, minimum frequency) and never scale a random amplitude, which would
+compress a star member's independent degrees of freedom into a weight.
+
+`SSCHAIteration` therefore reports both the full grid size $N_q$ and the irreducible count
+$N_{\mathrm{irr}}$; their ratio is that iteration's reduction.
+
 ## Free energy
 
 The same commensurate q-point eigensolutions provide the quantum harmonic free energy per primitive
