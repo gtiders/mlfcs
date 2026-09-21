@@ -1,4 +1,3 @@
-An NVIDIA GPU may be present on this machine, but a CUDA-enabled jaxlib is not installed. Falling back to cpu.
 INFO mlfcs.fitting.fitter: Preparing independent FC2+FC3+FC4 fitting parameterization
 INFO mlfcs.interactions.space: Creating reference supercell with matrix [[2, 0, 0], [0, 4, 0], [0, 0, 4]]
 INFO mlfcs.interactions.space: 8 primitive atoms, 256 supercell atoms
@@ -37,65 +36,38 @@ INFO mlfcs.interactions.space: 3818 independent tensor parameters
 INFO mlfcs.interactions.space: Maximum body order: 3
 INFO mlfcs.fitting.fitter: - FC4: 99 orbits, 3818 parameters
 INFO mlfcs.fitting.fitter: - Joint parameter count: 8572
-INFO mlfcs.fitting.linear_solvers: Explicit constraint parameterization: 8572 -> 5801 parameters in 181 blocks, rank=2771, nnz=443655
-INFO mlfcs.fitting.design_operator: - Prepared JAX feature program: 26 signatures, 476 tiles, 236.1 MiB static buffers
-INFO mlfcs.fitting.gram.builder: Accumulating streamed Gram system: 5801 x 5801 (256.7 MiB), effective_batch_size=4, backend=SciPy/OpenBLAS CPU
-INFO mlfcs.fitting.gram.builder: - Physical design kernel groups: 26, 476 bounded tiles
-INFO mlfcs.fitting.gram.builder: - Compiled FC2 physical design kernel in 0.16 s
-INFO mlfcs.fitting.gram.builder: - Compiled FC2 physical design kernel in 0.10 s
-INFO mlfcs.fitting.gram.builder: - Compiled FC2 physical design kernel in 0.11 s
-INFO mlfcs.fitting.gram.builder: - Compiled FC2 physical design kernel in 0.15 s
-INFO mlfcs.fitting.gram.builder: - Compiled FC3 physical design kernel in 0.11 s
-INFO mlfcs.fitting.gram.builder: - Compiled FC3 physical design kernel in 0.19 s
-INFO mlfcs.fitting.gram.builder: - Compiled FC3 physical design kernel in 0.24 s
-INFO mlfcs.fitting.gram.builder: - Compiled FC3 physical design kernel in 0.22 s
-INFO mlfcs.fitting.gram.builder: - Compiled FC3 physical design kernel in 0.14 s
-INFO mlfcs.fitting.gram.builder: - Compiled FC3 physical design kernel in 0.40 s
-INFO mlfcs.fitting.gram.builder: - Compiled FC3 physical design kernel in 0.17 s
-INFO mlfcs.fitting.gram.builder: - Compiled FC3 physical design kernel in 1.88 s
-INFO mlfcs.fitting.gram.builder: - Compiled FC4 physical design kernel in 0.13 s
-INFO mlfcs.fitting.gram.builder: - Compiled FC4 physical design kernel in 0.26 s
-INFO mlfcs.fitting.gram.builder: - Compiled FC4 physical design kernel in 0.13 s
-INFO mlfcs.fitting.gram.builder: - Compiled FC4 physical design kernel in 0.24 s
-INFO mlfcs.fitting.gram.builder: - Compiled FC4 physical design kernel in 0.24 s
-INFO mlfcs.fitting.gram.builder: - Compiled FC4 physical design kernel in 0.85 s
-INFO mlfcs.fitting.gram.builder: - Compiled FC4 physical design kernel in 0.28 s
-INFO mlfcs.fitting.gram.builder: - Compiled FC4 physical design kernel in 0.36 s
-INFO mlfcs.fitting.gram.builder: - Compiled FC4 physical design kernel in 0.30 s
-INFO mlfcs.fitting.gram.builder: - Compiled FC4 physical design kernel in 0.46 s
-INFO mlfcs.fitting.gram.builder: - Compiled FC4 physical design kernel in 0.42 s
-INFO mlfcs.fitting.gram.builder: - Compiled FC4 physical design kernel in 0.18 s
-INFO mlfcs.fitting.gram.builder: - Compiled FC4 physical design kernel in 10.47 s
-INFO mlfcs.fitting.gram.builder: - Compiled FC4 physical design kernel in 1.62 s
-INFO mlfcs.fitting.gram.builder: - Gram structures: 4/201, elapsed=20.89 s
-INFO mlfcs.fitting.gram.builder: - Gram structures: 20/201, elapsed=90.79 s
-INFO mlfcs.fitting.gram.builder: - Gram structures: 40/201, elapsed=165.47 s
-INFO mlfcs.fitting.gram.builder: - Gram structures: 60/201, elapsed=246.14 s
-INFO mlfcs.fitting.gram.builder: - Gram structures: 80/201, elapsed=329.51 s
-INFO mlfcs.fitting.gram.builder: - Gram structures: 100/201, elapsed=412.79 s
-INFO mlfcs.fitting.gram.builder: - Gram structures: 120/201, elapsed=497.86 s
-INFO mlfcs.fitting.gram.builder: - Gram structures: 140/201, elapsed=581.10 s
-INFO mlfcs.fitting.gram.builder: - Gram structures: 160/201, elapsed=665.21 s
-INFO mlfcs.fitting.gram.builder: - Gram structures: 180/201, elapsed=750.12 s
-INFO mlfcs.fitting.gram.builder: - Gram structures: 200/201, elapsed=834.21 s
-INFO mlfcs.fitting.gram.builder: - Gram structures: 201/201, elapsed=844.51 s
-INFO mlfcs.fitting.gram.builder: - Streamed Gram system ready in 845.16 s
-INFO mlfcs.fitting.gram.builder: - Gram phase timing: kernel=734.89 s, transfer=0.05 s, scatter=57.53 s, constraint reduction=27.47 s, BLAS=24.40 s
+INFO mlfcs.fitting.linear_solvers: Explicit constraint parameterization: 8572 -> 5801 parameters in 181 blocks, rank=2771, nnz=415592
+INFO mlfcs.fitting.design_operator: - Compiled design plan: 3 orders, 358 orbits, 14088 image pairs, 219.2 MiB arrays
+INFO mlfcs.fitting.gram.builder: Accumulating streamed Gram system: 5801 x 5801 (256.7 MiB) over 201 snapshots, backend=Numba design + OpenBLAS Gram
+INFO mlfcs.fitting.gram.builder: - Gram structures: 1/201, elapsed=0.72 s
+INFO mlfcs.fitting.gram.builder: - Gram structures: 20/201, elapsed=11.37 s
+INFO mlfcs.fitting.gram.builder: - Gram structures: 40/201, elapsed=22.24 s
+INFO mlfcs.fitting.gram.builder: - Gram structures: 60/201, elapsed=33.06 s
+INFO mlfcs.fitting.gram.builder: - Gram structures: 80/201, elapsed=43.82 s
+INFO mlfcs.fitting.gram.builder: - Gram structures: 100/201, elapsed=54.67 s
+INFO mlfcs.fitting.gram.builder: - Gram structures: 120/201, elapsed=65.54 s
+INFO mlfcs.fitting.gram.builder: - Gram structures: 140/201, elapsed=76.35 s
+INFO mlfcs.fitting.gram.builder: - Gram structures: 160/201, elapsed=87.22 s
+INFO mlfcs.fitting.gram.builder: - Gram structures: 180/201, elapsed=98.09 s
+INFO mlfcs.fitting.gram.builder: - Gram structures: 200/201, elapsed=108.96 s
+INFO mlfcs.fitting.gram.builder: - Gram structures: 201/201, elapsed=109.54 s
+INFO mlfcs.fitting.gram.builder: - Streamed Gram system ready in 110.08 s
+INFO mlfcs.fitting.gram.builder: - Gram phase timing: design=72.88 s, reduction=15.29 s, BLAS=21.37 s
 INFO mlfcs.fitting.fitter: Constraint system: 3026 rows after duplicate removal (113256 ASR before compression)
 INFO mlfcs.fitting.fitter: Column-norm preconditioning in constrained coordinates
-INFO mlfcs.fitting.fitter: - Inverse column scale: 1.220251e-02 to 2.456204e+00
+INFO mlfcs.fitting.fitter: - Inverse column scale: 1.220251e-02 to 3.528450e+00
 INFO mlfcs.fitting.fitter: Solving the force-only least-squares problem with streamed Gram
 INFO mlfcs.fitting.fitter: - Equations: 154368, unknowns: 5801
-INFO mlfcs.fitting.fitter: - Maximum joint constraint residual: 1.047773e-14
+INFO mlfcs.fitting.fitter: - Maximum joint constraint residual: 1.029732e-14
 INFO mlfcs.fitting.fitter: Force fitting summary
 INFO mlfcs.fitting.fitter: - Training relative error: 1.876036 %
 INFO mlfcs.fitting.fitter: - Training force RMSE: 5.9364371892e-03 eV/Å
-INFO mlfcs.fitting.fitter: - JAX execution guard: 1 prepared program, independent Gram statistics
-INFO mlfcs.fitting.fitter: - Solver iterations=1429, stop_code=0
+INFO mlfcs.fitting.fitter: - Independent Gram statistics: one compiled design plan
+INFO mlfcs.fitting.fitter: - Solver iterations=1647, stop_code=0
 INFO mlfcs.fitting.fitter: Expanding fitted Taylor parameters into sparse physical IFCs
-INFO mlfcs.fitting.fitter: - Expanded 14088 sparse tensors in 0.38 s
+INFO mlfcs.fitting.fitter: - Expanded 14088 sparse tensors in 0.34 s
 INFO mlfcs.force_constants.realization: Export view cache miss; constructing new view
 INFO mlfcs.force_constants.realization: Export view cache hit; reusing existing view
 INFO mlfcs.force_constants.realization: Export view cache hit; reusing existing view
 INFO mlfcs.force_constants.realization: Export view cache hit; reusing existing view
-wrote SnSe FC2+FC3+FC4 Taylor fit to /home/gwins/codespace/mlfcs-new/tutorial/SnSe/joint-fc234
+wrote SnSe FC2+FC3+FC4 Taylor fit to /home/gwins/codespace/mlfcs-new/.worktrees/reflector/tutorial/SnSe/joint-fc234
