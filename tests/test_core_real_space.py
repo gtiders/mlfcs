@@ -296,3 +296,28 @@ def test_primitive_interaction_space_ignores_the_reference():
     assert len(folded.primitive_orbit_space.orbits) == len(left.orbits)
     with pytest.raises(InteractionAliasingError, match="larger single reference"):
         _ = folded.realized_orbit_space
+
+
+def test_removed_orbit_fields_are_absent():
+    """The integer-lattice refactor removed the ambiguous fields without aliases.
+
+    `basis` mixed lattice, Cartesian and pivot-normalized coordinates, and `pivots` named
+    observed components while standing in for parameters. Neither is restored as a
+    compatibility alias, and the primitive space reports its lattice frame instead of the
+    old source-frame `symmetry` field.
+    """
+    primitive = Atoms("Si", scaled_positions=[[0, 0, 0]], cell=np.eye(3) * 4, pbc=True)
+    space = build_primitive_interaction_space(
+        primitive,
+        order=2,
+        cutoff=4.1,
+        max_body_order=None,
+        symprec=1e-5,
+    )
+
+    orbit = space.orbits[0]
+    for name in ("basis", "pivots"):
+        assert not hasattr(orbit, name), name
+    assert not hasattr(space, "symmetry")
+    assert orbit.exact_lattice_basis.shape[1] == orbit.dimension
+    assert orbit.observation_rows.tolist() == sorted(orbit.observation_rows.tolist())
