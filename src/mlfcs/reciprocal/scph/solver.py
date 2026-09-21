@@ -25,7 +25,8 @@ from mlfcs.reciprocal.grid import (
     IrreducibleReciprocalGrid,
     irreducible_reciprocal_grid,
 )
-from mlfcs.reciprocal.plan import ReciprocalExpansionPlan
+from mlfcs.reciprocal.kernels import dynamical_matrices_compiled
+from mlfcs.reciprocal.plan import FourierPlan, ReciprocalExpansionPlan
 from mlfcs.reciprocal.scph.fourier import (
     _multiplier,
     _needed_covariances,
@@ -456,7 +457,8 @@ class LoopSCPH:
         terms = fourier_terms(lattice, relation.primitive)
         grid = self._mesh(multiplier)
         qpoints = grid.full.points[grid.representatives]
-        eigenvalues = np.linalg.eigvalsh(dynamical_matrices(terms, masses, qpoints))
+        plan = FourierPlan.from_terms(terms, masses)
+        eigenvalues = np.linalg.eigvalsh(dynamical_matrices_compiled(plan, qpoints))
         values = np.sqrt(np.abs(eigenvalues)) * np.sign(eigenvalues) * _OMEGA_TO_THZ
         return np.asarray(qpoints), np.asarray(values)
 
@@ -571,7 +573,7 @@ class LoopSCPH:
         masses = np.asarray(relation.primitive.get_masses(), dtype=float)
         terms = fourier_terms(lattice, relation.primitive)
         require_star_covariance(
-            partial(dynamical_matrices, terms, masses),
+            partial(dynamical_matrices_compiled, FourierPlan.from_terms(terms, masses)),
             self._symmetry,
             self._mesh(multiplier),
             np.asarray(relation.primitive.get_scaled_positions(wrap=False), dtype=float),
