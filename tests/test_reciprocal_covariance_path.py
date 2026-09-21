@@ -201,10 +201,10 @@ def test_expansion_with_the_gauge_reproduces_the_member_matrix(case: str) -> Non
 def _non_centrosymmetric_solver() -> LoopSCPH:
     """Return an SCPH solver of zincblende GaAs on a grid that needs time reversal.
 
-    Every pinned crystal of the full-grid oracle is centrosymmetric, where inversion
-    already maps ``q`` onto ``-q`` and the antiunitary branch is never taken.  Zincblende
-    has no inversion centre, and this supercell has stars whose members are reachable only
-    through time reversal, so the conjugation in the expansion is exercised for real.
+    Every pinned crystal of the full-grid oracle is centrosymmetric, where inversion already
+    maps ``q`` onto ``-q`` and the antiunitary branch is never taken.  Zincblende has no
+    inversion centre, and this supercell has stars whose members are reachable only through
+    time reversal, so the conjugation in the expansion is exercised for real.
     """
     primitive = bulk("GaAs", "zincblende", a=5.653)
     matrix = np.asarray([[3, 0, 0], [0, 2, 0], [0, 0, 2]], dtype=np.int64)
@@ -235,15 +235,3 @@ def test_antiunitary_members_reproduce_the_full_grid_covariance() -> None:
     assert set(star) == set(direct)
     for key in sorted(direct):
         _assert_block_close(star, direct, key)
-
-
-@pytest.mark.parametrize("name", ("diamond_2x1x1", "diamond_nondiagonal"))
-def test_covariance_is_independent_of_the_worker_count(name: str) -> None:
-    """Scheduling representatives over threads does not change the covariance."""
-    serial = _solver(name, qpoint_workers=1)
-    parallel = _solver(name, qpoint_workers=2)
-    left = serial._covariance(lattice_fc2(serial.fc2), 1, TEMPERATURE)
-    right = parallel._covariance(lattice_fc2(parallel.fc2), 1, TEMPERATURE)
-    assert set(left) == set(right)
-    for key in sorted(left):
-        np.testing.assert_allclose(left[key], right[key], rtol=1e-12, atol=1e-15)

@@ -30,7 +30,6 @@ LoopSCPH(
     frequency_cutoff_thz: float = 0.0,
     warm_start: ForceConstants | None = None,
     continuation: bool = True,
-    qpoint_workers: int = 1,
     symprec: float = 1e-5,
     time_reversal: bool = True,
 )
@@ -50,7 +49,6 @@ LoopSCPH(
 | `frequency_cutoff_thz` | Modes below this absolute frequency do not enter the covariance; must be non-negative. |
 | `warm_start` | Optional initial effective FC2 that must be compatible with the input structure relation. |
 | `continuation` | Whether a multi-temperature run initializes each temperature from the previous result. |
-| `qpoint_workers` | Number of CPU threads, at least 1; threads are split over irreducible representatives and do not change the result order. |
 | `symprec` | Geometric tolerance used to identify the primitive symmetry. It is a different quantity from any dynamical-matrix tolerance and is recorded in the result. |
 | `time_reversal` | Whether time reversal joins the star decomposition as an antiunitary member; turning it off can only add irreducible points. |
 
