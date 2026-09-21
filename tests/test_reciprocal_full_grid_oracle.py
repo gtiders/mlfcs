@@ -101,6 +101,14 @@ must be aware of:
 #. ``SamplingState.total_modes`` counts the modes the sampler actually represents, so the
    three uniform translations projected out at Gamma are missing from it: four atoms (12
    modes) report ``total_modes == 9``, exactly the number of non-zero modes.
+#. The harmonic sampler diagonalizes the ``N_irr`` representatives in one batched ``eigh``
+   call and expands their modes onto every full q point, so ``SamplingState`` reports
+   ``n_qpoints`` and ``n_irreducible`` separately and ``_sampler_bloch_covariance`` adds one
+   contribution per full q point: the old per-``±``-pair multiplicity of two is now carried
+   by the pair's two members, whose expanded covariance kernels are equal.  The sampler
+   itself draws a single complex amplitude per q/-q pair -- the conjugate partner lives
+   inside the real part of that one field term -- so the reduction removes repeated
+   diagonalizations and never an amplitude.
 """
 
 from __future__ import annotations
@@ -323,11 +331,17 @@ def _classical_supercell_covariance(
 
 
 def _sampler_bloch_covariance(sampler: HarmonicSampler) -> np.ndarray:
-    """Return the full-grid covariance implied by the sampler's mode records.
+    """Return the full-grid covariance implied by the sampler's member records.
 
-    The kernel is built only from the eigenvalues, eigenvectors, ``mode_sigma`` and the
-    positional phases of the sampler's own grid, so it is an independent statement of what
-    the sampler must produce, not a copy of its random draw.
+    The kernel is built only from the eigenvalues, the star-expanded eigenvectors,
+    ``mode_sigma`` and the positional phases of the sampler's own grid, so it is an
+    independent statement of what the sampler must produce, not a copy of its random draw.
+
+    Every full q point contributes exactly once.  The sampler draws a single complex
+    amplitude for a q/-q pair and reads the conjugate partner inside the real part of that
+    one field term, so the pair's two members are both accounted for by the two equal
+    per-label contributions this sum adds for them; a label with ``q = -q + G`` is its own
+    partner and contributes once, with real degrees of freedom.
     """
     n_cells = sampler._n_cells
     n_primitive = sampler._n_primitive
@@ -335,7 +349,7 @@ def _sampler_bloch_covariance(sampler: HarmonicSampler) -> np.ndarray:
     masses = sampler._masses
     positions = sampler._positions
     covariance = np.zeros((3 * n_atoms, 3 * n_atoms))
-    for record in sampler._modes:
+    for record in sampler._members:
         sigma2 = np.where(record.included, sampler._mode_sigma(record.eigenvalues), 0.0) ** 2
         weighted = (record.eigenvectors * sigma2[None, :]) @ record.eigenvectors.conj().T
         phase = np.exp(
@@ -347,9 +361,6 @@ def _sampler_bloch_covariance(sampler: HarmonicSampler) -> np.ndarray:
                 record.qpoint,
             )
         )
-        # A q point and its distinct partner -q each appear once in the full grid and
-        # contribute a conjugate pair; a label with q = -q + G contributes once.
-        members = 2.0 if record.paired else 1.0
         for first in range(n_primitive):
             for second in range(n_primitive):
                 block = weighted[3 * first : 3 * first + 3, 3 * second : 3 * second + 3] / np.sqrt(
@@ -360,7 +371,7 @@ def _sampler_bloch_covariance(sampler: HarmonicSampler) -> np.ndarray:
                         atom = sampler._cell_atoms[cell, first]
                         partner = sampler._cell_atoms[other, second]
                         covariance[3 * atom : 3 * atom + 3, 3 * partner : 3 * partner + 3] += (
-                            members
+                            1.0
                             / n_cells
                             * np.real(block * phase[cell, first] * np.conj(phase[other, second]))
                         )
@@ -746,7 +757,8 @@ _TRAJECTORY = {
 }
 _SAMPLER = {
     ("classical", 300.0): {
-        "qpoints": 2,
+        "n_qpoints": 2,
+        "n_irreducible": 2,
         "total_modes": 9,
         "sampled_modes": 9,
         "excluded_modes": 0,
@@ -754,19 +766,20 @@ _SAMPLER = {
         "minimum_frequency_thz": 8.38980735507794,
         "free_energy": 0.04707102114182576,
         "frequencies": [
-            8.393733513444873,
-            8.393733513444873,
-            10.021164366347646,
-            8.38980735507794,
-            8.58468336012384,
-            9.86141997878115,
-            10.031022867862433,
-            10.352360446425044,
-            10.676370788215598,
+            [0.0, 0.0, 0.0, 8.393733513444873, 8.393733513444873, 10.021164366347644],
+            [
+                8.38980735507794,
+                8.58468336012384,
+                9.86141997878115,
+                10.031022867862433,
+                10.352360446425044,
+                10.676370788215598,
+            ],
         ],
     },
     ("quantum", 300.0): {
-        "qpoints": 2,
+        "n_qpoints": 2,
+        "n_irreducible": 2,
         "total_modes": 9,
         "sampled_modes": 9,
         "excluded_modes": 0,
@@ -774,19 +787,20 @@ _SAMPLER = {
         "minimum_frequency_thz": 8.38980735507794,
         "free_energy": 0.057948227615850015,
         "frequencies": [
-            8.393733513444873,
-            8.393733513444873,
-            10.021164366347646,
-            8.38980735507794,
-            8.58468336012384,
-            9.86141997878115,
-            10.031022867862433,
-            10.352360446425044,
-            10.676370788215598,
+            [0.0, 0.0, 0.0, 8.393733513444873, 8.393733513444873, 10.021164366347644],
+            [
+                8.38980735507794,
+                8.58468336012384,
+                9.86141997878115,
+                10.031022867862433,
+                10.352360446425044,
+                10.676370788215598,
+            ],
         ],
     },
     ("quantum", 0.0): {
-        "qpoints": 2,
+        "n_qpoints": 2,
+        "n_irreducible": 2,
         "total_modes": 9,
         "sampled_modes": 9,
         "excluded_modes": 0,
@@ -794,29 +808,29 @@ _SAMPLER = {
         "minimum_frequency_thz": 8.38980735507794,
         "free_energy": 0.08757720465328056,
         "frequencies": [
-            8.393733513444873,
-            8.393733513444873,
-            10.021164366347646,
-            8.38980735507794,
-            8.58468336012384,
-            9.86141997878115,
-            10.031022867862433,
-            10.352360446425044,
-            10.676370788215598,
+            [0.0, 0.0, 0.0, 8.393733513444873, 8.393733513444873, 10.021164366347644],
+            [
+                8.38980735507794,
+                8.58468336012384,
+                9.86141997878115,
+                10.031022867862433,
+                10.352360446425044,
+                10.676370788215598,
+            ],
         ],
     },
 }
 _SAMPLER_SAMPLE = {
     "snapshots": 4096,
     "seed": 20240921,
-    "maximum_mean": 0.0011775478298119448,
+    "maximum_mean": 0.0010120022697350734,
     "second_moment": [
-        [0.0021871359264970477, 0.0023900224042276456, 0.002134977884875162],
-        [0.00221706629569019, 0.0024517000840672204, 0.002092157449003746],
-        [0.0022447587091146597, 0.002408011308500957, 0.0021111547034926934],
-        [0.0022428431327116997, 0.002460319597620091, 0.002197643414814301],
+        [0.0022529116898892766, 0.0024604632093492124, 0.0022162320058922258],
+        [0.0023658854165337687, 0.0023692823804476563, 0.0021316341408638166],
+        [0.0022501236180960727, 0.0023959940583802367, 0.002148357885556737],
+        [0.002238516510173947, 0.0024052513814007484, 0.002148602912035302],
     ],
-    "maximum_sampled_displacement": 0.2162163954914578,
+    "maximum_sampled_displacement": 0.23051859953554724,
 }
 
 
@@ -1013,24 +1027,33 @@ def test_harmonic_sampler_state_and_free_energy_are_pinned(statistics, temperatu
     sampler = _sampler("hcp_2x1x1", statistics=statistics, temperature=temperature)
     state = sampler.state
 
-    assert state.qpoints == expected["qpoints"]
+    assert state.n_qpoints == expected["n_qpoints"]
+    assert state.n_irreducible == expected["n_irreducible"]
     assert state.total_modes == expected["total_modes"]
     assert state.sampled_modes == expected["sampled_modes"]
     assert state.excluded_modes == expected["excluded_modes"]
     assert state.imaginary_modes == expected["imaginary_modes"]
+    assert state.n_qpoints == len(sampler.full_qpoints())
+    assert state.n_irreducible == len(sampler.irreducible_qpoints)
+    assert int(sampler.weights.sum()) == state.n_qpoints
     np.testing.assert_allclose(
         state.minimum_frequency_thz, expected["minimum_frequency_thz"], rtol=FREQUENCY_RTOL
     )
     np.testing.assert_allclose(
         sampler.harmonic_free_energy(), expected["free_energy"], rtol=STATISTICS_RTOL
     )
-    records = sampler.frequencies
-    assert len(records) == state.qpoints
+    # The expansion carries the representative spectrum onto every member of its star, so
+    # the full-grid array is pinned in full-grid order.
+    frequencies = sampler.expand_frequencies()
+    assert frequencies.shape == (state.n_qpoints, 3 * len(sampler.primitive))
     np.testing.assert_allclose(
-        np.concatenate(records),
-        expected["frequencies"],
-        rtol=FREQUENCY_RTOL,
-        atol=FREQUENCY_ATOL,
+        frequencies, expected["frequencies"], rtol=FREQUENCY_RTOL, atol=FREQUENCY_ATOL
+    )
+    np.testing.assert_allclose(
+        sampler.irreducible_frequencies,
+        frequencies[np.asarray(sampler.grid.representatives)],
+        rtol=0.0,
+        atol=0.0,
     )
 
 
@@ -1064,9 +1087,10 @@ def test_sampler_and_shared_fourier_kernel_agree():
         terms = fourier_terms(lattice_fc2(force_constants), primitive)
         masses = np.asarray(primitive.get_masses(), dtype=float)
         grid = reciprocal_quotient_grid(force_constants.relation.supercell_matrix)
-        assert len(sampler.qpoints) == len(grid.labels)
+        qpoints = sampler.full_qpoints()
+        assert len(qpoints) == len(grid.labels)
         scale = 0.0
-        for qpoint in sampler.qpoints:
+        for qpoint in qpoints:
             reference = dynamical_matrix(terms, masses, qpoint)
             scale = max(scale, float(np.abs(reference).max()))
             np.testing.assert_allclose(

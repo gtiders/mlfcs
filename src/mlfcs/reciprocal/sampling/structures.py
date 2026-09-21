@@ -103,8 +103,9 @@ def _sample_perturbations(
     logger.info("Generated %d %s perturbation structures", snapshots, method)
     if state is not None:
         logger.info(
-            "Harmonic sampling: qpoints=%d, sampled_modes=%d/%d, minimum_frequency=%.8f THz",
-            state.qpoints,
+            "Harmonic sampling: qpoints=%d/%d, sampled_modes=%d/%d, minimum_frequency=%.8f THz",
+            state.n_qpoints,
+            state.n_irreducible,
             state.sampled_modes,
             state.total_modes,
             state.minimum_frequency_thz,
