@@ -25,6 +25,7 @@ from ase.build import bulk
 from ase.calculators.lj import LennardJones
 
 from mlfcs import FiniteDifferenceCalculation, build_supercell
+from mlfcs.exceptions import MLFCSError
 from mlfcs.force_constants.representation import ForceConstants, SparseOrderForceConstants
 from mlfcs.reciprocal.fourier import dynamical_matrices, fourier_terms
 from mlfcs.reciprocal.grid import irreducible_reciprocal_grid, reciprocal_quotient_grid
@@ -147,6 +148,38 @@ def lattice_terms(fc2: ForceConstants):
     return lattice_fc2(fc2)
 
 
+def _validation_cost(fc2: ForceConstants, multiplier: int, symmetry_tolerance: float | None):
+    """Return the (matrices, seconds) the full-star validation gate spends on one grid."""
+    from functools import partial
+
+    from mlfcs.force_constants.dense import lattice_fc2
+    from mlfcs.reciprocal.grid import irreducible_reciprocal_grid
+    from mlfcs.reciprocal.symmetry import require_star_covariance
+    from mlfcs.structure.symmetry import PrimitiveSymmetryOperations
+
+    relation = fc2.relation
+    primitive = relation.primitive
+    masses = np.asarray(primitive.get_masses(), dtype=float)
+    terms = fourier_terms(lattice_fc2(fc2), primitive)
+    symmetry = PrimitiveSymmetryOperations.from_atoms(primitive, symprec=1e-5)
+    grid = irreducible_reciprocal_grid(multiplier * relation.supercell_matrix, symmetry)
+    start = time.perf_counter()
+    try:
+        require_star_covariance(
+            partial(dynamical_matrices, terms, masses),
+            symmetry,
+            grid,
+            np.asarray(primitive.get_scaled_positions(wrap=False), dtype=float),
+            tolerance=symmetry_tolerance,
+            context="benchmark",
+        )
+        verdict = "passed"
+    except (MLFCSError, ValueError) as error:  # the verdict is part of the measurement
+        verdict = f"rejected ({type(error).__name__})"
+    seconds = time.perf_counter() - start
+    return grid.n_irr if False else grid.n_irreducible + grid.n_qpoints, seconds, verdict
+
+
 def _full_grid_covariance(fc2: ForceConstants, temperature: float) -> None:
     """Return nothing but do the pre-reduction covariance work, for timing only."""
     relation = fc2.relation
@@ -206,6 +239,7 @@ def report(system: str, multiplier: int, temperature: float) -> str:
     _, _, sampling_cost = _measure(sampler.sample, snapshots, random_seed=20240921)
     _, free_energy_matrices, free_energy_cost = _measure(sampler.harmonic_free_energy)
 
+    validation_matrices, validation_seconds, verdict = _validation_cost(fc2, multiplier, 1e-6)
     lines = [
         f"### {system} (interpolation multiplier {multiplier})",
         "",
@@ -232,6 +266,13 @@ def report(system: str, multiplier: int, temperature: float) -> str:
             f"SCPH converged: {result.converged}, iterations: {len(result.history)}, "
             f"expanded frequencies: {result.expand_frequencies().shape}"
         ),
+        "",
+        (
+            f"| full-star validation matrices | {validation_matrices} "
+            f"(N_irr + N_q) | - |"
+        ),
+        f"| full-star validation time (s) | {validation_seconds:.4f} | - |",
+        f"| full-star validation verdict | {verdict} | - |",
         "",
         "| sampler quantity | irreducible | full grid |",
         "| --- | --- | --- |",
@@ -272,8 +313,17 @@ def main() -> None:
     print("# Reciprocal reduction benchmark")
     print()
     print(
-        "Diagonalizations count calls to `numpy.linalg.eigvalsh`/`eigh`; the full-grid "
-        "column runs the pre-reduction computation for the same system."
+        "Diagonalizations count the matrices that reach `numpy.linalg.eigvalsh`/`eigh`; the "
+        "full-grid column runs the pre-reduction computation for the same system.  The "
+        "full-star validation gate is on by default, so its matrix builds and its wall time "
+        "are part of the reported numbers; its verdict says whether the model is covariant."
+    )
+    print()
+    import numba
+
+    print(
+        f"threads: numba {numba.get_num_threads()}, numpy {np.__version__}, "
+        f"numba {numba.__version__}"
     )
     print()
     for system in selected:
