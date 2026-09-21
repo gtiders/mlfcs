@@ -345,7 +345,10 @@ class LatticeFrame:
         if np.any(site < 0) or np.any(site >= self.numbers.shape[0]):
             raise ValueError("label site is outside the canonical atom range")
         anchor = self.positions[site] + values[..., 1:].astype(np.float64)
-        residual = anchor @ self.source_to_algebra - self.source_positions[self.atom_map[site]]
+        # ``source_positions`` is already in the canonical atom order, so the source
+        # coordinate of canonical atom ``site`` is ``source_positions[site]``; looking it
+        # up through ``atom_map`` would apply the canonical permutation twice.
+        residual = anchor @ self.source_to_algebra - self.source_positions[site]
         rounded = np.rint(residual)
         deviation = np.abs(residual - rounded)
         if np.any(deviation > _LABEL_TOLERANCE):

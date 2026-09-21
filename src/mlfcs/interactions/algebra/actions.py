@@ -114,15 +114,6 @@ def apply_lattice_columns(
     return np.ascontiguousarray(np.transpose(transformed, axes).reshape(len(columns.T), -1).T)
 
 
-def lattice_action_matrix(
-    rotation: np.ndarray,
-    permutation: tuple[int, ...],
-    order: int,
-) -> np.ndarray:
-    """Return the exact integer lattice-frame tensor representation of one action."""
-    return apply_lattice_columns(rotation, permutation, order, np.eye(3**order, dtype=np.int64))
-
-
 def scaled_to_cartesian_rotation(scaled_rotation: np.ndarray, cell: np.ndarray) -> np.ndarray:
     r"""Return the Cartesian rotation of one lattice rotation for a cell.
 
@@ -235,6 +226,5 @@ __all__ = [
     "compose_actions",
     "integer_inverse",
     "inverse_action",
-    "lattice_action_matrix",
     "scaled_to_cartesian_rotation",
 ]

@@ -550,3 +550,55 @@ def test_maps_validate_their_inputs() -> None:
         frame.source_to_algebra_translations(np.array([[2.0, -3.0, 0.0]])),
         frame.source_to_algebra_translations(np.array([[2, -3, 0]])),
     )
+
+
+def _permuted_atom_order(atoms: Atoms, shift: int = 1) -> Atoms:
+    """Return the same crystal with its atoms listed in a different order."""
+    order = np.roll(np.arange(len(atoms)), shift)
+    return Atoms(
+        numbers=atoms.numbers[order],
+        scaled_positions=atoms.get_scaled_positions(wrap=False)[order],
+        cell=np.asarray(atoms.cell, dtype=np.float64),
+        pbc=True,
+    )
+
+
+@pytest.mark.parametrize("name", MATERIAL_NAMES)
+@pytest.mark.parametrize("variant", sorted(SOURCE_VARIANTS))
+def test_source_labels_reach_the_mapped_atoms_of_the_source_structure(
+    name: str, variant: str
+) -> None:
+    """Every mapped row must name an atom of the source structure itself.
+
+    The canonical atom order need not be the source order, so a label has to be checked
+    against the source ``Atoms`` rather than against the frame's own arrays: the
+    returned ``(site, translation)`` has to describe the same physical atom up to a
+    lattice vector of the source cell.
+    """
+    atoms = _rescaled(_material(name), SOURCE_VARIANTS[variant])
+    frame = LatticeFrame.from_atoms(atoms)
+    labels = _label_grid(frame.positions.shape[0])
+    mapped = frame.source_labels(labels)
+    source_scaled = atoms.get_scaled_positions(wrap=False)
+    cell = np.asarray(atoms.cell, dtype=np.float64)
+    source_points = _label_points(mapped, source_scaled, cell)
+    algebra_points = _label_points(labels, frame.positions, frame.algebra_cell)
+    fractional = (source_points - algebra_points) @ np.linalg.inv(cell)
+    np.testing.assert_allclose(fractional, np.rint(fractional), atol=1e-8, rtol=0.0)
+
+
+@pytest.mark.parametrize("name", MATERIAL_NAMES)
+def test_source_labels_survive_a_permuted_source_atom_order(name: str) -> None:
+    """A source order that the canonical order really permutes must still map exactly."""
+    atoms = _permuted_atom_order(_material(name))
+    frame = LatticeFrame.from_atoms(atoms)
+    wrapped = np.mod(atoms.get_scaled_positions(wrap=False), 1.0)
+    np.testing.assert_allclose(frame.source_positions, wrapped[frame.atom_map], atol=1e-10)
+    labels = _label_grid(frame.positions.shape[0])
+    mapped = frame.source_labels(labels)
+    cell = np.asarray(atoms.cell, dtype=np.float64)
+    source_points = _label_points(mapped, atoms.get_scaled_positions(wrap=False), cell)
+    algebra_points = _label_points(labels, frame.positions, frame.algebra_cell)
+    fractional = (source_points - algebra_points) @ np.linalg.inv(cell)
+    np.testing.assert_allclose(fractional, np.rint(fractional), atol=1e-8, rtol=0.0)
+    np.testing.assert_array_equal(atoms.numbers[mapped[:, 0]], frame.numbers[labels[:, 0]])
