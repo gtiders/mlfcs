@@ -3,8 +3,6 @@ import pytest
 from ase import Atoms
 
 from mlfcs import FiniteDifferenceCalculation, realize_force_constants
-from mlfcs.reciprocal import SSCHA
-from mlfcs.tools.supercell import build_supercell
 from mlfcs.finite_difference.plan_identity import ForceBatch
 from mlfcs.fitting.fitter import ForceConstantFitter
 from mlfcs.force_constants.expansion import expand_primitive_parameters
@@ -17,6 +15,7 @@ from mlfcs.interactions.realization import (
     validate_realization_identifiability,
 )
 from mlfcs.interactions.space import InteractionSpace
+from mlfcs.reciprocal import SSCHA
 from mlfcs.structure.integer_lattice import same_residue
 from mlfcs.structure.relation import StructureRelation
 from mlfcs.tools.supercell import build_supercell

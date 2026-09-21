@@ -16,7 +16,7 @@ from mlfcs import (
     realize_force_constants,
     write_force_constants,
 )
-from mlfcs.reciprocal import LoopSCPH, SSCHA
+from mlfcs.reciprocal import SSCHA, LoopSCPH
 
 
 def test_public_callables_have_explicit_documented_signatures():
