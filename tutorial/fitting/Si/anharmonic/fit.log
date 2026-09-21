@@ -36,30 +36,30 @@ INFO mlfcs.interactions.space: 468 independent tensor parameters
 INFO mlfcs.interactions.space: Maximum body order: 3
 INFO mlfcs.fitting.fitter: - FC4: 18 orbits, 468 parameters
 INFO mlfcs.fitting.fitter: - Joint parameter count: 574
-INFO mlfcs.fitting.linear_solvers: Explicit constraint parameterization: 574 -> 310 parameters in 20 blocks, rank=264, nnz=10683
+INFO mlfcs.fitting.linear_solvers: Explicit constraint parameterization: 574 -> 310 parameters in 4 blocks, rank=264, nnz=35156
 INFO mlfcs.fitting.design_operator: - Compiled design plan: 3 orders, 32 orbits, 5326 image pairs, 114.4 MiB arrays
 INFO mlfcs.fitting.gram.builder: Accumulating streamed Gram system: 310 x 310 (0.7 MiB) over 100 snapshots, backend=Numba design + OpenBLAS Gram
-INFO mlfcs.fitting.gram.builder: - Gram structures: 1/100, elapsed=1.62 s
-INFO mlfcs.fitting.gram.builder: - Gram structures: 20/100, elapsed=29.99 s
-INFO mlfcs.fitting.gram.builder: - Gram structures: 40/100, elapsed=58.61 s
-INFO mlfcs.fitting.gram.builder: - Gram structures: 60/100, elapsed=87.19 s
-INFO mlfcs.fitting.gram.builder: - Gram structures: 80/100, elapsed=115.93 s
-INFO mlfcs.fitting.gram.builder: - Gram structures: 100/100, elapsed=144.22 s
-INFO mlfcs.fitting.gram.builder: - Streamed Gram system ready in 144.23 s
-INFO mlfcs.fitting.gram.builder: - Gram phase timing: design=143.85 s, reduction=0.20 s, BLAS=0.17 s
-INFO mlfcs.fitting.fitter: Constraint system: 283 rows after duplicate removal (69786 ASR before compression)
+INFO mlfcs.fitting.gram.builder: - Gram structures: 1/100, elapsed=0.38 s
+INFO mlfcs.fitting.gram.builder: - Gram structures: 20/100, elapsed=5.94 s
+INFO mlfcs.fitting.gram.builder: - Gram structures: 40/100, elapsed=11.74 s
+INFO mlfcs.fitting.gram.builder: - Gram structures: 60/100, elapsed=17.61 s
+INFO mlfcs.fitting.gram.builder: - Gram structures: 80/100, elapsed=23.57 s
+INFO mlfcs.fitting.gram.builder: - Gram structures: 100/100, elapsed=29.46 s
+INFO mlfcs.fitting.gram.builder: - Streamed Gram system ready in 29.46 s
+INFO mlfcs.fitting.gram.builder: - Gram phase timing: design=27.41 s, reduction=0.25 s, BLAS=1.80 s
+INFO mlfcs.fitting.fitter: Constraint system: 5487 rows after duplicate removal (69786 ASR before compression)
 INFO mlfcs.fitting.fitter: Column-norm preconditioning in constrained coordinates
-INFO mlfcs.fitting.fitter: - Inverse column scale: 2.136606e-02 to 1.631449e+01
+INFO mlfcs.fitting.fitter: - Inverse column scale: 3.835374e-02 to 1.490555e+01
 INFO mlfcs.fitting.fitter: Solving the force-only least-squares problem with streamed Gram
 INFO mlfcs.fitting.fitter: - Equations: 19200, unknowns: 310
-INFO mlfcs.fitting.fitter: - Maximum joint constraint residual: 1.077610e-14
+INFO mlfcs.fitting.fitter: - Maximum joint constraint residual: 6.188799e-14
 INFO mlfcs.fitting.fitter: Force fitting summary
 INFO mlfcs.fitting.fitter: - Training relative error: 5.450514 %
 INFO mlfcs.fitting.fitter: - Training force RMSE: 3.7327384757e-02 eV/Å
 INFO mlfcs.fitting.fitter: - Independent Gram statistics: one compiled design plan
-INFO mlfcs.fitting.fitter: - Solver iterations=333, stop_code=0
+INFO mlfcs.fitting.fitter: - Solver iterations=429, stop_code=0
 INFO mlfcs.fitting.fitter: Expanding fitted Taylor parameters into sparse physical IFCs
-INFO mlfcs.fitting.fitter: - Expanded 5326 sparse tensors in 0.22 s
+INFO mlfcs.fitting.fitter: - Expanded 5326 sparse tensors in 0.12 s
 INFO mlfcs.force_constants.realization: Export view cache miss; constructing new view
 INFO mlfcs.force_constants.realization: Export view cache hit; reusing existing view
 INFO mlfcs.force_constants.realization: Export view cache hit; reusing existing view
