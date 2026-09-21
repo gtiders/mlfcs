@@ -99,3 +99,12 @@ fc2 = calculation.run(calculator, acoustic_sum_rule=True)
 ```
 
 返回的 `ForceConstants.metadata` 记录 order、实际解析后的 cutoff、位移、空间群、ASR、构型数和导数后端。
+
+## 重建如何得到参数
+
+每个 orbit 的 `observation_rows` 给出计划必须观测的分量行，重建显式求解
+$Q_{\mathrm{obs}}\theta = y_{\mathrm{obs}}$，其中 $Q_{\mathrm{obs}}$ 是该 orbit 的观测矩阵，
+$y_{\mathrm{obs}}$ 是有限差分得到的导数分量。求解结果 $\theta$ 是 $Q$ 的系数，随后由
+`expand_primitive_parameters` 展开为带 site 与整数平移标签的力常数。它们不是参数 pivot：
+观测分量一般不等于参数值，两者的差别由 $Q_{\mathrm{obs}}$ 的条件数控制（随 orbit 保存为
+`observation_condition`）。

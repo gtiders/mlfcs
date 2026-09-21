@@ -29,6 +29,55 @@ All notable changes are documented here. Releases follow semantic versioning.
   and cluster image selection now agree with the true minimum image for skewed and unimodularly
   transformed frames; the `mic()` calling convention is unchanged.
 
+### Added
+
+- `LatticeFrame` (`mlfcs.structure.lattice_frame`) records the exact integer change of frame from the
+  user's primitive cell to a canonical Minkowski-reduced algebra cell: `source_cell`, `algebra_cell`,
+  the unimodular `source_to_algebra`/`algebra_to_source`, the motif match, exact conversions of
+  fractional coordinates, integer translations and rotations, and the single order-$n$ tensor map
+  $K_n = (A^{\mathsf T})^{\otimes n}$. Equivalent unimodular inputs reduce to the same frame.
+- `mlfcs.interactions.algebra.exact` certifies exact ranks modulo primes: a modular rank never exceeds
+  the rank over $\mathbb Q$, so one full-rank prime settles it, and a deficient verdict is certified once
+  the product of the distinct primes exceeds the Hadamard bound of the largest minors. The kernel comes
+  from a Smith normal form decomposition, so it is the *saturated* integer kernel rather than columns
+  divided by their greatest common divisors. `RankCertificateError` reports a certificate that the
+  on-demand prime stream cannot settle, and `IntegerRangeError` reports a lattice integer that does not
+  fit `int64` instead of letting a C extension raise an unrelated conversion error.
+
+### Changed
+
+- The orbit algebra is decided in the reduced lattice (scaled) frame, where spglib rotations are integer
+  for every cell. The invariant kernel is the exact kernel of the stacked stabilizer constraints, its
+  dimension is certified, and the returned integer basis is verified against the constraints; the
+  floating point Gram matrix, its eigenvalue threshold and `normalize_pivot_basis` are gone.
+- `PrimitiveInteractionOrbit` exposes `exact_lattice_basis` ($B_{\mathbb Z}$, integers), `cartesian_basis`
+  ($Q$, orthonormal) and `coefficient_transform` ($R$, with $C = K_n B_{\mathbb Z} = QR$) instead of one
+  ambiguous `basis`. The fitted parameters are the coefficients of $Q$, so parameter *values* change while
+  orbit counts, invariant dimensions and delivered force constants do not.
+- `pivots` became `observation_rows`, together with `observation_matrix` and `observation_condition`.
+  The rows are the components a finite-difference plan observes, chosen to maximize the volume of the
+  observation block, and `reconstruct_sparse` solves $Q_{\mathrm{obs}}\theta = y_{\mathrm{obs}}$
+  explicitly instead of assuming that an observed component is a parameter.
+- Realization identifiability ranks the exact integer realization matrix with the modular certificate:
+  no coefficient filter, no rank tolerance and no float fallback on irrational frames.
+- `TensorAction` carries the lattice rotation of every operation, so stabilizer deduplication,
+  composition and inversion are exact integers; the 1e-12 rounded Cartesian signature is gone.
+- Orbit keys are mapped back to the user's cell with `LatticeFrame.source_labels` (exact integers), so
+  reference supercells, `sow`/`reap` plans and I/O keep addressing the same physical interactions.
+- `ReferenceFrame` carries the calculation's `lattice_frame`, and
+  `build_primitive_interaction_space` takes `frame=` in place of `symmetry=` and `tolerance`.
+- `cutoff=None`, group LASSO/ADMM fitting and every other unrelated capability are untouched.
+
+### Fixed
+
+- A large unimodular shear no longer inflates the integer algebra at third and fourth order: the canonical
+  algebra frame makes equivalent representations produce identical integer bases, observation rows and
+  condition numbers, and identical finite-difference reconstructions.
+- Documentation: the symmetry-and-orbits theory pages explain the lattice frame, the two orbit bases and
+  the observation rows, and the documentation test now runs `scripts/check_docs.py`, so the repository
+  math-delimiter rule and the bilingual mirror are enforced by the suite.
+
+
 ## 4.0.0a5 — 2026-08-24
 
 ### Changed

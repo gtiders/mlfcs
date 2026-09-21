@@ -40,3 +40,13 @@ Taylor IFC，不再隐式划分验证集或计算测试集预测。
 Periodic completion 要求 FC2、严格 ASR 和无正则最小二乘。可迁移 exact-$R$ FC2 保存在
 `force_constants.sparse[2]`，source-owned 有限 Hessian 保存在
 `force_constants.periodic_fc2_completion`。
+
+## 参数的含义
+
+拟合参数是每个 orbit 的正交 Cartesian 基 $Q$ 的系数，因此参数向量只有一种坐标含义：代表张量是
+$Q\theta$，每个 orbit 的参数个数等于该 orbit 的不变子空间维数。精确整数系数 $c = R^{-1}\theta$ 与
+$\theta$ 描述同一个张量，只是记录在规约晶胞的 lattice 参考系中，用于来源追踪与跨表示比较。
+
+有限差分计划观测的分量行、观测矩阵与条件数随 orbit 一起保存（`observation_rows`、
+`observation_matrix`、`observation_condition`）。它们决定哪些分量必须被测量，并决定由观测值求解参数的
+条件数；参数向量本身不是观测值。详见[对称性与轨道](../theory/symmetry-and-orbits.md)。

@@ -25,6 +25,46 @@
   而该阈值并非 Wigner-Seitz 胞的内切半径，斜胞因此会得到非最小像。最小像长度、简并像集合
   与团簇像选择现在都与真实最小像一致；`mic()` 的调用约定保持不变。
 
+### 新增
+
+- `LatticeFrame`（`mlfcs.structure.lattice_frame`）记录用户 primitive 晶胞到规范 Minkowski 规约代数晶胞的
+  精确整数换基：`source_cell`、`algebra_cell`、unimodular 的 `source_to_algebra`/`algebra_to_source`、
+  motif 对应、分数坐标与整数平移的精确换算、旋转矩阵在两个参考系间的转换，以及唯一的 $n$ 阶张量映射
+  $K_n = (A^{\mathsf T})^{\otimes n}$。等价的 unimodular 输入会规约到同一参考系。
+- `mlfcs.interactions.algebra.exact` 用模素数证书判定精确秩：模 $p$ 秩不超过 $\mathbb Q$ 上的秩，因此某个
+  素数上满秩即为证明；秩亏则由"已用不同素数之积超过最大子式的 Hadamard 上界"证书判定。核由 Smith 标准形
+  分解构造，是**饱和**整数核，而不是逐列除以最大公约数。`RankCertificateError` 表示按需素数流无法给出证书，
+  `IntegerRangeError` 表示 lattice 整数超出 `int64`，而不是让 C 扩展抛出含混的转换错误。
+
+### 变化
+
+- 轨道代数在规约后的 lattice（scaled）参考系中判定：spglib 旋转对任何晶胞都是整数。不变核是堆叠稳定子约束的
+  精确核，维数有证书，返回的整数基会与约束精确校验；浮点 Gram、其特征值阈值与 `normalize_pivot_basis`
+  全部删除。
+- `PrimitiveInteractionOrbit` 用 `exact_lattice_basis`（$B_{\mathbb Z}$，整数）、`cartesian_basis`（$Q$，正交）
+  与 `coefficient_transform`（$R$，满足 $C = K_n B_{\mathbb Z} = QR$）取代原先含义含混的 `basis`。拟合参数是
+  $Q$ 的系数，因此参数**取值**会变，而轨道数、不变量维数与交付的力常数不变。
+- `pivots` 改为 `observation_rows`，并新增 `observation_matrix` 与 `observation_condition`。这些行是有限差分
+  计划观测的分量，按观测块体积最大化选取；`reconstruct_sparse` 显式求解
+  $Q_{\mathrm{obs}}\theta = y_{\mathrm{obs}}$，不再假设观测分量等于参数。
+- realization identifiability 用模素数证书对精确整数 realization 矩阵求秩：不再有系数过滤、秩容差，
+  也不再有无理晶胞的浮点回退。
+- `TensorAction` 携带每次操作的 lattice 旋转，稳定子去重、复合与求逆都变成精确整数运算；`round(...,12)`
+  的浮点签名删除。
+- 轨道成员通过 `LatticeFrame.source_labels` 精确映射回用户晶胞（整数），reference 超胞、`sow`/`reap` 计划
+  与 I/O 仍然指向同一物理 interaction。
+- `ReferenceFrame` 携带该计算的 `lattice_frame`；`build_primitive_interaction_space` 用 `frame=` 取代
+  `symmetry=` 与 `tolerance`。
+- `cutoff=None`、group LASSO/ADMM 拟合以及其他无关能力均未改动。
+
+### 修复
+
+- 大 unimodular shear 不再让三、四阶整数代数膨胀：规范代数参考系使等价表示给出相同的整数基、观测行与条件数，
+  并给出相同的有限差分重建结果。
+- 文档：对称性与轨道理论页说明 lattice 参考系、两套轨道基与观测行；文档测试现在会运行
+  `scripts/check_docs.py`，因此仓库的数学分隔符规则与中英镜像由测试套件强制。
+
+
 ## 4.0.0a5 — 2026-08-24
 
 ### 变化
