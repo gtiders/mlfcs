@@ -22,16 +22,16 @@ from dataclasses import dataclass
 import numpy as np
 from ase import Atoms
 from ase.build import bulk
-from ase.neighborlist import neighbor_list
+from ase.calculators.lj import LennardJones
 
-from mlfcs import build_supercell
+from mlfcs import FiniteDifferenceCalculation, build_supercell
 from mlfcs.force_constants.representation import ForceConstants, SparseOrderForceConstants
 from mlfcs.reciprocal.fourier import dynamical_matrices, fourier_terms
 from mlfcs.reciprocal.grid import irreducible_reciprocal_grid, reciprocal_quotient_grid
+from mlfcs.reciprocal.sampling.harmonic import HarmonicSampler
 from mlfcs.reciprocal.scph.fourier import harmonic_frequencies
 from mlfcs.reciprocal.scph.solver import LoopSCPH
 from mlfcs.reciprocal.statistics import OMEGA_TO_THZ, mode_sigma
-from mlfcs.structure.relation import StructureRelation
 from mlfcs.structure.symmetry import PrimitiveSymmetryOperations
 
 SYSTEMS = {
@@ -58,39 +58,33 @@ def _primitive(name: str) -> Atoms:
     return bulk("Si", "diamond", a=5.43)
 
 
-def _spring_force_constants(primitive: Atoms, matrix: np.ndarray, cutoff: float) -> ForceConstants:
-    """Return an isotropic spring-network FC2 plus an on-site quartic FC4."""
+def _benchmark_force_constants(
+    primitive: Atoms, matrix: np.ndarray, cutoff: float
+) -> tuple[ForceConstants, ForceConstants]:
+    """Return ``(fc2, fc4)`` of a Lennard-Jones crystal in one reference supercell.
+
+    FC2 comes from a finite-difference run, so it is symmetry-expanded by construction and
+    passes the crystal-symmetry gate that every reciprocal consumer applies; FC4 is an
+    on-site quartic tensor, which is only a source of quartic entries for the loop
+    contraction and is not part of that check.
+    """
     reference = build_supercell(primitive, matrix)
-    relation = StructureRelation.from_atoms(primitive, reference)
-    first, second, shifts, distances = neighbor_list(
-        "ijSd", relation.primitive, cutoff, self_interaction=True
+    # cutoff=-1 lets the library resolve the interaction radius from the reference, which is
+    # what keeps a small reference identifiable instead of aliasing its own images.
+    calculation = FiniteDifferenceCalculation(
+        primitive, reference=reference, order=2, cutoff=-1, displacement=0.02
     )
-    blocks: dict[tuple[int, int, tuple[int, int, int]], np.ndarray] = {}
-    for atom_a, atom_b, shift, distance in zip(
-        first.tolist(), second.tolist(), shifts.tolist(), distances.tolist(), strict=True
-    ):
-        if float(distance) >= cutoff or float(distance) == 0.0:
-            continue
-        key = (int(atom_a), int(atom_b), tuple(int(value) for value in shift))
-        backward = (key[1], key[0], tuple(-value for value in key[2]))
-        for entry in (key, backward):
-            blocks[entry] = blocks.get(entry, 0.0) + np.eye(3) / len(relation.primitive)
-    sites = np.asarray([[a, a] for a, b, _ in sorted(blocks)], dtype=np.int32)
-    translations = np.asarray([[s] for _, _, s in sorted(blocks)], dtype=np.int32)
-    tensors = np.asarray([blocks[key] for key in sorted(blocks)], dtype=float)
-    fc2 = SparseOrderForceConstants(2, sites, translations, tensors)
+    fc2 = calculation.run(LennardJones(epsilon=1.0, sigma=3.0, rc=9.0), acoustic_sum_rule=False)
+    relation = fc2.relation
     quartic_sites = np.asarray(
         [[a, a, a, a] for a in range(len(relation.primitive))], dtype=np.int32
     )
     quartic_translations = np.zeros((len(relation.primitive), 3, 3), dtype=np.int32)
     quartic = np.zeros((len(relation.primitive), 3, 3, 3, 3), dtype=float)
-    for a in range(len(relation.primitive)):
-        quartic[a] = 0.01 * np.ones((3, 3, 3, 3))
+    for site in range(len(relation.primitive)):
+        quartic[site] = 0.01 * np.ones((3, 3, 3, 3))
     fc4 = SparseOrderForceConstants(4, quartic_sites, quartic_translations, quartic)
-    return (
-        ForceConstants({}, reference, sparse={2: fc2}, relation=relation),
-        ForceConstants({}, reference, sparse={4: fc4}, relation=relation),
-    )
+    return fc2, ForceConstants({}, relation.reference.copy(), sparse={4: fc4}, relation=relation)
 
 
 def _matrix_count(values: object) -> int:
@@ -170,7 +164,7 @@ def report(system: str, multiplier: int, temperature: float) -> str:
     """Return one markdown table for one system."""
     name, matrix, cutoff = SYSTEMS[system]
     primitive = _primitive(name)
-    fc2, fc4 = _spring_force_constants(primitive, matrix, cutoff)
+    fc2, fc4 = _benchmark_force_constants(primitive, matrix, cutoff)
     symmetry = PrimitiveSymmetryOperations.from_atoms(primitive, symprec=1e-5)
     mesh = harmonic_frequencies(fc2, multiplier)
     grid = irreducible_reciprocal_grid(multiplier * matrix, symmetry)
@@ -193,6 +187,24 @@ def report(system: str, multiplier: int, temperature: float) -> str:
     sweep_mesh = solver._mesh(1)
     result, sweep_matrices, sweep_cost = _measure(solver._run_single, temperature, None)
     _, old_matrices, old_cost = _measure(_full_grid_covariance, fc2, temperature)
+
+    # The sampler reads the per-atom cell/primitive metadata the structure relation puts on
+    # its reference, so the relation's own reference is the right object here.
+    sampler_reference = fc2.relation.reference
+    sampler, sampler_matrices, sampler_cost = _measure(
+        HarmonicSampler,
+        primitive,
+        sampler_reference,
+        fc2.materialize(2),
+        temperature=temperature,
+        statistics="classical",
+        # The benchmark model is a spring network, not an equilibrium crystal, so it has
+        # imaginary modes; the sampler policy is explicit here exactly as in a real run.
+        imaginary_modes="absolute",
+    )
+    snapshots = 4096
+    _, _, sampling_cost = _measure(sampler.sample, snapshots, random_seed=20240921)
+    _, free_energy_matrices, free_energy_cost = _measure(sampler.harmonic_free_energy)
 
     lines = [
         f"### {system} (interpolation multiplier {multiplier})",
@@ -220,6 +232,21 @@ def report(system: str, multiplier: int, temperature: float) -> str:
             f"SCPH converged: {result.converged}, iterations: {len(result.history)}, "
             f"expanded frequencies: {result.expand_frequencies().shape}"
         ),
+        "",
+        "| sampler quantity | irreducible | full grid |",
+        "| --- | --- | --- |",
+        (
+            f"| sampler initialization diagonalizations | {int(sampler_matrices)} | "
+            f"{sampler.grid.n_qpoints} |"
+        ),
+        f"| sampler init time (s) | {sampler_cost.seconds:.4f} | - |",
+        f"| sampler init peak (MiB) | {sampler_cost.peak_mib:.2f} | - |",
+        (
+            f"| one batch of {snapshots} snapshots (s) | {sampling_cost.seconds:.4f} | - "
+            "|"
+        ),
+        f"| harmonic free energy (s) | {free_energy_cost.seconds:.4f} | - |",
+        f"| free energy diagonalizations | {int(free_energy_matrices)} | 0 |",
         "",
         (
             "One SCPH sweep = one covariance plus the initial frequencies plus one "
