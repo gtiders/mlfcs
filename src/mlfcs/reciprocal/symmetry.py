@@ -234,6 +234,135 @@ def star_member_action(
     )
 
 
+def validate_symprec(value: object, *, context: str) -> float:
+    """Return a usable geometric tolerance, rejecting NaN, infinities and non-positive values.
+
+    ``symprec`` decides which operations the structure has; a NaN or a non-positive value
+    would silently produce a meaningless operation set, so it fails here instead.
+    """
+    number = float(value)
+    if not np.isfinite(number) or number <= 0:
+        raise ValueError(f"{context}: symprec must be finite and positive, got {value!r}")
+    return number
+
+
+def validate_symmetry_tolerance(value: object, *, context: str) -> float | None:
+    """Return a usable physical covariance tolerance, or ``None`` for the explicit opt-out.
+
+    The check is never off by default, so the only way to disable it is an explicit ``None``;
+    NaN and infinities are rejected because a comparison against NaN is always false and would
+    therefore switch the gate off by accident.
+    """
+    if value is None:
+        return None
+    number = float(value)
+    if not np.isfinite(number) or number < 0:
+        raise ValueError(
+            f"{context}: symmetry_tolerance must be None or finite and non-negative, "
+            f"got {value!r}"
+        )
+    return number
+
+
+@dataclass(frozen=True, slots=True)
+class StarCovarianceResidual:
+    """One member whose directly built matrix disagrees with its star expansion."""
+
+    representative: tuple[int, int, int]
+    member: tuple[int, int, int]
+    operation: int
+    antiunitary: bool
+    residual: float
+
+
+def _star_expansion(build, symmetry, grid, primitive_positions):
+    """Return ``(direct, expanded)`` full-grid matrices of one star expansion."""
+    representatives = np.asarray(grid.representatives, dtype=np.int64)
+    direct = build(grid.full.points)
+    expanded = expand_star_matrices(
+        build(grid.full.points[representatives]), grid, symmetry, primitive_positions
+    )
+    return direct, expanded
+
+
+def _star_residuals(direct, expanded, grid) -> tuple[StarCovarianceResidual, ...]:
+    """Return one residual per full-grid member of an expansion."""
+    residuals = []
+    for member in range(len(grid.full.labels)):
+        star = int(grid.full_to_irreducible[member])
+        representative = int(grid.representatives[star])
+        residuals.append(
+            StarCovarianceResidual(
+                representative=tuple(int(value) for value in grid.full.labels[representative]),
+                member=tuple(int(value) for value in grid.full.labels[member]),
+                operation=int(grid.full_operations[member]),
+                antiunitary=bool(grid.full_antiunitary[member]),
+                residual=float(np.max(np.abs(expanded[member] - direct[member]))),
+            )
+        )
+    return tuple(residuals)
+
+
+def star_covariance_residuals(
+    build,
+    symmetry: PrimitiveSymmetryOperations,
+    grid: IrreducibleReciprocalGrid,
+    primitive_positions: np.ndarray,
+) -> tuple[StarCovarianceResidual, ...]:
+    """Compare every expanded star member with the matrix built directly at its own label.
+
+    This is the certificate a star expansion actually needs: the little group only fixes the
+    representatives, so a model can satisfy it and still be wrong on the members.  ``build``
+    maps an ``(n, 3)`` array of q points to the matching stack of dynamical matrices, so the
+    whole measurement is two batched builds -- the representatives, and every full-grid point.
+    """
+    direct, expanded = _star_expansion(build, symmetry, grid, primitive_positions)
+    return _star_residuals(direct, expanded, grid)
+
+
+def require_star_covariance(
+    build,
+    symmetry: PrimitiveSymmetryOperations,
+    grid: IrreducibleReciprocalGrid,
+    primitive_positions: np.ndarray,
+    *,
+    tolerance: float | None,
+    context: str = "the model",
+) -> float:
+    r"""Raise unless every expanded star member matches the matrix built at its own label.
+
+    The allowed residual is relative to the largest infinity norm over the members, taken over
+    both the direct and the expanded matrices, because a legitimate model's absolute residual
+    scales with the model itself.  The check never averages, projects or repairs the input.
+    """
+    if tolerance is None:
+        return 0.0
+    direct, expanded = _star_expansion(build, symmetry, grid, primitive_positions)
+    residuals = _star_residuals(direct, expanded, grid)
+    if not residuals:
+        return 0.0
+    scale = float(
+        max(
+            np.linalg.norm(direct, ord=np.inf, axis=(-2, -1)).max(),
+            np.linalg.norm(expanded, ord=np.inf, axis=(-2, -1)).max(),
+        )
+    )
+    worst = max(residuals, key=lambda entry: entry.residual)
+    allowed = tolerance * scale if scale > 0 else tolerance
+    if worst.residual > allowed:
+        raise SymmetryViolationError(
+            f"{context}: the force constants are not covariant on the full star of "
+            f"representative {list(worst.representative)}: member {list(worst.member)} reached "
+            f"by operation {worst.operation}"
+            f"{' (antiunitary)' if worst.antiunitary else ''} leaves a residual of "
+            f"{worst.residual:.6e} against an allowed {allowed:.6e} "
+            f"(scale {scale:.6e}, relative tolerance {tolerance:.3e}). The star expansion "
+            "would mix inequivalent points; fix the force constants or raise "
+            "symmetry_tolerance explicitly."
+        )
+    return float(worst.residual)
+
+
 def expand_star_values(values: np.ndarray, grid: IrreducibleReciprocalGrid) -> np.ndarray:
     """Return the full-grid array of a quantity defined on star representatives.
 
@@ -382,15 +511,15 @@ def little_group_residuals(
     symmetry: PrimitiveSymmetryOperations,
     grid: IrreducibleReciprocalGrid,
 ) -> tuple[RepresentationResidual, ...]:
-    """Measure the covariance residual on every little group of a decomposition.
+    """Measure the un-gauged covariance residual on the little group of every representative.
 
-    The little group of a representative is the set of grid-preserving operations that fix
-    it, so this is the cheapest complete statement of the crystal symmetry of ``D(q)``: a
-    model that does not satisfy it is reported with the operation and the label instead of
-    being averaged into one that does.  ``build`` maps an ``(n, 3)`` array of q points to the
-    matching stack of dynamical matrices, so the whole measurement is two batched calls
-    rather than two per operation -- the check must not cost more than the expansion it
-    guards, and a per-point Python loop over a long interaction list would.
+    This is a *local* diagnostic, not a star certificate: the little group fixes the
+    representative, so a model can satisfy this measurement and still be wrong on every other
+    member of the star -- the merge gate for an expansion is
+    :func:`require_star_covariance`, which compares the expanded members with the matrices
+    built at their own labels.  What is measured here is the un-gauged relation
+    ``D(gq_s) = U_g(q_s) D(q_s) U_g(q_s)^dagger`` at the *unreduced* image, which is the
+    relation :func:`covariance_residuals` and the representation tests use.
     """
     pairs: list[tuple[int, np.ndarray, np.ndarray]] = []
     for star, little_group in enumerate(grid.little_groups):
@@ -435,15 +564,12 @@ def require_little_group_covariance(
     tolerance: float | None,
     context: str = "the model",
 ) -> float:
-    """Raise unless the little-group covariance holds within a relative tolerance.
+    """Raise unless the un-gauged little-group residual holds within a relative tolerance.
 
-    ``build`` maps an ``(n, 3)`` array of q points to the matching stack of dynamical
-    matrices.  ``tolerance`` is relative to the largest dynamical-matrix element at the
-    representatives, because the absolute residual of a legitimate model scales with the
-    model itself.  It is a public argument of every consumer rather than a module constant,
-    and ``None`` switches the check off explicitly -- it is never off by default, so a
-    force-constant set that breaks its own crystal symmetry cannot be averaged into a
-    symmetric result unnoticed.
+    A local diagnostic only; use :func:`require_star_covariance` as the gate for any
+    expansion over a star.  ``build`` maps an ``(n, 3)`` array of q points to the matching
+    stack of dynamical matrices, and ``tolerance`` is relative to the largest
+    dynamical-matrix element at the representatives.
     """
     if tolerance is None:
         return 0.0
@@ -543,6 +669,7 @@ def maximum_covariance_residual(
 
 __all__ = [
     "RepresentationResidual",
+    "StarCovarianceResidual",
     "StarMemberAction",
     "conjugate_matrix",
     "covariance_residuals",
@@ -556,4 +683,6 @@ __all__ = [
     "star_member_gauge",
     "star_member_operator",
     "validate_site_masses",
+    "validate_symmetry_tolerance",
+    "validate_symprec",
 ]

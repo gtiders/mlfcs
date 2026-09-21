@@ -134,8 +134,40 @@ def compact_dynamical_matrix(
     return _fold(blocks.reshape(3 * n_primitive, 3 * n_primitive))
 
 
+def compact_dynamical_matrices(
+    compact: np.ndarray,
+    cell_atoms: np.ndarray,
+    cell_translations: np.ndarray,
+    positions: np.ndarray,
+    masses: np.ndarray,
+    qpoints: np.ndarray,
+) -> np.ndarray:
+    """Return the dynamical matrices of a compact FC2 for a whole q batch.
+
+    Same sum as :func:`compact_dynamical_matrix`, evaluated for every supplied q point in one
+    vectorized pass, so a caller that needs a batch (a validation sweep or a representative
+    batch) does not pay a Python loop per point.
+    """
+    points = np.asarray(qpoints, dtype=float).reshape((-1, 3))
+    n_primitive = len(masses)
+    values = compact[:, np.asarray(cell_atoms, dtype=np.int64).reshape(-1)].reshape(
+        n_primitive, len(cell_translations), n_primitive, 3, 3
+    )
+    images = (
+        np.asarray(cell_translations, dtype=float)[:, None, None, :]
+        + positions[None, None, :, :]
+        - positions[None, :, None, :]
+    )
+    phase = np.exp(2j * np.pi * np.einsum("cabd,qd->qcab", images, points))
+    blocks = np.einsum("qcab,acbuv->qaubv", phase, values, optimize=True)
+    mass = np.sqrt(masses[:, None] * masses[None, :])
+    blocks /= mass[None, :, None, :, None]
+    return _fold(blocks.reshape(len(points), 3 * n_primitive, 3 * n_primitive))
+
+
 __all__ = [
     "FourierTerm",
+    "compact_dynamical_matrices",
     "compact_dynamical_matrix",
     "dynamical_matrices",
     "dynamical_matrix",

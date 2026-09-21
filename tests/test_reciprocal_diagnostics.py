@@ -96,7 +96,13 @@ def test_a_symmetric_model_passes_the_gate(name: str) -> None:
 
 
 def test_the_frequency_path_reports_a_broken_crystal_symmetry() -> None:
-    """A force-constant set that breaks its symmetry is reported, with its location."""
+    """A force-constant set that breaks its symmetry is reported, with its location.
+
+    The perturbation has to be *visible on the grid*: scaling one bond of a small mesh can
+    stay invisible, because the images that would expose it fall outside the supercell's
+    quotient.  This case is a hexagonal cell at multiplier 4, where the scaled bond's orbit
+    is inside the grid and the expansion of the representative no longer matches the member.
+    """
     force_constants, _ = scph_case("hcp_2x1x1")
     lattice = dict(lattice_fc2(force_constants))
     key = max(
@@ -104,22 +110,17 @@ def test_the_frequency_path_reports_a_broken_crystal_symmetry() -> None:
         key=lambda entry: np.abs(lattice[entry]).sum(),
     )
     lattice[key] = lattice[key] * 1.3
-    broken = type(force_constants)(
-        dict(force_constants.metadata),
-        force_constants.supercell,
-        sparse={2: force_constants.sparse[2]},
-        relation=force_constants.relation,
-    )
-    broken = replace_lattice_fc2(broken, lattice)
+    broken = replace_lattice_fc2(force_constants, lattice)
 
     with pytest.raises(SymmetryViolationError) as failure:
-        harmonic_frequencies(broken, 2)
+        harmonic_frequencies(broken, 4)
     message = str(failure.value)
-    assert "operation" in message and "label" in message and "residual" in message
+    assert "representative" in message and "member" in message
+    assert "operation" in message and "residual" in message
     assert "symmetry_tolerance" in message
 
     # The opt-out is explicit and local: the same model is accepted when the caller says so.
-    mesh = harmonic_frequencies(broken, 2, symmetry_tolerance=None)
+    mesh = harmonic_frequencies(broken, 4, symmetry_tolerance=None)
     assert mesh.symmetry_tolerance is None
     assert mesh.n_qpoints > 0
 

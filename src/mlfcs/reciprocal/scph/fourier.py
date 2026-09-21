@@ -20,8 +20,10 @@ from mlfcs.reciprocal.grid import (
 from mlfcs.reciprocal.statistics import OMEGA_TO_THZ as _OMEGA_TO_THZ
 from mlfcs.reciprocal.symmetry import (
     expand_star_values,
-    require_little_group_covariance,
+    require_star_covariance,
     validate_site_masses,
+    validate_symmetry_tolerance,
+    validate_symprec,
 )
 from mlfcs.structure.symmetry import PrimitiveSymmetryOperations
 
@@ -91,6 +93,10 @@ def harmonic_frequencies(
     """
     if 2 not in fc2.orders or fc2.relation is None:
         raise ValueError("fc2 must contain order-2 force constants and a structure relation")
+    symprec = validate_symprec(symprec, context="harmonic_frequencies")
+    symmetry_tolerance = validate_symmetry_tolerance(
+        symmetry_tolerance, context="harmonic_frequencies"
+    )
     primitive = fc2.relation.primitive
     masses = np.asarray(primitive.get_masses(), dtype=float)
     lattice = lattice_fc2(fc2)
@@ -101,14 +107,14 @@ def harmonic_frequencies(
     grid = irreducible_reciprocal_grid(
         multiplier * fc2.relation.supercell_matrix, symmetry, time_reversal=time_reversal
     )
-    # The star expansion is only legitimate if the dynamical matrix is covariant on the
-    # little group of every representative; a model that breaks it is reported here rather
-    # than averaged into a symmetric mesh.
-    require_little_group_covariance(
+    # The star expansion is only legitimate if every member the expansion produces agrees
+    # with the matrix built directly at that member's own label; the little group alone does
+    # not certify that, so the full star is checked before anything is diagonalized.
+    require_star_covariance(
         partial(dynamical_matrices, terms, masses),
-        masses,
         symmetry,
         grid,
+        np.asarray(primitive.get_scaled_positions(wrap=False), dtype=float),
         tolerance=symmetry_tolerance,
         context="harmonic_frequencies",
     )

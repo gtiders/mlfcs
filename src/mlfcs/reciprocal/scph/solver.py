@@ -33,9 +33,11 @@ from mlfcs.reciprocal.statistics import HBAR_ASE, OMEGA_TO_THZ, mode_sigma
 from mlfcs.reciprocal.symmetry import (
     expand_star_values,
     require_hermitian,
-    require_little_group_covariance,
+    require_star_covariance,
     star_member_action,
     validate_site_masses,
+    validate_symmetry_tolerance,
+    validate_symprec,
 )
 from mlfcs.reciprocal.temperature import TemperatureSeriesResult, normalize_temperature_schedule
 from mlfcs.structure.symmetry import PrimitiveSymmetryOperations
@@ -172,13 +174,11 @@ class LoopSCPH:
         # The geometric tolerance that identifies the primitive symmetry is a different
         # quantity from any dynamical-matrix tolerance, so it is a public argument and is
         # recorded in every result instead of being a module constant.
-        self.symprec = float(symprec)
         self.time_reversal = bool(time_reversal)
-        if symmetry_tolerance is not None and symmetry_tolerance < 0:
-            raise ValueError("symmetry_tolerance must be non-negative or None")
-        self.symmetry_tolerance = (
-            None if symmetry_tolerance is None else float(symmetry_tolerance)
+        self.symmetry_tolerance = validate_symmetry_tolerance(
+            symmetry_tolerance, context="LoopSCPH"
         )
+        self.symprec = validate_symprec(symprec, context="LoopSCPH")
         self._symmetry = PrimitiveSymmetryOperations.from_atoms(
             self._primitive, symprec=self.symprec
         )
@@ -478,21 +478,21 @@ class LoopSCPH:
         multiplier: int,
         context: str,
     ) -> None:
-        """Raise unless the current force constants are covariant on every little group.
+        """Raise unless the given force constants are covariant on every star member.
 
-        Every consumer of a star decomposition relies on that covariance, so it is checked
-        once per run on the lattice that is actually being used, and the failure names the
-        operation, the label and the residual.
+        Every consumer of a star decomposition relies on that covariance, so it is checked on
+        the lattice that is actually being used, and the failure names the representative, the
+        member, the operation and the residual.
         """
         relation = self.fc2.relation
         assert relation is not None
         masses = np.asarray(relation.primitive.get_masses(), dtype=float)
         terms = fourier_terms(lattice, relation.primitive)
-        require_little_group_covariance(
+        require_star_covariance(
             partial(dynamical_matrices, terms, masses),
-            masses,
             self._symmetry,
             self._mesh(multiplier),
+            np.asarray(relation.primitive.get_scaled_positions(wrap=False), dtype=float),
             tolerance=self.symmetry_tolerance,
             context=context,
         )
