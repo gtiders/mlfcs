@@ -347,21 +347,10 @@ uv run python plot.py
 训练集和测试集分别构造独立的 Gram 对象。`fit()` 不再隐式划分验证集或预测测试集力；
 测试误差应由用户使用 `MLFCSCalculator` 显式计算。
 
-默认情况下：
-
-```python
-regularization=None
-```
-
-表示进行不带正则项的拟合。
-
-如果希望对轨道组施加稀疏约束，可以显式设置：
-
-```python
-regularization="scaled_group_lasso"
-```
-
-使用正则化后，应结合 `result` 中的收敛信息和力误差判断拟合结果是否可靠。
+`fit()` 只求解带等式约束的最小二乘问题，没有正则化开关：拟合参数是每个 orbit 正交
+Cartesian 基的系数，而旧 `scaled_group_lasso` 的惩罚定义在列归一化坐标上，换基后已经不对应同一个优化问题，
+因此该实验性算法被整体删除，不保留兼容字符串。若参考超胞不足以辨识模型，realization identifiability
+会在构造阶段拒绝它，而不是靠正则化掩盖。
 
 ## 结果检查与导出
 

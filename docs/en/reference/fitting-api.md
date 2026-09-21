@@ -36,8 +36,8 @@ Taylor IFCs; it does not split validation data or calculate test-set predictions
 
 
 `FittingResult` contains the fitted force constants, Taylor parameters, Gram statistics, training
-error derived from the Gram quadratic form, solver state, constraint residuals, regularization
-state, and optional periodic FC2 completion. Force evaluation is owned by `MLFCSCalculator`.
+error derived from the Gram quadratic form, solver state, constraint residuals, and optional
+periodic FC2 completion. Force evaluation is owned by `MLFCSCalculator`.
 
 Periodic completion requires FC2, strict ASR, and unregularized least squares. The transferable
 exact-$R$ FC2 remains in `force_constants.sparse[2]`; the source-owned finite Hessian remains in

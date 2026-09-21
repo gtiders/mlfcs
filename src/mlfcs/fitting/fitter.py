@@ -12,10 +12,7 @@ from mlfcs.constraints.translational import project_parameters
 from mlfcs.fitting.constraints import build_joint_constraints
 from mlfcs.fitting.dataset import FitDataset
 from mlfcs.fitting.gram import GramBuilder, GramStatistics
-from mlfcs.fitting.linear_solvers import (
-    explicit_constraint_null_space,
-    solve_scaled_group_lasso,
-)
+from mlfcs.fitting.linear_solvers import explicit_constraint_null_space
 from mlfcs.fitting.parameterization import pack_order
 from mlfcs.fitting.taylor.model import TaylorModel
 from mlfcs.force_constants.expansion import expand_fitted_orders
@@ -39,11 +36,6 @@ class FittingResult:
     residual_norm: float
     normal_equation_residual: float
     maximum_constraint_residual: float
-    regularization: str = "none"
-    effective_noise_scale: float = 0.0
-    active_orbits: int = 0
-    admm_primal_residual: float = 0.0
-    admm_dual_residual: float = 0.0
 
 
 class ForceConstantFitter:
@@ -117,7 +109,6 @@ class ForceConstantFitter:
         acoustic_sum_rule: bool = True,
         precondition: bool = True,
         allow_unconverged: bool = False,
-        regularization: str | None = None,
     ) -> FittingResult:
         if not isinstance(gram, GramStatistics):
             raise TypeError("fit expects a GramStatistics object")
@@ -125,9 +116,6 @@ class ForceConstantFitter:
             raise ValueError("max_iterations must be positive")
         if tolerance <= 0:
             raise ValueError("tolerance must be positive")
-        normalized_regularization = "none" if regularization is None else regularization.casefold()
-        if normalized_regularization not in {"none", "scaled_group_lasso"}:
-            raise ValueError("regularization must be None or 'scaled_group_lasso'")
         constraints = build_joint_constraints(
             self.calculations,
             acoustic=acoustic_sum_rule,
@@ -137,11 +125,7 @@ class ForceConstantFitter:
             f"({constraints.translational_rows} ASR before compression)"
         )
         parameter_map = gram.metadata.get("parameter_map")
-        if (
-            parameter_map is None
-            and normalized_regularization == "none"
-            and constraints.matrix.shape[0]
-        ):
+        if parameter_map is None and constraints.matrix.shape[0]:
             parameter_map = explicit_constraint_null_space(
                 constraints.matrix,
                 tolerance=1e-11,
@@ -164,10 +148,7 @@ class ForceConstantFitter:
         else:
             parameter_scale = np.ones(gram_system.gram.shape[0])
             logger.info("- Parameter preconditioning disabled")
-        if normalized_regularization == "none":
-            logger.info("Solving the force-only least-squares problem with streamed Gram")
-        else:
-            logger.info("Solving the force-only problem with constrained scaled orbit-group LASSO")
+        logger.info("Solving the force-only least-squares problem with streamed Gram")
         logger.info(f"- Equations: {gram.n_equations}, unknowns: {gram_system.gram.shape[0]}")
         solve_constraint_matrix = (
             sparse.csr_matrix((0, gram_system.gram.shape[0]))
@@ -176,55 +157,18 @@ class ForceConstantFitter:
         )
         scaled_constraints = solve_constraint_matrix @ sparse.diags(parameter_scale)
         solve_constraints = self._normalize_constraint_rows(scaled_constraints)
-        effective_noise_scale = 0.0
-        active_orbits = sum(
-            len(calculation.realized_orbit_space.orbits) for calculation in self.calculations
+        solution = gram_system.solve(
+            parameter_scale,
+            solve_constraints,
+            tolerance=tolerance,
+            max_iterations=max_iterations,
         )
-        admm_primal = 0.0
-        admm_dual = 0.0
-        if normalized_regularization == "none":
-            solution = gram_system.solve(
-                parameter_scale,
-                solve_constraints,
-                tolerance=tolerance,
-                max_iterations=max_iterations,
-            )
-            scaled_parameters, stop_code, iterations, residual_norm, normal_residual = solution
-        else:
-            groups = self._orbit_parameter_groups()
-            solution = solve_scaled_group_lasso(
-                gram_system.gram,
-                gram_system.rhs,
-                gram_system.target_norm,
-                parameter_scale,
-                solve_constraints,
-                groups,
-                n_equations=gram.n_equations,
-                tolerance=tolerance,
-                max_iterations=max_iterations,
-            )
-            (
-                scaled_parameters,
-                stop_code,
-                iterations,
-                residual_norm,
-                normal_residual,
-                effective_noise_scale,
-                active_orbits,
-                _cg_iterations,
-                admm_primal,
-                admm_dual,
-            ) = solution
+        scaled_parameters, stop_code, iterations, residual_norm, normal_residual = solution
         if stop_code != 0 and not allow_unconverged:
-            residual_label = (
-                "ADMM residual"
-                if normalized_regularization == "scaled_group_lasso"
-                else "projected normal residual"
-            )
             raise RuntimeError(
                 "force-constant fitting did not converge: "
                 f"stop_code={stop_code}, iterations={iterations}, "
-                f"{residual_label}={normal_residual:.6e}; "
+                f"projected normal residual={normal_residual:.6e}; "
                 "set allow_unconverged=True only to inspect the incomplete solution"
             )
         if solve_constraints.shape[0]:
@@ -289,12 +233,7 @@ class ForceConstantFitter:
             self.canonical_supercell.copy(),
             metadata={
                 "method": "joint_force_fit",
-                "solver": (
-                    "gram"
-                    if normalized_regularization == "none"
-                    else "gram_scaled_group_lasso_admm"
-                ),
-                "regularization": normalized_regularization,
+                "solver": "gram",
                 "fitted_with": "taylor",
                 "force_constants_basis": "taylor",
                 "cutoff_angstrom": self.calculations[-1].cutoff,
@@ -321,11 +260,6 @@ class ForceConstantFitter:
             residual_norm=float(residual_norm),
             normal_equation_residual=float(normal_residual),
             maximum_constraint_residual=constraint_residual,
-            regularization=normalized_regularization,
-            effective_noise_scale=effective_noise_scale,
-            active_orbits=active_orbits,
-            admm_primal_residual=admm_primal,
-            admm_dual_residual=admm_dual,
         )
         return result
 
@@ -381,15 +315,6 @@ class ForceConstantFitter:
             prepared.operator,
             dataset.forces.reshape(-1),
         )
-
-    def _orbit_parameter_groups(self):
-        groups = []
-        offset = 0
-        for calculation in self.calculations:
-            for orbit in calculation.realized_orbit_space.orbits:
-                groups.append(slice(offset, offset + orbit.dimension))
-                offset += orbit.dimension
-        return tuple(groups)
 
     @staticmethod
     def _normalize_constraint_rows(constraints):
