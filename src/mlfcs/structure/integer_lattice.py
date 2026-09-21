@@ -48,6 +48,41 @@ def normalize_supercell_matrix(matrix: object) -> np.ndarray:
     return rounded
 
 
+#: Conservative int64 ceiling: any accumulation whose bound stays below this cannot wrap.
+_INT64_SAFE_BOUND = 2**62
+
+
+def exact_integer_product(left: object, right: object) -> np.ndarray:
+    """Return ``left @ right`` for integer matrices, exactly.
+
+    The fast path is taken only when a bound on the accumulation proves that no entry can
+    overflow int64; otherwise the multiplication runs on Python integers, which cannot wrap.  A
+    silent int64 wrap would certify a lattice quotient, or accept a rotation, that is simply
+    wrong, so the exact path is the contract and the fast path is an optimization.
+    """
+    a = np.asarray(left)
+    b = np.asarray(right)
+    if not np.issubdtype(a.dtype, np.integer) or not np.issubdtype(b.dtype, np.integer):
+        raise ValueError("exact integer products require integer operands")
+    if a.ndim != 2 or b.ndim != 2:
+        raise ValueError(f"exact integer products take matrices, got {a.shape} and {b.shape}")
+    if a.shape[1] != b.shape[0]:
+        raise ValueError(f"shapes {a.shape} and {b.shape} are not multiplicable")
+    bound = (
+        int(a.shape[1])
+        * (int(np.max(np.abs(a), initial=0)) if a.size else 0)
+        * (int(np.max(np.abs(b), initial=0)) if b.size else 0)
+    )
+    if bound < _INT64_SAFE_BOUND:
+        return a.astype(np.int64) @ b.astype(np.int64)
+    return np.asarray(a.astype(object) @ b.astype(object))
+
+
+def exact_modular_product(left: object, right: object, modulus: int) -> np.ndarray:
+    """Return ``(left @ right) % modulus`` exactly, never trusting a wrapping int64 product."""
+    return np.mod(exact_integer_product(left, right), modulus)
+
+
 def determinant_3x3(matrix: np.ndarray) -> int:
     """Return the exact determinant of an integer 3x3 matrix."""
     values = np.asarray(matrix, dtype=np.int64)
@@ -107,8 +142,16 @@ def supercell_lattice_compatible_indices(
         raise ValueError("rotations must be an integer array; this test never rounds")
     matrix = normalize_supercell_matrix(supercell_matrix)
     adjugate = adjugate_3x3(matrix)
-    numerators = matrix @ values.transpose(0, 2, 1) @ adjugate
-    divisible = np.all(np.mod(numerators, determinant_3x3(matrix)) == 0, axis=(1, 2))
+    determinant = determinant_3x3(matrix)
+    # The same congruence test as the label identity, evaluated with the exact product helper
+    # so that a large supercell matrix cannot wrap int64 and certify an incompatible rotation.
+    numerators = np.asarray(
+        [
+            exact_modular_product(exact_integer_product(matrix, rotation.T), adjugate, determinant)
+            for rotation in values
+        ]
+    )
+    divisible = np.all(numerators == 0, axis=(1, 2))
     return np.flatnonzero(divisible).astype(np.int64)
 
 
@@ -248,6 +291,8 @@ __all__ = [
     "IntegerLatticeQuotient",
     "adjugate_3x3",
     "determinant_3x3",
+    "exact_integer_product",
+    "exact_modular_product",
     "normalize_supercell_matrix",
     "residue_key",
     "row_hermite_normal_form",
