@@ -270,7 +270,7 @@ def _residuals_at(
     denominator: int,
     operations: np.ndarray | None,
 ) -> tuple[RepresentationResidual, ...]:
-    """Measure the covariant residual of a matrix builder over the given operations."""
+    """Measure the covariant residual of a single-q matrix builder over given operations."""
     values = np.asarray(labels, dtype=np.int64).reshape((-1, 3))
     indices = (
         np.arange(symmetry.size, dtype=np.int64)
@@ -312,21 +312,40 @@ def little_group_residuals(
     The little group of a representative is the set of grid-preserving operations that fix
     it, so this is the cheapest complete statement of the crystal symmetry of ``D(q)``: a
     model that does not satisfy it is reported with the operation and the label instead of
-    being averaged into one that does.  ``build`` maps a q point to its dynamical matrix, so
-    the caller decides which kernel (lattice terms or the compact supercell array) is
-    measured.
+    being averaged into one that does.  ``build`` maps an ``(n, 3)`` array of q points to the
+    matching stack of dynamical matrices, so the whole measurement is two batched calls
+    rather than two per operation -- the check must not cost more than the expansion it
+    guards, and a per-point Python loop over a long interaction list would.
     """
-    residuals: list[RepresentationResidual] = []
+    pairs: list[tuple[int, np.ndarray, np.ndarray]] = []
     for star, little_group in enumerate(grid.little_groups):
         label = np.asarray(grid.full.labels[int(grid.representatives[star])], dtype=np.int64)
-        residuals.extend(
-            _residuals_at(
-                build,
-                masses,
-                symmetry,
-                label.reshape(1, 3),
-                grid.full.denominator,
-                np.asarray(little_group, dtype=np.int64),
+        for operation in np.asarray(little_group, dtype=np.int64).tolist():
+            rotation = np.asarray(symmetry.rotations[int(operation)], dtype=np.int64)
+            # The reduction modulo the grid is withheld: it is a primitive reciprocal
+            # lattice translation, i.e. a site-diagonal gauge factor in the positional
+            # gauge of the dynamical matrix, not a change of the representation.
+            rotated = rotate_labels(label, rotation, grid.full.denominator, reduce=False)
+            pairs.append((int(operation), label, np.asarray(rotated, dtype=float)))
+    if not pairs:
+        return ()
+    denominator = grid.full.denominator
+    targets = build(np.asarray([pair[2] for pair in pairs]) / denominator)
+    sources = build(np.asarray([pair[1] for pair in pairs], dtype=float) / denominator)
+    residuals = []
+    for index, (operation, label, _) in enumerate(pairs):
+        unitary = displacement_representation(symmetry, operation, label, denominator)
+        residuals.append(
+            RepresentationResidual(
+                operation,
+                tuple(int(value) for value in label),
+                float(
+                    np.max(
+                        np.abs(
+                            targets[index] - unitary @ sources[index] @ unitary.conj().T
+                        )
+                    )
+                ),
             )
         )
     return tuple(residuals)
@@ -343,11 +362,13 @@ def require_little_group_covariance(
 ) -> float:
     """Raise unless the little-group covariance holds within a relative tolerance.
 
-    ``tolerance`` is relative to the largest dynamical-matrix element at the representatives,
-    because the absolute residual of a legitimate model scales with the model itself.  It is
-    a public argument of every consumer rather than a module constant, and ``None`` switches
-    the check off explicitly -- it is never off by default, so a force-constant set that
-    breaks its own crystal symmetry cannot be averaged into a symmetric result unnoticed.
+    ``build`` maps an ``(n, 3)`` array of q points to the matching stack of dynamical
+    matrices.  ``tolerance`` is relative to the largest dynamical-matrix element at the
+    representatives, because the absolute residual of a legitimate model scales with the
+    model itself.  It is a public argument of every consumer rather than a module constant,
+    and ``None`` switches the check off explicitly -- it is never off by default, so a
+    force-constant set that breaks its own crystal symmetry cannot be averaged into a
+    symmetric result unnoticed.
     """
     if tolerance is None:
         return 0.0
@@ -356,13 +377,11 @@ def require_little_group_covariance(
     residuals = little_group_residuals(build, masses, symmetry, grid)
     if not residuals:
         return 0.0
-    scale = max(
-        (
-            float(np.max(np.abs(build(grid.full.points[int(star.representative)]))))
-            for star in grid.stars
-        ),
-        default=0.0,
+    points = np.asarray(
+        [grid.full.points[int(star.representative)] for star in grid.stars], dtype=float
     )
+    matrices = build(points)
+    scale = float(np.max(np.abs(matrices))) if matrices.size else 0.0
     worst = max(residuals, key=lambda entry: entry.residual)
     allowed = tolerance * scale if scale > 0 else tolerance
     if worst.residual > allowed:

@@ -11,6 +11,7 @@ import logging
 from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+from functools import partial
 
 import numpy as np
 
@@ -18,7 +19,7 @@ from mlfcs.force_constants.dense import lattice_fc2, replace_lattice_fc2
 from mlfcs.force_constants.representation import (
     ForceConstants,
 )
-from mlfcs.reciprocal.fourier import dynamical_matrices, dynamical_matrix, fourier_terms
+from mlfcs.reciprocal.fourier import dynamical_matrices, fourier_terms
 from mlfcs.reciprocal.grid import (
     IrreducibleReciprocalGrid,
     irreducible_reciprocal_grid,
@@ -497,7 +498,7 @@ class LoopSCPH:
         masses = np.asarray(relation.primitive.get_masses(), dtype=float)
         terms = fourier_terms(lattice, relation.primitive)
         require_little_group_covariance(
-            lambda qpoint: dynamical_matrix(terms, masses, qpoint),
+            partial(dynamical_matrices, terms, masses),
             masses,
             self._symmetry,
             self._mesh(multiplier),

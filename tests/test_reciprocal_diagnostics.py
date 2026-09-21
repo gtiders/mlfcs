@@ -15,13 +15,15 @@ constant to fix.
 
 from __future__ import annotations
 
+from functools import partial
+
 import numpy as np
 import pytest
 from test_reciprocal_full_grid_oracle import pair_bond_force_constants, scph_case
 
 from mlfcs.exceptions import SymmetryViolationError
 from mlfcs.force_constants.dense import lattice_fc2, replace_lattice_fc2
-from mlfcs.reciprocal.fourier import dynamical_matrix, fourier_terms
+from mlfcs.reciprocal.fourier import dynamical_matrices, dynamical_matrix, fourier_terms
 from mlfcs.reciprocal.grid import irreducible_reciprocal_grid
 from mlfcs.reciprocal.scph.fourier import harmonic_frequencies
 from mlfcs.reciprocal.scph.solver import LoopSCPH
@@ -72,10 +74,10 @@ def test_a_symmetric_model_passes_the_gate(name: str) -> None:
     mesh = harmonic_frequencies(force_constants, 1)
     assert mesh.symmetry_tolerance == 1e-6
     residual = require_little_group_covariance(
-        lambda qpoint: dynamical_matrix(
+        partial(
+            dynamical_matrices,
             fourier_terms(lattice_fc2(force_constants), force_constants.relation.primitive),
             np.asarray(force_constants.relation.primitive.get_masses(), dtype=float),
-            qpoint,
         ),
         np.asarray(force_constants.relation.primitive.get_masses(), dtype=float),
         PrimitiveSymmetryOperations.from_atoms(
@@ -122,7 +124,7 @@ def test_the_little_group_gate_names_the_offending_operation_and_label() -> None
     terms, masses, symmetry, grid, scale = _broken_case("hcp_2x1x1")
     with pytest.raises(SymmetryViolationError) as failure:
         require_little_group_covariance(
-            lambda qpoint: dynamical_matrix(terms, masses, qpoint),
+            partial(dynamical_matrices, terms, masses),
             masses,
             symmetry,
             grid,
