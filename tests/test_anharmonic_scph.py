@@ -7,7 +7,8 @@ from ase import Atoms
 from mlfcs import write_force_constants
 from mlfcs.force_constants.representation import ForceConstants, SparseOrderForceConstants
 from mlfcs.io.hdf5 import read_hdf5
-from mlfcs.reciprocal.scph.fourier import _fourier_terms, harmonic_frequencies
+from mlfcs.reciprocal.fourier import fourier_terms
+from mlfcs.reciprocal.scph.fourier import harmonic_frequencies
 from mlfcs.reciprocal.scph.solver import LoopSCPH
 from mlfcs.reciprocal.statistics import mode_sigma
 from mlfcs.structure.relation import StructureRelation
@@ -173,7 +174,7 @@ def test_loop_scph_rejects_incompatible_force_constant_frames():
 
 def test_loop_scph_fourier_terms_use_exact_primitive_translations():
     primitive = Atoms("H", positions=[[0, 0, 0]], cell=np.eye(3) * 2.0, pbc=True)
-    terms = _fourier_terms({(0, 0, (2, -1, 3)): np.eye(3)}, primitive)
+    terms = fourier_terms({(0, 0, (2, -1, 3)): np.eye(3)}, primitive)
     assert len(terms) == 1
     np.testing.assert_array_equal(terms[0][2], [2, -1, 3])
 
