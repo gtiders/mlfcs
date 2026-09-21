@@ -51,7 +51,7 @@ from typing import NamedTuple
 import numpy as np
 
 from mlfcs.reciprocal.fourier import FourierTerm, dynamical_matrix
-from mlfcs.reciprocal.grid import IrreducibleReciprocalGrid, rotate_label
+from mlfcs.reciprocal.grid import IrreducibleReciprocalGrid, rotate_label, rotate_labels
 from mlfcs.structure.symmetry import PrimitiveSymmetryOperations
 
 
@@ -127,6 +127,54 @@ def star_member_operator(
         symmetry, operation, grid.full.labels[representative], grid.full.denominator
     )
     return unitary, bool(grid.full_antiunitary[index])
+
+
+def star_member_gauge(
+    symmetry: PrimitiveSymmetryOperations,
+    grid: IrreducibleReciprocalGrid,
+    member: int,
+    positions: np.ndarray,
+) -> np.ndarray:
+    r"""Return the site-diagonal gauge that brings an expanded matrix onto its member.
+
+    :func:`star_member_operator` carries ``D`` from a representative to the *unreduced*
+    image :math:`g q_s`, which differs from the member's stored label by a primitive
+    reciprocal lattice translation :math:`G`.  The positional gauge of the dynamical
+    matrix turns that translation into the diagonal factor
+
+    .. math::
+
+        \Gamma_G = \operatorname{diag}\left(\exp\left[2\pi i\, G \cdot \tau_a
+            \right]\right),
+
+    so a matrix expanded from the representative has to be conjugated as
+    :math:`\Gamma_G\, U_g\, W(q_s)\, U_g^{\dagger}\, \Gamma_G^{\dagger}` before it
+    can be multiplied by the member's own Fourier phase.  Skipping it makes an expansion
+    look wrong by a factor of order one, exactly on the members whose label reduction
+    actually bites -- which is most members of a multi-atom cell and none of the ones a
+    single-atom test happens to visit.
+
+    ``positions`` are the primitive scaled positions ``\tau_a``, one row per site; the
+    returned vector has one entry per Cartesian coordinate, so it multiplies a matrix of the
+    ``3n``-dimensional mass-weighted displacement space directly.
+    """
+    index = int(member)
+    if index < 0 or index >= len(grid.full.labels):
+        raise ValueError(f"member {index} is not a full-grid index of this decomposition")
+    star = int(grid.full_to_irreducible[index])
+    representative = int(grid.representatives[star])
+    label = np.asarray(grid.full.labels[representative], dtype=np.int64)
+    rotation = np.asarray(symmetry.rotations[int(grid.full_operations[index])], dtype=np.int64)
+    image = rotate_labels(label, rotation, grid.full.denominator, reduce=False)
+    if bool(grid.full_antiunitary[index]):
+        image = -image
+    difference = (
+        np.asarray(image, dtype=float) - np.asarray(grid.full.labels[index], dtype=float)
+    ) / grid.full.denominator
+    sites = np.asarray(positions, dtype=float) @ difference
+    # One entry per Cartesian coordinate, so the result can be applied directly to a
+    # matrix of the 3n-dimensional mass-weighted displacement space.
+    return np.kron(np.exp(2j * np.pi * sites), np.ones(3, dtype=complex))
 
 
 def expand_star_values(values: np.ndarray, grid: IrreducibleReciprocalGrid) -> np.ndarray:
@@ -256,5 +304,6 @@ __all__ = [
     "expand_star_matrices",
     "expand_star_values",
     "maximum_covariance_residual",
+    "star_member_gauge",
     "star_member_operator",
 ]

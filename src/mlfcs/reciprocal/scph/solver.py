@@ -29,7 +29,11 @@ from mlfcs.reciprocal.scph.fourier import (
     _validate_relation,
 )
 from mlfcs.reciprocal.statistics import HBAR_ASE, OMEGA_TO_THZ, mode_sigma
-from mlfcs.reciprocal.symmetry import expand_star_values
+from mlfcs.reciprocal.symmetry import (
+    expand_star_values,
+    star_member_gauge,
+    star_member_operator,
+)
 from mlfcs.reciprocal.temperature import TemperatureSeriesResult, normalize_temperature_schedule
 from mlfcs.structure.symmetry import PrimitiveSymmetryOperations
 
@@ -271,24 +275,56 @@ class LoopSCPH:
         multiplier: int,
         temperature: float,
     ) -> dict[tuple[int, int, tuple[int, int, int]], np.ndarray]:
+        r"""Return the real-space displacement covariance of one loop sweep.
+
+        The covariance is built on the irreducible wedge and expanded per star member:
+
+        1. diagonalize ``D(q_s)`` at every star representative only;
+        2. form the basis-independent ``W(q_s) = V_s diag(sigma_s^2) V_s^dagger``;
+        3. carry it onto each member with ``U_g`` and, on an antiunitary member, a complex
+           conjugation first: ``W(gq_s) = U_g W(q_s) U_g^dagger``;
+        4. take the atom blocks the quartic force constants actually need and multiply them
+           by the exact Fourier phase of that member;
+        5. sum over the whole star and divide by the number of full q points.
+
+        Step 5 is a genuine sum over every full q point: a star weight never multiplies a
+        representative's matrix, because the members are related by a rotation and not by a
+        scalar.  What the reduction removes is the repeated diagonalization, not the
+        physical summation.
+        """
         relation = self.fc2.relation
         assert relation is not None
         masses = np.asarray(relation.primitive.get_masses(), dtype=float)
         terms = fourier_terms(lattice, relation.primitive)
         primitive_positions = relation.primitive.get_scaled_positions(wrap=False)
-        qpoints = self._qpoints(multiplier)
-        n = len(qpoints)
-        covariance: dict[tuple[int, int, tuple[int, int, int]], np.ndarray] = {}
-        needed = _needed_covariances(self.fc4.sparse[4])
+        grid = self._mesh(multiplier)
+        n_q = grid.n_qpoints
+        needed = sorted(_needed_covariances(self.fc4.sparse[4]))
+        representatives = np.asarray(grid.representatives, dtype=np.int64)
+        members = tuple(star.members for star in grid.stars)
+        # The operation carries the representative onto its *unreduced* image, so every
+        # member also needs the positional gauge that brings the result back onto the
+        # label the grid stores; without it the Fourier phase and the matrix disagree by a
+        # site-diagonal factor on exactly the members whose label reduction bites.
+        operators = tuple(
+            tuple(
+                (
+                    *star_member_operator(self._symmetry, grid, int(member)),
+                    star_member_gauge(self._symmetry, grid, int(member), primitive_positions),
+                )
+                for member in star.members
+            )
+            for star in grid.stars
+        )
+        self._covariance_diagonalizations = 0
 
-        def covariance_at_q(q_chunk):
-            result = {}
-            q_chunk = np.asarray(q_chunk, dtype=float)
-            dynamical = dynamical_matrices(terms, masses, q_chunk)
-            values, vectors = np.linalg.eigh(dynamical)
+        def covariance_of_stars(star_chunk: np.ndarray) -> dict[tuple, np.ndarray]:
+            result: dict[tuple[int, int, tuple[int, int, int]], np.ndarray] = {}
+            points = grid.full.points[representatives[star_chunk]]
+            eigenvalues, vectors = np.linalg.eigh(dynamical_matrices(terms, masses, points))
             sigma2 = (
                 mode_sigma(
-                    values,
+                    eigenvalues,
                     temperature=temperature,
                     statistics=self.statistics,
                     cutoff_frequency_thz=self.frequency_cutoff_thz,
@@ -296,24 +332,39 @@ class LoopSCPH:
                 ** 2
             )
             weighted = (vectors * sigma2[..., None, :]) @ vectors.conj().swapaxes(-1, -2)
-            for a, b, r in needed:
-                block = weighted[:, 3 * a : 3 * a + 3, 3 * b : 3 * b + 3] / np.sqrt(
-                    masses[a] * masses[b]
-                )
-                displacement = primitive_positions[a] - primitive_positions[b] + np.asarray(r)
-                phase = np.exp(2j * np.pi * (q_chunk @ displacement))
-                result[(a, b, r)] = np.sum(block * phase[:, None, None], axis=0)
+            for local, star in enumerate(star_chunk.tolist()):
+                for position, member in enumerate(members[star].tolist()):
+                    unitary, antiunitary, gauge = operators[star][position]
+                    source = np.conjugate(weighted[local]) if antiunitary else weighted[local]
+                    expanded = unitary @ source @ unitary.conj().T
+                    if np.any(gauge != 1.0):
+                        expanded = gauge[:, None] * expanded * gauge.conj()[None, :]
+                    qpoint = grid.full.points[member]
+                    for a, b, r in needed:
+                        block = expanded[3 * a : 3 * a + 3, 3 * b : 3 * b + 3] / np.sqrt(
+                            masses[a] * masses[b]
+                        )
+                        displacement = (
+                            primitive_positions[a] - primitive_positions[b] + np.asarray(r)
+                        )
+                        phase = np.exp(2j * np.pi * float(qpoint @ displacement))
+                        key = (a, b, r)
+                        result[key] = result.get(key, 0.0) + block * phase / n_q
             return result
 
-        chunks = tuple(np.array_split(np.asarray(qpoints), min(self.qpoint_workers, len(qpoints))))
-        if self.qpoint_workers == 1 or len(chunks) == 1:
-            parts = (covariance_at_q(chunk) for chunk in chunks)
+        star_indices = np.arange(len(grid.stars), dtype=np.int64)
+        chunk_count = min(self.qpoint_workers, len(star_indices))
+        chunks = tuple(np.array_split(star_indices, chunk_count))
+        if self.qpoint_workers == 1 or chunk_count == 1:
+            parts = (covariance_of_stars(chunk) for chunk in chunks)
         else:
             with ThreadPoolExecutor(max_workers=self.qpoint_workers) as pool:
-                parts = pool.map(covariance_at_q, chunks)
+                parts = pool.map(covariance_of_stars, chunks)
+        covariance: dict[tuple[int, int, tuple[int, int, int]], np.ndarray] = {}
         for part in parts:
             for key, value in part.items():
-                covariance[key] = covariance.get(key, 0.0) + value / n
+                covariance[key] = covariance.get(key, 0.0) + value
+        self._covariance_diagonalizations = len(chunks) if chunk_count > 1 else 1
         return covariance
 
     def _loop_correction(
