@@ -34,7 +34,7 @@ Taylor IFC，不再隐式划分验证集或计算测试集预测。
 
 
 `FittingResult` 保存拟合后的力常数、Taylor 参数、Gram 统计量、由 Gram 二次型得到的训练误差、
-求解状态、约束残差、正则化状态以及可选 periodic FC2 completion。模型力统一由
+求解状态、约束残差以及可选 periodic FC2 completion。模型力统一由
 `MLFCSCalculator` 计算。
 
 Periodic completion 要求 FC2、严格 ASR 和无正则最小二乘。可迁移 exact-$R$ FC2 保存在

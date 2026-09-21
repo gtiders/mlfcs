@@ -157,7 +157,14 @@ def test_fitter_reuses_one_reference_and_symmetry_frame_across_orders():
     assert first.frame.primitive_symmetry is second.frame.primitive_symmetry
 
 
-def test_public_fitter_exposes_scaled_orbit_group_lasso():
+def test_regularization_argument_is_gone():
+    """The basis-dependent scaled group LASSO was removed, not deprecated.
+
+    Its penalty lived in column-normalized coordinates, so after the orbit basis became an
+    orthonormal Cartesian one the same keyword no longer described the same optimization
+    problem. The fitter accepts no regularization argument at all, and a caller who passes
+    one gets a Python error naming it instead of a silent fallback to least squares.
+    """
     primitive = Atoms("Ar", cell=np.eye(3) * 4, scaled_positions=[[0, 0, 0]], pbc=True)
     reference = primitive.repeat((2, 1, 1))
     structures = []
@@ -169,26 +176,16 @@ def test_public_fitter_exposes_scaled_orbit_group_lasso():
         forces[1, 0] = 2.0 * displacement
         atoms.calc = SinglePointCalculator(atoms, forces=forces)
         structures.append(atoms)
-    fitter = ForceConstantFitter(
-        primitive,
-        reference,
-        orders=(2,),
-        cutoffs={2: 4.1},
-    )
+    fitter = ForceConstantFitter(primitive, reference, orders=(2,), cutoffs={2: 4.1})
     gram = fitter.prepare_gram(structures, acoustic_sum_rule=False)
-    result = fitter.fit(
-        gram,
-        acoustic_sum_rule=False,
-        regularization="scaled_group_lasso",
-        tolerance=1e-6,
-        max_iterations=500,
-    )
 
+    with pytest.raises(TypeError, match="regularization"):
+        fitter.fit(gram, acoustic_sum_rule=False, regularization="scaled_group_lasso")
+
+    result = fitter.fit(gram, acoustic_sum_rule=False, tolerance=1e-6, max_iterations=500)
     assert result.stop_code == 0
-    assert result.regularization == "scaled_group_lasso"
-    assert result.effective_noise_scale > 0
-    assert result.active_orbits == 2
-    assert result.force_constants.metadata["regularization"] == "scaled_group_lasso"
+    assert not hasattr(result, "regularization")
+    assert result.force_constants.metadata["solver"] == "gram"
 
 
 def test_streaming_gram_recovers_force_constant_and_force_error():
