@@ -74,6 +74,44 @@ def adjugate_3x3(matrix: np.ndarray) -> np.ndarray:
     return np.asarray(result, dtype=np.int64)
 
 
+def supercell_lattice_compatible_indices(
+    supercell_matrix: object, rotations: np.ndarray
+) -> np.ndarray:
+    """Return the ascending indices of the rotations that keep the lattice ``Z^3 S``.
+
+    Lattice vectors are row vectors, so one rotation acts as ``v' = v R^T`` and it maps
+    the supercell lattice onto itself exactly when ``S R^T S^{-1}`` is an integer
+    matrix.  With ``S^{-1} = adj(S) / det(S)`` that is the entrywise divisibility
+    condition ``S R^T adj(S) = 0 (mod det S)``.  The test is integer-only on purpose: a
+    rotation whose image leaves the lattice is rejected whatever the numerical size of
+    the mismatch, and no tolerance can turn a lattice-breaking rotation into a
+    compatible one.
+
+    Parameters
+    ----------
+    supercell_matrix : array-like
+        Three repeats or a nonsingular integer 3x3 supercell matrix ``S``.
+    rotations : (n, 3, 3) integer array
+        Candidate point-group rotations in the primitive fractional basis, as returned
+        by spglib.
+
+    Returns
+    -------
+    np.ndarray
+        ``int64`` indices into ``rotations``, in ascending order.
+    """
+    values = np.asarray(rotations)
+    if values.ndim != 3 or values.shape[1:] != (3, 3):
+        raise ValueError("rotations must have shape (n, 3, 3)")
+    if not np.issubdtype(values.dtype, np.integer):
+        raise ValueError("rotations must be an integer array; this test never rounds")
+    matrix = normalize_supercell_matrix(supercell_matrix)
+    adjugate = adjugate_3x3(matrix)
+    numerators = matrix @ values.transpose(0, 2, 1) @ adjugate
+    divisible = np.all(np.mod(numerators, determinant_3x3(matrix)) == 0, axis=(1, 2))
+    return np.flatnonzero(divisible).astype(np.int64)
+
+
 def residue_key(translation: np.ndarray, matrix: np.ndarray) -> tuple[int, int, int]:
     """Return the exact key of a translation in ``Z^3 / Z^3 S``."""
     vector = np.asarray(translation, dtype=np.int64)
@@ -214,4 +252,5 @@ __all__ = [
     "residue_key",
     "row_hermite_normal_form",
     "same_residue",
+    "supercell_lattice_compatible_indices",
 ]
