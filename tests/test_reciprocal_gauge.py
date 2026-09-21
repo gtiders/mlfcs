@@ -32,9 +32,9 @@ def test_harmonic_sampler_and_fourier_kernel_agree(case_name, supercell):
     """
     _, force_constants, primitive, _ = crystal_case(case_name)
     reference = relation_reference(primitive, SUPERCELLS[supercell])
-    compact = realize_force_constants(
-        force_constants, reference, primitive=primitive
-    ).materialize(2, max_bytes=None)
+    compact = realize_force_constants(force_constants, reference, primitive=primitive).materialize(
+        2, max_bytes=None
+    )
     # The gauge is measured on the matrices, not on the stability of the model: a
     # Lennard-Jones diamond is not at equilibrium, so imaginary modes are expected.
     sampler = HarmonicSampler(
@@ -42,8 +42,6 @@ def test_harmonic_sampler_and_fourier_kernel_agree(case_name, supercell):
     )
     terms = fourier_terms(lattice_fc2(force_constants), primitive)
     masses = np.asarray(primitive.get_masses(), dtype=float)
-    matrix_from_lattice = np.asarray(
-        [dynamical_matrix(terms, masses, q) for q in sampler.qpoints]
-    )
+    matrix_from_lattice = np.asarray([dynamical_matrix(terms, masses, q) for q in sampler.qpoints])
     matrix_from_compact = np.asarray([sampler._dynamical_matrix(q) for q in sampler.qpoints])
     np.testing.assert_allclose(matrix_from_compact, matrix_from_lattice, rtol=1e-10, atol=1e-12)
