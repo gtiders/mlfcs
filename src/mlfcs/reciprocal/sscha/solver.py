@@ -37,6 +37,7 @@ class SSCHAIteration:
     potential_energy: float | None
     harmonic_potential_energy: float
     qpoints: int | None
+    n_irreducible: int | None
     total_modes: int | None
     sampled_modes: int | None
     excluded_modes: int | None
@@ -318,7 +319,8 @@ class SSCHA:
             free_energy_error=free_energy_error,
             potential_energy=potential_energy,
             harmonic_potential_energy=float(np.mean(harmonic_each)),
-            qpoints=None if sampling_state is None else sampling_state.qpoints,
+            qpoints=None if sampling_state is None else sampling_state.n_qpoints,
+            n_irreducible=None if sampling_state is None else sampling_state.n_irreducible,
             total_modes=None if sampling_state is None else sampling_state.total_modes,
             sampled_modes=None if sampling_state is None else sampling_state.sampled_modes,
             excluded_modes=None if sampling_state is None else sampling_state.excluded_modes,
@@ -509,7 +511,13 @@ class SSCHA:
             )
 
     def _report_ensemble(self, diagnostics: SamplingState) -> None:
-        logger.info("q points: %d", diagnostics.qpoints)
+        # Both counts are reported: the reduction must stay visible, and a reader has to be
+        # able to tell a reduced sampler from one that quietly dropped degrees of freedom.
+        logger.info(
+            "q points: %d (%d irreducible)",
+            diagnostics.n_qpoints,
+            diagnostics.n_irreducible,
+        )
         logger.info(
             f"- sampled modes: {diagnostics.sampled_modes}/{diagnostics.total_modes}, "
             f"imaginary={diagnostics.imaginary_modes}, excluded={diagnostics.excluded_modes}"

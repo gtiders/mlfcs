@@ -81,4 +81,5 @@ def test_sampling_supports_nondiagonal_reordered_reference_supercells():
 
     samples = ensemble.sample(3, random_seed=4)
     assert samples.shape == (3, 2, 3)
-    assert len(ensemble.qpoints) == 2
+    assert len(ensemble.full_qpoints()) == 2
+    assert int(ensemble.weights.sum()) == len(ensemble.full_qpoints())

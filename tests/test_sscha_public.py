@@ -11,6 +11,7 @@ from supercell_helpers import make_supercell
 
 from mlfcs import write_force_constants
 from mlfcs.io.hdf5 import read_hdf5
+from mlfcs.reciprocal.sampling.harmonic import HarmonicSampler
 from mlfcs.reciprocal.sscha.solver import SSCHA
 
 
@@ -88,6 +89,16 @@ def test_sscha_direct_run_and_linear_mixing(tmp_path):
 
     assert len(direct.history) == 1
     assert all(item.sampling == "canonical" for item in direct.history)
+    # The canonical sampler owns the reciprocal reduction: SSCHA only records the two counts
+    # it reports, and they are the sampler's own grid counts rather than a second q-point
+    # symmetry analysis.
+    iteration = direct.history[0]
+    sampler = direct._make_ensemble(initial.materialize(2))
+    assert isinstance(sampler, HarmonicSampler)
+    assert iteration.qpoints == sampler.grid.n_qpoints
+    assert iteration.n_irreducible == sampler.grid.n_irreducible
+    assert iteration.n_irreducible <= iteration.qpoints
+    assert iteration.total_modes == iteration.qpoints * 3 * len(primitive_atoms) - 3
     assert all(np.isfinite(item.fitting_relative_force_error) for item in direct.history)
     assert all(item.relative_force_constant_change is not None for item in direct.history)
     assert all(
