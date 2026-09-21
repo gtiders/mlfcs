@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import subprocess
 import sys
 from importlib.util import module_from_spec, spec_from_file_location
@@ -46,3 +47,28 @@ def test_readmes_are_synchronized():
         text=True,
     )
     assert completed.returncode == 0, completed.stderr
+
+
+def test_bilingual_documentation_follows_the_repository_rules():
+    """The checker rejects legacy math delimiters, stubs and mirror mismatches."""
+    completed = subprocess.run(
+        [sys.executable, "scripts/check_docs.py"],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert completed.returncode == 0, completed.stdout + completed.stderr
+
+
+def test_markdown_math_uses_dollar_delimiters():
+    """Repository rule: inline math is $...$ and display math is $$...$$."""
+    legacy = re.compile(r"(?<!\\)\\(?:\(|\)|\[|\])")
+    pages = [
+        *sorted((ROOT / "docs").rglob("*.md")),
+        ROOT / "README.md",
+        ROOT / "README.zh-CN.md",
+    ]
+    for path in pages:
+        match = legacy.search(path.read_text(encoding="utf-8"))
+        assert match is None, f"{path.relative_to(ROOT)} uses a legacy math delimiter"

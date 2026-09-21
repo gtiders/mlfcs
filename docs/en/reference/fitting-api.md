@@ -42,3 +42,16 @@ state, and optional periodic FC2 completion. Force evaluation is owned by `MLFCS
 Periodic completion requires FC2, strict ASR, and unregularized least squares. The transferable
 exact-$R$ FC2 remains in `force_constants.sparse[2]`; the source-owned finite Hessian remains in
 `force_constants.periodic_fc2_completion`.
+
+## What a parameter means
+
+A fitted parameter is a coefficient of its orbit's orthonormal Cartesian basis $Q$, so the parameter
+vector has one coordinate meaning: the representative tensor is $Q\theta$, and an orbit's parameter
+count equals the dimension of its invariant subspace. The exact integer coefficients
+$c = R^{-1}\theta$ describe the same tensor in the lattice frame of the reduced cell and exist for
+provenance and cross-representation comparison.
+
+The component rows a finite-difference plan observes, the observation matrix and its condition number
+travel with each orbit (`observation_rows`, `observation_matrix`, `observation_condition`). They decide
+which components have to be measured and how well the parameters can be recovered from them; a
+parameter is not an observation. See [Symmetry and orbits](../theory/symmetry-and-orbits.md).
