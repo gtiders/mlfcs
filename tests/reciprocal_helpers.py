@@ -61,9 +61,7 @@ def primitive(name: str) -> Atoms:
     raise AssertionError(name)
 
 
-def symmetry(
-    atoms: Atoms, *, symprec: float = 1e-5
-) -> PrimitiveSymmetryOperations:
+def symmetry(atoms: Atoms, *, symprec: float = 1e-5) -> PrimitiveSymmetryOperations:
     """Return the space-group operations of ``atoms``."""
     return PrimitiveSymmetryOperations.from_atoms(atoms, symprec=symprec)
 
@@ -162,7 +160,9 @@ def relation_reference(cell: Atoms, supercell: np.ndarray) -> Atoms:
     ``primitive_index`` arrays and the supercell-matrix metadata that the samplers read, so
     the bare builder output is not a drop-in substitute.
     """
-    return StructureRelation.from_atoms(cell, build_supercell(cell, np.asarray(supercell))).reference
+    return StructureRelation.from_atoms(
+        cell, build_supercell(cell, np.asarray(supercell))
+    ).reference
 
 
 def degenerate_clusters(values: np.ndarray, tolerance: float = 1e-8) -> list[np.ndarray]:
@@ -188,9 +188,7 @@ def assert_same_multiset(left: np.ndarray, right: np.ndarray, *, tolerance: floa
     np.testing.assert_allclose(first, second, rtol=0.0, atol=tolerance)
 
 
-def shell_bonds(
-    atoms: Atoms, cutoff: float
-) -> tuple[tuple[int, int, tuple[int, int, int]], ...]:
+def shell_bonds(atoms: Atoms, cutoff: float) -> tuple[tuple[int, int, tuple[int, int, int]], ...]:
     """Return every unordered bond inside ``cutoff`` once.
 
     The bond vector is ``(scaled_b + shift - scaled_a) @ cell`` in Cartesian angstrom; the

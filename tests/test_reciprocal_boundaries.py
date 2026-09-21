@@ -62,7 +62,11 @@ def _imported_mlfcs_packages(source: str) -> set[str]:
             modules.extend(alias.name for alias in node.names)
         elif isinstance(node, ast.Call):
             function = node.func
-            name = function.attr if isinstance(function, ast.Attribute) else getattr(function, "id", "")
+            name = (
+                function.attr
+                if isinstance(function, ast.Attribute)
+                else getattr(function, "id", "")
+            )
             if name in {"import_module", "__import__"} and node.args:
                 argument = node.args[0]
                 if isinstance(argument, ast.Constant) and isinstance(argument.value, str):
@@ -134,7 +138,11 @@ def test_legacy_reciprocal_paths_are_gone_without_shims():
     assert importlib.util.find_spec("mlfcs.structure.reciprocal") is None
     import mlfcs  # noqa: F401  (import for the side effect of populating sys.modules)
 
-    aliases = [name for name in sys.modules if name.startswith(("mlfcs.phonon", "mlfcs.structure.reciprocal"))]
+    aliases = [
+        name
+        for name in sys.modules
+        if name.startswith(("mlfcs.phonon", "mlfcs.structure.reciprocal"))
+    ]
     assert not aliases, f"legacy paths are aliased in sys.modules: {aliases}"
 
 
