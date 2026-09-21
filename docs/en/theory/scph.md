@@ -82,11 +82,15 @@ are counted as *matrices*, not as calls: one batched `eigh` over the representat
 `N_irr` diagonalizations. The model is an isotropic spring network for FC2 plus an on-site
 quartic term, with `interpolation_multiplier=2`:
 
-| system | $N_q$ | $N_{\mathrm{irr}}$ | reduction | frequency diagonalizations | one SCPH sweep |
-|---|---|---|---|---|---|
-| diamond 2x2x2 | 64 | 8 | 8.00 | 8 (64 on the full grid) | 9 (24 on the full grid) |
-| hcp 2x2x2 | 64 | 12 | 5.33 | 12 (64 on the full grid) | 12 (24 on the full grid) |
-| GaAs 3x2x2 | 96 | 34 | 2.82 | 34 (96 on the full grid) | 18 (36 on the full grid) |
+| system | $N_q$ | $N_{\mathrm{irr}}$ | reduction | frequency diagonalizations | one SCPH sweep | sampler initialization |
+|---|---|---|---|---|---|---|
+| diamond 2x2x2 | 64 | 8 | 8.00 | 8 (64 on the full grid) | 9 (24 on the full grid) | 3 (8 on the full grid) |
+| hcp 2x2x2 | 64 | 12 | 5.33 | 12 (64 on the full grid) | 12 (24 on the full grid) | 4 (8 on the full grid) |
+| GaAs 3x2x2 | 96 | 34 | 2.82 | 34 (96 on the full grid) | 18 (36 on the full grid) | 6 (12 on the full grid) |
+
+The free energy and the sampling itself never enter the eigensolver again: the reported
+harmonic free-energy time is of order $10^{-4}$ s with zero diagonalizations, and one batch of
+4096 snapshots takes $2\text{--}4\times10^{-2}$ s.
 
 The merge criterion is that the diagonalization count equals $N_{\mathrm{irr}}$ exactly, not
 that the wall clock improves: a small cell still pays a one-off symmetry analysis, so it may
