@@ -24,3 +24,11 @@ class SerializationError(MLFCSError, ValueError):
 
 class UnsupportedOperationError(MLFCSError, ValueError):
     """A requested operation is outside the supported physical semantics."""
+
+
+class RankCertificateError(MLFCSError, RuntimeError):
+    """An exact rank could not be certified with the primes that were available."""
+
+
+class IntegerRangeError(MLFCSError, ValueError):
+    """An exact integer result does not fit the requested fixed-width representation."""
