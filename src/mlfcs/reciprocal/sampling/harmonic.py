@@ -122,11 +122,7 @@ from mlfcs.exceptions import SymmetryViolationError
 from mlfcs.reciprocal.fourier import compact_dynamical_matrix
 from mlfcs.reciprocal.grid import IrreducibleReciprocalGrid, irreducible_reciprocal_grid
 from mlfcs.reciprocal.statistics import HBAR_ASE, OMEGA_TO_THZ, mode_sigma
-from mlfcs.reciprocal.symmetry import (
-    star_member_gauge,
-    star_member_operator,
-    validate_site_masses,
-)
+from mlfcs.reciprocal.symmetry import star_member_action, validate_site_masses
 from mlfcs.structure.supercell_mapping import PeriodicIndex
 from mlfcs.structure.symmetry import PrimitiveSymmetryOperations
 
@@ -484,9 +480,7 @@ class HarmonicSampler:
         for index in range(len(labels)):
             star = int(grid.full_to_irreducible[index])
             record = self._stars[star]
-            unitary, antiunitary = star_member_operator(self._symmetry, grid, index)
-            gauge = star_member_gauge(self._symmetry, grid, index, self._positions)
-            source = record.eigenvectors.conj() if antiunitary else record.eigenvectors
+            action = star_member_action(self._symmetry, grid, index, self._positions)
             label = tuple(int(value) for value in labels[index])
             negative = tuple(int(value) for value in np.mod(-np.asarray(label), denominator))
             members.append(
@@ -496,9 +490,9 @@ class HarmonicSampler:
                     grid.full.points[index],
                     star,
                     lookup[negative],
-                    bool(antiunitary),
+                    action.antiunitary,
                     record.eigenvalues,
-                    gauge[:, None] * (unitary @ source),
+                    action.apply_to_vectors(record.eigenvectors),
                     record.frequencies_thz,
                     record.included,
                     record.translations,

@@ -46,6 +46,7 @@ operation index, the label and the residual, so the caller can decide what to do
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import NamedTuple
 
 import numpy as np
@@ -101,22 +102,16 @@ def star_member_operator(
     grid: IrreducibleReciprocalGrid,
     member: int,
 ) -> tuple[np.ndarray, bool]:
-    r"""Return the unitary carrying star data from a representative onto one member.
+    r"""Return the *un-gauged* unitary that carries star data onto one member.
 
-    ``member`` is a full-grid index; the star decomposition records, for it, the
-    primitive operation that maps the representative of its star onto it, and whether
-    that map also applies time reversal.  A quantity defined at the representative is
-    therefore expanded by
-
-    .. math::
-
-        W(gq_s) = U_g\, W(q_s)\, U_g^{\dagger}, \qquad
-        W(g(-q_s)) = U_g\, \overline{W(q_s)}\, U_g^{\dagger},
-
-    and a *vector* by ``u'(gq) = U_g u(q)``, again conjugated first on an antiunitary
-    member.  The phase of :math:`U_g` is one global scalar per operation, so it drops out
-    of every similarity transform and only matters for vectors; a vector expansion must
-    synthesize its plane waves in the gauge of :mod:`mlfcs.reciprocal.fourier`.
+    ``member`` is a full-grid index; the star decomposition records, for it, the primitive
+    operation that maps the representative of its star onto it, and whether that map also
+    applies time reversal.  This is the operation alone: it lands on the *unreduced* image
+    ``g q_s``, which differs from the member's stored label by a primitive reciprocal lattice
+    translation.  Expansion must therefore go through :func:`star_member_action` or
+    :func:`expand_star_matrices`, which apply the positional gauge ``Gamma_G`` as well; the
+    bare operator is kept because a few diagnostics need the two pieces separately, and its
+    name says which piece it is.
     """
     index = int(member)
     if index < 0 or index >= len(grid.full.labels):
@@ -178,6 +173,67 @@ def star_member_gauge(
     return np.kron(np.exp(2j * np.pi * sites), np.ones(3, dtype=complex))
 
 
+@dataclass(frozen=True, slots=True)
+class StarMemberAction:
+    r"""The complete action that carries star data from a representative onto one member.
+
+    Expansion is ``W_m = Gamma_m U_m \overline{W_s}^{[a_m]} U_m^\dagger Gamma_m^\dagger``
+    for a matrix and ``w_m = Gamma_m U_m \overline{w_s}^{[a_m]}`` for a vector, with the
+    complex conjugation applied first on an antiunitary member.  Both shapes go through this
+    one object, so the phase order is written once: :func:`star_member_operator` and
+    :func:`star_member_gauge` are the two pieces it is built from, and no caller has to
+    recombine them by hand.
+    """
+
+    member: int
+    #: Full-grid index of the star representative this member is expanded from.
+    representative: int
+    #: Star index, i.e. the row of a per-representative array that belongs to this member.
+    star: int
+    operation: int
+    antiunitary: bool
+    unitary: np.ndarray
+    gauge: np.ndarray
+
+    def apply_to_matrix(self, matrix: np.ndarray) -> np.ndarray:
+        """Return the member matrix of one representative matrix."""
+        source = np.conjugate(matrix) if self.antiunitary else matrix
+        expanded = self.unitary @ source @ self.unitary.conj().T
+        return self.gauge[:, None] * expanded * self.gauge.conj()[None, :]
+
+    def apply_to_vectors(self, vectors: np.ndarray) -> np.ndarray:
+        """Return the member basis of one representative basis, applied column by column."""
+        source = np.conjugate(vectors) if self.antiunitary else vectors
+        return self.gauge[:, None] * (self.unitary @ source)
+
+
+def star_member_action(
+    symmetry: PrimitiveSymmetryOperations,
+    grid: IrreducibleReciprocalGrid,
+    member: int,
+    primitive_positions: np.ndarray,
+) -> StarMemberAction:
+    """Return the composite member action of one full-grid point.
+
+    This is the single entry point every expansion uses: the operation, the antiunitary flag
+    and the positional gauge are gathered here so that the covariance, the sampler and the
+    validation kernels cannot drift apart in phase order.
+    """
+    unitary, antiunitary = star_member_operator(symmetry, grid, member)
+    gauge = star_member_gauge(symmetry, grid, member, primitive_positions)
+    index = int(member)
+    star = int(grid.full_to_irreducible[index])
+    return StarMemberAction(
+        member=index,
+        representative=int(grid.representatives[star]),
+        star=star,
+        operation=int(grid.full_operations[index]),
+        antiunitary=antiunitary,
+        unitary=unitary,
+        gauge=gauge,
+    )
+
+
 def expand_star_values(values: np.ndarray, grid: IrreducibleReciprocalGrid) -> np.ndarray:
     """Return the full-grid array of a quantity defined on star representatives.
 
@@ -197,31 +253,50 @@ def expand_star_values(values: np.ndarray, grid: IrreducibleReciprocalGrid) -> n
 
 
 def expand_star_matrices(
-    matrices: np.ndarray,
+    representative_matrices: np.ndarray,
     grid: IrreducibleReciprocalGrid,
     symmetry: PrimitiveSymmetryOperations,
+    primitive_positions: np.ndarray,
 ) -> np.ndarray:
-    """Return the full-grid matrices ``W(gq_s)`` of per-representative matrices.
+    r"""Expand representative matrices onto every full-grid member, gauge included.
 
-    This is the exact expansion of stage E: every member is reached by applying the
-    recorded operation to the representative, with a complex conjugation first when the
-    member is antiunitary.  It never averages and never multiplies a representative by a
-    star weight.
+    Each member is reached by the recorded operation with a complex conjugation first on an
+    antiunitary member, and then carried onto *its own stored label* by the positional gauge
+    ``Gamma_G``:
+
+    .. math::
+
+        W_m = \Gamma_m U_m \overline{W_s}^{[a_m]} U_m^{\dagger} \Gamma_m^{\dagger}.
+
+    Leaving the gauge out lands the matrix on the unreduced image ``g q_s`` instead, which is
+    wrong by a factor of order one on exactly the members whose label is reduced -- a
+    single-atom cell or a coarse mesh never shows it.  There is deliberately no switch to skip
+    the gauge: the un-gauged operation is available as :func:`star_member_operator` under a
+    name that says what it is.
     """
-    values = np.asarray(matrices)
+    values = np.asarray(representative_matrices)
     n_irreducible = len(grid.representatives)
+    n_primitive = len(primitive_positions)
+    if values.ndim != 3 or values.shape[1] != values.shape[2]:
+        raise ValueError(f"expected a stack of square matrices, got shape {values.shape}")
     if values.shape[:1] != (n_irreducible,):
         raise ValueError(
             f"expected one matrix per representative ({n_irreducible}), got shape {values.shape}"
         )
-    if values.ndim != 3 or values.shape[1] != values.shape[2]:
-        raise ValueError(f"expected square matrices, got shape {values.shape}")
-    expanded = np.empty((len(grid.full.labels),) + values.shape[1:], dtype=values.dtype)
+    if values.shape[1] != 3 * n_primitive:
+        raise ValueError(
+            f"expected {3 * n_primitive} rows for {n_primitive} sites, got {values.shape[1]}"
+        )
+    positions = np.asarray(primitive_positions, dtype=float)
+    if positions.shape != (n_primitive, 3):
+        raise ValueError(f"expected positions of shape ({n_primitive}, 3), got {positions.shape}")
+    if values.size == 0:
+        raise ValueError("no representative matrices were supplied")
+    dtype = np.result_type(values.dtype, np.complex128)
+    expanded = np.empty((len(grid.full.labels),) + values.shape[1:], dtype=dtype)
     for member in range(len(grid.full.labels)):
-        star = int(grid.full_to_irreducible[member])
-        unitary, antiunitary = star_member_operator(symmetry, grid, member)
-        source = np.conjugate(values[star]) if antiunitary else values[star]
-        expanded[member] = unitary @ source @ unitary.conj().T
+        action = star_member_action(symmetry, grid, member, positions)
+        expanded[member] = action.apply_to_matrix(values[action.star])
     return expanded
 
 
@@ -468,6 +543,7 @@ def maximum_covariance_residual(
 
 __all__ = [
     "RepresentationResidual",
+    "StarMemberAction",
     "conjugate_matrix",
     "covariance_residuals",
     "displacement_representation",
@@ -476,6 +552,7 @@ __all__ = [
     "little_group_residuals",
     "maximum_covariance_residual",
     "require_little_group_covariance",
+    "star_member_action",
     "star_member_gauge",
     "star_member_operator",
     "validate_site_masses",

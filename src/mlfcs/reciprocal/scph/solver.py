@@ -34,8 +34,7 @@ from mlfcs.reciprocal.symmetry import (
     expand_star_values,
     require_hermitian,
     require_little_group_covariance,
-    star_member_gauge,
-    star_member_operator,
+    star_member_action,
     validate_site_masses,
 )
 from mlfcs.reciprocal.temperature import TemperatureSeriesResult, normalize_temperature_schedule
@@ -329,16 +328,11 @@ class LoopSCPH:
         needed = sorted(_needed_covariances(self.fc4.sparse[4]))
         representatives = np.asarray(grid.representatives, dtype=np.int64)
         members = tuple(star.members for star in grid.stars)
-        # The operation carries the representative onto its *unreduced* image, so every
-        # member also needs the positional gauge that brings the result back onto the
-        # label the grid stores; without it the Fourier phase and the matrix disagree by a
-        # site-diagonal factor on exactly the members whose label reduction bites.
-        operators = tuple(
+        # One composite action per member: the operation, the antiunitary flag and the
+        # positional gauge that brings the result onto the label the grid stores.
+        actions = tuple(
             tuple(
-                (
-                    *star_member_operator(self._symmetry, grid, int(member)),
-                    star_member_gauge(self._symmetry, grid, int(member), primitive_positions),
-                )
+                star_member_action(self._symmetry, grid, int(member), primitive_positions)
                 for member in star.members
             )
             for star in grid.stars
@@ -361,11 +355,8 @@ class LoopSCPH:
             weighted = (vectors * sigma2[..., None, :]) @ vectors.conj().swapaxes(-1, -2)
             for local, star in enumerate(star_chunk.tolist()):
                 for position, member in enumerate(members[star].tolist()):
-                    unitary, antiunitary, gauge = operators[star][position]
-                    source = np.conjugate(weighted[local]) if antiunitary else weighted[local]
-                    expanded = unitary @ source @ unitary.conj().T
-                    if np.any(gauge != 1.0):
-                        expanded = gauge[:, None] * expanded * gauge.conj()[None, :]
+                    action = actions[star][position]
+                    expanded = action.apply_to_matrix(weighted[local])
                     require_hermitian(
                         expanded,
                         scale=float(np.max(np.abs(weighted[local]))),
