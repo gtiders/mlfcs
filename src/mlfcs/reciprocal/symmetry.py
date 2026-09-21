@@ -50,6 +50,7 @@ from typing import NamedTuple
 
 import numpy as np
 
+from mlfcs.exceptions import SymmetryViolationError
 from mlfcs.reciprocal.fourier import FourierTerm, dynamical_matrix
 from mlfcs.reciprocal.grid import IrreducibleReciprocalGrid, rotate_label, rotate_labels
 from mlfcs.structure.symmetry import PrimitiveSymmetryOperations
@@ -234,22 +235,42 @@ def conjugate_matrix(matrix: np.ndarray) -> np.ndarray:
     return np.conjugate(matrix)
 
 
-def covariance_residuals(
-    terms: tuple[FourierTerm, ...],
+def validate_site_masses(
+    symmetry: PrimitiveSymmetryOperations, masses: np.ndarray, *, context: str = "the model"
+) -> None:
+    """Raise unless every site permutation maps equal masses onto equal masses.
+
+    A space group operation permutes atoms of the same species, so a mass may only move
+    along its orbit.  A permutation that maps a heavy site onto a light one is not a
+    symmetry of the mass-weighted problem at all, and the expansion would silently mix two
+    different mass scales.
+    """
+    values = np.asarray(masses, dtype=float)
+    permutations = np.asarray(symmetry.site_permutations, dtype=np.int64)
+    if permutations.ndim != 2 or permutations.shape[1] != values.size:
+        raise SymmetryViolationError(
+            f"{context}: site permutations {permutations.shape} do not match {values.size} sites"
+        )
+    for operation, permutation in enumerate(permutations):
+        moved = values[permutation]
+        if not np.allclose(moved, values, rtol=0.0, atol=0.0):
+            bad = int(np.flatnonzero(moved != values)[0])
+            raise SymmetryViolationError(
+                f"{context}: operation {operation} maps site {bad} with mass {values[bad]!r} "
+                f"onto a site with mass {moved[bad]!r}, so the mass-weighted representation "
+                "of that operation is not defined"
+            )
+
+
+def _residuals_at(
+    build,
     masses: np.ndarray,
     symmetry: PrimitiveSymmetryOperations,
     labels: np.ndarray,
     denominator: int,
-    *,
-    operations: np.ndarray | None = None,
+    operations: np.ndarray | None,
 ) -> tuple[RepresentationResidual, ...]:
-    """Measure ``||D(gq) - U_g(q) D(q) U_g(q)^dagger||`` for every operation and label.
-
-    The q points are the reduced integer ``labels`` of the caller's grid.  Passing the
-    grid-preserving ``operations`` restricts the measurement to those; the default is every
-    operation of the primitive symmetry, which also exposes operations that do *not* keep
-    the grid and are therefore not usable for an expansion.
-    """
+    """Measure the covariant residual of a matrix builder over the given operations."""
     values = np.asarray(labels, dtype=np.int64).reshape((-1, 3))
     indices = (
         np.arange(symmetry.size, dtype=np.int64)
@@ -267,9 +288,9 @@ def covariance_residuals(
             rotated = np.asarray(
                 rotate_label(row, rotation, denominator, reduce=False), dtype=float
             )
-            left = dynamical_matrix(terms, masses, rotated / denominator)
+            left = build(rotated / denominator)
             unitary = displacement_representation(symmetry, operation, row, denominator)
-            right = unitary @ dynamical_matrix(terms, masses, row / denominator) @ unitary.conj().T
+            right = unitary @ build(row / denominator) @ unitary.conj().T
             residuals.append(
                 RepresentationResidual(
                     operation,
@@ -278,6 +299,136 @@ def covariance_residuals(
                 )
             )
     return tuple(residuals)
+
+
+def little_group_residuals(
+    build,
+    masses: np.ndarray,
+    symmetry: PrimitiveSymmetryOperations,
+    grid: IrreducibleReciprocalGrid,
+) -> tuple[RepresentationResidual, ...]:
+    """Measure the covariance residual on every little group of a decomposition.
+
+    The little group of a representative is the set of grid-preserving operations that fix
+    it, so this is the cheapest complete statement of the crystal symmetry of ``D(q)``: a
+    model that does not satisfy it is reported with the operation and the label instead of
+    being averaged into one that does.  ``build`` maps a q point to its dynamical matrix, so
+    the caller decides which kernel (lattice terms or the compact supercell array) is
+    measured.
+    """
+    residuals: list[RepresentationResidual] = []
+    for star, little_group in enumerate(grid.little_groups):
+        label = np.asarray(grid.full.labels[int(grid.representatives[star])], dtype=np.int64)
+        residuals.extend(
+            _residuals_at(
+                build,
+                masses,
+                symmetry,
+                label.reshape(1, 3),
+                grid.full.denominator,
+                np.asarray(little_group, dtype=np.int64),
+            )
+        )
+    return tuple(residuals)
+
+
+def require_little_group_covariance(
+    build,
+    masses: np.ndarray,
+    symmetry: PrimitiveSymmetryOperations,
+    grid: IrreducibleReciprocalGrid,
+    *,
+    tolerance: float | None,
+    context: str = "the model",
+) -> float:
+    """Raise unless the little-group covariance holds within a relative tolerance.
+
+    ``tolerance`` is relative to the largest dynamical-matrix element at the representatives,
+    because the absolute residual of a legitimate model scales with the model itself.  It is
+    a public argument of every consumer rather than a module constant, and ``None`` switches
+    the check off explicitly -- it is never off by default, so a force-constant set that
+    breaks its own crystal symmetry cannot be averaged into a symmetric result unnoticed.
+    """
+    if tolerance is None:
+        return 0.0
+    if tolerance < 0:
+        raise ValueError("the symmetry tolerance must be non-negative or None")
+    residuals = little_group_residuals(build, masses, symmetry, grid)
+    if not residuals:
+        return 0.0
+    scale = max(
+        (
+            float(np.max(np.abs(build(grid.full.points[int(star.representative)]))))
+            for star in grid.stars
+        ),
+        default=0.0,
+    )
+    worst = max(residuals, key=lambda entry: entry.residual)
+    allowed = tolerance * scale if scale > 0 else tolerance
+    if worst.residual > allowed:
+        raise SymmetryViolationError(
+            f"{context}: the force constants break the crystal symmetry of their own "
+            f"primitive cell: operation {worst.operation} at label {list(worst.label)} leaves "
+            f"a residual of {worst.residual:.6e} against an allowed {allowed:.6e} "
+            f"(scale {scale:.6e}, relative tolerance {tolerance:.3e}). The dynamical matrix "
+            "is not covariant, so the star expansion would mix inequivalent points; fix the "
+            "force constants or raise symmetry_tolerance explicitly."
+        )
+    return float(worst.residual)
+
+
+def require_hermitian(
+    matrix: np.ndarray,
+    *,
+    scale: float,
+    tolerance: float | None,
+    label: tuple[int, int, int],
+    operation: int,
+    context: str = "the model",
+) -> None:
+    """Raise unless an expanded matrix is Hermitian within a relative tolerance.
+
+    A covariant expansion of a Hermitian ``D(q)`` is Hermitian; a violation means the input
+    force constants were not, and the real-space sum built from it would be complex.
+    """
+    if tolerance is None:
+        return
+    values = np.asarray(matrix)
+    residual = float(np.max(np.abs(values - values.conj().swapaxes(-1, -2))))
+    allowed = tolerance * scale if scale > 0 else tolerance
+    if residual > allowed:
+        raise SymmetryViolationError(
+            f"{context}: the matrix expanded for label {list(label)} with operation "
+            f"{operation} is not Hermitian: residual {residual:.6e} against an allowed "
+            f"{allowed:.6e} (scale {scale:.6e}). The source force constants are not "
+            "Hermitian, so the covariance would not be real."
+        )
+
+
+def covariance_residuals(
+    terms: tuple[FourierTerm, ...],
+    masses: np.ndarray,
+    symmetry: PrimitiveSymmetryOperations,
+    labels: np.ndarray,
+    denominator: int,
+    *,
+    operations: np.ndarray | None = None,
+) -> tuple[RepresentationResidual, ...]:
+    """Measure ``||D(gq) - U_g(q) D(q) U_g(q)^dagger||`` for every operation and label.
+
+    The q points are the reduced integer ``labels`` of the caller's grid.  Passing the
+    grid-preserving ``operations`` restricts the measurement to those; the default is every
+    operation of the primitive symmetry, which also exposes operations that do *not* keep
+    the grid and are therefore not usable for an expansion.
+    """
+    return _residuals_at(
+        lambda qpoint: dynamical_matrix(terms, masses, qpoint),
+        masses,
+        symmetry,
+        labels,
+        denominator,
+        operations,
+    )
 
 
 def maximum_covariance_residual(
@@ -303,7 +454,10 @@ __all__ = [
     "displacement_representation",
     "expand_star_matrices",
     "expand_star_values",
+    "little_group_residuals",
     "maximum_covariance_residual",
+    "require_little_group_covariance",
     "star_member_gauge",
     "star_member_operator",
+    "validate_site_masses",
 ]

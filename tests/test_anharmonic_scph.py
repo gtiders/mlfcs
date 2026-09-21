@@ -224,6 +224,10 @@ def test_loop_scph_keeps_fc4_induced_pair_support():
         scph_multiplier=1,
         mixing=1.0,
         max_iterations=1,
+        # This fixture is a hand-built, deliberately non-symmetric model that only exists to
+        # exercise the FC4 support bookkeeping, so the crystal-symmetry gate is switched off
+        # explicitly instead of being loosened for every caller.
+        symmetry_tolerance=None,
     ).run()
     pairs = {
         (int(sites[0]), int(sites[1]), tuple(map(int, translations[0])))

@@ -32,3 +32,12 @@ class RankCertificateError(MLFCSError, RuntimeError):
 
 class IntegerRangeError(MLFCSError, ValueError):
     """An exact integer result does not fit the requested fixed-width representation."""
+
+
+class SymmetryViolationError(MLFCSError, ValueError):
+    """A quantity breaks the crystal symmetry its structure declares.
+
+    Raised instead of silently averaging, projecting or shortening a model whose force
+    constants do not satisfy the space-group relation of their own primitive cell, because
+    such an input is an upstream defect that the caller has to see.
+    """

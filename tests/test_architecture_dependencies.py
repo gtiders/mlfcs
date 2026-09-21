@@ -113,6 +113,39 @@ def test_every_public_subpackage_imports_on_its_own():
         assert completed.returncode == 0, f"{module}: {completed.stderr.strip()}"
 
 
+def test_no_mainline_import_closure_reaches_the_reciprocal_package():
+    """The closure, not only the direct imports: a transitive edge would show up here.
+
+    A fresh interpreter per package is the only honest way to see this, because the test
+    session has already imported most of the package graph by the time this runs.
+    """
+    packages = (
+        "mlfcs.structure",
+        "mlfcs.interactions",
+        "mlfcs.force_constants",
+        "mlfcs.constraints",
+        "mlfcs.finite_difference",
+        "mlfcs.fitting",
+        "mlfcs.io",
+        "mlfcs.calculators",
+        "mlfcs.sampling",
+    )
+    probe = (
+        "import sys; import {module}; "
+        "leaked = sorted(name for name in sys.modules "
+        "if name == 'mlfcs.reciprocal' or name.startswith('mlfcs.reciprocal.')); "
+        "assert not leaked, leaked"
+    )
+    for package in packages:
+        completed = subprocess.run(
+            [sys.executable, "-c", probe.format(module=package)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert completed.returncode == 0, f"{package}: {completed.stderr.strip()}"
+
+
 def test_legacy_phonon_package_is_removed():
     assert not (ROOT / "phonon").exists()
     assert not (ROOT / "structure" / "reciprocal.py").exists()
