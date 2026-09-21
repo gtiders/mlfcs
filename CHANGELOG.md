@@ -34,6 +34,27 @@ All notable changes are documented here. Releases follow semantic versioning.
   builds the canonical identity relation from it. Native v3 files are rejected rather than being
   interpreted under a different required-field contract.
 
+### Added
+
+- `mlfcs.reciprocal.symmetry` states the space-group representation of the mass-weighted
+  displacement space once, `D(gq) = U_g(q) D(q) U_g(q)^dagger`, with `U_g(q)` built from the
+  exact integer rotation and the primitive site permutation. A force-constant set that breaks
+  its crystal symmetry is reported with the operation, the q label and the residual instead of
+  being silently averaged into a symmetric one.
+- `mlfcs.reciprocal.fourier` exposes the phase vector and tensor of every primitive-lattice
+  term of an order-2 force-constant set, so the lattice gauge and the compact kernel of the
+  samplers can be compared term by term.
+
+### Fixed
+
+- The covariance relation is evaluated on the *unreduced* rotated q label. Reducing modulo the
+  grid first is a primitive reciprocal lattice translation, and the positional gauge of the
+  dynamical matrix turns such a translation into the site-diagonal factor
+  `diag(exp(2 pi i G . tau_a))`, so a reduced label made every grid-preserving operation look
+  like a violation on any lattice with more than one atom per cell. `rotate_labels` and
+  `rotate_label` now take `reduce=` and keep the reduced action for label sets such as stars
+  and orbits.
+
 ## 4.0.0a6 — 2026-09-20
 
 ### Changed
