@@ -15,7 +15,11 @@ ALLOWED = {
     "force_constants": {"interactions", "structure"},
     "constraints": {"force_constants", "interactions", "structure"},
     "finite_difference": {"constraints", "force_constants", "interactions", "structure"},
-    "fitting": {"constraints", "force_constants", "interactions", "structure"},
+    "fitting": {"calculators", "constraints", "force_constants", "interactions", "structure"},
+    # ``calculators`` is a leaf over force constants, io and structure; the fitter imports
+    # the Taylor calculator *inside* the error-reporting method, which is why the layer
+    # below can be named here without creating an import cycle.
+    "calculators": {"force_constants", "io", "structure"},
     # The reciprocal package owns every q-grid consumer.  It reaches downwards only:
     # structure, force constants, the Gaussian sampler and the fitter that SSCHA uses to
     # refit FC2 from sampled forces.
