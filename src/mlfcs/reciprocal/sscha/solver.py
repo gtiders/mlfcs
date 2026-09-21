@@ -20,6 +20,7 @@ from mlfcs.force_constants.representation import (
 )
 from mlfcs.reciprocal.sampling.harmonic import HarmonicSampler, SamplingState
 from mlfcs.reciprocal.sampling.structures import _sample_perturbations
+from mlfcs.reciprocal.symmetry import validate_symmetry_tolerance, validate_symprec
 from mlfcs.reciprocal.temperature import TemperatureSeriesResult, normalize_temperature_schedule
 
 Progress = Callable[[int, int], None]
@@ -57,6 +58,10 @@ class SSCHAResult:
     temperature: float
     force_constants: ForceConstants
     history: tuple[SSCHAIteration, ...]
+    #: The geometric tolerance that identified the structure and the relative physical
+    #: tolerance the reciprocal validation used, recorded with the result they produced.
+    symprec: float
+    symmetry_tolerance: float | None
 
 
 class SSCHA:
@@ -75,6 +80,7 @@ class SSCHA:
         initial_displacement: float = 0.01,
         random_seed: int | None = None,
         symprec: float = 1e-5,
+        symmetry_tolerance: float | None = 1e-6,
         cutoff_frequency: float = 0.01,
         imaginary_modes: Literal["error", "absolute", "exclude"] = "error",
         imaginary_tolerance: float = 1e-6,
@@ -118,7 +124,10 @@ class SSCHA:
         self.max_iterations = max_iterations
         self.initial_displacement = float(initial_displacement)
         self.random_seed = random_seed
-        self.symprec = symprec
+        self.symprec = validate_symprec(symprec, context="SSCHA")
+        self.symmetry_tolerance = validate_symmetry_tolerance(
+            symmetry_tolerance, context="SSCHA"
+        )
         if cutoff is None:
             raise ValueError(
                 "cutoff must be a positive distance in angstrom or a negative neighbour-shell "
@@ -363,6 +372,18 @@ class SSCHA:
                 f"- Variational free-energy estimate: {result.free_energy:.10e} "
                 f"+/- {result.free_energy_error:.3e} eV/primitive cell"
             )
+        # The Cartesian bootstrap round has no reciprocal grid, so it reports none of these
+        # instead of inventing a grid it never built.
+        if result.qpoints is not None:
+            logger.info(
+                "- Reciprocal grid: %d q points, %d irreducible, validation %s "
+                "(symprec %.3e, symmetry_tolerance %s)",
+                result.qpoints,
+                result.n_irreducible,
+                "off" if self.symmetry_tolerance is None else "on",
+                self.symprec,
+                "None" if self.symmetry_tolerance is None else f"{self.symmetry_tolerance:.3e}",
+            )
         return result
 
     def step(
@@ -446,6 +467,7 @@ class SSCHA:
                 initial_displacement=self.initial_displacement,
                 random_seed=self._temperature_seed(schedule_index),
                 symprec=self.symprec,
+                symmetry_tolerance=self.symmetry_tolerance,
                 cutoff_frequency=self.cutoff_frequency,
                 imaginary_modes=self.imaginary_modes,
                 imaginary_tolerance=self.imaginary_tolerance,
@@ -470,7 +492,13 @@ class SSCHA:
         self._require_single_temperature()
         if self._force_constants is None:
             raise RuntimeError("no force constants are available")
-        return SSCHAResult(self.temperature, self._force_constants, tuple(self.history))
+        return SSCHAResult(
+            self.temperature,
+            self._force_constants,
+            tuple(self.history),
+            self.symprec,
+            self.symmetry_tolerance,
+        )
 
     def _snapshot_count(self) -> int:
         if self.snapshots != "auto":
@@ -479,6 +507,13 @@ class SSCHA:
         return max(1, int(np.ceil(4 * self._fitter.n_parameters / equations)))
 
     def _make_ensemble(self, compact: np.ndarray) -> HarmonicSampler:
+        """Return the harmonic sampler of one trial FC2, with this solver's own tolerances.
+
+        The sampler identifies the structure itself, so it has to receive the same ``symprec``
+        the SSCHA run was configured with, and the same physical covariance tolerance; a
+        sampler built with defaults would silently validate a different structure than the
+        caller asked for.
+        """
         return HarmonicSampler(
             self.primitive,
             self._reference,
@@ -489,6 +524,8 @@ class SSCHA:
             imaginary_modes=self.imaginary_modes,
             imaginary_tolerance=self.imaginary_tolerance,
             max_displacement=self.max_displacement,
+            symprec=self.symprec,
+            symmetry_tolerance=self.symmetry_tolerance,
         )
 
     def _sampling_seed(self, iteration: int) -> int | None:

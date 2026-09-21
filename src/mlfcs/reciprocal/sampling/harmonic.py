@@ -160,6 +160,9 @@ class SamplingState:
     #: produced rather than left as module constants.
     symprec: float
     symmetry_tolerance: float | None
+    #: Always true for the real harmonic sampler: it only supports real force constants and
+    #: real displacements, so the q/-q pairing has to be closed by time reversal.
+    time_reversal: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -658,6 +661,7 @@ class HarmonicSampler:
             affected_snapshots,
             float(self.symprec),
             self.symmetry_tolerance,
+            True,
         )
 
 
