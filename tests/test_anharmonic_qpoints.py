@@ -3,11 +3,11 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from mlfcs.phonon.reciprocal import (
+from mlfcs.reciprocal.grid import (
     quotient_qpoints,
     reciprocal_quotient_grid,
 )
-from mlfcs.phonon.temperature import normalize_temperature_schedule
+from mlfcs.reciprocal.temperature import normalize_temperature_schedule
 from mlfcs.structure.integer_lattice import adjugate_3x3, determinant_3x3, residue_key
 
 

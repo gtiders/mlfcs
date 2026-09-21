@@ -32,17 +32,15 @@ from mlfcs.interactions import (
 )
 from mlfcs.io.hdf5 import read_hdf5
 from mlfcs.io.write import write_force_constants
-from mlfcs.phonon.sampling.structures import perturb_structures
-from mlfcs.phonon.scph.solver import LoopSCPH
-from mlfcs.phonon.sscha.solver import SSCHA
+from mlfcs.reciprocal.scph.solver import LoopSCPH
+from mlfcs.reciprocal.sscha.solver import SSCHA
+from mlfcs.sampling.gaussian import perturb_structures
 
 __all__ = [
-    "SSCHA",
     "FiniteDifferenceCalculation",
     "ForceConstantFitter",
     "ForceConstants",
     "InteractionSpace",
-    "LoopSCPH",
     "MLFCSCalculator",
     "PrimitiveInteractionSpace",
     "RealizedInteractionSpace",

@@ -9,7 +9,8 @@ from ase import Atoms
 
 from mlfcs.force_constants.realization import realize_force_constants
 from mlfcs.force_constants.representation import ForceConstants
-from mlfcs.phonon.sampling.harmonic import HarmonicSampler, SamplingState
+from mlfcs.sampling.gaussian import gaussian_displacements
+from mlfcs.reciprocal.sampling.harmonic import HarmonicSampler, SamplingState
 
 logger = logging.getLogger(__name__)
 
@@ -58,9 +59,12 @@ def _sample_perturbations(
             raise ValueError("statistics and cutoff_frequency require harmonic sampling")
         if imaginary_modes != "error" or imaginary_tolerance != 1e-6:
             raise ValueError("imaginary-mode options require harmonic sampling")
-        rng = np.random.default_rng(random_seed)
-        values = rng.normal(scale=displacement, size=(snapshots, len(reference), 3))
-        values -= values.mean(axis=1, keepdims=True)
+        values = gaussian_displacements(
+            reference,
+            snapshots=snapshots,
+            displacement=displacement,
+            random_seed=random_seed,
+        )
     else:
         if force_constants is None:
             raise ValueError("force_constants is required for harmonic sampling")

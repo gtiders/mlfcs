@@ -8,14 +8,18 @@ from _architecture_helpers import ROOT, internal_dependencies
 
 ALLOWED = {
     "structure": set(),
+    # Independent Cartesian Gaussian perturbation; it is the only sampling entry point the
+    # root namespace keeps, and it is a base layer the reciprocal package may use.
+    "sampling": {"structure"},
     "interactions": {"exceptions", "structure"},
     "force_constants": {"interactions", "structure"},
     "constraints": {"force_constants", "interactions", "structure"},
     "finite_difference": {"constraints", "force_constants", "interactions", "structure"},
     "fitting": {"constraints", "force_constants", "interactions", "structure"},
-    # SCPH/SSCHA consume force constants and the fitter, while fitting itself
-    # remains independent of phonon workflows.
-    "phonon": {"fitting", "force_constants", "structure"},
+    # The reciprocal package owns every q-grid consumer.  It reaches downwards only:
+    # structure, force constants, the Gaussian sampler and the fitter that SSCHA uses to
+    # refit FC2 from sampled forces.
+    "reciprocal": {"exceptions", "fitting", "force_constants", "sampling", "structure"},
     "io": {"force_constants", "structure"},
 }
 
@@ -26,9 +30,24 @@ def test_package_dependencies_follow_the_locked_dag():
         assert not unexpected, f"{package} has forbidden dependencies: {sorted(unexpected)}"
 
 
-def test_mainline_packages_do_not_depend_on_phonon_workflows():
-    for package in ("structure", "interactions", "force_constants", "constraints", "finite_difference", "fitting"):
-        assert "phonon" not in internal_dependencies(package), package
+def test_mainline_packages_do_not_depend_on_reciprocal_workflows():
+    for package in (
+        "structure",
+        "interactions",
+        "force_constants",
+        "constraints",
+        "finite_difference",
+        "fitting",
+        "io",
+        "sampling",
+        "calculators",
+    ):
+        assert "reciprocal" not in internal_dependencies(package), package
+
+
+def test_legacy_phonon_package_is_removed():
+    assert not (ROOT / "phonon").exists()
+    assert not (ROOT / "structure" / "reciprocal.py").exists()
 
 
 def test_historical_ambiguous_packages_are_removed():

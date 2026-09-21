@@ -18,9 +18,9 @@ from mlfcs.force_constants.realization import realize_force_constants
 from mlfcs.force_constants.representation import (
     ForceConstants,
 )
-from mlfcs.phonon.sampling.harmonic import HarmonicSampler, SamplingState
-from mlfcs.phonon.sampling.structures import _sample_perturbations
-from mlfcs.phonon.temperature import TemperatureSeriesResult, normalize_temperature_schedule
+from mlfcs.reciprocal.sampling.harmonic import HarmonicSampler, SamplingState
+from mlfcs.reciprocal.sampling.structures import _sample_perturbations
+from mlfcs.reciprocal.temperature import TemperatureSeriesResult, normalize_temperature_schedule
 
 Progress = Callable[[int, int], None]
 logger = logging.getLogger(__name__)

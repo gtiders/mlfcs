@@ -4,7 +4,7 @@ from ase.build import bulk
 from supercell_helpers import make_supercell
 
 from mlfcs import FiniteDifferenceCalculation
-from mlfcs.phonon.sscha.solver import SSCHA
+from mlfcs.reciprocal.sscha.solver import SSCHA
 from mlfcs.tools.supercell import build_supercell
 
 

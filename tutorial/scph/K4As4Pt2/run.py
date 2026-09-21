@@ -8,7 +8,8 @@ import sys
 import traceback
 from pathlib import Path
 
-from mlfcs import LoopSCPH, read_hdf5, write_force_constants
+from mlfcs import read_hdf5, write_force_constants
+from mlfcs.reciprocal import LoopSCPH
 
 ROOT = Path(__file__).resolve().parent
 SOURCE = ROOT / "source/mlfcs.h5"

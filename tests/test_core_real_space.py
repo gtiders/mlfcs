@@ -2,7 +2,9 @@ import numpy as np
 import pytest
 from ase import Atoms
 
-from mlfcs import SSCHA, FiniteDifferenceCalculation, realize_force_constants
+from mlfcs import FiniteDifferenceCalculation, realize_force_constants
+from mlfcs.reciprocal import SSCHA
+from mlfcs.tools.supercell import build_supercell
 from mlfcs.finite_difference.plan_identity import ForceBatch
 from mlfcs.fitting.fitter import ForceConstantFitter
 from mlfcs.force_constants.expansion import expand_primitive_parameters
