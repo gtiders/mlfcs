@@ -26,7 +26,10 @@ from ase import Atoms
 from ase.build import bulk
 
 from mlfcs.interactions.algebra.actions import TensorAction
+from mlfcs.interactions.algebra.exact import certified_rank
+from mlfcs.interactions.algebra.invariants import constraint_rows, label_symmetric_basis
 from mlfcs.interactions.primitive.builder import build_primitive_interaction_space
+from mlfcs.structure.lattice_frame import LatticeFrame
 from mlfcs.structure.symmetry import PrimitiveSymmetryOperations
 
 # A genuine unimodular change of the primitive basis: the same crystal written with a
@@ -101,7 +104,9 @@ def _build(atoms: Atoms, order: int, cutoff: float):
     )
 
 
-def _anchored_stabilizers(atoms: Atoms, representative, order: int) -> list[TensorAction]:
+def _anchored_stabilizers(
+    atoms: Atoms, representative, order: int, frame: LatticeFrame
+) -> list[TensorAction]:
     """Enumerate the group elements that map one anchored cluster onto itself.
 
     The enumeration is independent of the orbit algebra: it applies spglib operations and
@@ -129,7 +134,16 @@ def _anchored_stabilizers(atoms: Atoms, representative, order: int) -> list[Tens
             images[:, 1:] -= images[0, 1:]
             if [tuple(int(value) for value in row) for row in images.tolist()] != rows:
                 continue
-            actions.append(TensorAction(rotation, tuple(swap), order))
+            actions.append(
+                TensorAction(
+                    rotation,
+                    tuple(swap),
+                    order,
+                    frame.source_to_algebra_rotation(
+                        np.asarray(symmetry.rotations[operation], dtype=np.int64)
+                    ),
+                )
+            )
     return actions
 
 
@@ -158,9 +172,10 @@ def test_orbit_basis_is_invariant_under_the_anchored_cluster_stabilizers(materia
     atoms = factory()
     space = _build(atoms, order, cutoff)
 
+    frame = LatticeFrame.from_atoms(atoms)
     for orbit in space.orbits:
         basis = _orbit_basis(orbit)
-        stabilizers = _anchored_stabilizers(atoms, orbit.representative, order)
+        stabilizers = _anchored_stabilizers(atoms, orbit.representative, order, frame)
         assert stabilizers, "the identity always stabilizes a cluster"
         for action in stabilizers:
             np.testing.assert_allclose(
@@ -196,3 +211,36 @@ def test_orbit_subspaces_are_stable_under_a_unimodular_change_of_basis(material,
         ]
         assert matches, f"{material} order {order}: no sheared orbit spans the same subspace"
         remaining.pop(matches[0])
+
+
+@pytest.mark.parametrize("order", [2, 3])
+@pytest.mark.parametrize("material", sorted(_MATERIALS))
+def test_exact_lattice_basis_solves_the_stabilizer_constraints(material, order):
+    """The integer basis is verified against constraints derived outside the orbit code.
+
+    The stabilizers are enumerated in the source frame, mapped into the algebra frame
+    with the exact integer rotation map of the lattice frame, and required to fix the
+    stored integer basis and to annihilate the stacked constraint matrix exactly.
+    """
+    factory, cutoff = _MATERIALS[material]
+    atoms = factory()
+    space = _build(atoms, order, cutoff)
+    frame = LatticeFrame.from_atoms(atoms)
+
+    for orbit in space.orbits:
+        basis = orbit.exact_lattice_basis
+        actions = _anchored_stabilizers(atoms, orbit.representative, order, frame)
+        for action in actions:
+            np.testing.assert_array_equal(
+                action.apply_scaled_columns(basis),
+                basis,
+                err_msg=f"{material} order {order}: a stabilizer moved the integer basis",
+            )
+        label_basis = label_symmetric_basis(orbit.representative.labels)
+        rows = constraint_rows(label_basis, actions)
+        assert rows.shape[1] == label_basis.shape[1]
+        # The independently enumerated constraints must leave exactly the dimension the
+        # orbit reports, and the stored integer basis must lie in the full component
+        # space image of that invariant subspace.
+        assert label_basis.shape[1] - certified_rank(rows) == orbit.dimension
+        assert np.linalg.matrix_rank(basis) == orbit.dimension

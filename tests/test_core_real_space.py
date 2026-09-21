@@ -5,6 +5,7 @@ from ase import Atoms
 from mlfcs import FiniteDifferenceCalculation, build_supercell, realize_force_constants
 from mlfcs.force_constants.expansion import expand_primitive_parameters
 from mlfcs.force_constants.representation import ForceConstants, SparseOrderForceConstants
+from mlfcs.interactions.algebra.rendering import exact_lattice_coefficients
 from mlfcs.interactions.keys import InteractionKey
 from mlfcs.interactions.primitive.builder import build_primitive_interaction_space
 from mlfcs.interactions.realization import (
@@ -218,3 +219,28 @@ def test_exact_fc2_realization_into_sheared_supercell_matches_residue_mapping():
         assert len(matches) == 1
         expected[0, matches[0]] += tensor
     np.testing.assert_allclose(actual, expected, atol=0.0, rtol=0.0)
+
+
+def test_coefficient_transform_relates_cartesian_and_exact_lattice_coefficients():
+    primitive = Atoms("Si", scaled_positions=[[0, 0, 0]], cell=np.eye(3) * 4, pbc=True)
+    order = 3
+    space = build_primitive_interaction_space(
+        primitive,
+        order=order,
+        cutoff=4.1,
+        max_body_order=2,
+        symprec=1e-5,
+    )
+    frame = space.frame
+    rng = np.random.default_rng(29)
+
+    for orbit in space.orbits:
+        parameters = rng.normal(size=orbit.dimension)
+        cartesian = orbit.cartesian_basis @ parameters
+        exact = exact_lattice_coefficients(orbit.coefficient_transform, parameters)
+        np.testing.assert_allclose(
+            frame.tensor_frame(order) @ (orbit.exact_lattice_basis @ exact),
+            cartesian,
+            atol=1e-10,
+        )
+        np.testing.assert_allclose(orbit.cartesian_basis.T @ cartesian, parameters, atol=1e-12)
