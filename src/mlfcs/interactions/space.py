@@ -13,6 +13,7 @@ from mlfcs.interactions.primitive.candidates import resolve_primitive_cutoff
 from mlfcs.interactions.realization import (
     realize_interaction_space,
 )
+from mlfcs.structure.lattice_frame import LatticeFrame
 from mlfcs.structure.relation import (
     StructureRelation,
 )
@@ -45,11 +46,17 @@ class InteractionSettings:
 
 @dataclass(frozen=True, slots=True)
 class ReferenceFrame:
-    """Shared structure and symmetry mapping for one top-level calculation."""
+    """Shared structure and symmetry mapping for one top-level calculation.
+
+    ``lattice_frame`` holds the exact integer map from the user's primitive cell to the
+    canonical reduced cell every orbit algebra is decided in; it is built once here so all
+    IFC orders of one calculation share one frame.
+    """
 
     relation: StructureRelation
     primitive_symmetry: PrimitiveSymmetryOperations
     symmetry: SymmetryOperations
+    lattice_frame: LatticeFrame
 
     @classmethod
     def from_atoms(cls, primitive: Atoms, reference: Atoms, *, symprec: float) -> ReferenceFrame:
@@ -58,7 +65,8 @@ class ReferenceFrame:
             relation.primitive, symprec=symprec
         )
         symmetry = SymmetryOperations.from_primitive_operations(primitive_symmetry, relation.index)
-        return cls(relation, primitive_symmetry, symmetry)
+        lattice_frame = LatticeFrame.from_atoms(relation.primitive, symprec=symprec)
+        return cls(relation, primitive_symmetry, symmetry, lattice_frame)
 
 
 class InteractionSpace:
@@ -155,7 +163,7 @@ class InteractionSpace:
                 cutoff=self.cutoff,
                 max_body_order=self.config.max_body_order,
                 symprec=self.config.symprec,
-                symmetry=self.frame.primitive_symmetry,
+                frame=self.frame.lattice_frame,
             )
         return self._primitive_orbit_space
 

@@ -9,12 +9,17 @@ import numpy as np
 
 @dataclass(frozen=True, slots=True)
 class OrderParameterization:
-    """Array representation of one order's orbit-to-parameter mapping."""
+    """Array representation of one order's orbit-to-parameter mapping.
+
+    ``cartesian_basis`` holds each orbit's orthonormal Cartesian basis rows, padded to the
+    widest orbit; a fitted parameter is the coefficient of one of those basis columns,
+    which is the only coordinate meaning a parameter has.
+    """
 
     order: int
     parameter_indices: np.ndarray
     parameter_mask: np.ndarray
-    representative_from_pivots: np.ndarray
+    cartesian_basis: np.ndarray
     rotations: np.ndarray
     component_permutations: np.ndarray
     coordinates: np.ndarray
@@ -35,7 +40,7 @@ def pack_order(calculation, offset):
     max_dimension = max(orbit.dimension for orbit in orbits)
     parameter_indices = np.zeros((n_orbits, max_dimension), dtype=np.int32)
     parameter_mask = np.zeros_like(parameter_indices, dtype=bool)
-    representatives = np.zeros((n_orbits, 3**order, max_dimension))
+    orbit_basis = np.zeros((n_orbits, 3**order, max_dimension))
     rotations = np.zeros((n_orbits, max_images, 3, 3))
     permutations = np.zeros((n_orbits, max_images, 3**order), dtype=np.int32)
     coordinates = np.zeros(
@@ -55,9 +60,7 @@ def pack_order(calculation, offset):
         images = len(orbit.images)
         parameter_indices[orbit_index, :dimension] = np.arange(offset, offset + dimension)
         parameter_mask[orbit_index, :dimension] = True
-        representatives[orbit_index, :, :dimension] = np.linalg.solve(
-            orbit.basis[orbit.pivots].T, orbit.basis.T
-        ).T
+        orbit_basis[orbit_index, :, :dimension] = orbit.cartesian_basis
         for image_index, image in enumerate(orbit.images):
             rotations[orbit_index, image_index] = image.action.rotation
             permutations[orbit_index, image_index] = base.transpose(
@@ -73,7 +76,7 @@ def pack_order(calculation, offset):
             order,
             parameter_indices,
             parameter_mask,
-            representatives,
+            orbit_basis,
             rotations,
             permutations,
             coordinates,
@@ -93,7 +96,7 @@ def image_parameter_basis(parameterization, image_counts=None):
     ``dimensions`` columns.
     """
     order = parameterization.order
-    representative = parameterization.representative_from_pivots
+    basis = parameterization.cartesian_basis
     rotations = parameterization.rotations
     permutations = parameterization.component_permutations
     if image_counts is None:
@@ -109,7 +112,7 @@ def image_parameter_basis(parameterization, image_counts=None):
             rotation = rotations[orbit, image]
             block = np.zeros((3**order, dimensions))
             for dimension in range(dimensions):
-                value = representative[orbit, :, dimension].reshape((3,) * order)
+                value = basis[orbit, :, dimension].reshape((3,) * order)
                 for axis in range(order):
                     value = np.tensordot(rotation, value, axes=((1,), (axis,)))
                     value = np.moveaxis(value, 0, axis)

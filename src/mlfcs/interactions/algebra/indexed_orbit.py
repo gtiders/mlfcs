@@ -11,7 +11,7 @@ from mlfcs.interactions.algebra.actions import TensorAction, compose_actions, in
 
 
 class IndexedGenerator(Protocol):
-    """One exact state action and its Cartesian tensor representation."""
+    """One exact state action and its tensor representation in both frames."""
 
     name: str
     action: TensorAction
@@ -21,21 +21,26 @@ class IndexedGenerator(Protocol):
 
 @dataclass(frozen=True, slots=True)
 class IndexedOrbitResult:
-    """One canonical orbit with transports and Schreier constraint Gram."""
+    """One canonical orbit with transports and its deduplicated stabilizer actions.
+
+    The traversal publishes the stabilizer *actions* instead of an accumulated floating
+    point constraint Gram: the invariant subspace is decided exactly in the lattice
+    frame, where their representation matrices are integers, and that decision needs the
+    actions themselves rather than their squared sum.
+    """
 
     canonical: np.ndarray
     states: np.ndarray
     actions: tuple[TensorAction, ...]
     seed_to_canonical: TensorAction
-    constraint_gram: np.ndarray
-    traversed_edges: int
-    schreier_constraints: int
-    unique_stabilizer_actions: int
+    stabilizers: tuple[TensorAction, ...]
 
 
 def _row_keys(values: np.ndarray) -> np.ndarray:
     contiguous = np.ascontiguousarray(values)
-    return contiguous.view(np.dtype((np.void, contiguous.dtype.itemsize * contiguous.shape[1]))).ravel()
+    return contiguous.view(
+        np.dtype((np.void, contiguous.dtype.itemsize * contiguous.shape[1]))
+    ).ravel()
 
 
 def _lookup_rows(haystack: np.ndarray, needles: np.ndarray) -> np.ndarray:
@@ -61,16 +66,24 @@ def _canonical_order(states: np.ndarray, columns: tuple[int, ...]) -> np.ndarray
     return np.lexsort(tuple(states[:, axis] for axis in reversed(columns)))
 
 
-def _action_signature(action: TensorAction) -> tuple[tuple[float, ...], tuple[int, ...]]:
-    rotation = tuple(float(value) for value in np.round(action.rotation, decimals=12).reshape(-1))
-    return rotation, action.permutation
+def _action_signature(action: TensorAction) -> tuple[bytes, tuple[int, ...]]:
+    """Return the exact hashable key of one action.
+
+    The lattice rotation is an exact integer matrix, so its bytes key the action
+    directly and the traversal never has to round a floating point rotation to decide
+    whether two group elements agree.
+    """
+    if action.scaled_rotation is None:
+        raise ValueError("orbit traversal requires actions in the lattice frame")
+    rotation = np.ascontiguousarray(
+        np.asarray(action.scaled_rotation, dtype=np.int64).reshape(3, 3)
+    )
+    return rotation.tobytes(), action.permutation
 
 
 def _same_action(left: TensorAction, right: TensorAction) -> bool:
-    """Compare finite action matrices without NumPy's general allclose path."""
-    return left.permutation == right.permutation and np.array_equal(
-        left.rotation, right.rotation
-    )
+    """Compare two actions by their exact integer key."""
+    return _action_signature(left) == _action_signature(right)
 
 
 def traverse_indexed_orbit(
@@ -78,25 +91,19 @@ def traverse_indexed_orbit(
     generators: tuple[IndexedGenerator, ...],
     *,
     order: int,
-    seed_basis: np.ndarray | None = None,
     canonical_columns: tuple[int, ...] | None = None,
-    tolerance: float = 1e-9,
 ) -> IndexedOrbitResult:
     """Traverse an orbit with integer rows and re-anchor transports canonically.
 
-    Dynamic states are discovered in NumPy batches. Membership and duplicate
-    detection use sorted fixed-width rows; no ``InteractionKey`` hash table is
-    maintained in the traversal loop.
+    Dynamic states are discovered in NumPy batches.  Membership and duplicate detection
+    use sorted fixed-width rows, so the traversal carries no floating point tolerance.
     """
     seed = np.asarray(seed, dtype=np.int64).reshape(1, -1)
-    identity = TensorAction(np.eye(3), tuple(range(order)), order)
-    basis = np.eye(3**order) if seed_basis is None else np.asarray(seed_basis, dtype=float)
+    identity = TensorAction(np.eye(3), tuple(range(order)), order, np.eye(3, dtype=np.int64))
     states = seed.copy()
     transports: list[TensorAction] = [identity]
     frontier = np.asarray([0], dtype=np.int64)
-    traversed_edges = 0
-    schreier_constraints = 0
-    stabilizers: dict[tuple[tuple[float, ...], tuple[int, ...]], TensorAction] = {}
+    stabilizers: dict[tuple[bytes, tuple[int, ...]], TensorAction] = {}
 
     while len(frontier):
         source_states = states[frontier]
@@ -111,7 +118,6 @@ def traverse_indexed_orbit(
                 compose_actions(generator.action, transports[int(source)]) for source in frontier
             )
         candidates = np.vstack(candidate_rows)
-        traversed_edges += len(candidates)
         known = _lookup_rows(states, candidates)
 
         unknown_locations = np.flatnonzero(known < 0)
@@ -135,14 +141,7 @@ def traverse_indexed_orbit(
                 continue
             stabilizer = compose_actions(inverse_action(previous_action), candidate_action)
             stabilizers.setdefault(_action_signature(stabilizer), stabilizer)
-            schreier_constraints += 1
         frontier = np.asarray(new_indices, dtype=np.int64)
-
-    gram = np.zeros((basis.shape[1], basis.shape[1]), dtype=float)
-    for stabilizer in stabilizers.values():
-        residual = stabilizer.apply_columns(basis) - basis
-        if np.linalg.norm(residual) > tolerance:
-            gram += residual.T @ residual
 
     columns = tuple(range(states.shape[1])) if canonical_columns is None else canonical_columns
     if sorted(columns) != list(range(states.shape[1])):
@@ -158,10 +157,7 @@ def traverse_indexed_orbit(
         states=sorted_states,
         actions=sorted_actions,
         seed_to_canonical=transports[canonical_index],
-        constraint_gram=gram,
-        traversed_edges=traversed_edges,
-        schreier_constraints=schreier_constraints,
-        unique_stabilizer_actions=len(stabilizers),
+        stabilizers=tuple(stabilizers.values()),
     )
 
 

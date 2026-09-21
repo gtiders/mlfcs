@@ -1,4 +1,16 @@
-"""Generator-built primitive interaction spaces."""
+"""Generator-built primitive interaction spaces in the reduced lattice frame.
+
+Every orbit is decided in the lattice (scaled) frame of a Minkowski-reduced primitive
+cell, where spglib rotations are integer for every cell: an fcc primitive 60 degree cell,
+hexagonal and rhombohedral cells have irrational entries in their Cartesian rotations
+only.  The reduced frame is canonical, so two unimodular representations of the same
+crystal produce the *same* integer algebra instead of the same algebra at wildly
+different integer sizes.
+
+The orbit keys that leave this module are anchored in the user's source cell, because
+that is the frame the reference supercell and its atom index live in.  The lattice frame
+carries the exact integer map between the two.
+"""
 
 from __future__ import annotations
 
@@ -8,17 +20,16 @@ import numpy as np
 from ase import Atoms
 from sympy.combinatorics import Permutation, PermutationGroup
 
-from mlfcs.interactions.algebra.actions import TensorAction
+from mlfcs.interactions.algebra.actions import TensorAction, scaled_to_cartesian_rotation
 from mlfcs.interactions.algebra.generators import select_group_generators
-from mlfcs.interactions.algebra.indexed_orbit import (
-    IndexedOrbitResult,
-    traverse_indexed_orbit,
-)
-from mlfcs.interactions.algebra.invariants import (
-    _label_symmetric_basis,
-    invariant_basis_from_gram,
-    normalize_pivot_basis,
-    select_independent_rows,
+from mlfcs.interactions.algebra.indexed_orbit import traverse_indexed_orbit
+from mlfcs.interactions.algebra.invariants import invariant_kernel, label_symmetric_basis
+from mlfcs.interactions.algebra.rendering import (
+    cartesian_orbit_basis,
+    observation_condition,
+    observation_matrix,
+    orthonormal_orbit_basis,
+    select_observation_rows,
 )
 from mlfcs.interactions.keys import InteractionKey
 from mlfcs.interactions.models import (
@@ -27,6 +38,7 @@ from mlfcs.interactions.models import (
     PrimitiveOrbitImage,
 )
 from mlfcs.interactions.primitive.candidates import resolve_primitive_cutoff
+from mlfcs.structure.lattice_frame import LatticeFrame
 from mlfcs.structure.symmetry import PrimitiveSymmetryOperations
 
 
@@ -37,8 +49,7 @@ def build_primitive_interaction_space(
     cutoff: float | None,
     max_body_order: int | None,
     symprec: float,
-    tolerance: float = 1e-9,
-    symmetry: PrimitiveSymmetryOperations | None = None,
+    frame: LatticeFrame | None = None,
 ) -> PrimitiveInteractionSpace:
     """Build primitive orbits through indexed generator traversal."""
     from mlfcs.interactions.primitive.candidates import iter_primitive_candidates
@@ -46,36 +57,41 @@ def build_primitive_interaction_space(
     primitive = primitive.copy()
     primitive.wrap()
     radius = resolve_primitive_cutoff(primitive, cutoff)
-    symmetry = symmetry or PrimitiveSymmetryOperations.from_atoms(primitive, symprec=symprec)
-    generators, _group = primitive_generators(symmetry, order)
-    generated = {}
-    covered = {}
+    frame = LatticeFrame.from_atoms(primitive, symprec=symprec) if frame is None else frame
+    algebra = frame.algebra_atoms()
+    symmetry = PrimitiveSymmetryOperations.from_atoms(algebra, symprec=symprec)
+    generators, _group = primitive_generators(symmetry, order, cell=frame.algebra_cell)
+    generated: dict[InteractionKey, GeneratedPrimitiveOrbit] = {}
+    covered: set[InteractionKey] = set()
     for seed in iter_primitive_candidates(
-        primitive, radius=radius, order=order, max_body_order=max_body_order
+        algebra, radius=radius, order=order, max_body_order=max_body_order
     ):
         if seed in covered:
             continue
-        orbit = generated_orbit(seed, generators, tolerance=tolerance)
+        orbit = generated_orbit(seed, generators, frame=frame)
         generated[orbit.representative] = orbit
-        for row in orbit.result.states:
-            covered[decode_key(row)] = orbit.representative
+        covered.update(decode_key(row) for row in orbit.states)
     result = []
     for representative in sorted(generated):
         orbit = generated[representative]
-        if orbit.basis.shape[1] == 0:
+        if orbit.dimension == 0:
             continue
         images = tuple(
-            PrimitiveOrbitImage(decode_key(row), action)
-            for row, action in zip(orbit.result.states, orbit.result.actions, strict=True)
+            PrimitiveOrbitImage(source_key(frame, row), action)
+            for row, action in zip(orbit.states, orbit.actions, strict=True)
         )
         result.append(
             PrimitiveInteractionOrbit(
-                orbit.representative, orbit.basis, orbit.pivots, images
+                source_key(frame, encode_key(representative)),
+                orbit.exact_lattice_basis,
+                orbit.cartesian_basis,
+                orbit.coefficient_transform,
+                orbit.observation_rows,
+                orbit.observation_condition,
+                images,
             )
         )
-    return PrimitiveInteractionSpace(
-        primitive, order, radius, max_body_order, symmetry, tuple(result)
-    )
+    return PrimitiveInteractionSpace(primitive, order, radius, max_body_order, frame, tuple(result))
 
 
 def encode_key(key: InteractionKey) -> np.ndarray:
@@ -85,6 +101,17 @@ def encode_key(key: InteractionKey) -> np.ndarray:
 def decode_key(values: np.ndarray) -> InteractionKey:
     rows = np.asarray(values, dtype=np.int64).reshape(-1, 4)
     return InteractionKey.from_labels(rows)
+
+
+def source_key(frame: LatticeFrame, values: np.ndarray) -> InteractionKey:
+    """Return the source-cell key of one lattice-frame interaction row.
+
+    Sites are renamed through the motif match of the frame and translations go through the
+    exact integer map of the reduction, so the reference supercell index of the user's
+    structure addresses the same physical interaction.
+    """
+    rows = np.asarray(values, dtype=np.int64).reshape(-1, 4)
+    return InteractionKey.from_labels(frame.source_labels(rows))
 
 
 def _operation_signature(symmetry: PrimitiveSymmetryOperations, operation: int) -> tuple:
@@ -99,7 +126,9 @@ def _operation_signature(symmetry: PrimitiveSymmetryOperations, operation: int) 
 
 def operation_composition_table(symmetry: PrimitiveSymmetryOperations) -> np.ndarray:
     """Build the exact affine operation table used to create a SymPy group."""
-    lookup = {_operation_signature(symmetry, operation): operation for operation in range(symmetry.size)}
+    lookup = {
+        _operation_signature(symmetry, operation): operation for operation in range(symmetry.size)
+    }
     table = np.empty((symmetry.size, symmetry.size), dtype=np.int32)
     for after in range(symmetry.size):
         for before in range(symmetry.size):
@@ -125,7 +154,10 @@ def sympy_space_group_generators(
 ) -> tuple[tuple[int, ...], PermutationGroup]:
     """Select deterministic affine generators using SymPy group orders."""
     table = operation_composition_table(symmetry)
-    regular = tuple(Permutation([int(table[operation, value]) for value in range(symmetry.size)]) for operation in range(symmetry.size))
+    regular = tuple(
+        Permutation([int(table[operation, value]) for value in range(symmetry.size)])
+        for operation in range(symmetry.size)
+    )
     selected_permutations = select_group_generators(regular)
     selected = tuple(regular.index(permutation) for permutation in selected_permutations)
     group = PermutationGroup(list(selected_permutations))
@@ -163,20 +195,33 @@ class PrimitiveGenerator:
 
 
 def primitive_generators(
-    symmetry: PrimitiveSymmetryOperations, order: int
+    symmetry: PrimitiveSymmetryOperations, order: int, *, cell: np.ndarray
 ) -> tuple[tuple[PrimitiveGenerator, ...], PermutationGroup]:
+    """Return the orbit generators, each carrying both frames of its rotation.
+
+    The lattice rotation is spglib's integer matrix and the Cartesian rotation is derived
+    from it through the cell, so the two frames of one generator cannot disagree and the
+    transpose convention lives in :func:`scaled_to_cartesian_rotation` alone.
+    """
     operations, group = sympy_space_group_generators(symmetry)
     identity = tuple(range(order))
-    generators = [
-        PrimitiveGenerator(
-            f"space[{operation}]",
-            symmetry,
-            operation,
-            identity,
-            TensorAction(symmetry.cartesian_rotations[operation].T, identity, order),
+    generators = []
+    for operation in operations:
+        scaled = np.asarray(symmetry.rotations[operation], dtype=np.int64)
+        generators.append(
+            PrimitiveGenerator(
+                f"space[{operation}]",
+                symmetry,
+                operation,
+                identity,
+                TensorAction(
+                    scaled_to_cartesian_rotation(scaled, cell),
+                    identity,
+                    order,
+                    scaled,
+                ),
+            )
         )
-        for operation in operations
-    ]
     for axis in range(order - 1):
         permutation = list(identity)
         permutation[axis], permutation[axis + 1] = permutation[axis + 1], permutation[axis]
@@ -187,7 +232,7 @@ def primitive_generators(
                 symmetry,
                 None,
                 value,
-                TensorAction(np.eye(3), value, order),
+                TensorAction(np.eye(3), value, order, np.eye(3, dtype=np.int64)),
             )
         )
     return tuple(generators), group
@@ -195,50 +240,76 @@ def primitive_generators(
 
 @dataclass(frozen=True, slots=True)
 class GeneratedPrimitiveOrbit:
+    """One lattice-frame orbit before its keys are mapped back to the source cell."""
+
     representative: InteractionKey
-    basis: np.ndarray
-    pivots: np.ndarray
-    result: IndexedOrbitResult
+    exact_lattice_basis: np.ndarray
+    cartesian_basis: np.ndarray
+    coefficient_transform: np.ndarray
+    observation_rows: np.ndarray
+    observation_condition: float
+    states: np.ndarray
+    actions: tuple[TensorAction, ...]
+
+    @property
+    def dimension(self) -> int:
+        return int(self.cartesian_basis.shape[1])
 
 
 def generated_orbit(
     seed: InteractionKey,
     generators: tuple[PrimitiveGenerator, ...],
     *,
-    tolerance: float,
+    frame: LatticeFrame,
 ) -> GeneratedPrimitiveOrbit:
-    label_basis = _label_symmetric_basis(seed.labels)
+    """Build one orbit with its two bases and its observed components.
+
+    The invariant subspace, its certified dimension and the exact basis come from integer
+    arithmetic on the lattice rotations; the Cartesian basis is rendered once here, so no
+    consumer repeats the frame multiplication or re-derives the tensor order.
+    """
+    order = seed.order
+    label_basis = label_symmetric_basis(seed.labels)
     result = traverse_indexed_orbit(
         encode_key(seed),
         generators,
-        order=seed.order,
-        seed_basis=label_basis,
-        canonical_columns=tuple(range(0, seed.order * 4, 4))
-        + tuple(
-            column
-            for axis in range(1, seed.order)
-            for column in range(axis * 4 + 1, axis * 4 + 4)
-        )
+        order=order,
+        canonical_columns=tuple(range(0, order * 4, 4))
+        + tuple(column for axis in range(1, order) for column in range(axis * 4 + 1, axis * 4 + 4))
         + tuple(range(1, 4)),
-        tolerance=tolerance,
     )
-    reduced = (
-        invariant_basis_from_gram(result.constraint_gram, tolerance=tolerance)
-        if np.any(result.constraint_gram)
-        else np.eye(label_basis.shape[1])
+    kernel, dimension = invariant_kernel(label_basis, result.stabilizers, order=order)
+    exact = result.seed_to_canonical.apply_scaled_columns(label_basis @ kernel)
+    cartesian = cartesian_orbit_basis(exact, frame)
+    cartesian_basis, transform = orthonormal_orbit_basis(cartesian)
+    if cartesian_basis.shape[1] != dimension:
+        raise RuntimeError(
+            f"the rendered Cartesian basis has {cartesian_basis.shape[1]} columns but the "
+            f"certified invariant dimension is {dimension}"
+        )
+    rows = select_observation_rows(cartesian_basis, dimension)
+    observed = observation_matrix(cartesian_basis, rows)
+    return GeneratedPrimitiveOrbit(
+        representative=decode_key(result.canonical),
+        exact_lattice_basis=exact,
+        cartesian_basis=cartesian_basis,
+        coefficient_transform=transform,
+        observation_rows=rows,
+        observation_condition=observation_condition(observed),
+        states=result.states,
+        actions=result.actions,
     )
-    seed_invariant = label_basis @ reduced
-    canonical_invariant = result.seed_to_canonical.apply_columns(seed_invariant)
-    pivots = select_independent_rows(canonical_invariant, tolerance=tolerance)
-    basis = normalize_pivot_basis(canonical_invariant, pivots)
-    return GeneratedPrimitiveOrbit(decode_key(result.canonical), basis, pivots, result)
 
 
 __all__ = [
     "GeneratedPrimitiveOrbit",
+    "PrimitiveGenerator",
+    "build_primitive_interaction_space",
     "decode_key",
     "encode_key",
     "generated_orbit",
+    "operation_composition_table",
     "primitive_generators",
+    "source_key",
     "sympy_space_group_generators",
 ]
