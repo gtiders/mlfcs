@@ -8,10 +8,12 @@ import sys
 import traceback
 from pathlib import Path
 
+import numpy as np
 from ase.io import read, write
 from calorine.calculators import CPUNEP
 
 from mlfcs import ForceConstantFitter, build_supercell, perturb_structures, write_force_constants
+from mlfcs.fitting.dataset import FitDataset
 
 MODEL = "Si_2022_NEP3_5body.txt"
 TRAINING = Path("train.extxyz")
@@ -69,6 +71,13 @@ def _run() -> None:
     )
     gram = fitter.prepare_gram(training, acoustic_sum_rule=True)
     result = fitter.fit(gram)
+    # Training-data diagnostics come from the dataset, not from the fitter: the
+    # per-snapshot net force and center-of-mass displacement describe the inputs.
+    dataset = FitDataset.from_atoms(fitter.geometry, training)
+    maximum_snapshot_net_force = float(np.max(np.linalg.norm(dataset.net_forces, axis=1)))
+    maximum_center_of_mass_displacement = float(
+        np.max(np.linalg.norm(dataset.center_of_mass_displacements, axis=1))
+    )
 
     write_force_constants(result.force_constants, "fc2-fit-mlfcs.h5", format="hdf5")
     write_force_constants(
@@ -91,10 +100,8 @@ def _run() -> None:
                 "training_force_rmse_eV_per_A": result.training_force_rmse,
                 "training_relative_force_error": result.training_relative_force_error,
                 "maximum_constraint_residual": result.maximum_constraint_residual,
-                "maximum_snapshot_net_force_eV_per_A": result.maximum_snapshot_net_force,
-                "maximum_center_of_mass_displacement_A": (
-                    result.maximum_center_of_mass_displacement
-                ),
+                "maximum_snapshot_net_force_eV_per_A": maximum_snapshot_net_force,
+                "maximum_center_of_mass_displacement_A": maximum_center_of_mass_displacement,
                 "order_force_rms_eV_per_A": {
                     str(order): value for order, value in result.order_force_rms.items()
                 },

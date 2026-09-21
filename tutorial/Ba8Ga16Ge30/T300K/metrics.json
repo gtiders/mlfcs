@@ -1,12 +1,8 @@
 {
-  "active_orbits": 597,
-  "admm_dual_residual": 0.0,
-  "admm_primal_residual": 0.0,
-  "effective_noise_scale": 0.0,
   "fitting_parameters": "[ 7.10401577  0.04430446 -0.10600281 ...  1.1186527  -0.2402616\n -0.13523205]",
   "force_constants": {
     "_export_view_cache": {
-      "(135528050090496, None, None, ((2, 135527892063632, 135527892063440, 135527892061424), (3, 135527930612784, 135527930614032, 135527930614512)))": {
+      "(131279650966400, None, None, ((2, 131279642640432, 131279643115312, 131279643113296), (3, 131279642539664, 131279642540912, 131279642541392)))": {
         "force_constants": {
           "_export_view_cache": {},
           "arrays": {
@@ -22,7 +18,6 @@
             "fitted_with": "taylor",
             "force_constants_basis": "taylor",
             "method": "joint_force_fit",
-            "regularization": "none",
             "solver": "gram",
             "training_equations": 130896
           },
@@ -97,7 +92,6 @@
       "fitted_with": "taylor",
       "force_constants_basis": "taylor",
       "method": "joint_force_fit",
-      "regularization": "none",
       "solver": "gram",
       "training_equations": 130896
     },
@@ -152,7 +146,6 @@
   "normal_equation_residual": 5.17193229558538e-07,
   "order_force_rms": {},
   "parameter_scale": "[0.03308961 0.02506632 0.05109121 ... 0.26969057 0.61729002 0.49957799]",
-  "regularization": "none",
   "residual_norm": 7.877731771529138,
   "stop_code": 0,
   "training_force_rmse": 0.02177398913102865,

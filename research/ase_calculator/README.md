@@ -26,6 +26,8 @@
 
 因此本轮不应直接发布公共 `MLFCSCalculator`。独立原型证明 evaluator 与 ASE adapter 本身可行，
 也证明 FC1 可以作为 primitive-site source-independent Taylor 项保存并展开到任意合法超胞。
+该原型（`prototype.py`）依赖已移除的 `mlfcs.fitting.backends.wick` 与 JAX，已从仓库删除，
+保留其结论与数值结果供后续重写。
 
 ## 2. 当前 validation 的真实调用链
 

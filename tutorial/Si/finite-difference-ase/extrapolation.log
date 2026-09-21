@@ -14,6 +14,10 @@ INFO mlfcs.finite_difference.calculation: Displacement grid: 0.0060000000, 0.008
 INFO mlfcs.finite_difference.calculation: Polynomial degree in h^2: 1
 INFO mlfcs.finite_difference.calculation: 5 central-difference subplans
 INFO mlfcs.finite_difference.calculation: 30 force calculations required
+INFO mlfcs.finite_difference.calculation: Building the central-difference displacement plan
+INFO mlfcs.finite_difference.calculation: 3 displacement keys
+INFO mlfcs.finite_difference.calculation: 6 force calculations required
+INFO mlfcs.finite_difference.calculation: Fingerprinting the extrapolate displacement plan
 INFO mlfcs.finite_difference.calculation: Evaluating displacement step 0.0060000000 Å
 INFO mlfcs.finite_difference.calculation: Forces: 1/30 (3%)
 INFO mlfcs.finite_difference.calculation: Forces: 3/30 (10%)
@@ -31,12 +35,12 @@ INFO mlfcs.finite_difference.calculation: Evaluating displacement step 0.0140000
 INFO mlfcs.finite_difference.calculation: Forces: 27/30 (90%)
 INFO mlfcs.finite_difference.calculation: Forces: 30/30 (100%)
 INFO mlfcs.finite_difference.calculation: Zero-step derivative extrapolation
-INFO mlfcs.finite_difference.calculation: - Maximum correction from central displacement: 5.2314864027e-04 eV/angstrom^2
-INFO mlfcs.finite_difference.calculation: Relative L2 correction: 4.9890348191e-05
-INFO mlfcs.finite_difference.calculation: - Maximum polynomial fit residual: 4.1060470579e-08 eV/angstrom^2
+INFO mlfcs.finite_difference.calculation: - Maximum correction from central displacement: 5.2314864000e-04 eV/angstrom^2
+INFO mlfcs.finite_difference.calculation: Relative L2 correction: 4.9890348172e-05
+INFO mlfcs.finite_difference.calculation: - Maximum polynomial fit residual: 4.1059962541e-08 eV/angstrom^2
 INFO mlfcs.finite_difference.calculation: Reconstructing symmetry-expanded force constants (ASR enabled)
-INFO mlfcs.finite_difference.calculation: - Max drift of fc2: 1.1205313957e-01 -> 5.3290705182e-15 eV/angstrom^2
-INFO mlfcs.finite_difference.calculation: - ASR parameter correction: maximum=2.5870854735e-03 eV/angstrom^2, relative L2=3.2648476983e-04
+INFO mlfcs.finite_difference.calculation: - Max drift of fc2: 1.1205313957e-01 -> 8.8817841970e-15 eV/angstrom^2
+INFO mlfcs.finite_difference.calculation: - ASR parameter correction: maximum=2.9549889396e-03 eV/angstrom^2, relative L2=2.4308276625e-04
 INFO mlfcs.finite_difference.calculation: Reconstructed 174 sparse cluster tensors
 INFO mlfcs.force_constants.realization: Export view cache miss; constructing new view
 INFO mlfcs.force_constants.realization: Export view cache hit; reusing existing view

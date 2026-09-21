@@ -1,9 +1,11 @@
 {
   "order": 2,
-  "cutoff_angstrom": 7.723740495133356,
+  "cutoff_angstrom": 7.7237404951,
   "displacement_angstrom": 0.01,
   "spacegroup": "Fd-3m",
   "acoustic_sum_rule": true,
   "derivative_backend": "central",
-  "configurations": 6
+  "configurations": 6,
+  "plan_schema_version": 1,
+  "plan_fingerprint": "28927321803658ea220b626e0357f61f78dca02299a388eebe9bc9d366dc0984"
 }
