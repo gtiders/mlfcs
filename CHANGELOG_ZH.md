@@ -65,6 +65,58 @@
   `scripts/check_docs.py`，因此仓库的数学分隔符规则与中英镜像由测试套件强制。
 
 
+### 新增
+
+- 有限差分计划现在带规范、可序列化的身份。`DisplacementManifest` 记录 schema 版本、primitive 与
+  reference 的结构指纹、order、cutoff、body order、symprec、displacement、导数后端、stencil 符号、
+  外推描述、规范 orbit（代表元、维数、观测行、整数精确基、images）、排序后的 displacement keys 以及
+  每个构型（id、key、原子、方向、符号、步长）。其 `fingerprint` 是对一份排序键、浮点用 `float.hex()`
+  编码的规范 JSON 文档做 SHA-256，因此 `repr()`、对象哈希、内存布局和浮点原始字节都不会进入该值。
+  `save`/`load` 可往返序列化并重新计算指纹，被改动的文件会被拒绝。
+- `sow()` 返回 `DisplacementBatch`，结构携带计划指纹与各自 configuration id；`evaluate()` 返回绑定
+  同一指纹的 `ForceBatch`，且允许按任意 configuration id 顺序携带力；`reap()` 只接受该对象，重建出的
+  力常数在 metadata 中记录计划指纹与 schema 版本。
+- 饱和整数核改以规范列形式（格的 Hermite 标准形）返回，因此等价的 unimodular primitive 表示与
+  重新参数化的核基都得到同一组整数 `exact_lattice_basis`；该层 arbitrary-size integer 到 `int64`
+  的边界有明确文档。
+- 新增 `reference` 依赖组承载 phonopy 与 phono3py oracle：未安装时相关测试干净跳过，安装后可在
+  声明的 reference 环境中跑完整套测试。
+
+### 删除
+
+- `InteractionSpace`、`FiniteDifferenceCalculation`、`ForceConstantFitter`、`SSCHA` 与
+  `resolve_primitive_cutoff` 不再接受 `cutoff=None`：正数表示 Å 半径、负整数表示 primitive 邻居壳层，
+  `None` 会抛出写明要求的异常。参考超胞是否足以辨识模型只由 realization identifiability 判定，它会抛出
+  `InteractionAliasingError`，而不是缩短模型。教程已改为写明各自案例解析出的半径。
+- 实验性的 scaled orbit-group LASSO 整体删除，含 ADMM 求解器、`solve_scaled_group_lasso` 入口、
+  其收敛日志，以及 `regularization`、`effective_noise_scale`、`active_orbits`、
+  `admm_primal_residual`、`admm_dual_residual` 结果字段。该惩罚定义在列预条件坐标中，当 orbit 参数
+  变成正交 Cartesian 基的系数后它已不对应同一个优化问题，而组范数惩罚在一般可逆换基下并不保持
+  物理量不变。`ForceConstantFitter.fit()` 不再接受 `regularization`：传入会得到指名该参数的
+  `TypeError`，不会静默回退最小二乘。将来若重新引入轨道稀疏化，应在物理参数上定义，此时
+  $\lVert Q\theta\rVert_F = \lVert\theta\rVert_2$。
+- 旧有限差分力输入不再可用：裸 `ndarray`、按位置排列的序列、以数字 configuration id 为键的
+  mapping 都会被拒绝并提示重新 sow；它们都不携带计划指纹。指纹、schema 版本、id 集合、原子数或
+  shape 与计划不符时，一律在任何求导之前失败。不提供兼容模式，旧 `sow()` 结果无法被收割。
+- 删除 `research/ase_calculator/prototype.py`：它导入已移除的 `mlfcs.fitting.backends.wick` 与 JAX，
+  二者都不是项目依赖，在声明的环境中无法运行。其结论与数值仍保留在
+  `research/ase_calculator/results.json` 与相邻说明中。
+- 此前“`cutoff=None` 与 group LASSO 未受影响”的记录被本轮取代：两者都是有意删除。
+
+### 修复
+
+- `LatticeFrame` 明确区分三种索引：规范代数 site、该原子在 source 中的分数坐标
+  （`source_positions`，canonical 顺序）以及它在 source `Atoms` 中的下标（`atom_map`）。
+  `source_labels` 返回 `atom_map` 下标，其平移由 `source_positions[site]` 得到；若改成用 `atom_map`
+  去查会二次应用 canonical 置换。
+- 观测行选择被文档化并测试为**贪心** max-volume 选择：要求输入为正交基、按 Cartesian 分量顺序枚举行、
+  体积相同时取最小行下标、返回升序行、超出记录的条件数上限会拒绝，并对基右乘正交矩阵、unimodular
+  换基与 source 原子重排保持不变。
+- 教程：四条仍带 JAX/CUDA fallback 输出的日志在本分支代码上重生成；所有受影响拟合与有限差分任务都由
+  各自脚本以覆盖方式写出新的 `fit.log`；Si NEP 案例不再读取两个已删除的 `FittingResult` 字段
+  （指标改由训练数据集计算）。仅有行尾差异的重写没有进入提交。
+
+
 ## 4.0.0a5 — 2026-08-24
 
 ### 变化

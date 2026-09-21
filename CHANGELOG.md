@@ -78,6 +78,81 @@ All notable changes are documented here. Releases follow semantic versioning.
   math-delimiter rule and the bilingual mirror are enforced by the suite.
 
 
+### Added
+
+- Finite-difference plans carry a canonical, serializable identity. `DisplacementManifest`
+  records the schema version, the primitive and reference structure fingerprints, order,
+  cutoff, body order, symprec, displacement, derivative backend, stencil signs, the
+  extrapolation description, the canonical orbits (representative, dimension, observation
+  rows, integer exact basis, images), the sorted displacement keys and every configuration
+  (id, key, atoms, directions, signs, step). Its `fingerprint` is a SHA-256 hash of one
+  canonical JSON document with sorted keys and `float.hex()` encodings, so no `repr()`,
+  object hash, memory layout or raw float bytes enter the value. `save`/`load` round-trip
+  the manifest and recompute the fingerprint, rejecting an edited file.
+- `sow()` returns a `DisplacementBatch` whose structures carry the plan fingerprint and
+  their configuration id, `evaluate()` returns a `ForceBatch` bound to the same fingerprint,
+  and a `ForceBatch` may carry its rows in any configuration-id order. `reap()` accepts only
+  that object; the reconstructed force constants record the plan fingerprint and schema
+  version in their metadata.
+- The saturated integer kernel is returned in a canonical column form (Hermite normal form
+  of the lattice), so `exact_lattice_basis` is the same integers for equivalent unimodular
+  primitive cells and for a re-parameterized kernel basis. The arbitrary-size integer to
+  int64 boundary of that layer is documented.
+- A `reference` dependency group holds the phonopy and phono3py oracles. The tests that
+  compare against them skip cleanly when the group is not installed, and the full suite runs
+  in the declared reference environment.
+
+### Removed
+
+- The reference-resolved `cutoff=None` is gone from `InteractionSpace`,
+  `FiniteDifferenceCalculation`, `ForceConstantFitter`, `SSCHA` and `resolve_primitive_cutoff`.
+  A positive number is a distance in angstrom, a negative integer is a primitive
+  neighbour-shell index, and `None` raises with the requirement spelled out. Whether a
+  reference identifies the model is now decided only by realization identifiability, which
+  raises `InteractionAliasingError` rather than shortening the model. The tutorials state the
+  radius their case resolved as an explicit number.
+- The experimental scaled orbit-group LASSO is gone, together with its ADMM solver, its
+  `solve_scaled_group_lasso` entry point, its convergence logging and the `regularization`,
+  `effective_noise_scale`, `active_orbits`, `admm_primal_residual` and `admm_dual_residual`
+  result fields. The penalty was defined in column-preconditioned coordinates, which stopped
+  meaning the same optimization problem once an orbit's parameters became the coefficients of
+  an orthonormal Cartesian basis, and a group penalty is not invariant under a general change
+  of parameter coordinates. `ForceConstantFitter.fit()` no longer takes `regularization`:
+  passing it is a Python `TypeError` naming the argument, never a silent fallback to least
+  squares. A future sparse regularization should be defined on the physical parameters, where
+  $\lVert Q\theta\rVert_F = \lVert\theta\rVert_2$ holds.
+- The old finite-difference force inputs are gone: a bare `ndarray`, a positional sequence and
+  a mapping keyed by numeric configuration id are rejected with a message that says to re-sow,
+  because none of them carries a plan fingerprint. A batch whose fingerprint, schema version,
+  id set, atom count or shape does not match the plan fails before any differentiation. There
+  is no compatibility mode, and an old `sow()` result cannot be reaped at all.
+- `research/ase_calculator/prototype.py` is deleted: it imported the removed
+  `mlfcs.fitting.backends.wick` package and JAX, none of which is a project dependency, so it
+  could not run in the declared environment. Its conclusions and numbers remain in
+  `research/ase_calculator/results.json` and the adjoining notes.
+- The earlier entry claiming that `cutoff=None` and the scaled group LASSO were untouched by
+  the integer-lattice refactor is superseded: this round removes both deliberately.
+
+### Fixed
+
+- `LatticeFrame` documents its three index notions unambiguously: the canonical algebra site,
+  the source fractional coordinate of that atom (`source_positions`, canonical order) and the
+  source `Atoms` index (`atom_map`). `source_labels` returns the `atom_map` index and derives
+  the translation from `source_positions[site]`; looking it up through `atom_map` would apply
+  the canonical permutation twice.
+- Observation-row selection is documented and tested as *greedy* max-volume selection: it
+  requires an orthonormal basis, enumerates component rows in Cartesian component order,
+  breaks volume ties towards the smallest row index, returns ascending rows, refuses a
+  selection beyond the documented condition limit, and is invariant under a right
+  multiplication of the basis by an orthogonal matrix, under a unimodular primitive rebasing
+  and under an atom permutation of the source cell.
+- Tutorials: the four logs that still carried JAX/CUDA fallback output are regenerated on this
+  code, every affected fitting and finite-difference task has a fresh `fit.log` written in
+  overwrite mode by its own script, and the Si NEP case stopped reading two `FittingResult`
+  fields that no longer exist (the metrics now come from the training dataset). Line-ending-only
+  re-writes were dropped instead of committed.
+
+
 ## 4.0.0a5 — 2026-08-24
 
 ### Changed
