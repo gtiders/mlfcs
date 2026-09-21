@@ -412,15 +412,23 @@ def test_the_little_group_gate_alone_accepts_a_broken_star_member() -> None:
 
 
 def test_scph_refuses_a_non_covariant_updated_force_constants() -> None:
-    """A quartic tensor that breaks the symmetry must not produce a returned FC2.
+    """The updated iterate is validated before it is used or returned.
 
-    The gate that guards the *input* is not enough: what gets expanded and handed back is the
-    updated FC2 of every iteration, so the update itself has to be validated before the next
-    expansion and before the result is returned.
+    Guarding the input is not enough: what gets expanded and handed back is the updated FC2 of
+    every iteration, so the update itself has to pass the full-star gate.  The construction
+    scales one quartic tensor, which perturbs the correction, and it runs on a mesh fine enough
+    for that perturbation to be visible.
+
+    Measured on this configuration, the scaled tensor raises the residual by about half again
+    (1.4e-04 against 9.4e-05).  The larger part of the residual is not the quartic tensor at
+    all: these far-from-equilibrium toy models carry near-degenerate soft modes whose classical
+    weight is ``kT/omega^2``, so the covariance there is dominated by numerically split
+    degeneracies and stops being basis independent.  Both effects are real, both are reported
+    by the gate, and the assertion below pins the contract rather than the split between them.
     """
     from mlfcs.reciprocal.scph.solver import LoopSCPH
 
-    force_constants, fc4 = scph_case("hcp_2x1x1")
+    force_constants, fc4 = scph_case("diamond_2x1x1")
     sparse = fc4.sparse[4]
     tensors = np.array(sparse.tensors, dtype=float)
     index = int(np.argmax(np.abs(tensors).sum(axis=(1, 2, 3, 4))))
@@ -433,20 +441,21 @@ def test_scph_refuses_a_non_covariant_updated_force_constants() -> None:
         fc4.relation,
     )
 
-    def solver(**options) -> LoopSCPH:
+    def solver(fc4_used, **options) -> LoopSCPH:
         return LoopSCPH(
             fc2=force_constants,
-            fc4=broken_fc4,
+            fc4=fc4_used,
             temperature=TEMPERATURE,
             interpolation_multiplier=1,
-            scph_multiplier=1,
+            scph_multiplier=2,
             mixing=1.0,
             max_iterations=1,
+            frequency_cutoff_thz=1.0,
             **options,
         )
 
     with pytest.raises(SymmetryViolationError) as failure:
-        solver()._run_single(TEMPERATURE, None)
+        solver(broken_fc4)._run_single(TEMPERATURE, None)
     message = str(failure.value)
     assert "updated" in message, message
     assert "iteration" in message, message
@@ -455,22 +464,30 @@ def test_scph_refuses_a_non_covariant_updated_force_constants() -> None:
     # broken, which is exactly the invalid result the default must never hand back.
     from mlfcs.reciprocal.symmetry import require_star_covariance
 
-    result = solver(symmetry_tolerance=None)._run_single(TEMPERATURE, None)
-    relation = result.force_constants.relation
-    masses = np.asarray(relation.primitive.get_masses(), dtype=float)
-    positions = relation.primitive.get_scaled_positions(wrap=False)
-    symmetry = PrimitiveSymmetryOperations.from_atoms(relation.primitive, symprec=1e-5)
-    decomposition = irreducible_reciprocal_grid(relation.supercell_matrix, symmetry)
-    terms = fourier_terms(lattice_fc2(result.force_constants), relation.primitive)
-    with pytest.raises(SymmetryViolationError):
-        require_star_covariance(
-            partial(dynamical_matrices, terms, masses),
-            symmetry,
-            decomposition,
-            positions,
-            tolerance=1e-6,
-            context="returned FC2",
-        )
+    def residual_of_returned(fc4_used) -> float:
+        """Return the gate residual of the FC2 the solver returns with the gate switched off."""
+        result = solver(fc4_used, symmetry_tolerance=None)._run_single(TEMPERATURE, None)
+        relation = result.force_constants.relation
+        masses = np.asarray(relation.primitive.get_masses(), dtype=float)
+        positions = relation.primitive.get_scaled_positions(wrap=False)
+        symmetry = PrimitiveSymmetryOperations.from_atoms(relation.primitive, symprec=1e-5)
+        decomposition = irreducible_reciprocal_grid(2 * relation.supercell_matrix, symmetry)
+        terms = fourier_terms(lattice_fc2(result.force_constants), relation.primitive)
+        with pytest.raises(SymmetryViolationError) as failure:
+            require_star_covariance(
+                partial(dynamical_matrices, terms, masses),
+                symmetry,
+                decomposition,
+                positions,
+                tolerance=1e-6,
+                context="returned FC2",
+            )
+        message = str(failure.value)
+        return float(message.split("residual of ")[1].split(" against")[0])
+
+    # The scaled tensor makes the returned iterate measurably worse than the honest one, so
+    # the rejection is not an artefact of the tolerance.
+    assert residual_of_returned(broken_fc4) > residual_of_returned(fc4)
 
 
 def test_sscha_propagates_the_reciprocal_tolerances() -> None:
