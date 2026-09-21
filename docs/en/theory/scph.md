@@ -92,6 +92,22 @@ The free energy and the sampling itself never enter the eigensolver again: the r
 harmonic free-energy time is of order $10^{-4}$ s with zero diagonalizations, and one batch of
 4096 snapshots takes $2\text{--}4\times10^{-2}$ s.
 
+Before anything is expanded, every force-constant set that the irreducible path actually
+expands passes the **full-star covariance gate**: the gate expands the representative matrices
+with $W_m=\Gamma_m U_m\overline{W_s}^{[a_m]}U_m^\dagger\Gamma_m^\dagger$ and compares them member by
+member with the dynamical matrices built directly at each member's own label. The little-group
+condition only constrains the representative itself -- it fixes the representative by definition
+-- so it is neither sufficient nor usable as the merge gate; it survives as a local diagnostic
+for stabilizer problems. The tolerance is relative: the allowed residual is
+$\texttt{symmetry\_tolerance}\cdot s$ with $s$ the largest infinity norm over both the direct and
+the expanded stacks. `symmetry_tolerance=None` is the only way to switch the gate off; `NaN`,
+`+inf` and negative values are rejected, because a comparison against them is always false and
+would disable the gate by accident. `symprec` must be finite and strictly positive.
+
+The gate builds the full grid of $D(q)$, but only $N_{\mathrm{irr}}$ matrices reach
+`eigh/eigvalsh`; a benchmark has to report matrix builds, eigensolver matrices, star expansion and
+the full Fourier sum, not only the diagonalization reduction.
+
 The merge criterion is that the diagonalization count equals $N_{\mathrm{irr}}$ exactly, not
 that the wall clock improves: a small cell still pays a one-off symmetry analysis, so it may
 look slower than the full grid, and a low-symmetry cell may barely speed up at all. That is

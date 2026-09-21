@@ -53,6 +53,11 @@ message names where the failure comes from:
 - the eigenbasis the sampler expanded cannot rebuild that member's dynamical matrix: the message
   reports the label and the residual.
 
+Every SCPH iteration validates the force constants it actually expands: the initial FC2, the
+updated FC2 of each iteration, and the FC2 that is finally returned. The message reports the
+iteration, the grid multiplier, the representative label, the member label, the operation, the
+antiunitary flag, the residual, the scale and the allowed value.
+
 `symprec` and `symmetry_tolerance` are two different tolerances: the first is the geometric
 tolerance that identifies the structure, the second is the **relative** physical tolerance the
 force constants have to satisfy (relative to the largest dynamical-matrix element of that grid).
