@@ -3,6 +3,7 @@ import pytest
 from ase import Atoms
 
 from mlfcs import FiniteDifferenceCalculation, build_supercell, realize_force_constants
+from mlfcs.force_constants.expansion import expand_primitive_parameters
 from mlfcs.force_constants.representation import ForceConstants, SparseOrderForceConstants
 from mlfcs.interactions.keys import InteractionKey
 from mlfcs.interactions.primitive.builder import build_primitive_interaction_space
@@ -38,7 +39,7 @@ def test_primitive_fc2_space_keeps_exact_nearest_neighbor_translations():
 
 
 @pytest.mark.parametrize("order", [2, 3, 4])
-def test_primitive_orbit_bases_are_invariant_and_pivot_normalized(order):
+def test_primitive_orbit_bases_are_invariant_and_orthonormal(order):
     primitive = Atoms("Si", scaled_positions=[[0, 0, 0]], cell=np.eye(3) * 4, pbc=True)
     space = build_primitive_interaction_space(
         primitive,
@@ -49,20 +50,96 @@ def test_primitive_orbit_bases_are_invariant_and_pivot_normalized(order):
     )
 
     for orbit in space.orbits:
+        basis = orbit.cartesian_basis
+        exact = orbit.exact_lattice_basis
+        assert orbit.dimension == basis.shape[1]
+        np.testing.assert_allclose(basis.T @ basis, np.eye(orbit.dimension), rtol=1e-10, atol=1e-10)
+        assert exact.dtype == np.int64 and exact.shape == basis.shape
+        # The two bases describe one subspace: C = K_n B_Z = Q R.
         np.testing.assert_allclose(
-            orbit.basis[orbit.pivots],
-            np.eye(orbit.dimension),
-            rtol=1e-10,
-            atol=1e-10,
+            space.frame.tensor_frame(order) @ exact,
+            basis @ orbit.coefficient_transform,
+            rtol=1e-12,
+            atol=1e-12,
+        )
+        np.testing.assert_allclose(
+            orbit.coefficient_transform,
+            np.triu(orbit.coefficient_transform),
+            rtol=0.0,
+            atol=0.0,
         )
         for image in orbit.images:
             if image.key == orbit.representative:
+                # The representative's own action is a symmetry of the basis block.
                 np.testing.assert_allclose(
-                    image.action.apply_columns(orbit.basis),
-                    orbit.basis,
+                    image.action.apply_columns(basis),
+                    basis,
                     rtol=1e-9,
                     atol=1e-9,
                 )
+
+
+@pytest.mark.parametrize("order", [2, 3, 4])
+def test_orbit_expansion_renders_every_image_from_the_representative_tensor(order):
+    primitive = Atoms("Si", scaled_positions=[[0, 0, 0]], cell=np.eye(3) * 4, pbc=True)
+    space = build_primitive_interaction_space(
+        primitive,
+        order=order,
+        cutoff=4.1,
+        max_body_order=2,
+        symprec=1e-5,
+    )
+    rng = np.random.default_rng(11 + order)
+    parameters = rng.normal(size=space.n_parameters)
+    sparse = expand_primitive_parameters(space, parameters)
+
+    rendered = {
+        (
+            tuple(int(site) for site in sites),
+            tuple(tuple(int(v) for v in t) for t in translations),
+        ): tensor
+        for sites, translations, tensor in zip(
+            sparse.sites, sparse.translations, sparse.tensors, strict=True
+        )
+    }
+    assert len(rendered) == len(sparse.sites)
+
+    offset = 0
+    shape = (3,) * order
+    for orbit in space.orbits:
+        coefficients = parameters[offset : offset + orbit.dimension]
+        offset += orbit.dimension
+        representative = orbit.cartesian_basis @ coefficients
+        key = (orbit.representative.sites, orbit.representative.translations)
+        np.testing.assert_allclose(rendered[key], representative.reshape(shape), atol=1e-12)
+        for image in orbit.images:
+            np.testing.assert_allclose(
+                rendered[(image.key.sites, image.key.translations)],
+                image.action.apply_flat(representative).reshape(shape),
+                atol=1e-12,
+            )
+
+
+def test_observation_rows_reproduce_every_tensor_of_an_orbit():
+    primitive = Atoms("Si", scaled_positions=[[0, 0, 0]], cell=np.eye(3) * 4, pbc=True)
+    space = build_primitive_interaction_space(
+        primitive,
+        order=3,
+        cutoff=4.1,
+        max_body_order=2,
+        symprec=1e-5,
+    )
+
+    for orbit in space.orbits:
+        rng = np.random.default_rng(11 + orbit.dimension)
+        parameters = rng.normal(size=orbit.dimension)
+        tensor = orbit.cartesian_basis @ parameters
+        observed = tensor[orbit.observation_rows]
+        np.testing.assert_allclose(
+            np.linalg.solve(orbit.observation_matrix, observed), parameters, rtol=1e-9, atol=1e-11
+        )
+        assert orbit.observation_matrix.shape == (orbit.dimension, orbit.dimension)
+        assert orbit.observation_condition < 1e6
 
 
 def test_exact_ifcs_realize_into_a_different_supercell_size():

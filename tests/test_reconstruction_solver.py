@@ -26,14 +26,16 @@ def test_reconstructs_every_orbit_from_independent_components(order):
     }
     expected = {}
     for orbit_number, orbit in enumerate(space.orbits, start=1):
-        coefficients = np.arange(1, orbit.dimension + 1, dtype=float) / orbit_number
-        representative = orbit.basis @ coefficients
-        for pivot in orbit.pivots:
-            components = np.unravel_index(int(pivot), (3,) * order)
+        parameters = np.arange(1, orbit.dimension + 1, dtype=float) / orbit_number
+        # The plan observes the component rows ``observation_rows``; they determine the
+        # parameters through Q[rows] @ theta = y, which the reconstruction inverts.
+        representative = orbit.cartesian_basis @ parameters
+        for row in orbit.observation_rows:
+            components = np.unravel_index(int(row), (3,) * order)
             key = tuple(
                 (orbit.representative[axis], int(components[axis])) for axis in range(order - 1)
             )
-            derivatives[key][orbit.representative[-1], components[-1]] = representative[pivot]
+            derivatives[key][orbit.representative[-1], components[-1]] = representative[row]
         for image in orbit.images:
             tensor = image.action.apply_flat(representative).reshape((3,) * order)
             expected[image.cluster] = expected.get(image.cluster, 0.0) + tensor

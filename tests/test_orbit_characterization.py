@@ -82,7 +82,7 @@ def _sheared(atoms: Atoms, matrix: np.ndarray) -> Atoms:
 
 def _orbit_basis(orbit) -> np.ndarray:
     """Return the Cartesian column basis that carries one orbit's parameters."""
-    return orbit.basis
+    return orbit.cartesian_basis
 
 
 def _projector(basis: np.ndarray) -> np.ndarray:

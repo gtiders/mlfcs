@@ -5,6 +5,7 @@ from __future__ import annotations
 import numpy as np
 
 from mlfcs.force_constants.representation import SparseOrderForceConstants
+from mlfcs.interactions.algebra.rendering import render_representative_tensor
 from mlfcs.interactions.models import PrimitiveInteractionSpace
 
 
@@ -12,7 +13,12 @@ def expand_primitive_parameters(
     interaction_space: PrimitiveInteractionSpace,
     parameters: np.ndarray,
 ) -> SparseOrderForceConstants:
-    """Expand primitive-orbit parameters into canonical exact-R IFC rows."""
+    """Expand primitive-orbit parameters into canonical exact-R IFC rows.
+
+    The parameters are the coefficients of each orbit's Cartesian basis, so the
+    representative tensor is ``cartesian_basis @ parameters`` and every image is that
+    tensor under its own symmetry action.
+    """
     values = np.asarray(parameters, dtype=float).reshape(-1)
     expected = sum(orbit.dimension for orbit in interaction_space.orbits)
     if len(values) != expected:
@@ -23,9 +29,9 @@ def expand_primitive_parameters(
     offset = 0
     shape = (3,) * interaction_space.order
     for orbit in interaction_space.orbits:
-        pivot_values = values[offset : offset + orbit.dimension]
+        coefficients = values[offset : offset + orbit.dimension]
         offset += orbit.dimension
-        representative = orbit.basis @ np.linalg.solve(orbit.basis[orbit.pivots], pivot_values)
+        representative = render_representative_tensor(orbit.cartesian_basis, coefficients)
         for image in orbit.images:
             key = image.key
             sites.append(key.sites)
