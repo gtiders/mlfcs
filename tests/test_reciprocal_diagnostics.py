@@ -15,6 +15,7 @@ constant to fix.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from functools import partial
 
 import numpy as np
@@ -241,13 +242,15 @@ def test_the_sampler_expansion_is_checked_against_each_member_matrix(monkeypatch
     )
     _sampler_of(force_constants)  # the honest sampler must construct without complaining
 
-    monkeypatch.setattr(
-        "mlfcs.reciprocal.sampling.harmonic.star_member_operator",
-        lambda symmetry, grid, member: (
-            np.eye(3 * len(symmetry.site_permutations[0]), dtype=complex),
-            False,
-        ),
-    )
+    import mlfcs.reciprocal.sampling.harmonic as harmonic_module
+
+    honest = harmonic_module.star_member_action
+
+    def without_rotation(symmetry, grid, member, positions):
+        action = honest(symmetry, grid, member, positions)
+        return replace(action, unitary=np.eye(len(action.unitary), dtype=complex))
+
+    monkeypatch.setattr(harmonic_module, "star_member_action", without_rotation)
     with pytest.raises(SymmetryViolationError) as failure:
         _sampler_of(force_constants)
     message = str(failure.value)
@@ -340,8 +343,6 @@ def test_the_little_group_gate_alone_accepts_a_broken_star_member() -> None:
     produces the wrong matrix at the members.  The old gate passes; the new full-star gate
     has to refuse, and the public frequency path has to refuse with it.
     """
-    from functools import partial
-
     from mlfcs.reciprocal.symmetry import require_little_group_covariance
 
     base = _scalar_spectrum_force_constants()
@@ -395,7 +396,9 @@ def test_the_little_group_gate_alone_accepts_a_broken_star_member() -> None:
     expanded = expand_star_matrices(
         build(grid.points[decomposition.representatives]), decomposition, symmetry, positions
     )
-    np.testing.assert_allclose(expanded[member], direct, rtol=1e-9, atol=1e-12)
+    # The gauge-correct expansion of the *representative* cannot reproduce a member that
+    # was deliberately changed: that disagreement is the false positive this test is about.
+    assert float(np.max(np.abs(expanded[member] - direct))) > 1e-3
 
     from mlfcs.reciprocal.symmetry import require_star_covariance
 
@@ -449,8 +452,6 @@ def test_scph_refuses_a_non_covariant_updated_force_constants() -> None:
 
     # With the gate switched off the solver returns an FC2 that the same gate measures as
     # broken, which is exactly the invalid result the default must never hand back.
-    from functools import partial
-
     from mlfcs.reciprocal.symmetry import require_star_covariance
 
     result = solver(symmetry_tolerance=None)._run_single(TEMPERATURE, None)
