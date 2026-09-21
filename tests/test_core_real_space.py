@@ -2,7 +2,8 @@ import numpy as np
 import pytest
 from ase import Atoms
 
-from mlfcs import FiniteDifferenceCalculation, build_supercell, realize_force_constants
+from mlfcs import SSCHA, FiniteDifferenceCalculation, build_supercell, realize_force_constants
+from mlfcs.fitting.fitter import ForceConstantFitter
 from mlfcs.force_constants.expansion import expand_primitive_parameters
 from mlfcs.force_constants.representation import ForceConstants, SparseOrderForceConstants
 from mlfcs.interactions.algebra.rendering import exact_lattice_coefficients
@@ -12,6 +13,7 @@ from mlfcs.interactions.realization import (
     InteractionAliasingError,
     validate_realization_identifiability,
 )
+from mlfcs.interactions.space import InteractionSpace
 from mlfcs.structure.integer_lattice import same_residue
 from mlfcs.structure.relation import StructureRelation
 
@@ -244,3 +246,46 @@ def test_coefficient_transform_relates_cartesian_and_exact_lattice_coefficients(
             atol=1e-10,
         )
         np.testing.assert_allclose(orbit.cartesian_basis.T @ cartesian, parameters, atol=1e-12)
+
+
+def test_reference_resolved_cutoff_is_rejected():
+    """`cutoff=None` is gone: the primitive model carries an explicit radius."""
+    primitive = Atoms("Si", scaled_positions=[[0, 0, 0]], cell=np.eye(3) * 4, pbc=True)
+    reference = build_supercell(primitive, (2, 2, 2))
+
+    with pytest.raises(ValueError, match="negative neighbour-shell"):
+        FiniteDifferenceCalculation(primitive, reference=reference, order=2, cutoff=None)
+    with pytest.raises(ValueError, match="reference-resolved cutoff=None"):
+        ForceConstantFitter(primitive, reference, orders=(2,), cutoffs={2: None})
+    with pytest.raises(ValueError, match="reference-resolved cutoff=None"):
+        SSCHA(primitive, reference=reference, cutoff=None, snapshots=1, max_iterations=0)
+
+
+def test_primitive_interaction_space_ignores_the_reference():
+    """The primitive model is fixed by the primitive cell and an explicit radius.
+
+    A reference that is too small to identify the model is a separate failure: the
+    primitive space still exists, and identifiability rejects the reference instead of
+    shortening the model.
+    """
+    primitive = Atoms("Si", scaled_positions=[[0, 0, 0]], cell=np.eye(3) * 4, pbc=True)
+    large = InteractionSpace(
+        primitive, order=2, reference=build_supercell(primitive, (3, 3, 3)), cutoff=4.1
+    )
+    small = InteractionSpace(
+        primitive, order=2, reference=build_supercell(primitive, (2, 2, 2)), cutoff=4.1
+    )
+
+    assert large.cutoff == small.cutoff == 4.1
+    left, right = large.primitive_orbit_space, small.primitive_orbit_space
+    assert len(left.orbits) == len(right.orbits)
+    for first, second in zip(left.orbits, right.orbits, strict=True):
+        assert first.representative == second.representative
+        assert first.observation_rows.tolist() == second.observation_rows.tolist()
+        np.testing.assert_array_equal(first.exact_lattice_basis, second.exact_lattice_basis)
+        np.testing.assert_allclose(first.cartesian_basis, second.cartesian_basis, atol=1e-12)
+
+    folded = InteractionSpace(primitive, order=2, reference=primitive.copy(), cutoff=4.1)
+    assert len(folded.primitive_orbit_space.orbits) == len(left.orbits)
+    with pytest.raises(InteractionAliasingError, match="larger single reference"):
+        _ = folded.realized_orbit_space

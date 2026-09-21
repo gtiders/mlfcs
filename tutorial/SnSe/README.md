@@ -6,8 +6,9 @@
 - `harmonic-2x4x4/`：使用 $2\times4\times4$ 超胞的 10 个 Gaussian 位移拟合 FC2；
 - `harmonic-3x5x5/`：在现有超胞的三个方向都增加一个 primitive cell，再独立拟合 FC2。
 
-两个谐波任务都使用 0.01 Å Cartesian Gaussian 位移、随机种子 42、`cutoff=None`
-和严格声学求和规则。它们使用相同的公开 hiPhive FCP 计算力，但不共享运行脚本或训练数据。
+两个谐波任务都使用 0.01 Å Cartesian Gaussian 位移、随机种子 42、显式 cutoff
+（2x4x4 为 8.33817828 Å、3x5x5 为 10.5981866 Å，取自各自有限 reference 的周期边界，
+使 primitive 模型固定而不随 reference 变化）和严格声学求和规则。它们使用相同的公开 hiPhive FCP 计算力，但不共享运行脚本或训练数据。
 
 ## 运行顺序
 

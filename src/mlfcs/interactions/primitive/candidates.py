@@ -6,54 +6,29 @@ from collections.abc import Iterator
 
 import numpy as np
 from ase import Atoms
-from ase.geometry import minkowski_reduce
 from ase.neighborlist import neighbor_list
 
 from mlfcs.interactions.keys import InteractionKey
 from mlfcs.structure.periodic_geometry import unique_periodic_distances
 
 
-def resolve_primitive_cutoff(
-    primitive: Atoms,
-    cutoff: float | None,
-    *,
-    reference: Atoms | None = None,
-) -> float:
-    """Resolve a distance, neighbor shell, or finite-reference cutoff."""
-    if cutoff is None:
-        if reference is None:
-            raise ValueError("cutoff=None requires an explicit reference supercell")
-        reduced_cell, _operation = minkowski_reduce(reference.cell, pbc=reference.pbc)
-        periodic_lengths = np.linalg.norm(
-            np.asarray(reduced_cell)[np.asarray(reference.pbc)], axis=1
-        )
-        if not len(periodic_lengths):
-            raise ValueError("cutoff=None requires at least one periodic direction")
-        upper = float(np.min(periodic_lengths)) + 1e-8
-        first, second, shifts, distances = neighbor_list(
-            "ijSd", reference, upper, self_interaction=False
-        )
-        by_pair: dict[tuple[int, int], list[tuple[float, tuple[int, int, int]]]] = {}
-        for atom_i, atom_j, shift, distance in zip(
-            first, second, shifts, distances, strict=True
-        ):
-            by_pair.setdefault((int(atom_i), int(atom_j)), []).append(
-                (float(distance), tuple(int(value) for value in shift))
-            )
-        boundaries = []
-        for (atom_i, atom_j), images in by_pair.items():
-            ordered = sorted(set(images))
-            if atom_i == atom_j and ordered:
-                boundaries.append(ordered[0][0])
-            elif atom_i != atom_j and len(ordered) > 1:
-                boundaries.append(ordered[1][0])
-        if not boundaries:
-            raise RuntimeError("could not determine a finite-cell cutoff boundary")
-        resolved = min(boundaries) - 0.01
-        if resolved <= 0:
-            raise ValueError("reference supercell is too small for cutoff=None")
-        return float(resolved)
+def resolve_primitive_cutoff(primitive: Atoms, cutoff: float) -> float:
+    """Resolve an explicit interaction radius.
 
+    A positive value is a distance in angstrom and a negative integer is a primitive
+    neighbour-shell index.  ``None`` is rejected: a primitive interaction model has to be
+    fixed by the primitive structure and an explicit radius, never by the size of the
+    finite reference that happens to observe it.  Whether a reference can identify that
+    model is a separate question, answered by realization identifiability, which raises
+    ``InteractionAliasingError`` instead of quietly shortening the model.
+    """
+    if cutoff is None:
+        raise ValueError(
+            "cutoff must be a positive distance in angstrom or a negative neighbour-shell "
+            "index; the reference-resolved cutoff=None is not supported. Pick the radius of "
+            "the primitive model explicitly and let realization identifiability check the "
+            "reference."
+        )
     value = float(cutoff)
     if value > 0:
         return value
@@ -64,9 +39,7 @@ def resolve_primitive_cutoff(
         raise ValueError("neighbor shell must be positive")
     radius = max(float(np.min(np.linalg.norm(np.asarray(primitive.cell), axis=1))), 1.0)
     for _ in range(16):
-        first, _second, distances = neighbor_list(
-            "ijd", primitive, radius, self_interaction=False
-        )
+        first, _second, distances = neighbor_list("ijd", primitive, radius, self_interaction=False)
         shells = []
         for site in range(len(primitive)):
             try:
@@ -74,9 +47,7 @@ def resolve_primitive_cutoff(
             except ValueError:
                 shells.append([])
         if all(len(values) > shell for values in shells):
-            return float(
-                max((values[shell - 1] + values[shell]) / 2.0 for values in shells)
-            )
+            return float(max((values[shell - 1] + values[shell]) / 2.0 for values in shells))
         radius *= 2.0
     raise RuntimeError("could not resolve the requested primitive neighbor shell")
 
@@ -86,9 +57,7 @@ def _primitive_neighbors(primitive: Atoms, cutoff: float):
         "ijSd", primitive, cutoff, self_interaction=True
     )
     result: list[list[tuple[int, int, int, int]]] = [[] for _ in primitive]
-    for anchor, site, shift, distance in zip(
-        first, second, shifts, distances, strict=True
-    ):
+    for anchor, site, shift, distance in zip(first, second, shifts, distances, strict=True):
         if float(distance) < cutoff:
             result[int(anchor)].append((int(site), *(int(value) for value in shift)))
     return [tuple(sorted(set(values))) for values in result]
@@ -109,10 +78,7 @@ def _compatible_tails(candidates, length, primitive: Atoms, cutoff: float):
         for location in range(start, len(candidates)):
             candidate = candidates[location]
             point = coordinate(candidate)
-            if all(
-                np.linalg.norm(point - coordinate(previous)) < cutoff
-                for previous in prefix
-            ):
+            if all(np.linalg.norm(point - coordinate(previous)) < cutoff for previous in prefix):
                 prefix.append(candidate)
                 yield from extend(location)
                 prefix.pop()

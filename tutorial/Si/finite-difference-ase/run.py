@@ -44,7 +44,7 @@ def _run() -> None:
         primitive,
         order=2,
         reference=reference,
-        cutoff=None,
+        cutoff=7.7237404951,
         displacement=0.01,
     )
     force_constants = calculation.run(calculator)

@@ -43,7 +43,7 @@ calculation = FiniteDifferenceCalculation(
     primitive,
     reference=reference,
     order=2,
-    cutoff=None,
+    cutoff=4.0,  # nearest-neighbour shell of fcc Al
 )
 fc2 = calculation.run(EMT())
 write_force_constants(fc2, "mlfcs.h5", format="hdf5")

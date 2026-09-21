@@ -32,7 +32,7 @@ calculation = FiniteDifferenceCalculation(
     primitive,
     reference=reference,
     order=2,
-    cutoff=None,
+    cutoff=7.7237404951,
     displacement=0.01,
 )
 force_constants = calculation.run(EMT())
@@ -45,7 +45,7 @@ write_force_constants(force_constants, "mlfcs.h5", format="hdf5")
 
 ## Common problems
 
-The primitive and reference must describe one exact integer-supercell relation. A real calculator may require a larger reference and a cutoff justified by convergence rather than this minimal demonstration.
+The primitive and reference must describe one exact integer-supercell relation. The cutoff belongs to the primitive model and is always explicit: a positive number is a distance in angstrom and a negative integer is a neighbour shell, so the model never depends on how large the reference that observes it happens to be. Here the radius is the boundary the $4\times4\times4$ reference of the Si case resolves; a real calculator may need a larger reference and a radius justified by convergence instead.
 
 ## Next steps
 
