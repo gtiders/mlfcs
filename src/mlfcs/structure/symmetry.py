@@ -6,7 +6,7 @@ import numpy as np
 import spglib
 from ase import Atoms
 
-from mlfcs.structure.integer_lattice import adjugate_3x3, determinant_3x3
+from mlfcs.structure.integer_lattice import supercell_lattice_compatible_indices
 
 
 @dataclass(frozen=True, slots=True)
@@ -21,14 +21,7 @@ class SymmetryOperations:
     def from_primitive_operations(cls, operations, index) -> SymmetryOperations:
         """Realize exact primitive affine symmetry operations on one reference."""
         matrix = index.supercell_matrix.astype(np.int64)
-        determinant = determinant_3x3(matrix)
-        adjugate = adjugate_3x3(matrix)
-        compatible = []
-        for operation, rotation in enumerate(operations.rotations):
-            numerator = matrix @ rotation.T @ adjugate
-            if np.all(np.mod(numerator, determinant) == 0):
-                compatible.append(operation)
-        selected = np.asarray(compatible, dtype=np.int32)
+        selected = supercell_lattice_compatible_indices(matrix, operations.rotations)
         rotations = operations.rotations[selected]
         translations = operations.translations[selected]
         cartesian_rotations = operations.cartesian_rotations[selected]
