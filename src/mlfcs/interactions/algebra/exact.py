@@ -33,7 +33,7 @@ from __future__ import annotations
 
 import math
 import operator
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 
 import numpy as np
 
@@ -301,6 +301,155 @@ def saturated_kernel(matrix) -> np.ndarray:
     return basis
 
 
+def canonical_lattice_basis(basis) -> np.ndarray:
+    r"""Return the canonical column basis of the integer lattice spanned by ``basis``.
+
+    A saturated kernel from Smith normal form spans the right lattice but its columns are
+    not unique for that lattice, so two implementations (or two sympy versions) may return
+    different columns for the same subspace. The column Hermite normal form is unique for a
+    given lattice, so applying it makes the result comparable bit by bit.
+
+    ``basis`` is an integer matrix whose *columns* span the lattice; the result is the
+    column Hermite normal form of that matrix, computed by
+    ``sympy.matrices.normalforms.hermite_normal_form`` (deferred import) on those columns.
+    The convention that comes back -- pinned by the tests, because it is the caller's only
+    handle on the result -- is:
+
+    * the shape is ``(height, rank)`` where ``height`` is the input's row count: dependent
+      columns are dropped, so a rank-deficient input returns fewer columns than it was
+      given. A basis with no columns, and an all-zero basis, both return ``(height, 0)``,
+      and an input with no rows returns ``(0, 0)``: the zero lattice is reported as zero
+      columns in the ambient space of the input;
+    * the columns are a ``Z``-basis of exactly the same lattice (checked below), ordered by
+      increasing pivot row;
+    * the *pivot* of a column is its bottom-most nonzero entry: it is positive, pivot rows
+      strictly increase from column to column, and the pivot row of column ``j`` is zero to
+      the left of ``j``. Entries above a pivot are reduced modulo it for the rows sympy's
+      algorithm processes, but the top rows it never reaches keep whatever elimination left
+      there, so no global reduction bound may be assumed -- a future reader must not read a
+      triangular normal form into the array;
+    * every entry is exact; entries that do not fit ``int64`` raise
+      :class:`~mlfcs.exceptions.IntegerRangeError`. That is the documented boundary of the
+      module: the ranking/kernel layer is arbitrary-precision, the tensor layer is int64.
+
+    Raises ``RuntimeError`` if the result does not span the same lattice as the input
+    (checked exactly, in both directions, in Python integers).
+
+    Examples, all pinned by the tests: ``[[4], [2], [0]]`` is already canonical,
+    ``[[3, 0], [2, 5]]`` becomes ``[[15, 9], [0, 1]]``, and the two primitive columns
+    ``(-1, 2, 0)``/``(-1, 0, 2)``, which span only a sublattice of the integer kernel of
+    ``[[2, 1, 1]]``, canonicalize to columns of *that sublattice*: canonicalizing a lattice
+    never saturates it, it only makes the basis unique.
+    """
+    height, width, rows = _integer_rows(basis)
+    if width == 0 or height == 0:
+        return np.zeros((height, 0), dtype=np.int64)
+    from sympy import Matrix
+    from sympy.matrices.normalforms import hermite_normal_form
+
+    table = hermite_normal_form(Matrix(rows)).tolist()
+    canonical = np.zeros((height, len(table[0])), dtype=np.int64)
+    for row, values in enumerate(table):
+        for column, value in enumerate(values):
+            entry = int(value)
+            if not _INT64_MIN <= entry <= _INT64_MAX:
+                raise IntegerRangeError(
+                    f"canonical lattice basis entry {entry} at ({row}, {column}) does not "
+                    "fit int64; reduce the primitive cell before building orbit algebra"
+                )
+            canonical[row, column] = entry
+    _verify_same_lattice(rows, height, canonical)
+    return canonical
+
+
+def _column_lattice_test(rows: list[list[int]], height: int) -> Callable[[list[int]], bool]:
+    """Return an exact membership test for the lattice spanned by the columns of ``rows``.
+
+    The fast path covers every basis this module is used on: when the columns are
+    independent the coordinates of a vector are unique, so an exact rational solve decides
+    membership as soon as the diagonal denominators are inspected.  With dependent columns
+    a rational solution can be non-integral while an integer one exists, so the decision
+    falls back to the Smith normal form criterion of :func:`_lattice_oracle`, which is exact
+    for any integer matrix but much more expensive.
+    """
+    from sympy import Matrix
+
+    matrix = Matrix(rows)
+    smith: tuple[list[int], list[list[int]]] | None = None
+
+    def contains(vector: list[int]) -> bool:
+        nonlocal smith
+        try:
+            solution, parameters = matrix.gauss_jordan_solve(Matrix(vector))
+        except ValueError:  # the columns cannot reach the vector at all
+            return False
+        if not len(parameters):
+            return all(value.q == 1 for value in solution)
+        if smith is None:
+            smith = _lattice_oracle(rows, height)
+        return _in_oracle_lattice(smith[0], smith[1], vector)
+
+    return contains
+
+
+def _lattice_oracle(rows: list[list[int]], height: int) -> tuple[list[int], list[list[int]]]:
+    """Return ``(divisors, left)`` that decide exact membership of the column lattice.
+
+    ``smith_normal_decomp`` returns ``(D, U, V)`` with ``matrix == U**-1 D V**-1`` (pinned
+    by the tests), so the columns of ``matrix`` are ``{U**-1 D y}`` and a vector ``v`` is an
+    integer combination of them exactly when ``U @ v`` is divisible by the diagonal of ``D``
+    in the leading positions and zero beyond them.
+    """
+    from sympy import ZZ, Matrix
+    from sympy.polys.matrices import DomainMatrix
+    from sympy.polys.matrices.normalforms import smith_normal_decomp
+
+    domain = DomainMatrix.from_Matrix(Matrix(rows)).convert_to(ZZ)
+    diagonal, left, _right = smith_normal_decomp(domain)
+    diagonal_matrix = diagonal.to_Matrix()
+    left_rows = [[int(value) for value in row] for row in left.to_Matrix().tolist()]
+    width = len(rows[0])
+    divisors = [int(diagonal_matrix[index, index]) for index in range(min(height, width))]
+    return divisors, left_rows
+
+
+def _in_oracle_lattice(divisors: list[int], left: list[list[int]], column: list[int]) -> bool:
+    """Exact test that ``column`` is an integer combination of an oracle's columns."""
+    for index, row in enumerate(left):
+        value = sum(entry * component for entry, component in zip(row, column, strict=True))
+        if index >= len(divisors) or divisors[index] == 0:
+            if value:
+                return False
+        elif value % divisors[index]:
+            return False
+    return True
+
+
+def _verify_same_lattice(rows: list[list[int]], height: int, canonical: np.ndarray) -> None:
+    """Raise ``RuntimeError`` unless the canonical columns span the input lattice.
+
+    Both directions are checked, because either failure mode is silent otherwise: an
+    enlarged result would fit parameters the constraints do not allow, a shrunk one would
+    drop invariant parameters.
+    """
+    width = len(rows[0])
+    canonical_rows = [[int(value) for value in row] for row in canonical.tolist()]
+    in_input = _column_lattice_test(rows, height)
+    for column in range(canonical.shape[1]):
+        if not in_input([row[column] for row in canonical_rows]):
+            raise RuntimeError(
+                f"canonical lattice basis column {column} is not an integer combination of "
+                f"the {width} input columns"
+            )
+    in_canonical = _column_lattice_test(canonical_rows, height)
+    for column in range(width):
+        if not in_canonical([row[column] for row in rows]):
+            raise RuntimeError(
+                f"input column {column} is not an integer combination of the "
+                f"{canonical.shape[1]} canonical lattice basis columns"
+            )
+
+
 def verify_kernel(matrix, basis) -> None:
     """Exact check that ``matrix @ basis`` is the zero matrix over the integers.
 
@@ -323,6 +472,7 @@ def verify_kernel(matrix, basis) -> None:
 
 __all__ = [
     "RANK_PRIMES",
+    "canonical_lattice_basis",
     "certified_pivots",
     "certified_rank",
     "hadamard_bound",

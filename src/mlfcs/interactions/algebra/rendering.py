@@ -26,8 +26,22 @@ from scipy.linalg import qr
 
 from mlfcs.interactions.algebra.actions import as_int64
 
-# Two row sets whose volumes differ by less than this are the same choice.
-_VOLUME_EPSILON = 1e-12
+#: Every candidate row set whose log volume is within this of the best so far counts as a
+#: tie, so the smallest row index wins; compare with the relative volume it describes.
+_VOLUME_TOLERANCE = 1e-12
+
+#: Largest accepted ``max(abs(Q.T @ Q - I))`` for an observation basis.  The basis comes
+#: from a QR factorization and is orthonormal to machine precision (about ``1e-15`` on the
+#: orbits of this branch); anything looser than this is a caller passing a non-orthonormal
+#: basis, usually the raw Cartesian basis ``C``, whose volumes mean nothing.
+_ORTHONORMAL_TOLERANCE = 1e-8
+
+#: Largest accepted 2-norm condition number of the selected observation block.  A solve
+#: loses about one decimal digit per decade of condition number, so ``1e6`` keeps ten of
+#: the sixteen double-precision digits.  This is a bound on the sloppiness the selection
+#: may absorb, not a state an orthonormal basis reaches: the greedy residual at step ``j``
+#: is at least ``sqrt((d - j + 1) / rows)``, and no material of this branch passes 4.9.
+_MAX_OBSERVATION_CONDITION = 1e6
 
 if TYPE_CHECKING:  # pragma: no cover - import cycle free type-only import
     from mlfcs.structure.lattice_frame import LatticeFrame
@@ -72,21 +86,58 @@ def orthonormal_orbit_basis(cartesian: np.ndarray) -> tuple[np.ndarray, np.ndarr
     return orthonormal * signs, transform * signs[:, None]
 
 
-def select_observation_rows(orthonormal: np.ndarray, dimension: int) -> np.ndarray:
-    """Return the component rows a finite-difference plan observes for one orbit.
+def _require_orthonormal(basis: np.ndarray) -> None:
+    """Reject a basis whose columns are not orthonormal to the documented tolerance."""
+    columns = basis.shape[1]
+    if columns == 0:
+        return
+    deviation = float(np.max(np.abs(basis.T @ basis - np.eye(columns))))
+    if deviation > _ORTHONORMAL_TOLERANCE:
+        raise ValueError(
+            f"observation rows require an orthonormal basis: max(abs(Q.T @ Q - I)) = "
+            f"{deviation:.3e} exceeds the accepted {_ORTHONORMAL_TOLERANCE:.0e}"
+        )
 
-    Rows are added greedily to maximize the volume of the selected block, that is the
-    determinant of ``Q[rows] Q[rows].T``; the first row that attains the largest volume
-    wins, so the choice is a deterministic function of the subspace.  A maximal-volume
-    row set keeps the observation matrix well conditioned, which a rank-revealing QR need
-    not: it only bounds the trailing block, and on an order-4 anharmonic space its rows
-    amplified the finite-difference truncation error by 10 percent against the
-    maximal-volume set.
+
+def select_observation_rows(orthonormal: np.ndarray, dimension: int) -> np.ndarray:
+    r"""Return the component rows a finite-difference plan observes for one orbit.
+
+    ``orthonormal`` is $Q$, an orthonormal basis of the orbit's Cartesian subspace, with
+    one row per tensor component and one column per parameter: **row** ``r`` is the
+    component whose axes are ``np.unravel_index(r, (3,) * order)``, i.e. the rows are
+    enumerated in the Cartesian component order of ``np.ndindex``, which is the order the
+    finite-difference plans and the reconstruction use.  The basis must be orthonormal --
+    ``max(abs(Q.T @ Q - I)) <= 1e-8`` -- because the selection maximizes volumes, which are
+    only meaningful for an orthonormal basis; a larger deviation raises ``ValueError``
+    naming it, and the usual cause is the raw Cartesian basis $C$ instead of its QR factor.
+
+    Rows are added greedily to maximize the volume of the selected block: the Gram volume
+    $\sqrt{\det(Q[S] Q[S]^T)}$, which for a square block is $|\det Q[S]|$ and always the
+    product of the singular values.  Candidates are visited in ascending row order and
+    replace the incumbent only when their log volume exceeds it by more than ``1e-12``, so
+    a volume tie inside that tolerance resolves to the *smallest* row index, and the
+    returned rows are ascending.  This is a greedy heuristic and *not* a global
+    maximum-volume solution: it never compares against row sets it did not walk through.
+    It is nevertheless a strong one -- and the reason to keep it -- because a
+    maximal-volume row set keeps the observation matrix well conditioned, which a
+    rank-revealing QR need not: it only bounds the trailing block, and on an order-4
+    anharmonic space its rows amplified the finite-difference truncation error by
+    10 percent against the maximal-volume set.
+
+    Every candidate volume is unchanged by a right multiplication with an orthogonal
+    matrix, $\det(Q[S] O O^T Q[S]^T) = \det(Q[S] Q[S]^T)$, so the selection is invariant
+    under $Q \to Q O$: it is a function of the subspace alone, not of which orthonormal
+    basis of it happens to be stored.  A selection whose 2-norm condition number exceeds
+    :data:`_MAX_OBSERVATION_CONDITION` cannot be solved stably and raises ``RuntimeError``
+    naming the value.
 
     These rows are *observations*, not parameter pivots: the parameters are the
     coefficients of ``Q``, and reconstruction solves ``Q[rows] @ theta = y[rows]``.
     """
     values = np.asarray(orthonormal, dtype=float)
+    if values.ndim != 2:
+        raise ValueError(f"expected a 2D orthonormal basis, got shape {values.shape}")
+    _require_orthonormal(values)
     if dimension < 0 or dimension > values.shape[1]:
         raise ValueError(f"cannot select {dimension} observation rows from {values.shape}")
     if dimension == 0:
@@ -102,12 +153,20 @@ def select_observation_rows(orthonormal: np.ndarray, dimension: int) -> np.ndarr
             singular = np.linalg.svd(trial, compute_uv=False)
             # A rank-deficient candidate has zero volume and is never the best choice.
             score = float(np.sum(np.log(singular))) if np.all(singular > 0.0) else -np.inf
-            if score > best_score + _VOLUME_EPSILON:
+            if score > best_score + _VOLUME_TOLERANCE:
                 best_row, best_score = row, score
         if best_row < 0:
             raise RuntimeError(f"could not select {dimension} independent observation rows")
         selected.append(best_row)
-    return np.sort(np.asarray(selected, dtype=np.int32))
+    rows = np.sort(np.asarray(selected, dtype=np.int32))
+    condition = observation_condition(values[rows])
+    if condition > _MAX_OBSERVATION_CONDITION:
+        raise RuntimeError(
+            f"the greedy observation rows have 2-norm condition number {condition:.6g}, "
+            f"above the accepted maximum {_MAX_OBSERVATION_CONDITION:.0e}: the selected "
+            "block cannot be solved for the parameters stably"
+        )
+    return rows
 
 
 def observation_matrix(orthonormal: np.ndarray, rows: np.ndarray) -> np.ndarray:
