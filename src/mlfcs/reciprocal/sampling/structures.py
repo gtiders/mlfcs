@@ -9,8 +9,8 @@ from ase import Atoms
 
 from mlfcs.force_constants.realization import realize_force_constants
 from mlfcs.force_constants.representation import ForceConstants
-from mlfcs.sampling.gaussian import gaussian_displacements
 from mlfcs.reciprocal.sampling.harmonic import HarmonicSampler, SamplingState
+from mlfcs.sampling.gaussian import gaussian_displacements
 
 logger = logging.getLogger(__name__)
 

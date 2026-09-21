@@ -18,11 +18,9 @@ from mlfcs.force_constants.dense import lattice_fc2, replace_lattice_fc2
 from mlfcs.force_constants.representation import (
     ForceConstants,
 )
+from mlfcs.reciprocal.fourier import dynamical_matrices, dynamical_matrix, fourier_terms
 from mlfcs.reciprocal.grid import quotient_qpoints
 from mlfcs.reciprocal.scph.fourier import (
-    _dynamical,
-    _dynamical_batch,
-    _fourier_terms,
     _multiplier,
     _needed_covariances,
     _validate_relation,
@@ -213,7 +211,7 @@ class LoopSCPH:
         relation = self.fc2.relation
         assert relation is not None
         masses = np.asarray(relation.primitive.get_masses(), dtype=float)
-        terms = _fourier_terms(lattice, relation.primitive)
+        terms = fourier_terms(lattice, relation.primitive)
         primitive_positions = relation.primitive.get_scaled_positions(wrap=False)
         qpoints = self._qpoints(multiplier)
         n = len(qpoints)
@@ -223,7 +221,7 @@ class LoopSCPH:
         def covariance_at_q(q_chunk):
             result = {}
             q_chunk = np.asarray(q_chunk, dtype=float)
-            dynamical = _dynamical_batch(terms, masses, q_chunk)
+            dynamical = dynamical_matrices(terms, masses, q_chunk)
             values, vectors = np.linalg.eigh(dynamical)
             sigma2 = (
                 mode_sigma(
@@ -283,11 +281,11 @@ class LoopSCPH:
         relation = self.fc2.relation
         assert relation is not None
         masses = np.asarray(relation.primitive.get_masses(), dtype=float)
-        terms = _fourier_terms(lattice, relation.primitive)
+        terms = fourier_terms(lattice, relation.primitive)
         values = []
         qpoints = self._qpoints(multiplier)
         for q in qpoints:
-            eigenvalues = np.linalg.eigvalsh(_dynamical(terms, masses, q))
+            eigenvalues = np.linalg.eigvalsh(dynamical_matrix(terms, masses, q))
             values.append(np.sqrt(np.abs(eigenvalues)) * np.sign(eigenvalues) * _OMEGA_TO_THZ)
         return np.asarray(qpoints), np.asarray(values)
 

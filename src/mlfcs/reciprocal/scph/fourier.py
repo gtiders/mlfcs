@@ -6,6 +6,10 @@ import numpy as np
 
 from mlfcs.force_constants.dense import lattice_fc2
 from mlfcs.force_constants.representation import ForceConstants, SparseOrderForceConstants
+from mlfcs.reciprocal.fourier import (
+    dynamical_matrix,
+    fourier_terms,
+)
 from mlfcs.reciprocal.grid import quotient_qpoints
 from mlfcs.reciprocal.statistics import OMEGA_TO_THZ as _OMEGA_TO_THZ
 
@@ -13,17 +17,22 @@ from mlfcs.reciprocal.statistics import OMEGA_TO_THZ as _OMEGA_TO_THZ
 def harmonic_frequencies(
     fc2: ForceConstants, interpolation_multiplier: int = 1
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Return harmonic frequencies on a reference-supercell-derived q grid."""
+    """Return harmonic frequencies on a reference-supercell-derived q grid.
+
+    Frequencies are gauge invariant, but the dynamical matrices come from
+    :mod:`mlfcs.reciprocal.fourier`, so this path and the harmonic sampler share one
+    convention.
+    """
     if 2 not in fc2.orders or fc2.relation is None:
         raise ValueError("fc2 must contain order-2 force constants and a structure relation")
     masses = np.asarray(fc2.relation.primitive.get_masses(), dtype=float)
     lattice = lattice_fc2(fc2)
-    terms = _fourier_terms(lattice, fc2.relation.primitive)
+    terms = fourier_terms(lattice, fc2.relation.primitive)
     multiplier = _multiplier(interpolation_multiplier, "interpolation_multiplier")
     qpoints = quotient_qpoints(multiplier * fc2.relation.supercell_matrix)
     frequencies = []
     for q in qpoints:
-        values = np.linalg.eigvalsh(_dynamical(terms, masses, q))
+        values = np.linalg.eigvalsh(dynamical_matrix(terms, masses, q))
         frequencies.append(np.sqrt(np.abs(values)) * np.sign(values) * _OMEGA_TO_THZ)
     return qpoints, np.asarray(frequencies)
 
@@ -45,40 +54,6 @@ def _validate_relation(fc2: ForceConstants, fc4: ForceConstants) -> None:
         or not np.allclose(r2.primitive.positions, r4.primitive.positions, atol=1e-8, rtol=1e-10)
     ):
         raise ValueError("fc2 and fc4 primitive structures differ")
-
-
-def _fourier_terms(lattice, primitive):
-    """Build Fourier terms directly from exact primitive-lattice FC2 labels."""
-    terms = []
-    scaled = primitive.get_scaled_positions(wrap=False)
-    for (first, site, translation), tensor in lattice.items():
-        vector = scaled[site] - scaled[first] + np.asarray(translation, dtype=float)
-        terms.append((first, site, vector, tensor))
-    return terms
-
-
-def _dynamical(terms, masses: np.ndarray, q: np.ndarray) -> np.ndarray:
-    n = len(masses)
-    matrix = np.zeros((3 * n, 3 * n), dtype=complex)
-    for a, b, images, tensor in terms:
-        phase = np.exp(2j * np.pi * float(images @ q))
-        matrix[3 * a : 3 * a + 3, 3 * b : 3 * b + 3] += (
-            tensor * phase / np.sqrt(masses[a] * masses[b])
-        )
-    return (matrix + matrix.conj().T) / 2
-
-
-def _dynamical_batch(terms, masses: np.ndarray, qpoints: np.ndarray) -> np.ndarray:
-    """Build all q-point dynamical matrices in one bounded batch."""
-    qpoints = np.asarray(qpoints, dtype=float).reshape((-1, 3))
-    n = len(masses)
-    matrix = np.zeros((len(qpoints), 3 * n, 3 * n), dtype=complex)
-    for first, second, images, tensor in terms:
-        phase = np.exp(2j * np.pi * (qpoints @ images))
-        matrix[:, 3 * first : 3 * first + 3, 3 * second : 3 * second + 3] += (
-            phase[:, None, None] * tensor / np.sqrt(masses[first] * masses[second])
-        )
-    return (matrix + matrix.conj().swapaxes(-1, -2)) / 2
 
 
 def _needed_covariances(
