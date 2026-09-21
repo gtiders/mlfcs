@@ -7,6 +7,7 @@ from typing import Literal
 import numpy as np
 from ase import Atoms, units
 
+from mlfcs.reciprocal.fourier import compact_dynamical_matrix
 from mlfcs.reciprocal.grid import reciprocal_quotient_grid
 from mlfcs.reciprocal.statistics import HBAR_ASE, OMEGA_TO_THZ, mode_sigma
 from mlfcs.structure.supercell_mapping import PeriodicIndex
@@ -101,6 +102,7 @@ class HarmonicSampler:
         if len(supercell) != self._n_cells * self._n_primitive:
             raise ValueError("supercell atom count and translation metadata disagree")
         self._masses = np.asarray(primitive.get_masses(), dtype=float)
+        self._positions = np.asarray(primitive.get_scaled_positions(wrap=False), dtype=float)
         cells: dict[tuple[int, int, int], np.ndarray] = {}
         for translation in self._translations:
             cells.setdefault(self._index.residue(translation), translation)
@@ -139,23 +141,32 @@ class HarmonicSampler:
         for modes in self._modes:
             sigma = self._mode_sigma(modes.eigenvalues)
             sigma = np.where(modes.included, sigma, 0.0)
-            phase = np.exp(2j * np.pi * (self._cell_translations @ modes.qpoint))
+            phase = np.exp(
+                2j
+                * np.pi
+                * np.einsum(
+                    "cad,d->ca",
+                    self._cell_translations[:, None, :] + self._positions[None, :, :],
+                    modes.qpoint,
+                )
+            )
             if modes.paired:
                 normal = (
                     rng.standard_normal((snapshots, len(sigma)))
                     + 1j * rng.standard_normal((snapshots, len(sigma)))
                 ) / np.sqrt(2.0)
                 reduced = (normal * sigma) @ modes.eigenvectors.T
-                field = np.sqrt(2.0 / self._n_cells) * np.real(
-                    reduced[:, None, :] * phase[None, :, None]
-                )
+                factor = np.sqrt(2.0 / self._n_cells)
             else:
                 normal = rng.standard_normal((snapshots, len(sigma)))
                 reduced = (normal * sigma) @ modes.eigenvectors.T
-                field = np.real(reduced[:, None, :] * phase[None, :, None]) / np.sqrt(self._n_cells)
-            displacement += (
-                field.reshape(snapshots, self._n_cells, self._n_primitive, 3) * inverse_root_mass
+                factor = 1.0 / np.sqrt(self._n_cells)
+            field = np.real(
+                factor
+                * reduced.reshape(snapshots, self._n_primitive, 3)[:, None, :, :]
+                * phase[None, :, :, None]
             )
+            displacement += field * inverse_root_mass
 
         values = np.zeros((snapshots, len(self.supercell), 3), dtype=float)
         values[:, self._cell_atoms.reshape(-1)] = displacement.reshape(
@@ -240,15 +251,19 @@ class HarmonicSampler:
         return tuple(modes)
 
     def _dynamical_matrix(self, qpoint: np.ndarray) -> np.ndarray:
-        values = self._compact[:, self._cell_atoms.reshape(-1)].reshape(
-            self._n_primitive, self._n_cells, self._n_primitive, 3, 3
+        """Return the mass-weighted dynamical matrix in the positional gauge.
+
+        The kernel lives in :mod:`mlfcs.reciprocal.fourier`, so this sampler and the SCPH
+        path build the same matrix and can share one symmetry representation.
+        """
+        return compact_dynamical_matrix(
+            self._compact,
+            self._cell_atoms,
+            self._cell_translations,
+            self._positions,
+            self._masses,
+            qpoint,
         )
-        phase = np.exp(2j * np.pi * (self._cell_translations @ qpoint))
-        blocks = np.einsum("c,kclab->kalb", phase, values, optimize=True)
-        mass = np.sqrt(self._masses[:, None] * self._masses[None, :])
-        blocks /= mass[:, None, :, None]
-        matrix = blocks.transpose(0, 1, 2, 3).reshape(3 * self._n_primitive, 3 * self._n_primitive)
-        return (matrix + matrix.conj().T) / 2
 
     def _gamma_internal_modes(self, dynamical: np.ndarray):
         translations = np.zeros((3 * self._n_primitive, 3))

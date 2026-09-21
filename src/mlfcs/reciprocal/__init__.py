@@ -17,8 +17,13 @@ production package may import :mod:`mlfcs.reciprocal`.  That rule is enforced by
 """
 
 from mlfcs.reciprocal.grid import (
+    IrreducibleReciprocalGrid,
+    ReciprocalGridSymmetry,
     ReciprocalQuotientGrid,
+    ReciprocalStar,
+    irreducible_reciprocal_grid,
     quotient_qpoints,
+    reciprocal_grid_symmetry,
     reciprocal_quotient_grid,
 )
 from mlfcs.reciprocal.sampling.harmonic import HarmonicSampler, SamplingState
@@ -28,18 +33,23 @@ from mlfcs.reciprocal.scph.solver import LoopSCPH, LoopSCPHIteration, LoopSCPHRe
 from mlfcs.reciprocal.sscha.solver import SSCHA, SSCHAIteration, SSCHAResult
 
 __all__ = [
+    "SSCHA",
     "HarmonicSampler",
+    "IrreducibleReciprocalGrid",
     "LoopSCPH",
     "LoopSCPHIteration",
     "LoopSCPHResult",
+    "ReciprocalGridSymmetry",
     "ReciprocalQuotientGrid",
-    "SSCHA",
+    "ReciprocalStar",
     "SSCHAIteration",
     "SSCHAResult",
     "SamplingBatch",
     "SamplingState",
     "harmonic_frequencies",
+    "irreducible_reciprocal_grid",
     "perturb_structures",
     "quotient_qpoints",
+    "reciprocal_grid_symmetry",
     "reciprocal_quotient_grid",
 ]
