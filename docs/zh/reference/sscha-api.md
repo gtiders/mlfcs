@@ -129,8 +129,9 @@ run(
 
 ## `SSCHAIteration` 与 `SSCHAResult`
 
-每轮保存：`index`、`sampling`、自由能及误差、实际/谐波势能、q 点与模态计数、最小频率、最大采样位移、
-裁剪原子数、拟合相对力误差、混合后和原始 FC2 相对变化。Cartesian bootstrap 中不适用的频率字段为
+每轮保存：`index`、`sampling`、自由能及误差、实际/谐波势能、q 点与模态计数（`n_qpoints` 为完整网格、
+`n_irreducible` 为不可约点数）、最小频率、最大采样位移、裁剪原子数、拟合相对力误差、混合后和原始 FC2
+相对变化。Cartesian bootstrap 中不适用的频率字段为
 `None`。
 
 `SSCHAResult` 保存 `temperature`、最终 `force_constants` 与完整 `history`。多温度返回

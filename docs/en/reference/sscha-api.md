@@ -44,4 +44,6 @@ perturb_structures(
 
 Gaussian sampling removes each snapshot's center-of-mass displacement. Harmonic sampling requires FC2 and temperature, realizes FC2 in `reference`, and uses the same mode pairing, frequency cutoff, imaginary-mode policy, and clipping implementation as SSCHA.
 
-Iteration statistics are direct fields of `SSCHAIteration`; there is no separate diagnostics object or public harmonic-ensemble class.
+Iteration statistics are direct fields of `SSCHAIteration`; there is no separate diagnostics object or public harmonic-ensemble class. Each iteration records both the full grid size (`n_qpoints`) and the irreducible count (`n_irreducible`), because the sampler diagonalizes representatives only while every full q point keeps its own random degrees of freedom.
+
+The sampler itself exposes `grid`, `irreducible_qpoints`, `irreducible_frequencies`, `weights` and `full_qpoints()`; `SamplingState` reports `n_qpoints` and `n_irreducible` next to the mode counts.

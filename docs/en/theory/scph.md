@@ -35,10 +35,65 @@ supercell matrix. `interpolation_multiplier` controls the reported frequency
 grid and `scph_multiplier` controls the loop integration grid; the latter must
 be an integer multiple of the former.
 
+The grid itself is still the exact quotient of the finite translation group, but **the
+diagonalization happens only at irreducible representative points**. The operations that keep
+the grid split it into stars, each star carrying one representative and its members, and a
+member is related to its representative by the space-group representation $U_g(q)$:
+
+$$
+ D(gq)=U_g(q)\,D(q)\,U_g(q)^\dagger,\qquad
+ W(gq_s)=U_g\,W(q_s)\,U_g^\dagger,
+$$
+
+where $W(q)=V\operatorname{diag}(\sigma^2)V^\dagger$ is the basis-independent covariance
+matrix; a member reached through time reversal is complex conjugated first. Frequencies and
+every other spectral quantity are equal across a star, so the full mesh is *exactly* expanded
+from the representative data, and the expansion never enters an eigensolver again. The
+positional gauge turns the primitive reciprocal lattice translation between a member's stored
+label and the *unreduced* image of its representative into the diagonal factor
+$\Gamma_G=\operatorname{diag}(\exp[2\pi i\,G\cdot\tau_a])$, which the covariance expansion
+has to apply as well; without it the matrix and the Fourier phase differ by a factor of order
+one on exactly the members whose label reduction bites.
+
+An SCPH iteration therefore works on representatives only:
+
+1. build and diagonalize $D(q_s)$ at the irreducible representatives and form $C(T)$, whose
+   covariance is summed over the full star expansion;
+2. contract every FC4 entry with that covariance;
+3. form the target $\Phi_2^{\text{target}}=\Phi_2^{\text{bare}}+\Delta\Phi_2$;
+4. stop when the star-weighted full-grid RMS frequency change
+   $\Delta\omega=\sqrt{\frac{1}{N_qN_b}\sum_s w_s\lVert\omega_s^{(n)}-\omega_s^{(n-1)}\rVert_2^2}$
+   falls below the tolerance, which equals the RMS of the expanded change.
+
+The star weights $w_s$ are the star sizes and sum to $N_q$. The covariance sum is a *real*
+sum over the full star: weights are used for statistics (free energy, mode counts, the
+convergence norm) and never to scale a representative's matrix, because members differ by a
+rotation and not by a scalar.
+
 `mixing` is covariance under-relaxation. An iteration is accepted as converged when the RMS frequency
 change on the interpolation grid is below `tolerance`. Imaginary frequencies are retained as a
 physical diagnostic and do not add a separate stopping condition. This implementation is loop-only;
 it does not include the frequency-dependent bubble self-energy.
+
+## Performance
+
+`scripts/benchmark_reciprocal_reduction.py` reproduces the comparison below. Diagonalizations
+are counted as *matrices*, not as calls: one batched `eigh` over the representatives is
+`N_irr` diagonalizations. The model is an isotropic spring network for FC2 plus an on-site
+quartic term, with `interpolation_multiplier=2`:
+
+| system | $N_q$ | $N_{\mathrm{irr}}$ | reduction | frequency diagonalizations | one SCPH sweep |
+|---|---|---|---|---|---|
+| diamond 2x2x2 | 64 | 8 | 8.00 | 8 (64 on the full grid) | 9 (24 on the full grid) |
+| hcp 2x2x2 | 64 | 12 | 5.33 | 12 (64 on the full grid) | 12 (24 on the full grid) |
+| GaAs 3x2x2 | 96 | 34 | 2.82 | 34 (96 on the full grid) | 18 (36 on the full grid) |
+
+The merge criterion is that the diagonalization count equals $N_{\mathrm{irr}}$ exactly, not
+that the wall clock improves: a small cell still pays a one-off symmetry analysis, so it may
+look slower than the full grid, and a low-symmetry cell may barely speed up at all. That is
+the correct result and must not be manufactured by enlarging the symmetry group.
+
+## Temperature continuation
 
 For several temperatures, use temperature continuation. Temperatures are evaluated in ascending
 order, and the effective FC2 from one temperature initializes the next one.
