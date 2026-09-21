@@ -5,15 +5,25 @@ from supercell_helpers import make_supercell
 
 from mlfcs import realize_force_constants, write_force_constants
 from mlfcs.finite_difference.calculation import FiniteDifferenceCalculation
+from mlfcs.finite_difference.plan_identity import ForceBatch
 from mlfcs.force_constants.realization import build_export_view
 from mlfcs.io.hdf5 import read_hdf5
+
+
+def _zero_batch(calculation, n_atoms):
+    forces = np.zeros((len(calculation.plan), n_atoms, 3))
+    return ForceBatch(
+        fingerprint=calculation.manifest.fingerprint,
+        configuration_ids=tuple(range(len(forces))),
+        forces=forces,
+    )
 
 
 def _result():
     primitive = Atoms("Si", positions=[[0, 0, 0]], cell=np.eye(3) * 4, pbc=True)
     reference = primitive.repeat((2, 1, 1))[[1, 0]]
     calculation = FiniteDifferenceCalculation(primitive, reference=reference, order=2, cutoff=3.0)
-    return calculation.reap(np.zeros((len(calculation.plan), len(reference), 3)))
+    return calculation.reap(_zero_batch(calculation, len(reference)))
 
 
 def test_export_view_relabels_an_equivalent_reordered_reference(tmp_path):
@@ -116,7 +126,7 @@ def test_export_view_rejects_cartesian_rotation():
     )
     reference = primitive.repeat((2, 1, 1))
     calculation = FiniteDifferenceCalculation(primitive, reference=reference, order=2, cutoff=3.0)
-    result = calculation.reap(np.zeros((len(calculation.plan), len(reference), 3)))
+    result = calculation.reap(_zero_batch(calculation, len(reference)))
     rotation = np.asarray([[0, -1, 0], [1, 0, 0], [0, 0, 1]])
     rotated = primitive.copy()
     rotated.set_cell(rotation @ primitive.cell, scale_atoms=False)

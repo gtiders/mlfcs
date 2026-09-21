@@ -6,14 +6,24 @@ from ase import Atoms
 from mlfcs import read_hdf5 as public_read_hdf5
 from mlfcs import realize_force_constants, write_force_constants
 from mlfcs.finite_difference.calculation import FiniteDifferenceCalculation
+from mlfcs.finite_difference.plan_identity import ForceBatch
 from mlfcs.io.hdf5 import read_hdf5
+
+
+def _zero_batch(calculation, n_atoms):
+    forces = np.zeros((len(calculation.plan), n_atoms, 3))
+    return ForceBatch(
+        fingerprint=calculation.manifest.fingerprint,
+        configuration_ids=tuple(range(len(forces))),
+        forces=forces,
+    )
 
 
 def test_native_hdf5_v3_roundtrip_preserves_exact_lattice_labelled_sparse_ifcs(tmp_path):
     primitive = Atoms("Si", positions=[[0, 0, 0]], cell=np.eye(3) * 4, pbc=True)
     reference = primitive.repeat((2, 1, 1))[[1, 0]]
     calculation = FiniteDifferenceCalculation(primitive, reference=reference, order=2, cutoff=3.0)
-    result = calculation.reap(np.zeros((len(calculation.plan), len(reference), 3)))
+    result = calculation.reap(_zero_batch(calculation, len(reference)))
     target = tmp_path / "fc-v3.h5"
     write_force_constants(result, target, format="hdf5")
     restored = public_read_hdf5(target)
@@ -45,7 +55,7 @@ def test_native_hdf5_contains_no_source_supercell_mapping(tmp_path):
     primitive = Atoms("Si", positions=[[0, 0, 0]], cell=np.eye(3) * 4, pbc=True)
     reference = primitive.repeat((2, 1, 1))
     calculation = FiniteDifferenceCalculation(primitive, reference=reference, order=2, cutoff=3.0)
-    result = calculation.reap(np.zeros((len(calculation.plan), len(reference), 3)))
+    result = calculation.reap(_zero_batch(calculation, len(reference)))
     target = tmp_path / "tampered.hdf5"
     write_force_constants(result, target, format="hdf5")
     with h5py.File(target) as handle:

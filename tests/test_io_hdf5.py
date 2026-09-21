@@ -5,6 +5,9 @@ import numpy as np
 import pytest
 from ase import Atoms
 from ase.build import bulk
+
+pytest.importorskip("phonopy", reason="phonopy is a reference-test oracle")
+pytest.importorskip("phono3py", reason="phono3py is a reference-test oracle")
 from phono3py.file_IO import read_fc3_from_hdf5
 from phonopy.file_IO import read_force_constants_hdf5
 from supercell_helpers import make_supercell
@@ -14,6 +17,7 @@ from mlfcs import (
     ForceConstants,
     write_force_constants,
 )
+from mlfcs.finite_difference.plan_identity import ForceBatch
 from mlfcs.force_constants.representation import SparseOrderForceConstants
 from mlfcs.structure.relation import StructureRelation
 
@@ -27,7 +31,13 @@ def test_reap_keeps_sparse_clusters_and_hdf5_writes_them(tmp_path):
         cutoff=-1,
     )
     forces = np.zeros((len(calculation.plan), len(calculation.supercell), 3))
-    result = calculation.reap(forces)
+    result = calculation.reap(
+        ForceBatch(
+            fingerprint=calculation.manifest.fingerprint,
+            configuration_ids=tuple(range(len(forces))),
+            forces=forces,
+        )
+    )
     assert result.arrays == {}
     assert result.orders == (3,)
 

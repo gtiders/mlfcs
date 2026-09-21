@@ -3,6 +3,7 @@ import pytest
 from ase import Atoms
 
 from mlfcs import SSCHA, FiniteDifferenceCalculation, build_supercell, realize_force_constants
+from mlfcs.finite_difference.plan_identity import ForceBatch
 from mlfcs.fitting.fitter import ForceConstantFitter
 from mlfcs.force_constants.expansion import expand_primitive_parameters
 from mlfcs.force_constants.representation import ForceConstants, SparseOrderForceConstants
@@ -154,8 +155,14 @@ def test_exact_ifcs_realize_into_a_different_supercell_size():
         order=2,
         cutoff=4.1,
     )
+    forces = np.zeros((len(calculation.plan), len(source), 3))
     result = calculation.reap(
-        np.zeros((len(calculation.plan), len(source), 3)), acoustic_sum_rule=False
+        ForceBatch(
+            fingerprint=calculation.manifest.fingerprint,
+            configuration_ids=tuple(range(len(forces))),
+            forces=forces,
+        ),
+        acoustic_sum_rule=False,
     )
     target = build_supercell(primitive, (2, 2, 2))
     realized = realize_force_constants(result, target)

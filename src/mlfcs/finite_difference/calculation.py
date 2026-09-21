@@ -1,23 +1,51 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable, Mapping, Sequence
+from collections import Counter
+from collections.abc import Callable, Mapping
 from math import ceil
-from typing import Literal
+from typing import Literal, NoReturn
 
 import numpy as np
 from ase import Atoms
 from ase.calculators.calculator import Calculator
 
 from mlfcs.finite_difference.extrapolation import ExtrapolationBackend
+from mlfcs.finite_difference.plan_identity import (
+    DisplacementBatch,
+    DisplacementManifest,
+    ForceBatch,
+    build_manifest,
+)
 from mlfcs.finite_difference.reconstruction import reconstruct_sparse
 from mlfcs.finite_difference.sampling import DisplacementPlan, build_displacement_plan
 from mlfcs.force_constants.representation import ForceConstants
 from mlfcs.interactions.space import InteractionSpace
 
 Progress = Callable[[int, int], None]
-ForceInput = np.ndarray | Sequence[np.ndarray] | Mapping[int, np.ndarray]
 logger = logging.getLogger(__name__)
+
+
+def _raise_unverified_forces(forces: object) -> NoReturn:
+    """Reject a force input that cannot prove which plan produced the displacements.
+
+    A bare array, a positional sequence and a mapping keyed by configuration id all lack
+    the plan fingerprint, so accepting any of them would silently interpret forces from
+    an older plan as belonging to the current one.
+    """
+    if isinstance(forces, Mapping):
+        detail = "a mapping keyed by configuration id carries no plan fingerprint"
+    elif isinstance(forces, np.ndarray):
+        detail = "a bare force array carries no plan fingerprint"
+    elif isinstance(forces, (list, tuple)):
+        detail = "a positional force sequence carries no plan fingerprint"
+    else:
+        detail = f"{type(forces).__name__} carries no plan fingerprint"
+    raise ValueError(
+        f"reap() accepts only a ForceBatch as returned by evaluate(), got "
+        f"{type(forces).__name__}: {detail}. Regenerate the displacements with sow() and "
+        "re-evaluate them so the forces are bound to the plan fingerprint."
+    )
 
 
 class FiniteDifferenceCalculation:
@@ -51,6 +79,7 @@ class FiniteDifferenceCalculation:
         self.cutoff = self.interaction_space.cutoff
         self.symmetry = self.interaction_space.symmetry
         self._plan: DisplacementPlan | None = None
+        self._manifest: DisplacementManifest | None = None
 
     @property
     def realized_orbit_space(self):
@@ -71,30 +100,72 @@ class FiniteDifferenceCalculation:
             logger.info("%d force calculations required", len(self._plan))
         return self._plan
 
-    def sow(self) -> list[Atoms]:
-        """Return displaced structures in the exact positional reap order.
+    @property
+    def manifest(self) -> DisplacementManifest:
+        """Canonical identity of the central-difference plan, built once.
 
-        Configuration ``i`` must be returned to positional :meth:`reap` at
-        index ``i``. Each structure also carries its zero-based stable ID.
+        The manifest fingerprints everything the plan measures and requires, so a force
+        batch can prove it belongs to exactly this plan.  The extrapolated workflow
+        fingerprints its own top-level plan when :meth:`run` drives the backend.
         """
-        structures = list(self.plan)
+        if self._manifest is None:
+            self._manifest = self._build_manifest(self.plan)
+        return self._manifest
+
+    def _build_manifest(
+        self,
+        plan: DisplacementPlan,
+        *,
+        derivative_backend: str = "central",
+        extrapolation: Mapping[str, object] | None = None,
+    ) -> DisplacementManifest:
+        logger.info("Fingerprinting the %s displacement plan", derivative_backend)
+        return build_manifest(
+            plan,
+            self.realized_orbit_space,
+            primitive=self.primitive,
+            reference=self.supercell,
+            order=self.config.order,
+            cutoff=self.cutoff,
+            max_body_order=self.config.max_body_order,
+            symprec=self.config.symprec,
+            displacement=self.config.displacement,
+            primitive_orbits=self.interaction_space.primitive_orbit_space.orbits,
+            derivative_backend=derivative_backend,
+            extrapolation=extrapolation,
+        )
+
+    def sow(self) -> DisplacementBatch:
+        """Return the displaced structures of this plan together with its identity.
+
+        Configuration ``i`` of the batch is the ``i``-th structure, and every structure
+        carries its zero-based ``mlfcs_configuration_id`` and the plan fingerprint in
+        ``info``.
+        """
+        manifest = self.manifest
+        structures = []
+        for atoms in self.plan:
+            atoms.info["mlfcs_plan_fingerprint"] = manifest.fingerprint
+            structures.append(atoms)
         logger.info("Sowing %d displaced structures in reference atom order", len(structures))
-        return structures
+        return DisplacementBatch(manifest, tuple(structures))
 
     def reap(
         self,
-        forces: ForceInput,
+        forces: ForceBatch,
         *,
         acoustic_sum_rule: bool = True,
     ) -> ForceConstants:
-        """Reconstruct force constants from forces supplied by the user.
+        """Reconstruct force constants from forces verified against this plan.
 
-        A sequence is positional and must follow :meth:`sow` exactly. A
-        mapping is keyed by ``mlfcs_configuration_id`` and may arrive in any
-        insertion order.
+        ``forces`` must be a :class:`ForceBatch`: either the result of :meth:`evaluate`
+        or a batch built from structures returned by :meth:`sow`.  Its fingerprint,
+        schema version, configuration ids and shape must match this plan, and its rows
+        may arrive in any configuration-id order.
         """
         logger.info("Reaping forces for order-%d force constants", self.config.order)
-        values = self._normalize_forces(forces)
+        manifest = self.manifest
+        values = self._validated_forces(forces, manifest)
         logger.info("Validated %d force configurations", len(values))
         derivatives = self.plan.contract_forces(values)
         logger.info("Contracted %d finite-difference derivatives", len(derivatives))
@@ -104,8 +175,56 @@ class FiniteDifferenceCalculation:
             metadata={
                 "derivative_backend": "central",
                 "configurations": len(self.plan),
+                "plan_schema_version": manifest.schema_version,
+                "plan_fingerprint": manifest.fingerprint,
             },
         )
+
+    def _validated_forces(self, forces: ForceBatch, manifest: DisplacementManifest) -> np.ndarray:
+        """Return one batch's forces in plan order, or reject the batch.
+
+        Everything is checked before any differentiation: the batch type, the schema
+        version, the plan fingerprint, the configuration ids, the array shape and the
+        finiteness of the values.
+        """
+        if not isinstance(forces, ForceBatch):
+            _raise_unverified_forces(forces)
+        if forces.schema_version != manifest.schema_version:
+            raise ValueError(
+                f"force batch schema version {forces.schema_version} does not match the plan "
+                f"schema version {manifest.schema_version} (batch fingerprint "
+                f"{forces.fingerprint}, plan fingerprint {manifest.fingerprint}); regenerate "
+                "the displacements with sow()"
+            )
+        if forces.fingerprint != manifest.fingerprint:
+            raise ValueError(
+                f"force batch fingerprint {forces.fingerprint} does not match the plan "
+                f"fingerprint {manifest.fingerprint}: the forces were collected from a "
+                "different displacement plan. Regenerate the displacements with sow() and "
+                "re-evaluate them."
+            )
+        identifiers = forces.configuration_ids
+        counts = Counter(identifiers)
+        expected_ids = set(range(len(manifest.configurations)))
+        duplicates = sorted(value for value, count in counts.items() if count > 1)
+        unknown = sorted(value for value in counts if value not in expected_ids)
+        missing = sorted(expected_ids - set(identifiers))
+        if duplicates or unknown or missing:
+            raise ValueError(
+                f"force batch configuration ids do not match the plan: duplicates={duplicates}, "
+                f"unknown={unknown}, missing={missing}"
+            )
+        expected_shape = (len(manifest.configurations), len(self.supercell), 3)
+        if forces.forces.shape != expected_shape:
+            raise ValueError(
+                f"force batch shape {forces.forces.shape} does not match the plan: expected "
+                f"{expected_shape}, with {len(self.supercell)} supercell atoms and three "
+                "Cartesian components per configuration"
+            )
+        if not np.isfinite(forces.forces).all():
+            raise ValueError("force batch contains NaN or infinite forces")
+        permutation = np.argsort(np.asarray(identifiers, dtype=np.int64), kind="stable")
+        return np.ascontiguousarray(forces.forces[permutation], dtype=float)
 
     def _reconstruct(
         self,
@@ -208,19 +327,48 @@ class FiniteDifferenceCalculation:
         logger.info("%d central-difference subplans", len(plans))
         logger.info("%d force calculations required", total)
 
-        derivative_sets = []
+        # The top-level plan of this backend is the concatenation of every subplan; its
+        # stencil signs are the central ones, because every subplan varies only the step.
+        grid_plan = DisplacementPlan(
+            self.supercell.copy(),
+            tuple(configuration for plan in plans for configuration in plan.configurations),
+            self.plan.stencil,
+        )
+        manifest = self._build_manifest(
+            grid_plan,
+            derivative_backend="extrapolate",
+            extrapolation={
+                "grid_angstrom": backend.grid.tolist(),
+                "side_steps": side_steps,
+                "degree": degree,
+            },
+        )
+        forces = np.empty((total, len(self.supercell), 3), dtype=float)
         completed = 0
         for step, plan in zip(backend.grid, plans, strict=True):
             logger.info("Evaluating displacement step %.10f Å", step)
-            forces = self._evaluate_plan(
+            forces[completed : completed + len(plan)] = self._evaluate_plan(
                 plan,
                 calculator,
                 progress=progress,
                 completed_offset=completed,
                 total=total,
             )
-            derivative_sets.append(plan.contract_forces(forces))
             completed += len(plan)
+        values = self._validated_forces(
+            ForceBatch(
+                fingerprint=manifest.fingerprint,
+                configuration_ids=tuple(range(total)),
+                forces=forces,
+                schema_version=manifest.schema_version,
+            ),
+            manifest,
+        )
+        derivative_sets = []
+        cursor = 0
+        for plan in plans:
+            derivative_sets.append(plan.contract_forces(values[cursor : cursor + len(plan)]))
+            cursor += len(plan)
         derivatives, metrics = backend.extrapolate(derivative_sets)
         unit = f"eV/angstrom^{self.config.order}"
         logger.info("Zero-step derivative extrapolation")
@@ -240,6 +388,8 @@ class FiniteDifferenceCalculation:
                 "configurations": total,
                 "extrapolation_grid_angstrom": backend.grid.tolist(),
                 "extrapolation_degree": degree,
+                "plan_schema_version": manifest.schema_version,
+                "plan_fingerprint": manifest.fingerprint,
                 "extrapolation_maximum_correction": metrics.maximum_correction,
                 "extrapolation_relative_l2_correction": metrics.relative_l2_correction,
                 "extrapolation_maximum_fit_residual": metrics.maximum_fit_residual,
@@ -251,19 +401,26 @@ class FiniteDifferenceCalculation:
         calculator: Calculator,
         *,
         progress: Progress | None = None,
-    ) -> np.ndarray:
-        """Evaluate and return forces in the exact positional reap order."""
+    ) -> ForceBatch:
+        """Evaluate every configuration and bind the forces to this plan."""
         if not isinstance(calculator, Calculator):
             raise TypeError("calculator must be an ASE Calculator")
+        manifest = self.manifest
         logger.info(
             "Evaluating %d configurations with %s", len(self.plan), type(calculator).__name__
         )
-        return self._evaluate_plan(
+        values = self._evaluate_plan(
             self.plan,
             calculator,
             progress=progress,
             completed_offset=0,
             total=len(self.plan),
+        )
+        return ForceBatch(
+            fingerprint=manifest.fingerprint,
+            configuration_ids=tuple(range(len(self.plan))),
+            forces=values,
+            schema_version=manifest.schema_version,
         )
 
     def _evaluate_plan(
@@ -299,23 +456,3 @@ class FiniteDifferenceCalculation:
                 percentage = 100.0 * completed / total
                 logger.info("Forces: %d/%d (%.0f%%)", completed, total, percentage)
         return forces
-
-    def _normalize_forces(self, forces: ForceInput) -> np.ndarray:
-        if isinstance(forces, Mapping):
-            expected_ids = set(range(len(self.plan)))
-            received_ids = set(forces)
-            if received_ids != expected_ids:
-                missing = sorted(expected_ids - received_ids)
-                extra = sorted(received_ids - expected_ids)
-                raise ValueError(
-                    f"force IDs do not match sow order: missing={missing}, extra={extra}"
-                )
-            values = np.asarray([forces[index] for index in range(len(self.plan))], dtype=float)
-        else:
-            values = np.asarray(forces, dtype=float)
-        expected_shape = (len(self.plan), len(self.supercell), 3)
-        if values.shape != expected_shape:
-            raise ValueError(f"forces must have shape {expected_shape}, got {values.shape}")
-        if not np.isfinite(values).all():
-            raise ValueError("forces contain NaN or infinite values")
-        return values

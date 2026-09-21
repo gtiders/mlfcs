@@ -7,6 +7,7 @@ from ase.calculators.calculator import Calculator, all_changes
 from supercell_helpers import make_supercell
 
 from mlfcs import FiniteDifferenceCalculation
+from mlfcs.finite_difference.plan_identity import ForceBatch
 
 
 class ZeroCalculator(Calculator):
@@ -27,27 +28,38 @@ def calculation():
     )
 
 
-def test_sow_ids_define_positional_reap_order():
+def force_batch(job, forces):
+    return ForceBatch(
+        fingerprint=job.manifest.fingerprint,
+        configuration_ids=tuple(range(len(forces))),
+        forces=forces,
+    )
+
+
+def test_sow_structures_carry_the_plan_identity():
     job = calculation()
     structures = job.sow()
+
+    assert len(structures) == len(job.plan)
     assert [atoms.info["mlfcs_configuration_id"] for atoms in structures] == list(
         range(len(structures))
     )
     assert all(atoms.info["mlfcs_atom_order"] == "reference" for atoms in structures)
-
-    forces = np.zeros((len(structures), len(job.supercell), 3))
-    positional = job.reap(forces).materialize(3)
-    mapped = job.reap(
-        {index: forces[index] for index in reversed(range(len(structures)))},
-    ).materialize(3)
-    np.testing.assert_array_equal(positional, mapped)
+    assert {atoms.info["mlfcs_plan_fingerprint"] for atoms in structures} == {
+        job.manifest.fingerprint
+    }
 
 
-def test_reap_rejects_missing_ids():
+def test_reap_accepts_only_forces_bound_to_the_plan():
     job = calculation()
     force = np.zeros((len(job.supercell), 3))
-    with pytest.raises(ValueError, match="missing"):
+
+    with pytest.raises(ValueError, match="ForceBatch"):
         job.reap({0: force})
+    with pytest.raises(ValueError, match="Regenerate the displacements"):
+        job.reap([force] * len(job.plan))
+    with pytest.raises(ValueError, match="Regenerate the displacements"):
+        job.reap(np.zeros((len(job.plan), len(job.supercell), 3)))
 
 
 def test_reference_force_order_and_user_calculator_path():
@@ -55,10 +67,13 @@ def test_reference_force_order_and_user_calculator_path():
     structures = job.sow()
     assert all(atoms.info["mlfcs_atom_order"] == "reference" for atoms in structures)
     forces = np.zeros((len(structures), len(job.supercell), 3))
-    result = job.reap(forces)
+    result = job.reap(force_batch(job, forces))
     np.testing.assert_array_equal(result.materialize(3), 0.0)
+    assert result.metadata["plan_fingerprint"] == job.manifest.fingerprint
+
     evaluated = job.evaluate(ZeroCalculator())
-    assert evaluated.shape == (len(job.plan), len(job.supercell), 3)
+    assert evaluated.forces.shape == (len(job.plan), len(job.supercell), 3)
+    assert evaluated.configuration_ids == tuple(range(len(job.plan)))
     direct = job.reap(evaluated)
     np.testing.assert_array_equal(direct.materialize(3), 0.0)
 
@@ -72,7 +87,7 @@ def test_second_order_uses_the_same_pipeline():
         cutoff=-1,
     )
     forces = np.zeros((len(job.plan), len(job.supercell), 3))
-    result = job.reap(forces)
+    result = job.reap(force_batch(job, forces))
     assert result.orders == (2,)
     assert result.materialize(2).shape == (2, 16, 3, 3)
 
@@ -105,6 +120,5 @@ def test_stage_reporting_can_be_disabled_completely(capsys):
         reference=make_supercell(primitive, (2, 2, 2))[0],
         cutoff=-1,
     )
-    forces = job.evaluate(ZeroCalculator())
-    job.reap(forces)
+    job.reap(job.evaluate(ZeroCalculator()))
     assert capsys.readouterr().out == ""
