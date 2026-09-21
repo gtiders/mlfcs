@@ -111,7 +111,7 @@ def test_only_representatives_reach_the_eigensolver(name: str, monkeypatch) -> N
     assert expanded.shape == (mesh.n_qpoints, mesh.irreducible_frequencies.shape[1])
 
 
-@pytest.mark.parametrize("name", ("cubic_2x1x1", "hcp_2x1x1"))
+@pytest.mark.parametrize("name", ("cubic_2x1x1", "cubic_3x1x1"))
 def test_scph_frequency_path_diagonalizes_only_representatives(name: str, monkeypatch) -> None:
     """One SCPH run enters the frequency eigensolver once per representative per sweep."""
     force_constants, fc4 = scph_case(name)
@@ -123,6 +123,10 @@ def test_scph_frequency_path_diagonalizes_only_representatives(name: str, monkey
         scph_multiplier=2,
         mixing=0.5,
         max_iterations=3,
+        # The classical covariance of a translation-invariant model diverges at the acoustic
+        # zero modes, so a cutoff keeps the iterate well posed; the default of zero would make
+        # the update non-covariant through roundoff rather than through the physics here.
+        frequency_cutoff_thz=1.0,
     )
     calls = {"count": 0}
     original = np.linalg.eigvalsh

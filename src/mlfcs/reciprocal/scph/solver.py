@@ -7,6 +7,7 @@ existing IO backends; it is not a frequency-dependent bubble self-energy.
 
 from __future__ import annotations
 
+import hashlib
 import logging
 from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
@@ -70,6 +71,7 @@ class LoopSCPHResult:
     grid: IrreducibleReciprocalGrid
     symprec: float
     symmetry_tolerance: float | None
+    time_reversal: bool
     force_constants: ForceConstants
     history: tuple[LoopSCPHIteration, ...]
     converged: bool
@@ -188,6 +190,10 @@ class LoopSCPH:
             context="LoopSCPH",
         )
         self._meshes: dict[int, IrreducibleReciprocalGrid] = {}
+        # Content-addressed certificates: a lattice mapping that has already been validated
+        # for a multiplier is never validated twice, and an object identity is never used as
+        # the key, because the same content has to be reusable across temperatures.
+        self._certificates: set[tuple[bytes, int]] = set()
 
     def run(self) -> LoopSCPHResult | TemperatureSeriesResult[LoopSCPHResult]:
         """Run one temperature or an ascending temperature schedule."""
@@ -213,9 +219,16 @@ class LoopSCPH:
             else lattice_fc2(warm_start)
         )
         history: list[LoopSCPHIteration] = []
-        for multiplier in dict.fromkeys((self.scph_multiplier, self.interpolation_multiplier)):
-            self._check_symmetry(
-                current, multiplier, f"LoopSCPH at {temperature} K (multiplier {multiplier})"
+        multipliers = tuple(
+            dict.fromkeys((self.scph_multiplier, self.interpolation_multiplier))
+        )
+        for multiplier in multipliers:
+            self._require_covariant(
+                current,
+                multiplier,
+                stage="initial",
+                iteration=None,
+                temperature=temperature,
             )
         mesh = self._mesh(self.interpolation_multiplier)
         diagonalizations = 0
@@ -238,6 +251,16 @@ class LoopSCPH:
             )
             keys = bare.keys() | correction.keys()
             updated = {key: bare.get(key, 0.0) + correction.get(key, 0.0) for key in keys}
+            # The updated iterate is what the next iteration expands and what the run finally
+            # returns, so it has to pass the gate before anything else touches it.
+            for multiplier in multipliers:
+                self._require_covariant(
+                    updated,
+                    multiplier,
+                    stage="updated",
+                    iteration=iteration,
+                    temperature=temperature,
+                )
             last_qpoints, frequencies = self._irreducible_frequencies(
                 updated, self.interpolation_multiplier
             )
@@ -280,6 +303,16 @@ class LoopSCPH:
                 "time_reversal": self.time_reversal,
             },
         )
+        # The returned iterate is the last updated one; re-check that its certificate still
+        # matches its content, so a result can never carry an unvalidated force-constant set.
+        for multiplier in multipliers:
+            self._require_covariant(
+                current,
+                multiplier,
+                stage="returned",
+                iteration=None,
+                temperature=temperature,
+            )
         # The final iterate's frequencies were already computed by the last sweep, so the
         # result reuses them instead of paying another ``N_irr`` diagonalizations.
         return LoopSCPHResult(
@@ -290,6 +323,7 @@ class LoopSCPH:
             grid=mesh,
             symprec=self.symprec,
             symmetry_tolerance=self.symmetry_tolerance,
+            time_reversal=self.time_reversal,
             force_constants=effective,
             history=tuple(history),
             converged=converged,
@@ -337,8 +371,6 @@ class LoopSCPH:
             )
             for star in grid.stars
         )
-        self._covariance_diagonalizations = 0
-
         def covariance_of_stars(star_chunk: np.ndarray) -> dict[tuple, np.ndarray]:
             result: dict[tuple[int, int, tuple[int, int, int]], np.ndarray] = {}
             points = grid.full.points[representatives[star_chunk]]
@@ -390,7 +422,6 @@ class LoopSCPH:
         for part in parts:
             for key, value in part.items():
                 covariance[key] = covariance.get(key, 0.0) + value
-        self._covariance_diagonalizations = len(chunks) if chunk_count > 1 else 1
         return covariance
 
     def _loop_correction(
@@ -471,6 +502,49 @@ class LoopSCPH:
                 time_reversal=self.time_reversal,
             )
         return self._meshes[multiplier]
+
+    def _lattice_fingerprint(
+        self, lattice: dict[tuple[int, int, tuple[int, int, int]], np.ndarray]
+    ) -> bytes:
+        """Return a content digest of one lattice mapping."""
+        digest = hashlib.blake2b(digest_size=16)
+        for key in sorted(lattice):
+            digest.update(repr(key).encode("ascii"))
+            digest.update(np.ascontiguousarray(lattice[key], dtype=float).tobytes())
+        return digest.digest()
+
+    def _require_covariant(
+        self,
+        lattice: dict[tuple[int, int, tuple[int, int, int]], np.ndarray],
+        multiplier: int,
+        *,
+        stage: str,
+        iteration: int | None,
+        temperature: float,
+    ) -> None:
+        """Validate one FC2 iterate on one grid before it is expanded, or reuse its certificate.
+
+        Every iterate that the irreducible path expands has to pass the full-star gate first:
+        the initial FC2, the updated FC2 of each iteration, and the FC2 that is finally
+        returned.  The certificate is content-addressed, so the same iterate is never
+        validated twice within one run.
+        """
+        if self.symmetry_tolerance is None:
+            return
+        cache_key = (self._lattice_fingerprint(lattice), multiplier)
+        if cache_key in self._certificates:
+            return
+        where = (
+            f"{stage} FC2"
+            if iteration is None
+            else f"{stage} FC2 at iteration {iteration}"
+        )
+        self._check_symmetry(
+            lattice,
+            multiplier,
+            f"LoopSCPH {where} ({temperature} K, multiplier {multiplier})",
+        )
+        self._certificates.add(cache_key)
 
     def _check_symmetry(
         self,
