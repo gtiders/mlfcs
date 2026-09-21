@@ -129,6 +129,20 @@ def _brute_force_minimum_image(vector: np.ndarray, cell: np.ndarray):
     return images[index], float(lengths[index])
 
 
+@pytest.mark.parametrize(
+    "cell",
+    [
+        np.zeros((3, 3)),
+        np.diag([1.0, 1.0, 0.0]),
+        np.full((3, 3), np.nan),
+        np.eye(2),
+    ],
+)
+def test_periodic_geometry_rejects_invalid_cells_before_reduction(cell):
+    with pytest.raises(ValueError, match="finite, nonsingular 3x3 cell"):
+        PeriodicGeometry(cell)
+
+
 def test_periodic_geometry_returns_degenerate_images_at_the_minimum_image():
     cell = np.asarray([[2.0, 0.0, 0.0], [1.9, 0.25, 0.0], [0.3, 0.1, 2.0]])
     geometry = PeriodicGeometry(cell)
