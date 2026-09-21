@@ -19,12 +19,15 @@ from functools import partial
 
 import numpy as np
 import pytest
+from ase import Atoms
 from test_reciprocal_full_grid_oracle import pair_bond_force_constants, scph_case
 
+from mlfcs import build_supercell
 from mlfcs.exceptions import SymmetryViolationError
 from mlfcs.force_constants.dense import lattice_fc2, replace_lattice_fc2
+from mlfcs.force_constants.representation import ForceConstants, SparseOrderForceConstants
 from mlfcs.reciprocal.fourier import dynamical_matrices, dynamical_matrix, fourier_terms
-from mlfcs.reciprocal.grid import irreducible_reciprocal_grid
+from mlfcs.reciprocal.grid import irreducible_reciprocal_grid, reciprocal_quotient_grid
 from mlfcs.reciprocal.scph.fourier import harmonic_frequencies
 from mlfcs.reciprocal.scph.solver import LoopSCPH
 from mlfcs.reciprocal.symmetry import (
@@ -32,6 +35,7 @@ from mlfcs.reciprocal.symmetry import (
     require_little_group_covariance,
     validate_site_masses,
 )
+from mlfcs.structure.relation import StructureRelation
 from mlfcs.structure.symmetry import PrimitiveSymmetryOperations
 
 CASES = ("diamond_2x1x1", "hcp_2x1x1", "cubic_2x1x1")
@@ -279,6 +283,289 @@ def test_an_undetermined_spglib_symmetry_names_the_cell_and_tolerance(monkeypatc
     assert "2 atoms" in message
     assert "symprec 0.0001" in message
     assert "cell" in message
+
+
+# --------------------------------------------------------------------------------------
+# P0 counterexamples: the little group is not a sufficient star-covariance certificate
+# --------------------------------------------------------------------------------------
+
+
+def _scalar_spectrum_force_constants(
+    overrides: dict[tuple[int, int, int], float] | None = None,
+):
+    """Return a real single-atom cubic FC2 whose grid spectrum is ``d(q) * I``.
+
+    The spectrum is chosen on the full ``3x3x3`` quotient and turned into a real-space FC2
+    by the exact inverse discrete Fourier transform over the same quotient, so the direct
+    dynamical matrix of the resulting ``ForceConstants`` equals ``d(q) * I`` at every grid
+    point.  ``d`` is even, so the real-space tensors come out real and ``D(-q) = D(q)^*``.
+    """
+    primitive = Atoms("Ar", scaled_positions=[[0.0, 0.0, 0.0]], cell=np.eye(3) * 4.0, pbc=True)
+    matrix = np.diag((3, 3, 3)).astype(np.int64)
+    reference = build_supercell(primitive, matrix)
+    relation = StructureRelation.from_atoms(primitive, reference)
+    grid = reciprocal_quotient_grid(matrix)
+    decomposition = irreducible_reciprocal_grid(
+        matrix, PrimitiveSymmetryOperations.from_atoms(primitive, symprec=1e-5)
+    )
+    spectrum = {}
+    for star, representative in enumerate(decomposition.representatives.tolist()):
+        for member in decomposition.stars[star].members.tolist():
+            spectrum[tuple(int(value) for value in grid.labels[member])] = 1.0 + 0.1 * star
+    spectrum.update(overrides or {})
+
+    cells = np.asarray(relation.index.cell_representatives, dtype=np.int64)
+    masses = np.asarray(primitive.get_masses(), dtype=float)
+    tensors = np.zeros((len(cells), 3, 3))
+    for index, cell in enumerate(cells):
+        value = 0.0
+        for label, d in spectrum.items():
+            value += d * np.exp(-2j * np.pi * (np.asarray(label, dtype=float) / grid.denominator) @ cell)
+        tensors[index] = (value / len(grid.labels) * masses[0]).real * np.eye(3)
+    sparse = SparseOrderForceConstants(
+        2,
+        np.zeros((len(cells), 2), dtype=np.int32),
+        cells.reshape((-1, 1, 3)).astype(np.int32),
+        tensors,
+    )
+    return ForceConstants({}, reference, sparse={2: sparse}, relation=relation)
+
+
+def test_the_little_group_gate_alone_accepts_a_broken_star_member() -> None:
+    """A spectrum that is constant on representatives but broken on a member must be caught.
+
+    This is the counterexample of the merge-blocker review: any ``d(q)`` satisfies the
+    little-group condition at the representatives, because the little group fixes the
+    representative itself, while the star expansion of that representative silently
+    produces the wrong matrix at the members.  The old gate passes; the new full-star gate
+    has to refuse, and the public frequency path has to refuse with it.
+    """
+    from functools import partial
+
+    from mlfcs.reciprocal.symmetry import require_little_group_covariance
+
+    base = _scalar_spectrum_force_constants()
+    grid = reciprocal_quotient_grid(base.relation.supercell_matrix)
+    symmetry = PrimitiveSymmetryOperations.from_atoms(base.relation.primitive, symprec=1e-5)
+    decomposition = irreducible_reciprocal_grid(base.relation.supercell_matrix, symmetry)
+    assert len(grid.labels) == 27 and len(decomposition.representatives) == 4
+
+    # Pick a non-trivial star, a member that is not its representative, and the -q partner.
+    star = next(entry for entry in decomposition.stars if len(entry.members) > 1)
+    member = next(
+        int(value)
+        for value in star.members
+        if int(value) != int(star.representative)
+        and tuple(int(v) for v in grid.labels[int(value)])
+        != grid.negative_label(grid.labels[int(star.representative)])
+    )
+    partner = int(np.flatnonzero(np.all(grid.labels == np.asarray(grid.negative_label(grid.labels[member])), axis=1))[0])
+    assert partner != member
+    overrides = {
+        tuple(int(value) for value in grid.labels[member]): 2.0,
+        tuple(int(value) for value in grid.labels[partner]): 2.0,
+    }
+    broken = _scalar_spectrum_force_constants(overrides)
+
+    masses = np.asarray(broken.relation.primitive.get_masses(), dtype=float)
+    terms = fourier_terms(lattice_fc2(broken), broken.relation.primitive)
+    build = partial(dynamical_matrices, terms, masses)
+
+    # 1. The little-group gate accepts the broken model: it only ever looks at the
+    #    representatives, which are unchanged.
+    require_little_group_covariance(
+        build,
+        masses,
+        symmetry,
+        decomposition,
+        tolerance=1e-6,
+        context="counterexample",
+    )
+
+    # 2. The member's own matrix disagrees with the representative it is expanded from.
+    representative = int(star.representative)
+    direct = build(grid.points[member].reshape(1, 3))[0]
+    source = build(grid.points[representative].reshape(1, 3))[0]
+    assert float(np.max(np.abs(direct - source))) > 1e-3
+
+    # 3. The public expansion and the public frequency path must refuse it.
+    from mlfcs.reciprocal.symmetry import expand_star_matrices
+
+    positions = np.asarray(broken.relation.primitive.get_scaled_positions(wrap=False), dtype=float)
+    expanded = expand_star_matrices(
+        build(grid.points[decomposition.representatives]), decomposition, symmetry, positions
+    )
+    np.testing.assert_allclose(expanded[member], direct, rtol=1e-9, atol=1e-12)
+
+    from mlfcs.reciprocal.symmetry import require_star_covariance
+
+    with pytest.raises(SymmetryViolationError):
+        require_star_covariance(
+            build, symmetry, decomposition, positions, tolerance=1e-6, context="counterexample"
+        )
+    with pytest.raises(SymmetryViolationError):
+        harmonic_frequencies(broken, 1)
+
+
+def test_scph_refuses_a_non_covariant_updated_force_constants() -> None:
+    """A quartic tensor that breaks the symmetry must not produce a returned FC2.
+
+    The gate that guards the *input* is not enough: what gets expanded and handed back is the
+    updated FC2 of every iteration, so the update itself has to be validated before the next
+    expansion and before the result is returned.
+    """
+    from mlfcs.reciprocal.scph.solver import LoopSCPH
+
+    force_constants, fc4 = scph_case("hcp_2x1x1")
+    sparse = fc4.sparse[4]
+    tensors = np.array(sparse.tensors, dtype=float)
+    index = int(np.argmax(np.abs(tensors).sum(axis=(1, 2, 3, 4))))
+    tensors[index] *= 1.3
+    broken_fc4 = ForceConstants(
+        {},
+        fc4.supercell,
+        dict(fc4.metadata),
+        {4: SparseOrderForceConstants(4, sparse.sites, sparse.translations, tensors)},
+        fc4.relation,
+    )
+
+    def solver(**options) -> LoopSCPH:
+        return LoopSCPH(
+            fc2=force_constants,
+            fc4=broken_fc4,
+            temperature=TEMPERATURE,
+            interpolation_multiplier=1,
+            scph_multiplier=1,
+            mixing=1.0,
+            max_iterations=1,
+            **options,
+        )
+
+    with pytest.raises(SymmetryViolationError) as failure:
+        solver()._run_single(TEMPERATURE, None)
+    message = str(failure.value)
+    assert "updated" in message, message
+    assert "iteration" in message, message
+
+    # With the gate switched off the solver returns an FC2 that the same gate measures as
+    # broken, which is exactly the invalid result the default must never hand back.
+    from functools import partial
+
+    from mlfcs.reciprocal.symmetry import require_star_covariance
+
+    result = solver(symmetry_tolerance=None)._run_single(TEMPERATURE, None)
+    relation = result.force_constants.relation
+    masses = np.asarray(relation.primitive.get_masses(), dtype=float)
+    positions = relation.primitive.get_scaled_positions(wrap=False)
+    symmetry = PrimitiveSymmetryOperations.from_atoms(relation.primitive, symprec=1e-5)
+    decomposition = irreducible_reciprocal_grid(relation.supercell_matrix, symmetry)
+    terms = fourier_terms(lattice_fc2(result.force_constants), relation.primitive)
+    with pytest.raises(SymmetryViolationError):
+        require_star_covariance(
+            partial(dynamical_matrices, terms, masses),
+            symmetry,
+            decomposition,
+            positions,
+            tolerance=1e-6,
+            context="returned FC2",
+        )
+
+
+def test_sscha_propagates_the_reciprocal_tolerances() -> None:
+    """SSCHA has to hand its own symprec and symmetry tolerance to every sampler it builds."""
+    from ase.calculators.lj import LennardJones
+
+    from mlfcs.reciprocal.sscha.solver import SSCHA
+
+    force_constants, _ = scph_case("cubic_2x1x1")
+    relation = force_constants.relation
+    common = {
+        "reference": relation.reference,
+        "cutoff": 3.2,
+        "symprec": 2.5e-4,
+        "symmetry_tolerance": 3.0e-8,
+        "max_iterations": 1,
+        "snapshots": 32,
+        "initial_displacement": 0.02,
+    }
+    solver = SSCHA(relation.primitive, temperature=300.0, **common)
+    ensemble = solver._make_ensemble(force_constants.materialize(2))
+    assert ensemble.symprec == 2.5e-4
+    assert ensemble.symmetry_tolerance == 3.0e-8
+
+    scheduled = SSCHA(relation.primitive, temperature=[300.0, 400.0], **common)
+    results = scheduled.run(LennardJones(epsilon=1.0, sigma=3.0, rc=9.0))
+    assert len(results) == 2
+    for result in results:
+        assert result.symprec == 2.5e-4
+        assert result.symmetry_tolerance == 3.0e-8
+
+
+def _gauge_case(name: str):
+    """Return one multi-atomic case whose mesh contains a member with a reduced label.
+
+    The gauge only bites where a member's stored label is a reduced image of ``g q_s``, so
+    the cases are chosen (and verified below) for exactly that: a monoatomic coarse mesh can
+    look correct while the expansion is wrong.
+    """
+    if name == "GaAs":
+        from ase.build import bulk
+        from test_reciprocal_full_grid_oracle import pair_bond_force_constants
+
+        primitive = bulk("GaAs", "zincblende", a=5.653)
+        matrix = np.asarray([[3, 0, 0], [0, 2, 0], [0, 0, 2]], dtype=np.int64)
+        return pair_bond_force_constants(
+            primitive, matrix, cutoff=3.2, spring=1.0, bend=0.5
+        )[0]
+    return scph_case({"diamond": "diamond_2x1x1", "hcp": "hcp_2x1x1"}[name])[0]
+
+
+@pytest.mark.parametrize("case", ("diamond", "hcp", "GaAs"))
+def test_public_matrix_expansion_applies_the_stored_label_gauge(case: str) -> None:
+    """The public expansion must land on the member's own label, gauge included.
+
+    Every member whose stored label is a reduced image of ``g q_s`` needs the positional
+    gauge ``Gamma_G``; without it the expansion is wrong by a factor of order one, which a
+    single-atom cell or a coarse mesh never shows.
+    """
+    from mlfcs.reciprocal.symmetry import (
+        expand_star_matrices,
+        star_member_gauge,
+        star_member_operator,
+    )
+
+    force_constants = _gauge_case(case)
+    relation = force_constants.relation
+    positions = np.asarray(relation.primitive.get_scaled_positions(wrap=False), dtype=float)
+    masses = np.asarray(relation.primitive.get_masses(), dtype=float)
+    symmetry = PrimitiveSymmetryOperations.from_atoms(relation.primitive, symprec=1e-5)
+    decomposition = irreducible_reciprocal_grid(2 * relation.supercell_matrix, symmetry)
+    terms = fourier_terms(lattice_fc2(force_constants), relation.primitive)
+
+    representatives = dynamical_matrices(
+        terms, masses, decomposition.full.points[decomposition.representatives]
+    )
+    direct = dynamical_matrices(terms, masses, decomposition.full.points)
+    gauges = [
+        float(
+            np.max(np.abs(star_member_gauge(symmetry, decomposition, int(member), positions) - 1.0))
+        )
+        for star in decomposition.stars
+        for member in star.members
+    ]
+    assert max(gauges) > 1e-9, "this case must contain a member whose label is reduced"
+
+    expanded = expand_star_matrices(representatives, decomposition, symmetry, positions)
+    scale = float(max(np.max(np.abs(direct)), np.max(np.abs(expanded))))
+    np.testing.assert_allclose(expanded, direct, rtol=1e-9, atol=1e-12 * scale)
+
+    without = np.empty_like(direct)
+    for member in range(len(decomposition.full.labels)):
+        star = int(decomposition.full_to_irreducible[member])
+        unitary, antiunitary = star_member_operator(symmetry, decomposition, member)
+        source = np.conjugate(representatives[star]) if antiunitary else representatives[star]
+        without[member] = unitary @ source @ unitary.conj().T
+    assert float(np.max(np.abs(without - direct))) > 1e-3 * scale
 
 
 def test_pair_bond_models_are_accepted_by_the_gate() -> None:
