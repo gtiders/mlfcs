@@ -22,7 +22,8 @@ from ase.build import bulk
 from ase.calculators.lj import LennardJones
 from ase.neighborlist import neighbor_list
 
-from mlfcs import FiniteDifferenceCalculation, build_supercell
+from mlfcs import FiniteDifferenceCalculation
+from mlfcs.tools.supercell import build_supercell
 from mlfcs.force_constants.representation import ForceConstants
 from mlfcs.structure.relation import StructureRelation
 from mlfcs.structure.symmetry import PrimitiveSymmetryOperations, SymmetryOperations
@@ -161,7 +162,7 @@ def relation_reference(cell: Atoms, supercell: np.ndarray) -> Atoms:
     the bare builder output is not a drop-in substitute.
     """
     return StructureRelation.from_atoms(
-        cell, build_supercell(cell, np.asarray(supercell))
+        cell, build_supercell(cell, np.asarray(supercell)), symprec=1e-5
     ).reference
 
 

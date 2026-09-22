@@ -53,7 +53,6 @@ def test_top_level_api_is_the_locked_whitelist():
         "PrimitiveInteractionSpace",
         "RealizedInteractionSpace",
         "ReferenceFrame",
-        "SSCHA",
         "perturb_structures",
         "read_hdf5",
         "write_force_constants",
