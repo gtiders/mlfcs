@@ -10,18 +10,18 @@ from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
 
 from mlfcs import ForceConstantFitter, MLFCSCalculator
-from mlfcs.tools.supercell import build_supercell
 from mlfcs.calculators.taylor import TaylorPotential
 from mlfcs.force_constants.representation import ForceConstants, SparseOrderForceConstants
 from mlfcs.io.hdf5 import write_hdf5
 from mlfcs.structure.relation import StructureRelation
+from mlfcs.tools.supercell import build_supercell
 
 
 def _model(*, orders=(2, 3, 4, 5), reference=None):
     primitive = Atoms("Ar", positions=[[0.0, 0.0, 0.0]], cell=np.eye(3) * 4.0, pbc=True)
     if reference is None:
         reference = build_supercell(primitive, (2, 1, 1))
-    relation = StructureRelation.from_atoms(primitive, reference)
+    relation = StructureRelation.from_atoms(primitive, reference, symprec=1e-5)
     sparse = {}
     rng = np.random.default_rng(91)
     for order in orders:

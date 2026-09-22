@@ -54,7 +54,7 @@ def test_reap_keeps_sparse_clusters_and_hdf5_writes_them(tmp_path):
 
 def test_dense_materialization_warns_but_continues(caplog):
     primitive = Atoms("H", positions=[[0, 0, 0]], cell=np.eye(3), pbc=True)
-    relation = StructureRelation.from_atoms(primitive, primitive)
+    relation = StructureRelation.identity(primitive, symprec=1e-5)
     sparse = SparseOrderForceConstants(
         order=2,
         sites=np.empty((0, 2), dtype=np.int32),
@@ -109,7 +109,7 @@ def test_phono3py_hdf5_streams_full_fc3_and_is_readable(tmp_path):
         {},
         supercell,
         sparse={3: sparse},
-        relation=StructureRelation.from_atoms(primitive, supercell),
+        relation=StructureRelation.from_atoms(primitive, supercell, symprec=1e-5),
     )
     target = tmp_path / "fc3.hdf5"
 

@@ -35,6 +35,14 @@ ENTRY_POINTS = (
 )
 
 
+def _subprocess_env() -> dict[str, str]:
+    """Environment for the child probes: the worktree's own source tree, deterministically."""
+    import os
+
+    root = Path(__file__).parents[1]
+    return {**os.environ, "PYTHONPATH": f"{root / 'src'}:{root / 'tests'}"}
+
+
 def _primitive_and_reference() -> tuple[Atoms, Atoms]:
     primitive = bulk("Ar", "fcc", a=5.26)
     reference = primitive.repeat((2, 2, 2))
@@ -45,7 +53,7 @@ def test_the_old_tolerance_keyword_is_gone() -> None:
     """``tolerance`` is renamed, not aliased: the call has to fail by name."""
     primitive, reference = _primitive_and_reference()
     with pytest.raises(TypeError) as failure:
-        StructureRelation.from_atoms(primitive, reference, tolerance=1e-5)
+        StructureRelation.from_atoms(primitive, reference, tolerance=1e-5, symprec=1e-5)
     assert "tolerance" in str(failure.value)
     assert "symprec" in str(failure.value)
 
@@ -86,9 +94,13 @@ def test_the_root_namespace_no_longer_offers_the_supercell_builder() -> None:
     """The convenience builder moved to a leaf tool package; the root must not re-export it."""
     code = "import mlfcs; mlfcs.build_supercell"
     completed = subprocess.run(
-        [sys.executable, "-c", code], capture_output=True, text=True, check=False
+        [sys.executable, "-c", code],
+        capture_output=True,
+        text=True,
+        check=False,
+        env=_subprocess_env(),
     )
-    assert completed.returncode != 0
+    assert completed.returncode != 0, completed.stdout
     assert "build_supercell" in completed.stderr
 
 
@@ -96,9 +108,13 @@ def test_the_structure_package_no_longer_offers_the_supercell_builder() -> None:
     """``mlfcs.structure`` is the base layer; it does not own optional construction helpers."""
     code = "from mlfcs.tools.supercell import build_supercell"
     completed = subprocess.run(
-        [sys.executable, "-c", code], capture_output=True, text=True, check=False
+        [sys.executable, "-c", code],
+        capture_output=True,
+        text=True,
+        check=False,
+        env=_subprocess_env(),
     )
-    assert completed.returncode != 0
+    assert completed.returncode != 0, completed.stdout
     assert "build_supercell" in completed.stderr
 
 
@@ -106,7 +122,11 @@ def test_the_tools_package_offers_the_supercell_builder() -> None:
     """The one supported path for building a supercell."""
     code = "from mlfcs.tools.supercell import build_supercell; print('ok')"
     completed = subprocess.run(
-        [sys.executable, "-c", code], capture_output=True, text=True, check=False
+        [sys.executable, "-c", code],
+        capture_output=True,
+        text=True,
+        check=False,
+        env=_subprocess_env(),
     )
     assert completed.returncode == 0, completed.stderr
     assert "ok" in completed.stdout

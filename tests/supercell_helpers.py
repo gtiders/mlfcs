@@ -2,8 +2,8 @@
 
 from ase import Atoms
 
-from mlfcs.tools.supercell import build_supercell
 from mlfcs.structure.relation import StructureRelation
+from mlfcs.tools.supercell import build_supercell
 
 
 def monoatomic_periodic(symbol: str = "Si", cell_length: float = 4.0) -> Atoms:
@@ -16,7 +16,8 @@ def monoatomic_periodic(symbol: str = "Si", cell_length: float = 4.0) -> Atoms:
     )
 
 
-def make_supercell(primitive: Atoms, matrix: object):
+def make_supercell(primitive: Atoms, matrix: object, *, symprec: float = 1e-5):
+    """Build a reference supercell and its relation; the precision is explicit for tests."""
     reference = build_supercell(primitive, matrix)
-    relation = StructureRelation.from_atoms(primitive, reference)
+    relation = StructureRelation.from_atoms(primitive, reference, symprec=symprec)
     return relation.reference, relation.index

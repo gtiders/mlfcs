@@ -60,7 +60,7 @@ class ReferenceFrame:
 
     @classmethod
     def from_atoms(cls, primitive: Atoms, reference: Atoms, *, symprec: float) -> ReferenceFrame:
-        relation = StructureRelation.from_atoms(primitive, reference, tolerance=symprec)
+        relation = StructureRelation.from_atoms(primitive, reference, symprec=symprec)
         primitive_symmetry = PrimitiveSymmetryOperations.from_atoms(
             relation.primitive, symprec=symprec
         )

@@ -3,7 +3,6 @@ import pytest
 from ase import Atoms
 
 from mlfcs import SSCHA, FiniteDifferenceCalculation, realize_force_constants
-from mlfcs.tools.supercell import build_supercell
 from mlfcs.finite_difference.plan_identity import ForceBatch
 from mlfcs.fitting.fitter import ForceConstantFitter
 from mlfcs.force_constants.expansion import expand_primitive_parameters
@@ -18,6 +17,7 @@ from mlfcs.interactions.realization import (
 from mlfcs.interactions.space import InteractionSpace
 from mlfcs.structure.integer_lattice import same_residue
 from mlfcs.structure.relation import StructureRelation
+from mlfcs.tools.supercell import build_supercell
 
 
 def test_primitive_fc2_space_keeps_exact_nearest_neighbor_translations():
@@ -183,20 +183,20 @@ def test_identifiability_accepts_resolved_and_rejects_folded_exact_interactions(
     )
     resolved = build_supercell(primitive, (3, 3, 3))
     validate_realization_identifiability(
-        space, StructureRelation.from_atoms(primitive, resolved).index
+        space, StructureRelation.from_atoms(primitive, resolved, symprec=1e-5).index
     )
 
     folded = primitive.copy()
     with pytest.raises(InteractionAliasingError, match="larger single reference"):
         validate_realization_identifiability(
-            space, StructureRelation.from_atoms(primitive, folded).index
+            space, StructureRelation.from_atoms(primitive, folded, symprec=1e-5).index
         )
 
 
 def test_exact_fc2_realization_into_sheared_supercell_matches_residue_mapping():
     primitive = Atoms("Si", scaled_positions=[[0, 0, 0]], cell=np.eye(3) * 4, pbc=True)
     source = build_supercell(primitive, (3, 3, 3))
-    source_relation = StructureRelation.from_atoms(primitive, source)
+    source_relation = StructureRelation.from_atoms(primitive, source, symprec=1e-5)
     translations = np.asarray(
         [[0, 0, 0], [1, 0, 0], [-1, 0, 0], [0, 1, 0], [2, -1, 3]], dtype=np.int32
     )
@@ -216,7 +216,7 @@ def test_exact_fc2_realization_into_sheared_supercell_matches_residue_mapping():
     )
     matrix = np.asarray([[2, 1, 0], [0, 2, 1], [0, 0, 2]], dtype=np.int32)
     target = build_supercell(primitive, matrix)
-    relation = StructureRelation.from_atoms(primitive, target)
+    relation = StructureRelation.from_atoms(primitive, target, symprec=1e-5)
 
     actual = realize_force_constants(force_constants, target).materialize(2, max_bytes=None)
     expected = np.zeros((1, len(target), 3, 3))

@@ -30,7 +30,7 @@ def test_acoustic_sum_rule_projection_is_strict(order):
     projected_sparse = reconstruct_sparse(
         space, index, derivatives, enforce_asr=True, primitive_interaction_space=primitive_space
     )
-    relation = StructureRelation.from_atoms(primitive, supercell)
+    relation = StructureRelation.from_atoms(primitive, supercell, symprec=1e-5)
     raw = ForceConstants({}, supercell, sparse={order: raw_sparse}, relation=relation).materialize(
         order
     )

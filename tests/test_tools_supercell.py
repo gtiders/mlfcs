@@ -7,9 +7,8 @@ import numpy as np
 import pytest
 from ase import Atoms
 
-from mlfcs.tools.supercell import build_supercell
 from mlfcs.structure.integer_lattice import normalize_supercell_matrix
-from mlfcs.tools.supercell import _fallback_phonopy_old_style, _from_phonopy
+from mlfcs.tools.supercell import _fallback_phonopy_old_style, _from_phonopy, build_supercell
 
 
 def _primitive() -> Atoms:
