@@ -1,11 +1,13 @@
-"""Build ASE supercells in phonopy's old-style atom ordering."""
+"""Build and align explicit ASE supercells outside the calculation core."""
 
 from __future__ import annotations
 
 import numpy as np
 from ase import Atoms
+from scipy.optimize import linear_sum_assignment
 
 from mlfcs.structure.integer_lattice import determinant_3x3, normalize_supercell_matrix
+from mlfcs.structure.periodic_geometry import PeriodicGeometry
 
 
 def _is_integer_matrix(matrix: object) -> bool:
@@ -16,56 +18,31 @@ def _is_integer_matrix(matrix: object) -> bool:
     return bool(np.issubdtype(values.dtype, np.integer))
 
 
-def _phonopy_atoms(atoms: Atoms):
-    from phonopy.structure.atoms import PhonopyAtoms
-
-    kwargs = {
-        "symbols": atoms.get_chemical_symbols(),
-        "cell": np.asarray(atoms.cell),
-        "scaled_positions": atoms.get_scaled_positions(wrap=True),
-    }
-    masses = atoms.get_masses()
-    if masses is not None:
-        kwargs["masses"] = masses
-    return PhonopyAtoms(**kwargs)
-
-
-def _from_phonopy(atoms: Atoms, matrix: np.ndarray, *, symprec: float) -> Atoms:
-    from phonopy.structure.cells import get_supercell
-
-    result = get_supercell(_phonopy_atoms(atoms), matrix.T, is_old_style=True, symprec=symprec)
-    return Atoms(
-        symbols=result.symbols,
-        cell=np.asarray(result.cell),
-        scaled_positions=np.asarray(result.scaled_positions),
-        pbc=True,
-    )
-
-
-def _fallback_phonopy_old_style(atoms: Atoms, matrix: np.ndarray, *, symprec: float) -> Atoms:
+def _build_supercell(atoms: Atoms, matrix: np.ndarray, *, symprec: float) -> Atoms:
+    """Construct a primitive-site-major supercell using only NumPy and ASE."""
     determinant = determinant_3x3(matrix)
     if determinant <= 0:
-        raise ValueError("phonopy ordering requires a positive determinant")
-    phonopy_matrix = matrix.T
+        raise ValueError("supercell construction requires a positive determinant")
+    column_matrix = matrix.T
     corners = np.asarray(
         (
             (0, 0, 0),
-            phonopy_matrix[:, 0],
-            phonopy_matrix[:, 1],
-            phonopy_matrix[:, 2],
-            phonopy_matrix[:, 1] + phonopy_matrix[:, 2],
-            phonopy_matrix[:, 2] + phonopy_matrix[:, 0],
-            phonopy_matrix[:, 0] + phonopy_matrix[:, 1],
-            phonopy_matrix[:, 0] + phonopy_matrix[:, 1] + phonopy_matrix[:, 2],
+            column_matrix[:, 0],
+            column_matrix[:, 1],
+            column_matrix[:, 2],
+            column_matrix[:, 1] + column_matrix[:, 2],
+            column_matrix[:, 2] + column_matrix[:, 0],
+            column_matrix[:, 0] + column_matrix[:, 1],
+            column_matrix[:, 0] + column_matrix[:, 1] + column_matrix[:, 2],
         ),
         dtype=np.int64,
     )
     multiplicities = np.max(corners, axis=0) - np.min(corners, axis=0)
     if np.any(multiplicities <= 0):
-        raise ValueError("phonopy surrounding frame has a zero multiplicity")
+        raise ValueError("supercell surrounding frame has a zero multiplicity")
     simple_matrix = np.diag(multiplicities)
     simple_cell = simple_matrix @ np.asarray(atoms.cell)
-    trim_frame = phonopy_matrix / multiplicities[:, None]
+    trim_frame = column_matrix / multiplicities[:, None]
     target_cell = trim_frame.T @ simple_cell
     b, c, a = np.meshgrid(
         range(int(multiplicities[1])),
@@ -81,6 +58,7 @@ def _fallback_phonopy_old_style(atoms: Atoms, matrix: np.ndarray, *, symprec: fl
     positions = positions @ np.linalg.inv(trim_frame).T
     positions -= np.floor(positions)
     numbers = np.repeat(atoms.numbers, images)
+    masses = np.repeat(atoms.get_masses(), images)
     selected: list[int] = []
     for atom, position in enumerate(positions):
         if selected:
@@ -92,6 +70,7 @@ def _fallback_phonopy_old_style(atoms: Atoms, matrix: np.ndarray, *, symprec: fl
         selected.append(atom)
     return Atoms(
         numbers=numbers[np.asarray(selected)],
+        masses=masses[np.asarray(selected)],
         scaled_positions=positions[np.asarray(selected)],
         cell=target_cell,
         pbc=True,
@@ -104,7 +83,7 @@ def build_supercell(
     *,
     symprec: float = 1e-5,
 ) -> Atoms:
-    """Build an ASE reference supercell in phonopy's old-style ordering.
+    """Build an ASE reference supercell in primitive-site-major ordering.
 
     This is an optional structure-generation utility only. Calculation APIs never invoke it
     implicitly: the caller may build a supercell here, read one from a file, or obtain one from
@@ -112,8 +91,8 @@ def build_supercell(
 
     ``supercell_matrix`` is a discrete construction parameter, so a floating-point form such as
     ``[[2.0, 0.0, 0.0], ...]`` is refused: that is not a numerical approximation question but a
-    statement about what the caller meant.  ``symprec`` is passed to phonopy, or used by the
-    fallback to de-duplicate the generated slots with the same length precision.
+    statement about what the caller meant. ``symprec`` is the Cartesian length used to
+    de-duplicate generated sites on the boundary of the surrounding frame.
     """
     if not isinstance(primitive, Atoms):
         raise TypeError("primitive must be an ASE Atoms object")
@@ -128,10 +107,57 @@ def build_supercell(
             f"Python/NumPy integers; got {supercell_matrix!r}"
         )
     matrix = normalize_supercell_matrix(supercell_matrix)
-    try:
-        return _from_phonopy(primitive, matrix, symprec=symprec)
-    except ImportError:
-        return _fallback_phonopy_old_style(primitive, matrix, symprec=symprec)
+    return _build_supercell(primitive, matrix, symprec=symprec)
 
 
-__all__ = ["build_supercell"]
+def align_structures(
+    reference: Atoms,
+    atoms: Atoms,
+    *,
+    tolerance: float,
+) -> tuple[Atoms, float]:
+    """Reorder an external structure to ``reference`` and report its residual.
+
+    This is an explicit external-import policy. Calculation APIs never invoke it
+    implicitly and never silently reorder a training frame.
+    """
+    tolerance = float(tolerance)
+    if not np.isfinite(tolerance) or tolerance <= 0:
+        raise ValueError(
+            f"tolerance must be a finite positive length in angstrom, got {tolerance!r}"
+        )
+    if len(atoms) != len(reference):
+        raise ValueError("structure atom count differs from reference")
+    cell_residual = float(
+        np.max(np.linalg.norm(np.asarray(atoms.cell) - np.asarray(reference.cell), axis=1))
+    )
+    if cell_residual >= tolerance:
+        raise ValueError(
+            "structure cell differs from reference: lattice residual "
+            f"{cell_residual:.6e} angstrom against tolerance {tolerance:.6e} angstrom"
+        )
+    permutation = np.empty(len(reference), dtype=np.int32)
+    maximum = 0.0
+    geometry = PeriodicGeometry(reference.cell, reference.pbc)
+    for number in np.unique(reference.numbers):
+        target = np.flatnonzero(reference.numbers == number)
+        source = np.flatnonzero(atoms.numbers == number)
+        if len(target) != len(source):
+            raise ValueError("structure chemical composition differs from reference")
+        delta = atoms.positions[source][None, :, :] - reference.positions[target][:, None, :]
+        _, lengths = geometry.mic(delta.reshape(-1, 3))
+        cost = lengths.reshape(len(target), len(source))
+        rows, columns = linear_sum_assignment(cost)
+        maximum = max(maximum, float(np.max(cost[rows, columns], initial=0.0)))
+        permutation[target[rows]] = source[columns]
+    if maximum >= tolerance:
+        raise ValueError(
+            "structure cannot be aligned to reference within tolerance; maximum residual "
+            f"{maximum:.3e} angstrom"
+        )
+    aligned = atoms[permutation]
+    aligned.info.update(atoms.info)
+    return aligned, max(cell_residual, maximum)
+
+
+__all__ = ["align_structures", "build_supercell"]

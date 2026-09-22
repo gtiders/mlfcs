@@ -23,7 +23,7 @@ and angles are not compared directly with it. The core does not expose separate
 `mapping_tolerance`, `cell_tolerance`, or `position_tolerance` parameters.
 
 spglib's `angle_tolerance` remains on its automatic policy and is not a second MLFCS length
-precision. The required `tolerance` of `mlfcs.tools.structure_alignment` is a separate external
+precision. The required `tolerance` of `mlfcs.tools.supercell.align_structures` is a separate external
 data-import policy and is never consumed by the computational core.
 
 Every computational entry that needs a finite cell requires an explicit `reference` without a
