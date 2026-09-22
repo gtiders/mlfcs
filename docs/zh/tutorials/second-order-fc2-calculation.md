@@ -255,7 +255,8 @@ python run.py
 from ase.io import read, write
 from calorine.calculators import CPUNEP
 
-from mlfcs import perturb_structures, write_force_constants
+from mlfcs import write_force_constants
+from mlfcs.tools.gaussian import perturb_structures
 from mlfcs.tools.supercell import build_supercell
 from mlfcs.fitting import ForceConstantFitter
 

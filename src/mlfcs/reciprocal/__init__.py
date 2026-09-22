@@ -11,7 +11,7 @@ The package owns everything that needs a reciprocal grid:
   none of them re-derives q-point symmetry on its own.
 
 Dependencies point one way: this package may import :mod:`mlfcs.structure`,
-:mod:`mlfcs.force_constants`, :mod:`mlfcs.sampling` and the fitter, while no other
+:mod:`mlfcs.force_constants` and the fitter, while no other
 production package may import :mod:`mlfcs.reciprocal`.  That rule is enforced by
 ``tests/test_reciprocal_boundaries.py``.
 """

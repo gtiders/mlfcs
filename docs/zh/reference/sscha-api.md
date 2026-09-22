@@ -13,6 +13,8 @@ code_verified: 4.0.0a6
 ## `perturb_structures`
 
 ```python
+from mlfcs.reciprocal import perturb_structures
+
 perturb_structures(
     reference: Atoms,
     *,
@@ -27,6 +29,14 @@ perturb_structures(
     max_displacement: float | None = None,
     random_seed: int | None = None,
 ) -> list[Atoms]
+```
+
+该入口负责包含 harmonic 模式的倒空间采样。独立 Cartesian Gaussian 微扰属于叶子工具：
+
+```python
+from mlfcs.tools.gaussian import perturb_structures
+
+snapshots = perturb_structures(reference, snapshots=100, displacement=0.01)
 ```
 
 第一参数始终是要被扰动的 `reference`，不是 primitive。每帧保留 reference 原子顺序并写入

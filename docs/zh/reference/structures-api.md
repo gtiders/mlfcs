@@ -9,6 +9,22 @@ code_verified: 4.0.0a6
 
 # 结构、超胞与对齐 API
 
+## `mlfcs.tools.gaussian.perturb_structures`
+
+```python
+from mlfcs.tools.gaussian import perturb_structures
+
+snapshots = perturb_structures(
+    reference,
+    snapshots=100,
+    displacement=0.01,
+    random_seed=42,
+)
+```
+
+该叶子工具生成独立 Cartesian Gaussian 位移，逐帧移除算术平均位移，并保持 reference 原子顺序。
+它不导入倒空间工作流；谐波采样只从 `mlfcs.reciprocal.perturb_structures` 进入。
+
 ## `mlfcs.tools.supercell.build_supercell`
 
 ```python

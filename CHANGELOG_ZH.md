@@ -8,6 +8,8 @@
 
 - 将可选结构工具统一收敛到 `mlfcs.tools.supercell`：超胞构造只使用项目自身实现，不再导入 phonopy；
   `align_structures` 同步迁入该模块，旧模块不保留兼容层。
+- **破坏性：** 独立 Cartesian Gaussian 微扰从顶层命名空间及已删除的 `mlfcs.sampling` 包迁到
+  `mlfcs.tools.gaussian`。倒空间谐波采样仍由 `mlfcs.reciprocal` 提供，生产包不反向依赖叶子工具包。
 
 ### 变化
 

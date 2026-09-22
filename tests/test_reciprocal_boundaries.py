@@ -7,7 +7,7 @@ than a directory name:
 1. no other production module may import :mod:`mlfcs.reciprocal`, so mainline fitting,
    force constants and IO stay independent of reciprocal space;
 2. the reciprocal package may only reach downwards -- structure, force constants, the
-   Gaussian sampler and the fitter -- so it cannot become a hidden dependency of a
+   fitter -- so it cannot become a hidden dependency of a
    higher-level workflow.
 
 The old paths are gone without shims: `mlfcs.phonon.*` and `mlfcs.structure.reciprocal`
@@ -34,7 +34,7 @@ RECIPROCAL = SOURCE / "reciprocal"
 # has; duplicating least squares inside the reciprocal package or making the documented
 # `SSCHA(primitive, reference=..., cutoff=...)` constructor take an injected fitter would
 # both be worse than one explicit edge.  Nothing above the fitter may be imported.
-RECIPROCAL_ALLOWED = {"exceptions", "fitting", "force_constants", "sampling", "structure"}
+RECIPROCAL_ALLOWED = {"exceptions", "fitting", "force_constants", "structure"}
 SUBPACKAGES = (
     "mlfcs.reciprocal",
     "mlfcs.reciprocal.grid",
@@ -114,7 +114,6 @@ def test_base_package_import_closures_exclude_reciprocal():
         "mlfcs.finite_difference",
         "mlfcs.fitting",
         "mlfcs.io",
-        "mlfcs.sampling",
         "mlfcs.calculators",
     )
     for package in checked:
@@ -133,6 +132,7 @@ def test_base_package_import_closures_exclude_reciprocal():
 def test_legacy_reciprocal_paths_are_gone_without_shims():
     """No old module survives as a file, a package or a `sys.modules` alias."""
     assert not (SOURCE / "phonon").exists()
+    assert not (SOURCE / "sampling").exists()
     assert not (SOURCE / "structure" / "reciprocal.py").exists()
     assert importlib.util.find_spec("mlfcs.phonon") is None
     assert importlib.util.find_spec("mlfcs.structure.reciprocal") is None

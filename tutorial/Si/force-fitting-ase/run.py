@@ -12,9 +12,10 @@ import numpy as np
 from ase.io import read, write
 from calorine.calculators import CPUNEP
 
-from mlfcs import ForceConstantFitter, perturb_structures, write_force_constants
-from mlfcs.tools.supercell import build_supercell
+from mlfcs import ForceConstantFitter, write_force_constants
 from mlfcs.fitting.dataset import FitDataset
+from mlfcs.tools.gaussian import perturb_structures
+from mlfcs.tools.supercell import build_supercell
 
 MODEL = "Si_2022_NEP3_5body.txt"
 TRAINING = Path("train.extxyz")

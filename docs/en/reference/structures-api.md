@@ -8,6 +8,24 @@ code_verified: 4.0.0a6
 
 # Structures, supercells, and alignment
 
+## `mlfcs.tools.gaussian.perturb_structures`
+
+```python
+from mlfcs.tools.gaussian import perturb_structures
+
+snapshots = perturb_structures(
+    reference,
+    snapshots=100,
+    displacement=0.01,
+    random_seed=42,
+)
+```
+
+This leaf utility draws independent Cartesian Gaussian displacements, removes each snapshot's
+arithmetic mean displacement, and returns structures in the reference atom order. It does not
+import reciprocal-space workflows. Harmonic sampling is available only from
+`mlfcs.reciprocal.perturb_structures`.
+
 ## `mlfcs.tools.supercell.build_supercell`
 
 ```python

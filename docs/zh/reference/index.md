@@ -21,7 +21,8 @@ import mlfcs
 
 | 分类 | 顶层名称 | 作用 |
 |---|---|---|
-| 采样 | `perturb_structures` | 生成 Gaussian 或谐波分布位移结构 |
+| Gaussian 采样 | `mlfcs.tools.gaussian.perturb_structures` | 生成独立 Cartesian Gaussian 位移结构 |
+| 谐波采样 | `mlfcs.reciprocal.perturb_structures` | 生成谐波分布位移结构 |
 | 有限差分 | `FiniteDifferenceCalculation` | 构造、执行或回收对称约化有限差分 |
 | 拟合 | `ForceConstantFitter` | 由单一 reference 的力快照拟合连续阶 IFC |
 | 数据 | `ForceConstants` | 保存 canonical sparse Taylor IFC 与目标 realization |
