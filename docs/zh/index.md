@@ -37,7 +37,8 @@ MLFCS 是 Python 函数库，不是命令行应用。力的产生始终由用户
 ```python
 from ase.build import bulk
 from ase.calculators.emt import EMT
-from mlfcs import FiniteDifferenceCalculation, build_supercell, write_force_constants
+from mlfcs import FiniteDifferenceCalculation, write_force_constants
+from mlfcs.tools.supercell import build_supercell
 
 primitive = bulk("Al", "fcc", a=4.05)
 reference = build_supercell(primitive, (2, 2, 2))

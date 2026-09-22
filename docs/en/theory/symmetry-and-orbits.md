@@ -134,3 +134,14 @@ and the 2-norm condition number of $Q_{\mathrm{obs}}$ is recorded with the orbit
   witness minor, and entries at $2^{63}$ or $10^{30}$.
 * The analytic Morse FC4 oracle and the tutorial cases pin the physical content: rebasing must not change
   a delivered force constant.
+
+## Primitive cell, explicit supercell and one precision
+
+The orbit and interaction algebra runs on the **user-provided** primitive cell, and the reference
+supercell is always supplied explicitly: no core path guesses one from a cutoff or builds one
+implicitly.  The integer replication relation between the two cells, the mapping of supercell atoms
+onto "primitive atom plus integer lattice vector", and the spglib identification of the primitive
+symmetry all use one length precision, `symprec` in angstrom; dimensionless matrix elements,
+fractional coordinate differences and angles are never compared with it.
+`mlfcs.tools.supercell.build_supercell` is an optional convenience tool that the core does not
+depend on.

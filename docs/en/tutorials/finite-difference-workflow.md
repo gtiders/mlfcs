@@ -9,7 +9,7 @@ code_verified: 4.0.0a6
 # Finite differences
 
 `FiniteDifferenceCalculation` accepts an explicit primitive and reference supercell. Use
-`mlfcs.build_supercell` before constructing the calculation when a matrix-based structure
+`mlfcs.tools.supercell.build_supercell` before constructing the calculation when a matrix-based structure
 must be prepared. `sow()` returns structures in reference order; `reap()` requires forces in
 that same order (or a configuration-ID mapping).
 

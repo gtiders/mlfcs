@@ -4,6 +4,29 @@
 
 本文件记录面向用户的重要变化，版本遵循语义化版本约定。
 
+## 未发布
+
+### 变化
+
+- **破坏性：** `StructureRelation.from_atoms(primitive, reference, tolerance=...)` 改为
+  `from_atoms(primitive, reference, symprec=...)`。不保留别名：旧关键字会抛出指名它的 `TypeError`。
+  `symprec` 是原胞—超胞几何的唯一长度精度（单位 Å），并连同 `cell_residual`、`position_residual`
+  记录在关系对象上。晶格残差按「每个原胞晶格系数」表达，因此同一个 `symprec` 对 $1\times1\times1$ 与
+  大重复矩阵含义一致；无量纲矩阵差永远不与它比较。
+- **破坏性：** `build_supercell` 移到 `mlfcs.tools.supercell`。`from mlfcs import build_supercell` 与
+  `from mlfcs.structure import build_supercell` 不再可用，也不保留转发别名。`mlfcs.tools` 是叶子包：
+  它可以依赖 `mlfcs.structure`，但任何主线包都不得反向导入它。所有计算入口
+  （`InteractionSpace`、`FiniteDifferenceCalculation`、`ForceConstantFitter`、`SSCHA`）继续要求无默认
+  值的显式 `reference`；主线不会替你构造超胞。
+- **破坏性：** `align_structures` 移到 `mlfcs.tools.structure_alignment`，其 `tolerance` 改为必需参数。
+  它是针对外部程序产出结构的外部导入策略，不是结构身份阈值，主线不调用它。
+- `StructureRelation.displacement` 用保存的 `symprec` 验证固定胞训练帧，不再使用隐藏的 `1e-7`；真实原子
+  位移不论多大都会正确返回，而变胞会被拒绝并给出 Å 残差。
+- `normalize_supercell_matrix` 只接受离散输入：整数 dtype 或 Python/NumPy 整数。浮点矩阵会被拒绝，而
+  不是用 `1e-10` 比较后四舍五入。
+- 原生 HDF5 写出 `symprec`，读取端据此构造规范 identity 关系；缺少该属性的文件会被指名拒绝，而不是
+  静默取默认值。
+
 ## 4.0.0a6 — 2026-09-20
 
 ### 变化

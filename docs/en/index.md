@@ -35,7 +35,8 @@ MLFCS is a Python library, not a command-line application. Force generation rema
 ```python
 from ase.build import bulk
 from ase.calculators.emt import EMT
-from mlfcs import FiniteDifferenceCalculation, build_supercell, write_force_constants
+from mlfcs import FiniteDifferenceCalculation, write_force_constants
+from mlfcs.tools.supercell import build_supercell
 
 primitive = bulk("Al", "fcc", a=4.05)
 reference = build_supercell(primitive, (2, 2, 2))

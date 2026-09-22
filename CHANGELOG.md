@@ -4,6 +4,35 @@
 
 All notable changes are documented here. Releases follow semantic versioning.
 
+## Unreleased
+
+### Changed
+
+- **Breaking:** `StructureRelation.from_atoms(primitive, reference, tolerance=...)` is now
+  `from_atoms(primitive, reference, symprec=...)`.  There is no alias: the old keyword raises
+  `TypeError` naming it.  `symprec` is the single length precision of the primitive-supercell
+  geometry, in angstrom, and it is recorded on the relation together with `cell_residual` and
+  `position_residual`.  The lattice residual is expressed per primitive lattice coefficient, so
+  one `symprec` means the same thing for a 1x1x1 cell and for a large repeat, and a dimensionless
+  matrix difference is never compared with it.
+- **Breaking:** `build_supercell` moved to `mlfcs.tools.supercell`.  `from mlfcs import
+  build_supercell` and `from mlfcs.structure import build_supercell` no longer work and no
+  forwarding alias is kept.  `mlfcs.tools` is a leaf package: it may import `mlfcs.structure`, and
+  no core package imports it back.  Every computational entry point (`InteractionSpace`,
+  `FiniteDifferenceCalculation`, `ForceConstantFitter`, `SSCHA`) keeps taking an explicit
+  `reference` with no default; the core never builds a supercell for you.
+- **Breaking:** `align_structures` moved to `mlfcs.tools.structure_alignment` and its `tolerance`
+  is now required.  It is an external-import policy for structures produced elsewhere, not a
+  structure-identity threshold, and no core path calls it.
+- `StructureRelation.displacement` validates fixed-cell training frames with the stored `symprec`
+  instead of a hidden `1e-7`; real atomic displacements are returned whatever their size, while a
+  varying cell is refused with its angstrom residual.
+- `normalize_supercell_matrix` accepts only discrete input: an integer dtype or Python/NumPy
+  integers.  A floating-point matrix is refused instead of being rounded with a `1e-10`
+  comparison.
+- The native HDF5 writer records `symprec`, and the reader builds the canonical identity relation
+  from it.  A file without the attribute is refused by name rather than silently defaulting.
+
 ## 4.0.0a6 — 2026-09-20
 
 ### Changed
