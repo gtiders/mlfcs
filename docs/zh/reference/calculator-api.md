@@ -33,7 +33,7 @@ MLFCSCalculator.from_hdf5(
 | 参数 | 含义 |
 |---|---|
 | `force_constants` | 包含 FC2 及以上 canonical Taylor IFC 的 `ForceConstants`。metadata 明确声明为其他基底时拒绝。 |
-| `source` | MLFCS native HDF5 v3 文件。 |
+| `source` | MLFCS native HDF5 v4 文件。 |
 | `reference` | Calculator 工作的固定显式超胞。省略时使用力常数当前 relation 的 reference；从 HDF5 读取时默认是 primitive。 |
 | `maximum_displacement` | 可选的正数，单位 Å。任何原子的位移模超过它时发出 warning，但仍按原位移计算。 |
 

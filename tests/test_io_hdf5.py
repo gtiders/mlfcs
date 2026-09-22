@@ -15,6 +15,7 @@ from supercell_helpers import make_supercell
 from mlfcs import (
     FiniteDifferenceCalculation,
     ForceConstants,
+    read_hdf5,
     write_force_constants,
 )
 from mlfcs.finite_difference.plan_identity import ForceBatch
@@ -45,11 +46,33 @@ def test_reap_keeps_sparse_clusters_and_hdf5_writes_them(tmp_path):
     write_force_constants(result, target, format="hdf5")
     with h5py.File(target) as handle:
         group = handle["force_constants/3"]
-        assert handle.attrs["schema_version"] == 3
+        assert handle.attrs["schema_version"] == 4
         assert group.attrs["representation"] == "lattice-labelled-sparse"
         assert group["sites"].shape[1] == 3
         assert group["translations"].shape[1:] == (2, 3)
         assert group["tensors"].shape[1:] == (3, 3, 3)
+
+
+def test_native_v3_is_rejected_after_symprec_became_required(tmp_path):
+    primitive = Atoms("H", positions=[[0, 0, 0]], cell=np.eye(3), pbc=True)
+    relation = StructureRelation.identity(primitive, symprec=1e-5)
+    sparse = SparseOrderForceConstants(
+        order=2,
+        sites=np.empty((0, 2), dtype=np.int32),
+        translations=np.empty((0, 1, 3), dtype=np.int32),
+        tensors=np.empty((0, 3, 3)),
+    )
+    target = tmp_path / "old-v3.h5"
+    write_force_constants(
+        ForceConstants({}, primitive, sparse={2: sparse}, relation=relation),
+        target,
+        format="hdf5",
+    )
+    with h5py.File(target, "r+") as handle:
+        handle.attrs["schema_version"] = 3
+        del handle.attrs["symprec"]
+    with pytest.raises(ValueError, match="only v4"):
+        read_hdf5(target)
 
 
 def test_dense_materialization_warns_but_continues(caplog):

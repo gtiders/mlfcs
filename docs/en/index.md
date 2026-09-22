@@ -22,7 +22,7 @@ High-order force constants combine rapidly growing interaction spaces, Cartesian
 
 - FC2 and arbitrarily higher-order finite differences with production validation centered on FC2–FC4.
 - Joint force-only fitting on one fixed reference supercell using Taylor coordinates.
-- Primitive-site plus exact integer-translation force constants with sparse native HDF5 v3 storage.
+- Primitive-site plus exact integer-translation force constants with sparse native HDF5 v4 storage.
 - Translational constraints and explicit FC2 Born–Huang/Huang post-processing.
 - Target-supercell realization and writers for phonopy, phono3py, ShengBTE, and ALAMODE.
 - An ASE Calculator for reference-relative energies and forces from canonical Taylor IFCs.
@@ -74,7 +74,7 @@ Decide which downstream program will consume the result before generating force 
 
 - One fit uses one fixed reference supercell; multi-supercell joint fitting is not supported.
 - Third and fourth order are the main production-validated high-order paths; higher orders may be prohibitively expensive.
-- Native HDF5 uses schema v3; older native schemas are intentionally rejected.
+- Native HDF5 uses schema v4; older native schemas are intentionally rejected.
 - ShengBTE output supports FC3 and FC4; ALAMODE output supports the implemented FC2–FC4 mapping.
 - Long-range electrostatic force subtraction, multipole corrections, and explicit FC3 bubble self-energies are not implemented.
 - SCPH and SSCHA require explicit convergence inspection.

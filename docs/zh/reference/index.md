@@ -21,7 +21,6 @@ import mlfcs
 
 | 分类 | 顶层名称 | 作用 |
 |---|---|---|
-| 结构 | `build_supercell` | 按 phonopy old-style 顺序生成显式超胞 |
 | 采样 | `perturb_structures` | 生成 Gaussian 或谐波分布位移结构 |
 | 有限差分 | `FiniteDifferenceCalculation` | 构造、执行或回收对称约化有限差分 |
 | 拟合 | `ForceConstantFitter` | 由单一 reference 的力快照拟合连续阶 IFC |
@@ -34,6 +33,9 @@ import mlfcs
 
 `mlfcs.__version__` 返回当前版本。顶层命名空间直接导入全部公共工作流，因此 `import mlfcs`
 会一并加载拟合与有限温度栈（含 Numba 编译后端）。
+
+`build_supercell` 不属于顶层入口；需要便利构造时使用
+`from mlfcs.tools.supercell import build_supercell`。计算主线只接收用户显式提供的 `reference`。
 
 ## 高级但有用的子模块对象
 

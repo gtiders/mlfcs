@@ -36,6 +36,12 @@ def test_relation_preserves_reference_order_for_a_nondiagonal_supercell():
 
     np.testing.assert_array_equal(relation.reference.numbers, reference.numbers)
     np.testing.assert_array_equal(relation.supercell_matrix, matrix)
+    np.testing.assert_allclose(
+        relation.reference.arrays["primitive_scaled_position"],
+        relation.primitive.get_scaled_positions()[relation.primitive_index],
+        atol=0.0,
+        rtol=0.0,
+    )
     assert relation.position_residual < 1e-10
     index = relation.index
     assert relation.index is index
@@ -60,7 +66,9 @@ def test_relation_maps_a_reordered_primitive_without_changing_reference_labels()
     )
     reference, _ = make_supercell(primitive, (2, 1, 1))
     reordered_primitive = primitive[[1, 0]]
-    relation = StructureRelation.from_atoms(reordered_primitive, reference[[3, 0, 2, 1]], symprec=1e-5)
+    relation = StructureRelation.from_atoms(
+        reordered_primitive, reference[[3, 0, 2, 1]], symprec=1e-5
+    )
 
     assert relation.index.n_primitive == 2
     np.testing.assert_array_equal(relation.reference.numbers, reference[[3, 0, 2, 1]].numbers)
@@ -87,6 +95,13 @@ def test_align_structures_is_explicit_and_preserves_reference_order():
     assert residual < 1e-12
     np.testing.assert_array_equal(aligned.numbers, reference.numbers)
     np.testing.assert_allclose(aligned.positions, reference.positions)
+
+
+@pytest.mark.parametrize("tolerance", (0.0, -1.0, np.nan, np.inf))
+def test_align_structures_requires_a_physical_tolerance(tolerance):
+    reference = Atoms("H", positions=[[0, 0, 0]], cell=np.eye(3), pbc=True)
+    with pytest.raises(ValueError, match="finite positive length"):
+        align_structures(reference, reference, tolerance=tolerance)
 
 
 def test_finite_difference_reap_is_invariant_to_reference_atom_permutation():

@@ -106,9 +106,9 @@ def build_supercell(
 ) -> Atoms:
     """Build an ASE reference supercell in phonopy's old-style ordering.
 
-    This is a structure-generation utility only, and it is the *only* supported way to obtain a
-    reference supercell.  Calculation APIs never invoke it implicitly: the caller builds the
-    supercell in one explicit step and passes it as ``reference`` in the next.
+    This is an optional structure-generation utility only. Calculation APIs never invoke it
+    implicitly: the caller may build a supercell here, read one from a file, or obtain one from
+    another program, then passes that explicit structure as ``reference`` in the next step.
 
     ``supercell_matrix`` is a discrete construction parameter, so a floating-point form such as
     ``[[2.0, 0.0, 0.0], ...]`` is refused: that is not a numerical approximation question but a
@@ -119,6 +119,9 @@ def build_supercell(
         raise TypeError("primitive must be an ASE Atoms object")
     if not np.all(primitive.pbc):
         raise ValueError("primitive must be periodic")
+    symprec = float(symprec)
+    if not np.isfinite(symprec) or symprec <= 0:
+        raise ValueError(f"symprec must be a finite positive length in angstrom, got {symprec!r}")
     if not _is_integer_matrix(supercell_matrix):
         raise TypeError(
             "supercell_matrix must be an integer matrix, integer triple or a nested sequence of "

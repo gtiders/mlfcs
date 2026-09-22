@@ -14,8 +14,7 @@ stages: construct a calculation, generate structures, and provide forces.
 ```python
 from ase.build import bulk
 from ase.calculators.emt import EMT
-from mlfcs import FiniteDifferenceCalculation
-from mlfcs import 
+from mlfcs import FiniteDifferenceCalculation, write_force_constants
 from mlfcs.tools.supercell import build_supercell
 
 primitive = bulk("Al", "fcc", a=4.05)

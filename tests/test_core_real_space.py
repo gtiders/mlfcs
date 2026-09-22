@@ -231,6 +231,34 @@ def test_exact_fc2_realization_into_sheared_supercell_matches_residue_mapping():
     np.testing.assert_allclose(actual, expected, atol=0.0, rtol=0.0)
 
 
+def test_export_site_mapping_uses_the_source_relations_symprec():
+    """Export must not reintroduce a private site-mapping threshold."""
+    primitive = Atoms(
+        "NaCl",
+        scaled_positions=[[0.0, 0.0, 0.0], [0.5, 0.5, 0.5]],
+        cell=np.asarray([[4.0, 0.0, 0.0], [1.7, 4.2, 0.0], [0.8, 1.1, 4.5]]),
+        pbc=True,
+    )
+    reference = build_supercell(primitive, (2, 1, 1), symprec=1e-3)
+    relation = StructureRelation.from_atoms(primitive, reference, symprec=1e-3)
+    force_constants = ForceConstants({}, reference, sparse={}, relation=relation)
+
+    target_primitive = primitive.copy()
+    target_primitive.positions[0, 0] += 5e-4
+    target_reference = build_supercell(target_primitive, (2, 1, 1), symprec=1e-3)
+    realized = realize_force_constants(
+        force_constants, target_reference, primitive=target_primitive
+    )
+    assert realized.relation is not None
+    assert realized.relation.symprec == 1e-3
+
+    invalid_primitive = primitive.copy()
+    invalid_primitive.positions[0, 0] += 1.1e-3
+    invalid_reference = build_supercell(invalid_primitive, (2, 1, 1), symprec=1e-3)
+    with pytest.raises(ValueError, match="site-mapping residual"):
+        realize_force_constants(force_constants, invalid_reference, primitive=invalid_primitive)
+
+
 def test_coefficient_transform_relates_cartesian_and_exact_lattice_coefficients():
     primitive = Atoms("Si", scaled_positions=[[0, 0, 0]], cell=np.eye(3) * 4, pbc=True)
     order = 3

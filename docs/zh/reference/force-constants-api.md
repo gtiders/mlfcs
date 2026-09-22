@@ -102,6 +102,8 @@ realization 对 folding 到同一 concrete cluster 的 exact interaction 求和�
 sparse rows。返回新 `ForceConstants`，其 `relation` 与 `supercell` 指向 target。
 
 ```python
+from mlfcs.tools.supercell import build_supercell
+
 target = build_supercell(primitive, (3, 3, 3))
 target_fc = realize_force_constants(source_fc, target)
 compact_fc2 = target_fc.materialize(2)

@@ -42,7 +42,7 @@ write_force_constants(force_constants, "mlfcs.h5", format="hdf5")
 
 ## Results and interpretation
 
-`mlfcs.h5` contains native HDF5 v3 sparse exact-$R$ FC2. Use an explicit writer to create dense phonopy output when a downstream workflow requires it.
+`mlfcs.h5` contains native HDF5 v4 sparse exact-$R$ FC2. Use an explicit writer to create dense phonopy output when a downstream workflow requires it.
 
 ## Common problems
 

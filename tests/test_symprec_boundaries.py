@@ -42,14 +42,17 @@ def test_a_large_repeat_is_accepted() -> None:
     assert relation.position_residual == pytest.approx(0.0, abs=1e-12)
 
 
-@pytest.mark.parametrize("matrix", (
-    np.diag((2, 3, 4)),
-    np.asarray([[2, 1, 0], [0, 2, 1], [0, 0, 2]]),
-    np.asarray([[2, -1, 0], [0, 2, 1], [0, 0, 2]]),
-    np.asarray([[1, 1, 0], [0, 1, 0], [0, 0, 2]]),
-    np.asarray([[1, 0, 0], [1, 1, 0], [0, 1, 1]]),
-    np.diag((2, 2, 2)) @ np.asarray([[1, 0, 0], [0, 1, 0], [0, 0, 1]]),
-))
+@pytest.mark.parametrize(
+    "matrix",
+    (
+        np.diag((2, 3, 4)),
+        np.asarray([[2, 1, 0], [0, 2, 1], [0, 0, 2]]),
+        np.asarray([[2, -1, 0], [0, 2, 1], [0, 0, 2]]),
+        np.asarray([[1, 1, 0], [0, 1, 0], [0, 0, 2]]),
+        np.asarray([[1, 0, 0], [1, 1, 0], [0, 1, 1]]),
+        np.diag((2, 2, 2)) @ np.asarray([[1, 0, 0], [0, 1, 0], [0, 0, 1]]),
+    ),
+)
 def test_every_candidate_matrix_is_recovered_exactly(matrix: np.ndarray) -> None:
     """Diagonal, non-diagonal, sheared and large-determinant matrices round-trip."""
     primitive = _cubic()
@@ -83,13 +86,16 @@ def test_a_large_dimensionless_error_that_is_inside_symprec_is_accepted() -> Non
     assert 0.0 < relation.cell_residual < SYMPREC
 
 
-@pytest.mark.parametrize(("offset", "accepted"), (
-    (0.0, True),
-    (0.5e-5, True),
-    (0.99e-5, True),
-    (1.01e-5, False),
-    (2e-5, False),
-))
+@pytest.mark.parametrize(
+    ("offset", "accepted"),
+    (
+        (0.0, True),
+        (0.5e-5, True),
+        (0.99e-5, True),
+        (1.01e-5, False),
+        (2e-5, False),
+    ),
+)
 def test_the_cell_threshold_is_strict(offset: float, accepted: bool) -> None:
     """Half of symprec, just below, just above: the comparison is a strict ``<``."""
     primitive = _cubic()
@@ -112,12 +118,15 @@ def test_the_cell_threshold_boundary_itself_is_refused() -> None:
         StructureRelation.from_atoms(primitive, reference, symprec=SYMPREC)
 
 
-@pytest.mark.parametrize(("offset", "accepted"), (
-    (0.0, True),
-    (0.5e-5, True),
-    (1.01e-5, False),
-    (5e-5, False),
-))
+@pytest.mark.parametrize(
+    ("offset", "accepted"),
+    (
+        (0.0, True),
+        (0.5e-5, True),
+        (1.01e-5, False),
+        (5e-5, False),
+    ),
+)
 def test_the_atom_threshold_is_strict(offset: float, accepted: bool) -> None:
     """The mapping residual has the same strict boundary as the lattice residual."""
     primitive = _cubic()

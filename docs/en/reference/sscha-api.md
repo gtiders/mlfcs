@@ -8,6 +8,20 @@ code_verified: 4.0.0a6
 
 # SSCHA and sampling API
 
+`SSCHA` requires the caller's explicit reference supercell; it never constructs one from a matrix
+or cutoff. Its `symprec` is passed unchanged to primitive symmetry identification and the
+primitive/reference relation:
+
+```python
+solver = SSCHA(
+    primitive,
+    reference=reference,
+    cutoff=4.0,
+    snapshots=32,
+    symprec=1e-5,
+)
+```
+
 `SSCHA` is the iterative workflow. Structure generation outside that workflow uses the same sampler through `perturb_structures`:
 
 ```python

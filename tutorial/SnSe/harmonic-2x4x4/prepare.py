@@ -8,7 +8,8 @@ from ase.io import read, write
 from hiphive import ForceConstantPotential
 from hiphive.calculators import ForceConstantCalculator
 
-from mlfcs.tools.supercell import build_supercell, perturb_structures
+from mlfcs import perturb_structures
+from mlfcs.tools.supercell import build_supercell
 
 ROOT = Path(__file__).resolve().parent
 FCP = ROOT.parent / "input" / "fcp_cm16_rfe-ridge_nf-3000_alpha-1.0.pickle"
@@ -38,4 +39,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

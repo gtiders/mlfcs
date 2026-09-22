@@ -34,7 +34,7 @@ MLFCSCalculator.from_hdf5(
 | Parameter | Meaning |
 |---|---|
 | `force_constants` | `ForceConstants` containing canonical Taylor IFCs of order two or higher. Explicit non-Taylor metadata is rejected. |
-| `source` | An MLFCS native HDF5 v3 file. |
+| `source` | An MLFCS native HDF5 v4 file. |
 | `reference` | The fixed explicit supercell used by the calculator. The current relation reference is used by default; an HDF5 file defaults to its primitive cell. |
 | `maximum_displacement` | Optional positive warning threshold in Å. Evaluation continues without clipping when it is exceeded. |
 

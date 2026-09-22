@@ -19,12 +19,12 @@ def _zero_batch(calculation, n_atoms):
     )
 
 
-def test_native_hdf5_v3_roundtrip_preserves_exact_lattice_labelled_sparse_ifcs(tmp_path):
+def test_native_hdf5_v4_roundtrip_preserves_exact_lattice_labelled_sparse_ifcs(tmp_path):
     primitive = Atoms("Si", positions=[[0, 0, 0]], cell=np.eye(3) * 4, pbc=True)
     reference = primitive.repeat((2, 1, 1))[[1, 0]]
     calculation = FiniteDifferenceCalculation(primitive, reference=reference, order=2, cutoff=3.0)
     result = calculation.reap(_zero_batch(calculation, len(reference)))
-    target = tmp_path / "fc-v3.h5"
+    target = tmp_path / "fc-v4.h5"
     write_force_constants(result, target, format="hdf5")
     restored = public_read_hdf5(target)
 
@@ -42,12 +42,12 @@ def test_native_hdf5_v3_roundtrip_preserves_exact_lattice_labelled_sparse_ifcs(t
     np.testing.assert_allclose(realized.materialize(2), result.materialize(2))
 
 
-def test_native_hdf5_rejects_v2_schema_without_guessing_atom_semantics(tmp_path):
+def test_native_hdf5_rejects_old_schema_without_guessing_atom_semantics(tmp_path):
     source = tmp_path / "legacy.h5"
     with h5py.File(source, "w") as handle:
         handle.attrs["format"] = "mlfcs-force-constants"
-        handle.attrs["schema_version"] = 2
-    with pytest.raises(ValueError, match="only v3 is supported"):
+        handle.attrs["schema_version"] = 3
+    with pytest.raises(ValueError, match="only v4 is supported"):
         read_hdf5(source)
 
 

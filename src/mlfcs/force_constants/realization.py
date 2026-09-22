@@ -12,6 +12,8 @@ from ase import Atoms
 from scipy.optimize import linear_sum_assignment
 
 from mlfcs.force_constants.representation import ForceConstants, SparseOrderForceConstants
+from mlfcs.structure.integer_lattice import determinant_3x3
+from mlfcs.structure.periodic_geometry import PeriodicGeometry
 from mlfcs.structure.relation import StructureRelation
 
 logger = logging.getLogger(__name__)
@@ -72,8 +74,11 @@ def _unimodular_change(
     source_cell = np.asarray(source, dtype=float)
     change = target_cell @ np.linalg.inv(source_cell)
     integer = np.rint(change).astype(np.int64)
-    residual = float(np.max(np.linalg.norm(target_cell - integer @ source_cell, axis=1)))
-    if residual >= symprec or abs(round(float(np.linalg.det(integer)))) != 1:
+    coefficients = np.maximum(1, np.sum(np.abs(integer), axis=1))
+    residual = float(
+        np.max(np.linalg.norm(target_cell - integer @ source_cell, axis=1) / coefficients)
+    )
+    if residual >= symprec or abs(determinant_3x3(integer)) != 1:
         raise ValueError(
             f"target {name} is not the same lattice as the source {name}: lattice residual "
             f"{residual:.6e} angstrom against symprec {symprec:.6e} angstrom for the candidate "
@@ -82,10 +87,12 @@ def _unimodular_change(
     return integer.astype(np.int32)
 
 
-def _site_mapping(source: Atoms, target: Atoms) -> tuple[np.ndarray, np.ndarray]:
+def _site_mapping(source: Atoms, target: Atoms, *, symprec: float) -> tuple[np.ndarray, np.ndarray]:
+    """Map equivalent primitive sites using the declared Cartesian length precision."""
     if len(source) != len(target):
         raise ValueError("target primitive atom count differs from the source primitive")
     inverse = np.linalg.inv(np.asarray(target.cell))
+    geometry = PeriodicGeometry(target.cell, target.pbc)
     mapping = np.empty(len(source), dtype=np.int32)
     shifts = np.empty((len(source), 3), dtype=np.int32)
     for number in np.unique(source.numbers):
@@ -95,18 +102,26 @@ def _site_mapping(source: Atoms, target: Atoms) -> tuple[np.ndarray, np.ndarray]
             raise ValueError(
                 "target primitive chemical composition differs from the source primitive"
             )
-        cost = np.empty((len(left), len(right)))
-        candidate_shifts = np.empty((len(left), len(right), 3), dtype=np.int32)
-        for row, source_site in enumerate(left):
-            for column, target_site in enumerate(right):
-                # source basis point, represented in the target primitive lattice
-                vector = source.positions[source_site] - target.positions[target_site]
-                shift = np.rint(vector @ inverse).astype(np.int32)
-                candidate_shifts[row, column] = shift
-                cost[row, column] = np.linalg.norm(vector - shift @ target.cell)
+        vectors = source.positions[left, None, :] - target.positions[None, right, :]
+        minimum, lengths = geometry.mic(vectors.reshape((-1, 3)))
+        cost = np.asarray(lengths).reshape((len(left), len(right)))
+        # ``minimum = vector - shift @ cell`` under the translation convention used by
+        # the sparse IFC relabelling below.  Recover the exact integer shift only after
+        # the general minimum-image search has selected the physical image.
+        candidate_shifts = (
+            np.rint((vectors.reshape((-1, 3)) - minimum) @ inverse)
+            .astype(np.int32)
+            .reshape((len(left), len(right), 3))
+        )
         rows, columns = linear_sum_assignment(cost)
-        if np.max(cost[rows, columns]) > 1e-5:
-            raise ValueError("target primitive atoms are not an exactly equivalent representation")
+        assigned = cost[rows, columns]
+        if np.max(assigned, initial=0.0) >= symprec:
+            worst = int(np.argmax(assigned))
+            raise ValueError(
+                "target primitive atoms are not an equivalent representation within symprec: "
+                f"site-mapping residual {float(assigned[worst]):.6e} angstrom against "
+                f"symprec {symprec:.6e} angstrom"
+            )
         mapping[left[rows]] = right[columns]
         shifts[left[rows]] = candidate_shifts[rows, columns]
     return mapping, shifts
@@ -151,7 +166,7 @@ def build_export_view(
     target = StructureRelation.from_atoms(
         target_primitive, target_supercell, symprec=source.symprec
     )
-    site_map, site_shift = _site_mapping(source.primitive, target.primitive)
+    site_map, site_shift = _site_mapping(source.primitive, target.primitive, symprec=source.symprec)
     source_to_target_translation = np.linalg.inv(primitive_change)
     sparse: dict[int, SparseOrderForceConstants] = {}
     for order, values in force_constants.sparse.items():
