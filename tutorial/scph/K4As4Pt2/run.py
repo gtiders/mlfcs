@@ -41,8 +41,10 @@ def _run() -> None:
         scph_multiplier=2,
         mixing=0.5,
         tolerance=1e-10,
+        # K4As4Pt2 starts from a soft-mode lattice: the absolute-value policy is stated
+        # explicitly here instead of relying on a silent abs(eigenvalue) default.
+        imaginary_modes="absolute",
         max_iterations=200,
-        qpoint_workers=4,
     ).run()
     results = series.results if hasattr(series, "results") else (series,)
     for result in results:

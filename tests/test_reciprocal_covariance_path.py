@@ -22,9 +22,9 @@ from test_reciprocal_full_grid_oracle import pair_bond_force_constants, scph_cas
 
 from mlfcs.force_constants.dense import lattice_fc2
 from mlfcs.reciprocal.fourier import dynamical_matrices, dynamical_matrix, fourier_terms
+from mlfcs.reciprocal.modes import modal_covariance
 from mlfcs.reciprocal.scph.fourier import _needed_covariances
 from mlfcs.reciprocal.scph.solver import LoopSCPH
-from mlfcs.reciprocal.statistics import mode_sigma
 from mlfcs.reciprocal.symmetry import star_member_gauge, star_member_operator
 
 CASES = ("diamond_2x1x1", "diamond_nondiagonal", "hcp_2x1x1", "cubic_2x1x1", "rhombohedral_2x1x1")
@@ -63,24 +63,30 @@ def _solver(name: str, *, multiplier: int = 1, **options) -> LoopSCPH:
 
 
 def _direct_full_grid_covariance(solver: LoopSCPH, lattice, multiplier: int):
-    """Return the covariance of a direct full-grid sweep, as an independent oracle."""
+    """Return the covariance of a direct full-grid sweep, as an independent oracle.
+
+    The oracle shares the mode policy with the production path instead of restating it: the point
+    of the comparison is the *reduction*, not a second opinion about how Gamma is weighted.
+    """
     relation = solver.fc2.relation
     masses = np.asarray(relation.primitive.get_masses(), dtype=float)
     positions = relation.primitive.get_scaled_positions(wrap=False)
     terms = fourier_terms(lattice, relation.primitive)
     qpoints = solver._qpoints(multiplier)
     n_q = len(qpoints)
-    eigenvalues, vectors = np.linalg.eigh(dynamical_matrices(terms, masses, qpoints))
-    sigma2 = (
-        mode_sigma(
-            eigenvalues,
-            temperature=TEMPERATURE,
-            statistics=solver.statistics,
-            cutoff_frequency_thz=solver.frequency_cutoff_thz,
-        )
-        ** 2
+    matrices = dynamical_matrices(terms, masses, qpoints)
+    policy = solver._mode_policy(TEMPERATURE)
+    weighted = np.stack(
+        [
+            modal_covariance(
+                matrix,
+                masses,
+                is_gamma=bool(np.allclose(qpoint, 0.0, rtol=0.0, atol=1e-12)),
+                policy=policy,
+            ).matrix
+            for matrix, qpoint in zip(matrices, qpoints, strict=True)
+        ]
     )
-    weighted = (vectors * sigma2[..., None, :]) @ vectors.conj().swapaxes(-1, -2)
     result = {}
     for a, b, r in sorted(_needed_covariances(solver.fc4.sparse[4])):
         block = weighted[:, 3 * a : 3 * a + 3, 3 * b : 3 * b + 3] / np.sqrt(masses[a] * masses[b])
@@ -119,8 +125,10 @@ def test_covariance_diagonalizes_only_representatives(name: str, monkeypatch) ->
     monkeypatch.setattr(np.linalg, "eigh", counting)
     solver._covariance(lattice_fc2(solver.fc2), 1, TEMPERATURE)
 
-    n_modes = 3 * len(solver.fc2.relation.primitive)
-    assert calls == [(mesh.n_irreducible, n_modes, n_modes)]
+    # The width of each solve is not pinned: the Gamma representative is solved in the internal
+    # subspace, the others in the full mass-weighted space.  One solve per star is the contract.
+    assert len(calls) == mesh.n_irreducible
+    assert all(shape[0] == shape[1] for shape in calls)
     assert mesh.n_irreducible <= mesh.n_qpoints
     assert int(mesh.weights.sum()) == mesh.n_qpoints
 
@@ -138,17 +146,19 @@ def test_a_weighted_representative_is_not_the_star_sum(name: str) -> None:
     positions = relation.primitive.get_scaled_positions(wrap=False)
     terms = fourier_terms(lattice, relation.primitive)
     points = mesh.full.points[mesh.representatives]
-    eigenvalues, vectors = np.linalg.eigh(dynamical_matrices(terms, masses, points))
-    sigma2 = (
-        mode_sigma(
-            eigenvalues,
-            temperature=TEMPERATURE,
-            statistics=solver.statistics,
-            cutoff_frequency_thz=solver.frequency_cutoff_thz,
-        )
-        ** 2
+    matrices = dynamical_matrices(terms, masses, points)
+    policy = solver._mode_policy(TEMPERATURE)
+    weighted = np.stack(
+        [
+            modal_covariance(
+                matrix,
+                masses,
+                is_gamma=bool(np.allclose(qpoint, 0.0, rtol=0.0, atol=1e-12)),
+                policy=policy,
+            ).matrix
+            for matrix, qpoint in zip(matrices, points, strict=True)
+        ]
     )
-    weighted = (vectors * sigma2[..., None, :]) @ vectors.conj().swapaxes(-1, -2)
 
     star = solver._covariance(lattice, 2, TEMPERATURE)
     for a, b, r in sorted(_needed_covariances(solver.fc4.sparse[4])):
