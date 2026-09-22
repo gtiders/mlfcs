@@ -67,7 +67,7 @@ $$
 - 只有笛卡尔长度（或「每个原胞晶格系数」的笛卡尔长度）可以与 `symprec` 比较；无量纲矩阵元素、分数
   坐标差和角度都不允许直接比较；
 - 不允许新增 `mapping_tolerance`、`cell_tolerance`、`position_tolerance` 等同义参数；
-- `mlfcs.tools.structure_alignment` 的 `tolerance` 是**外部导入策略**，用于重排独立程序或 MD 产生的
+- `mlfcs.tools.supercell.align_structures` 的 `tolerance` 是**外部导入策略**，用于重排独立程序或 MD 产生的
   结构，不参与核心结构身份判定；
 - spglib 的 `angle_tolerance` 由 spglib 自动处理（不传或传 `-1.0`），MLFCS 不暴露它，也不用它做
   原胞—超胞映射。

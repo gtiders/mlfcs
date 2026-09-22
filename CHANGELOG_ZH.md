@@ -6,6 +6,9 @@
 
 ## 未发布
 
+- 将可选结构工具统一收敛到 `mlfcs.tools.supercell`：超胞构造只使用项目自身实现，不再导入 phonopy；
+  `align_structures` 同步迁入该模块，旧模块不保留兼容层。
+
 ### 变化
 
 - **破坏性：** `StructureRelation.from_atoms(primitive, reference, tolerance=...)` 改为
@@ -18,7 +21,7 @@
   它可以依赖 `mlfcs.structure`，但任何主线包都不得反向导入它。所有计算入口
   （`InteractionSpace`、`FiniteDifferenceCalculation`、`ForceConstantFitter`、`SSCHA`）继续要求无默认
   值的显式 `reference`；主线不会替你构造超胞。
-- **破坏性：** `align_structures` 移到 `mlfcs.tools.structure_alignment`，其 `tolerance` 改为必需参数。
+- **破坏性：** `align_structures` 移到 `mlfcs.tools.supercell`，其 `tolerance` 改为必需参数。
   它是针对外部程序产出结构的外部导入策略，不是结构身份阈值，主线不调用它。
 - `StructureRelation.displacement` 用保存的 `symprec` 验证固定胞训练帧，不再使用隐藏的 `1e-7`；真实原子
   位移不论多大都会正确返回，而变胞会被拒绝并给出 Å 残差。

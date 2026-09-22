@@ -21,20 +21,21 @@ build_supercell(
 ) -> Atoms
 ```
 
-This optional leaf utility creates a periodic ASE `Atoms` in phonopy old-style ordering.
+This optional leaf utility creates a periodic ASE `Atoms` in primitive-site-major ordering using
+the project's NumPy/ASE implementation; it has no phonopy runtime dependency.
 `supercell_matrix` must be an integer triple or a nonsingular integer $3\times3$ matrix;
 floating representations such as `[[2.0, ...]]` are rejected because the matrix is a discrete
-construction parameter. `symprec` is a Cartesian length in angstrom used by phonopy, or by the
-fallback implementation when it removes duplicate generated sites.
+construction parameter. `symprec` is the Cartesian length used to remove duplicate generated
+sites on the boundary of the surrounding frame.
 
 The computational core never imports `mlfcs.tools` and never constructs or guesses a reference
 supercell. A caller may use this convenience function, read a supercell from a file, or obtain one
 from another program, then pass that explicit `reference` to the calculation.
 
-## `mlfcs.tools.structure_alignment.align_structures`
+## `mlfcs.tools.supercell.align_structures`
 
 ```python
-from mlfcs.tools.structure_alignment import align_structures
+from mlfcs.tools.supercell import align_structures
 
 align_structures(
     reference: Atoms,

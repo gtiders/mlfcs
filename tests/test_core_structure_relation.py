@@ -9,7 +9,7 @@ from mlfcs.finite_difference.calculation import FiniteDifferenceCalculation
 from mlfcs.finite_difference.plan_identity import ForceBatch
 from mlfcs.structure.periodic_geometry import PeriodicGeometry
 from mlfcs.structure.relation import StructureRelation
-from mlfcs.tools.structure_alignment import align_structures
+from mlfcs.tools.supercell import align_structures
 
 
 def _batch(job, forces):
