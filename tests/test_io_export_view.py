@@ -100,7 +100,7 @@ def test_export_view_roundtrips_when_primitive_basis_and_reference_are_both_repr
     change = np.asarray([[1, 1, 0], [0, 1, 0], [0, 0, 1]])
     target_primitive = source_primitive.copy()
     target_primitive.set_cell(change @ source_primitive.cell, scale_atoms=False)
-    target_matrix = result.relation.supercell_matrix @ np.linalg.inv(change)
+    target_matrix = np.rint(result.relation.supercell_matrix @ np.linalg.inv(change)).astype(np.int64)
     target_supercell, _ = make_supercell(target_primitive, target_matrix)
     target_supercell = target_supercell[[1, 0]]
 

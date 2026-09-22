@@ -11,19 +11,34 @@ from sympy.matrices.normalforms import hermite_normal_form
 
 
 def normalize_supercell_matrix(matrix: object) -> np.ndarray:
-    """Return a validated full-rank integer 3x3 supercell matrix."""
+    """Return a validated full-rank integer 3x3 supercell matrix.
+
+    The input has to be discrete: an integer dtype, or a nested sequence whose entries are Python
+    or NumPy integers.  A floating-point form is refused rather than rounded, because the caller
+    is declaring a discrete construction parameter -- guessing its intent from a tolerance is how
+    a second, hidden precision gets into the geometry.  The one place that may derive a candidate
+    matrix from two floating-point cells is :meth:`StructureRelation.from_atoms`, which rounds
+    explicitly and then hands the integers here.
+    """
     values = np.asarray(matrix)
     if values.shape == (3,):
         values = np.diag(values)
     if values.shape != (3, 3):
         raise ValueError("supercell_matrix must be three repeats or an integer 3x3 matrix")
-    if np.issubdtype(values.dtype, np.integer):
+    if values.dtype == object:
+        if not all(isinstance(value, (int, np.integer)) for value in values.ravel()):
+            raise TypeError(
+                "supercell_matrix must contain integers; a floating-point matrix is a discrete "
+                "parameter that has to be declared, not rounded"
+            )
+        integers = [[int(value) for value in row] for row in values]
+    elif np.issubdtype(values.dtype, np.integer):
         integers = [[int(value) for value in row] for row in values]
     else:
-        rounded = np.rint(values)
-        if not np.allclose(values, rounded, atol=1e-10, rtol=0.0):
-            raise ValueError("supercell_matrix must contain integers")
-        integers = [[int(value) for value in row] for row in rounded]
+        raise TypeError(
+            "supercell_matrix must have an integer dtype or contain Python/NumPy integers; got "
+            f"dtype {values.dtype}"
+        )
     limit = np.iinfo(np.int64)
     if any(value < limit.min or value > limit.max for row in integers for value in row):
         raise OverflowError("supercell_matrix does not fit in int64")

@@ -53,7 +53,10 @@ class StructureRelation:
         primitive.wrap()
         reference.wrap()
         transform = np.asarray(reference.cell) @ np.linalg.inv(np.asarray(primitive.cell))
-        matrix = normalize_supercell_matrix(transform)
+        # This is the only place allowed to turn two floating-point cells into a candidate
+        # integer matrix; the discrete tools take over from here.
+        candidate = np.rint(transform).astype(np.int64)
+        matrix = normalize_supercell_matrix(candidate)
         if not np.allclose(transform, matrix, atol=tolerance, rtol=0.0):
             raise ValueError("reference is not an integer supercell of primitive")
         if abs(determinant_3x3(matrix)) * len(primitive) != len(reference):
