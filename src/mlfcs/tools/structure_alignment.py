@@ -27,10 +27,21 @@ def align_structures(
     APIs. It can be useful for independently produced snapshots, but never
     silently changes the labels supplied to a calculation.
     """
+    tolerance = float(tolerance)
+    if not np.isfinite(tolerance) or tolerance <= 0:
+        raise ValueError(
+            f"tolerance must be a finite positive length in angstrom, got {tolerance!r}"
+        )
     if len(atoms) != len(reference):
         raise ValueError("structure atom count differs from reference")
-    if not np.allclose(atoms.cell, reference.cell, atol=tolerance, rtol=0.0):
-        raise ValueError("structure cell differs from reference")
+    cell_residual = float(
+        np.max(np.linalg.norm(np.asarray(atoms.cell) - np.asarray(reference.cell), axis=1))
+    )
+    if cell_residual >= tolerance:
+        raise ValueError(
+            "structure cell differs from reference: lattice residual "
+            f"{cell_residual:.6e} angstrom against tolerance {tolerance:.6e} angstrom"
+        )
     permutation = np.empty(len(reference), dtype=np.int32)
     maximum = 0.0
     geometry = PeriodicGeometry(reference.cell, reference.pbc)
@@ -45,12 +56,13 @@ def align_structures(
         rows, columns = linear_sum_assignment(cost)
         maximum = max(maximum, float(np.max(cost[rows, columns], initial=0.0)))
         permutation[target[rows]] = source[columns]
-    if maximum > tolerance:
+    if maximum >= tolerance:
         raise ValueError(
             f"structure cannot be aligned to reference within tolerance; maximum residual {maximum:.3e} Å"
         )
     aligned = atoms[permutation]
     aligned.info.update(atoms.info)
-    return aligned, maximum
+    return aligned, max(cell_residual, maximum)
+
 
 __all__ = ["align_structures"]

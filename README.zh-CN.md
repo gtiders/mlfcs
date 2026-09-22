@@ -25,7 +25,7 @@ MLFCS 是一个以 ASE 为公共边界、从原子力构造对称约化谐性与
 
 - FC2 到任意已支持高阶的有限差分，主要生产验证集中在 FC2–FC4。
 - 在一个固定 reference supercell 上，使用 Taylor 坐标进行仅力数据联合拟合。
-- 使用 primitive site 与精确整数平移表示力常数，并以原生 HDF5 v3 稀疏存储。
+- 使用 primitive site 与精确整数平移表示力常数，并以原生 HDF5 v4 稀疏存储。
 - 平移约束，以及显式的 FC2 Born–Huang/Huang 后处理。
 - 目标超胞 realization，以及 phonopy、phono3py、ShengBTE 和 ALAMODE writer。
 - 从 canonical Taylor IFC 构造 ASE Calculator，计算固定晶格上的相对能量与原子力。

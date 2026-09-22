@@ -142,6 +142,24 @@ def test_the_supercell_module_left_the_structure_package() -> None:
     assert not Path("src/mlfcs/structure/supercell.py").exists()
 
 
+def test_tutorials_do_not_import_the_removed_builder_or_move_unrelated_api() -> None:
+    """The breaking import migration must leave runnable tutorial modules."""
+    offenders: list[str] = []
+    for path in sorted(Path("tutorial").rglob("*.py")):
+        tree = ast.parse(path.read_text())
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.ImportFrom) or node.module is None:
+                continue
+            names = {alias.name for alias in node.names}
+            if node.module in {"mlfcs", "mlfcs.structure"} and "build_supercell" in names:
+                offenders.append(f"{path}:{node.lineno}: removed build_supercell import")
+            if node.module == "mlfcs.tools.supercell" and names - {"build_supercell"}:
+                offenders.append(
+                    f"{path}:{node.lineno}: unrelated names imported from supercell tool"
+                )
+    assert not offenders, offenders
+
+
 @pytest.mark.parametrize("path", CORE_GEOMETRY_FILES)
 def test_core_geometry_uses_no_float_tolerance_literals(path: str) -> None:
     """Dimensionless numbers are never compared with an angstrom tolerance.

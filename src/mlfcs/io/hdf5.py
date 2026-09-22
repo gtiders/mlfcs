@@ -1,4 +1,4 @@
-"""Native MLFCS HDF5 schema v3: primitive structure plus exact real-space IFCs."""
+"""Native MLFCS HDF5 schema v4: primitive structure plus exact real-space IFCs."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from ase import Atoms
 from mlfcs.force_constants.representation import ForceConstants, SparseOrderForceConstants
 from mlfcs.structure.relation import StructureRelation
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 
 def _write_atoms(group: h5py.Group, atoms: Atoms) -> None:
@@ -35,7 +35,7 @@ def _relation(force_constants: ForceConstants) -> StructureRelation:
     if isinstance(force_constants.relation, StructureRelation):
         return force_constants.relation
     raise ValueError(
-        "native HDF5 v3 requires ForceConstants produced with an explicit structure relation"
+        "native HDF5 v4 requires ForceConstants produced with an explicit structure relation"
     )
 
 
@@ -66,10 +66,10 @@ def write_hdf5(target: str | Path, force_constants: ForceConstants) -> None:
 
 
 def read_hdf5(source: str | Path) -> ForceConstants:
-    """Read canonical primitive exact-R force constants from native HDF5 v3."""
+    """Read canonical primitive exact-R force constants from native HDF5 v4."""
     with h5py.File(source, "r") as handle:
         if int(handle.attrs.get("schema_version", 0)) != SCHEMA_VERSION:
-            raise ValueError("unsupported native MLFCS HDF5 schema; only v3 is supported")
+            raise ValueError("unsupported native MLFCS HDF5 schema; only v4 is supported")
         primitive = _read_atoms(handle["structures/primitive"])
         # Canonical exact-R storage has no source-supercell identity, so this is the identity
         # relation; the precision is read from the file because it is what the fixed-cell

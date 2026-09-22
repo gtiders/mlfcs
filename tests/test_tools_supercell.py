@@ -30,6 +30,12 @@ def test_builder_uses_phonopy_order_and_returns_plain_ase_atoms():
     )
 
 
+@pytest.mark.parametrize("symprec", (0.0, -1.0, np.nan, np.inf))
+def test_builder_rejects_a_nonphysical_symprec(symprec):
+    with pytest.raises(ValueError, match="finite positive length"):
+        build_supercell(_primitive(), (2, 1, 1), symprec=symprec)
+
+
 def test_builder_has_no_calculation_or_workflow_dependency():
     path = Path(__file__).parents[1] / "src/mlfcs/tools/supercell.py"
     tree = ast.parse(path.read_text())

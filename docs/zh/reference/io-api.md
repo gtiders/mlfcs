@@ -15,11 +15,11 @@ code_verified: 4.0.0a6
 read_hdf5(source: str | Path) -> ForceConstants
 ```
 
-读取 MLFCS 原生 HDF5 v3。文件保存 primitive、source/reference 关系、exact sites/translations/tensors 和
-metadata。它不是 phonopy/phono3py 的稠密 HDF5。路径不存在、schema 不是 v3、shape 损坏或结构映射不一致
+读取 MLFCS 原生 HDF5 v4。文件保存 primitive、`symprec`、exact sites/translations/tensors 和
+metadata。它不是 phonopy/phono3py 的稠密 HDF5。路径不存在、schema 不是 v4、shape 损坏或结构映射不一致
 时抛出异常。
 
-启用 periodic FC2 completion 时，同一 v3 文件会额外保存 source reference、compact periodic Hessian 与
+启用 periodic FC2 completion 时，同一 v4 文件会额外保存 source reference、compact periodic Hessian 与
 rank report。该扩展是可选的；普通 exact-$R$ 文件的结构不变。读取后 `sparse[2]` 仍只包含 transferable
 exact-$R$ IFC，`materialize(2)` 才组合 source-bound completion。
 
@@ -48,7 +48,7 @@ write_force_constants(
 
 | `format` | 支持阶 | 表示与要求 |
 |---|---|---|
-| `hdf5` | 文件中全部阶 | MLFCS v3 sparse；`order` 应省略 |
+| `hdf5` | 文件中全部阶 | MLFCS v4 sparse；`order` 应省略 |
 | `phonopy` | 仅 FC2 | 文本 `FORCE_CONSTANTS`，按当前或给定 target 稠密化 |
 | `phonopy_hdf5` | 仅 FC2 | phonopy 稠密 HDF5，需要有效超胞映射 |
 | `phono3py_hdf5` | 仅 FC3 | phono3py 稠密 HDF5，内存开销可能很大 |

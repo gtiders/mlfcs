@@ -6,8 +6,35 @@ status: stable
 code_verified: 4.0.0a6
 ---
 
-# Versioning Policy
+# Read and write API
 
-How MLFCS versions its public interface and stored artifacts: semantic versioning of the Python package, stability tiers of top-level exports (stable/experimental/planned), and compatibility promises for the HDF5 archive format.
+## `read_hdf5`
 
-This page explains what changes may occur within patch, minor and major releases, how deprecations are announced and removed, and which file formats readers must support forever. The `code_verified` field present in the front matter of every documentation page ties each document to the last release where its contents were checked against the code.
+```python
+read_hdf5(source: str | Path) -> ForceConstants
+```
+
+Reads native MLFCS HDF5 schema v4. The file stores the primitive structure, `symprec`, metadata,
+and sparse exact integer-labelled sites, translations, and tensors. It is not the dense HDF5
+format used by phonopy or phono3py. Older native schemas are rejected explicitly.
+
+## `write_force_constants`
+
+```python
+write_force_constants(
+    force_constants: ForceConstants,
+    target: str | Path,
+    *,
+    format: str,
+    order: int | None = None,
+    primitive: Atoms | None = None,
+    supercell: Atoms | None = None,
+) -> None
+```
+
+`format` is mandatory; the filename extension never selects a format. Native `hdf5` writes every
+sparse order using schema v4. `phonopy` and `phonopy_hdf5` write dense FC2, `phono3py_hdf5` writes
+dense FC3, and the ShengBTE and ALAMODE writers use their documented order-specific formats.
+
+Target realization always uses an explicit primitive/reference relation. A writer never constructs
+a supercell from a matrix or guesses one from an interaction cutoff.

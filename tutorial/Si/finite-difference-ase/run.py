@@ -13,9 +13,9 @@ from calorine.calculators import CPUNEP
 
 from mlfcs import (
     FiniteDifferenceCalculation,
-    build_supercell,
     write_force_constants,
 )
+from mlfcs.tools.supercell import build_supercell
 
 MODEL = "Si_2022_NEP3_5body.txt"
 ROOT = Path(__file__).resolve().parent

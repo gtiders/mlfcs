@@ -25,7 +25,9 @@ def _validate_symprec(symprec: object) -> float:
     return value
 
 
-def _cell_residual(reference_cell: np.ndarray, matrix: np.ndarray, primitive_cell: np.ndarray) -> float:
+def _cell_residual(
+    reference_cell: np.ndarray, matrix: np.ndarray, primitive_cell: np.ndarray
+) -> float:
     """Return the largest lattice mismatch per primitive lattice coefficient, in angstrom.
 
     Dividing by the row sum of ``|S|`` expresses the error as angstrom per primitive lattice
@@ -40,12 +42,16 @@ def _cell_residual(reference_cell: np.ndarray, matrix: np.ndarray, primitive_cel
 
 
 def _attach_frame_metadata(
-    reference: Atoms, labels: np.ndarray, translations: np.ndarray, matrix: np.ndarray
+    primitive: Atoms,
+    reference: Atoms,
+    labels: np.ndarray,
+    translations: np.ndarray,
+    matrix: np.ndarray,
 ) -> None:
     """Record the verified frame mapping on the reference structure."""
     reference.arrays["primitive_index"] = labels.copy()
     reference.arrays["cell_translation"] = translations.copy()
-    reference.arrays["primitive_scaled_position"] = reference.get_scaled_positions()[labels]
+    reference.arrays["primitive_scaled_position"] = primitive.get_scaled_positions()[labels]
     reference.info["mlfcs_supercell_matrix"] = np.asarray(matrix).tolist()
 
 
@@ -94,7 +100,7 @@ class StructureRelation:
         labels = np.arange(len(cell), dtype=np.int32)
         translations = np.zeros((len(cell), 3), dtype=np.int32)
         matrix = np.eye(3, dtype=np.int64)
-        _attach_frame_metadata(cell, labels, translations, matrix)
+        _attach_frame_metadata(cell, cell, labels, translations, matrix)
         return cls(
             cell,
             cell.copy(),
@@ -107,9 +113,7 @@ class StructureRelation:
         )
 
     @classmethod
-    def from_atoms(
-        cls, primitive: Atoms, reference: Atoms, *, symprec: float
-    ) -> StructureRelation:
+    def from_atoms(cls, primitive: Atoms, reference: Atoms, *, symprec: float) -> StructureRelation:
         """Verify that an explicit reference is an integer supercell of the primitive.
 
         ``symprec`` is the only length precision here, in angstrom: it accepts the lattice
@@ -184,7 +188,7 @@ class StructureRelation:
         # Carry the verified frame mapping with every reference structure so
         # format writers and downstream FC2 materialization never reconstruct
         # identity from array position or floating-point coordinates.
-        _attach_frame_metadata(reference, labels, translations, matrix)
+        _attach_frame_metadata(primitive, reference, labels, translations, matrix)
         return cls(
             primitive,
             reference,

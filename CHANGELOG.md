@@ -30,8 +30,9 @@ All notable changes are documented here. Releases follow semantic versioning.
 - `normalize_supercell_matrix` accepts only discrete input: an integer dtype or Python/NumPy
   integers.  A floating-point matrix is refused instead of being rounded with a `1e-10`
   comparison.
-- The native HDF5 writer records `symprec`, and the reader builds the canonical identity relation
-  from it.  A file without the attribute is refused by name rather than silently defaulting.
+- **Breaking:** the native HDF5 schema is now v4. The writer records `symprec`, and the reader
+  builds the canonical identity relation from it. Native v3 files are rejected rather than being
+  interpreted under a different required-field contract.
 
 ## 4.0.0a6 — 2026-09-20
 
