@@ -144,8 +144,19 @@ def test_the_supercell_module_left_the_structure_package() -> None:
 
 def test_tutorials_do_not_import_the_removed_builder_or_move_unrelated_api() -> None:
     """The breaking import migration must leave runnable tutorial modules."""
+    tracked = subprocess.run(
+        ["git", "ls-files", "--", "tutorial/**/*.py"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    paths = (
+        [Path(line) for line in tracked.stdout.splitlines()]
+        if tracked.returncode == 0 and tracked.stdout.strip()
+        else sorted(Path("tutorial").rglob("*.py"))
+    )
     offenders: list[str] = []
-    for path in sorted(Path("tutorial").rglob("*.py")):
+    for path in paths:
         tree = ast.parse(path.read_text())
         for node in ast.walk(tree):
             if not isinstance(node, ast.ImportFrom) or node.module is None:
@@ -153,7 +164,10 @@ def test_tutorials_do_not_import_the_removed_builder_or_move_unrelated_api() -> 
             names = {alias.name for alias in node.names}
             if node.module in {"mlfcs", "mlfcs.structure"} and "build_supercell" in names:
                 offenders.append(f"{path}:{node.lineno}: removed build_supercell import")
-            if node.module == "mlfcs.tools.supercell" and names - {"build_supercell"}:
+            if node.module == "mlfcs.tools.supercell" and names - {
+                "align_structures",
+                "build_supercell",
+            }:
                 offenders.append(
                     f"{path}:{node.lineno}: unrelated names imported from supercell tool"
                 )

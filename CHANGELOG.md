@@ -6,6 +6,10 @@ All notable changes are documented here. Releases follow semantic versioning.
 
 ## Unreleased
 
+- Consolidated optional structure utilities in `mlfcs.tools.supercell`: supercell construction now
+  always uses the project implementation without importing phonopy, and `align_structures` moved
+  into the same module without a compatibility shim.
+
 ### Changed
 
 - **Breaking:** `StructureRelation.from_atoms(primitive, reference, tolerance=...)` is now
@@ -21,7 +25,7 @@ All notable changes are documented here. Releases follow semantic versioning.
   no core package imports it back.  Every computational entry point (`InteractionSpace`,
   `FiniteDifferenceCalculation`, `ForceConstantFitter`, `SSCHA`) keeps taking an explicit
   `reference` with no default; the core never builds a supercell for you.
-- **Breaking:** `align_structures` moved to `mlfcs.tools.structure_alignment` and its `tolerance`
+- **Breaking:** `align_structures` moved to `mlfcs.tools.supercell` and its `tolerance`
   is now required.  It is an external-import policy for structures produced elsewhere, not a
   structure-identity threshold, and no core path calls it.
 - `StructureRelation.displacement` validates fixed-cell training frames with the stored `symprec`
