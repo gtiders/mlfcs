@@ -8,7 +8,7 @@ from ase.io import read, write
 from hiphive import ForceConstantPotential
 from hiphive.calculators import ForceConstantCalculator
 
-from mlfcs import perturb_structures
+from mlfcs.tools.gaussian import perturb_structures
 from mlfcs.tools.supercell import build_supercell
 
 ROOT = Path(__file__).resolve().parent

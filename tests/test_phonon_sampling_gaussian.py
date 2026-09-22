@@ -1,10 +1,19 @@
+import importlib.util
+
 import numpy as np
 import pytest
 from ase import Atoms
 from supercell_helpers import monoatomic_periodic
 
-from mlfcs import perturb_structures
 from mlfcs.reciprocal import perturb_structures as harmonic_perturb_structures
+from mlfcs.tools.gaussian import perturb_structures
+
+
+def test_gaussian_sampling_has_only_the_tools_import_path():
+    import mlfcs
+
+    assert not hasattr(mlfcs, "perturb_structures")
+    assert importlib.util.find_spec("mlfcs.sampling") is None
 
 
 def test_gaussian_sampling_is_reproducible_and_centered():
@@ -18,8 +27,8 @@ def test_gaussian_sampling_is_reproducible_and_centered():
     assert [atoms.info["mlfcs_configuration_id"] for atoms in first] == list(range(4))
 
 
-def test_root_entry_point_only_generates_cartesian_gaussian_snapshots():
-    """Harmonic sampling moved to `mlfcs.reciprocal`, and the root entry point says so."""
+def test_tools_entry_point_only_generates_cartesian_gaussian_snapshots():
+    """Harmonic sampling belongs to `mlfcs.reciprocal`, and the tool says so."""
     reference = monoatomic_periodic()
 
     with pytest.raises(ValueError, match="mlfcs.reciprocal.perturb_structures"):

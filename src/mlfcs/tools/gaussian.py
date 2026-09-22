@@ -1,10 +1,4 @@
-"""Independent Cartesian Gaussian perturbation of a reference structure.
-
-This is a plain displacement generator: every Cartesian component of every atom draws an
-independent normal deviate of the requested width, and each snapshot is recentered so that
-its arithmetic mean displacement is zero.  It knows nothing about reciprocal space, which
-is why it lives outside :mod:`mlfcs.reciprocal` instead of inside the harmonic sampler.
-"""
+"""Independent Cartesian Gaussian perturbations for explicit reference structures."""
 
 from __future__ import annotations
 
@@ -12,8 +6,6 @@ from typing import Literal
 
 import numpy as np
 from ase import Atoms
-
-__all__ = ["gaussian_displacements", "perturb_structures"]
 
 
 def gaussian_displacements(
@@ -23,7 +15,7 @@ def gaussian_displacements(
     displacement: float = 0.01,
     random_seed: int | None = None,
 ) -> np.ndarray:
-    """Return ``(snapshots, atoms, 3)`` recentered Gaussian displacements in angstrom."""
+    """Return recentered Gaussian Cartesian displacements in angstrom."""
     if not isinstance(reference, Atoms):
         raise TypeError("reference must be an ASE Atoms object")
     if snapshots < 1:
@@ -44,16 +36,11 @@ def perturb_structures(
     displacement: float = 0.01,
     random_seed: int | None = None,
 ) -> list[Atoms]:
-    """Generate independent Cartesian Gaussian displacement structures.
-
-    Harmonic sampling moved to :mod:`mlfcs.reciprocal`, so this entry point only produces
-    Cartesian Gaussian snapshots.  Asking it for ``method="harmonic"`` fails with the
-    module that owns that workflow instead of silently falling back.
-    """
+    """Generate independent Cartesian Gaussian displacement structures."""
     if method != "gaussian":
         raise ValueError(
-            "this entry point only generates Cartesian Gaussian displacements; "
-            "harmonic sampling lives in mlfcs.reciprocal.perturb_structures"
+            "this tool only generates Cartesian Gaussian displacements; harmonic sampling "
+            "lives in mlfcs.reciprocal.perturb_structures"
         )
     values = gaussian_displacements(
         reference,
@@ -69,3 +56,6 @@ def perturb_structures(
         atoms.info["mlfcs_sampling_method"] = "gaussian"
         structures.append(atoms)
     return structures
+
+
+__all__ = ["gaussian_displacements", "perturb_structures"]

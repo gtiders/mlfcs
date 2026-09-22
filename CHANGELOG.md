@@ -9,6 +9,9 @@ All notable changes are documented here. Releases follow semantic versioning.
 - Consolidated optional structure utilities in `mlfcs.tools.supercell`: supercell construction now
   always uses the project implementation without importing phonopy, and `align_structures` moved
   into the same module without a compatibility shim.
+- **Breaking:** independent Cartesian Gaussian perturbation moved from the root namespace and the
+  removed `mlfcs.sampling` package to `mlfcs.tools.gaussian`. Reciprocal-space harmonic sampling
+  remains under `mlfcs.reciprocal`; production packages do not import the leaf tools package.
 
 ### Changed
 

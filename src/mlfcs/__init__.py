@@ -32,7 +32,6 @@ from mlfcs.interactions import (
 )
 from mlfcs.io.hdf5 import read_hdf5
 from mlfcs.io.write import write_force_constants
-from mlfcs.sampling.gaussian import perturb_structures
 
 __all__ = [
     "FiniteDifferenceCalculation",
@@ -44,7 +43,6 @@ __all__ = [
     "RealizedInteractionSpace",
     "ReferenceFrame",
     "enforce_rotational_sum_rules",
-    "perturb_structures",
     "read_hdf5",
     "realize_force_constants",
     "write_force_constants",

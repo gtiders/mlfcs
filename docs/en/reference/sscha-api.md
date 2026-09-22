@@ -22,9 +22,12 @@ solver = SSCHA(
 )
 ```
 
-`SSCHA` is the iterative workflow. Structure generation outside that workflow uses the same sampler through `perturb_structures`:
+`SSCHA` is the iterative workflow. Harmonic structure generation outside that workflow uses the
+reciprocal sampler explicitly:
 
 ```python
+from mlfcs.reciprocal import perturb_structures
+
 perturb_structures(
     reference: Atoms,
     *,
@@ -39,6 +42,14 @@ perturb_structures(
     max_displacement: float | None = None,
     random_seed: int | None = None,
 ) -> list[Atoms]
+```
+
+Independent Cartesian Gaussian perturbations are a leaf utility instead:
+
+```python
+from mlfcs.tools.gaussian import perturb_structures
+
+snapshots = perturb_structures(reference, snapshots=100, displacement=0.01)
 ```
 
 Gaussian sampling removes each snapshot's center-of-mass displacement. Harmonic sampling requires FC2 and temperature, realizes FC2 in `reference`, and uses the same mode pairing, frequency cutoff, imaginary-mode policy, and clipping implementation as SSCHA.

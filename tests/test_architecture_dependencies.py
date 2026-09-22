@@ -10,9 +10,6 @@ from _architecture_helpers import ROOT, internal_dependencies
 
 ALLOWED = {
     "structure": set(),
-    # Independent Cartesian Gaussian perturbation; it is the only sampling entry point the
-    # root namespace keeps, and it is a base layer the reciprocal package may use.
-    "sampling": {"structure"},
     "interactions": {"exceptions", "structure"},
     "force_constants": {"interactions", "structure"},
     "constraints": {"force_constants", "interactions", "structure"},
@@ -23,9 +20,9 @@ ALLOWED = {
     # below can be named here without creating an import cycle.
     "calculators": {"force_constants", "io", "structure"},
     # The reciprocal package owns every q-grid consumer.  It reaches downwards only:
-    # structure, force constants, the Gaussian sampler and the fitter that SSCHA uses to
+    # structure, force constants and the fitter that SSCHA uses to
     # refit FC2 from sampled forces.
-    "reciprocal": {"exceptions", "fitting", "force_constants", "sampling", "structure"},
+    "reciprocal": {"exceptions", "fitting", "force_constants", "structure"},
     "io": {"force_constants", "structure"},
 }
 
@@ -45,7 +42,6 @@ def test_mainline_packages_do_not_depend_on_reciprocal_workflows():
         "finite_difference",
         "fitting",
         "io",
-        "sampling",
         "calculators",
     ):
         assert "reciprocal" not in internal_dependencies(package), package
@@ -93,7 +89,6 @@ def test_every_public_subpackage_imports_on_its_own():
         "mlfcs.reciprocal.sampling",
         "mlfcs.reciprocal.scph",
         "mlfcs.reciprocal.sscha",
-        "mlfcs.sampling",
         "mlfcs.structure",
         "mlfcs.interactions",
         "mlfcs.force_constants",
@@ -128,7 +123,6 @@ def test_no_mainline_import_closure_reaches_the_reciprocal_package():
         "mlfcs.fitting",
         "mlfcs.io",
         "mlfcs.calculators",
-        "mlfcs.sampling",
     )
     probe = (
         "import sys; import {module}; "
@@ -146,8 +140,9 @@ def test_no_mainline_import_closure_reaches_the_reciprocal_package():
         assert completed.returncode == 0, f"{package}: {completed.stderr.strip()}"
 
 
-def test_legacy_phonon_package_is_removed():
+def test_legacy_workflow_packages_are_removed():
     assert not (ROOT / "phonon").exists()
+    assert not (ROOT / "sampling").exists()
     assert not (ROOT / "structure" / "reciprocal.py").exists()
 
 
