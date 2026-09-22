@@ -70,6 +70,12 @@ def test_imaginary_mode_policy_is_explicit():
     assert excluded.state.imaginary_modes == 3
     assert excluded.state.sampled_modes == 0
 
+    accepted = HarmonicSampler(
+        primitive, supercell, fc2, temperature=300, imaginary_modes="absolute"
+    )
+    assert accepted.state.imaginary_modes == 3
+    assert accepted.state.sampled_modes == 3
+
 
 def test_sampling_supports_nondiagonal_reordered_reference_supercells():
     primitive = Atoms("Al", positions=[[0, 0, 0]], cell=np.eye(3) * 4, pbc=True)

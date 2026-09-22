@@ -83,7 +83,6 @@ class SSCHA:
         symmetry_tolerance: float | None = 1e-6,
         cutoff_frequency: float = 0.01,
         imaginary_modes: Literal["error", "absolute", "exclude"] = "error",
-        imaginary_tolerance: float = 1e-6,
         max_displacement: float | None = None,
         initial_force_constants: ForceConstants | None = None,
         acoustic_sum_rule: bool = True,
@@ -103,8 +102,8 @@ class SSCHA:
             raise ValueError("statistics must be 'quantum' or 'classical'")
         if imaginary_modes not in {"error", "absolute", "exclude"}:
             raise ValueError("imaginary_modes must be 'error', 'absolute', or 'exclude'")
-        if cutoff_frequency < 0 or imaginary_tolerance < 0:
-            raise ValueError("frequency tolerances must be non-negative")
+        if cutoff_frequency < 0:
+            raise ValueError("cutoff_frequency must be non-negative")
         if max_displacement is not None and max_displacement <= 0:
             raise ValueError("max_displacement must be positive or None")
         if not 0 < mixing <= 1:
@@ -125,9 +124,7 @@ class SSCHA:
         self.initial_displacement = float(initial_displacement)
         self.random_seed = random_seed
         self.symprec = validate_symprec(symprec, context="SSCHA")
-        self.symmetry_tolerance = validate_symmetry_tolerance(
-            symmetry_tolerance, context="SSCHA"
-        )
+        self.symmetry_tolerance = validate_symmetry_tolerance(symmetry_tolerance, context="SSCHA")
         if cutoff is None:
             raise ValueError(
                 "cutoff must be a positive distance in angstrom or a negative neighbour-shell "
@@ -136,7 +133,6 @@ class SSCHA:
         self.cutoff = float(cutoff)
         self.cutoff_frequency = float(cutoff_frequency)
         self.imaginary_modes = imaginary_modes
-        self.imaginary_tolerance = float(imaginary_tolerance)
         self.max_displacement = max_displacement
         self.acoustic_sum_rule = acoustic_sum_rule
         self.mixing = float(mixing)
@@ -220,7 +216,6 @@ class SSCHA:
                 statistics=self.statistics,
                 cutoff_frequency=self.cutoff_frequency,
                 imaginary_modes=self.imaginary_modes,
-                imaginary_tolerance=self.imaginary_tolerance,
                 max_displacement=self.max_displacement,
                 random_seed=self._sampling_seed(index),
             )
@@ -470,7 +465,6 @@ class SSCHA:
                 symmetry_tolerance=self.symmetry_tolerance,
                 cutoff_frequency=self.cutoff_frequency,
                 imaginary_modes=self.imaginary_modes,
-                imaginary_tolerance=self.imaginary_tolerance,
                 max_displacement=self.max_displacement,
                 initial_force_constants=initial,
                 acoustic_sum_rule=self.acoustic_sum_rule,
@@ -522,7 +516,6 @@ class SSCHA:
             statistics=self.statistics,
             cutoff_frequency=self.cutoff_frequency,
             imaginary_modes=self.imaginary_modes,
-            imaginary_tolerance=self.imaginary_tolerance,
             max_displacement=self.max_displacement,
             symprec=self.symprec,
             symmetry_tolerance=self.symmetry_tolerance,

@@ -77,9 +77,10 @@ $1/\lambda$, so a residual the matrix gate accepts at a relative tolerance is am
 ratio of the largest to the smallest included eigenvalue, and the expanded covariance can
 disagree with the one built directly at a member's own q point by more than that tolerance.
 The solver checks the covariance itself, member by member, instead of inferring it from the
-covariance of the matrix. A soft or imaginary eigenvalue is reported where it is -- q point,
-mode index, eigenvalue, frequency, temperature -- and is never converted into a stable mode by
-$\sqrt{\lvert\lambda\rvert}$ unless the caller asks for that policy explicitly.
+covariance of the matrix. A negative eigenvalue is an ordinary possibility for an unstable SCPH
+trial lattice, so the default policy uses $\lvert\lambda\rvert$ in the modal weight and retains
+the signed frequency as a diagnostic. A caller may instead exclude negative modes or request an
+error; there is no separate numerical tolerance that decides whether a mode is imaginary.
 
 The star weights $w_s$ are the star sizes and sum to $N_q$. The covariance sum is a *real*
 sum over the full star: weights are used for statistics (free energy, mode counts, the

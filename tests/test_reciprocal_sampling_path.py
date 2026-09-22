@@ -454,9 +454,7 @@ def test_the_partner_basis_is_the_conjugate_times_a_block_unitary() -> None:
             block = unitary @ np.diag(sigma2) @ unitary.conj().T - np.diag(sigma2)
             assert np.abs(block).max() < 1e-12, f"{tag}: U does not preserve the mode blocks"
             if monoatomic:
-                np.testing.assert_allclose(
-                    unitary, -np.eye(unitary.shape[0]), rtol=0.0, atol=1e-12
-                )
+                np.testing.assert_allclose(unitary, -np.eye(unitary.shape[0]), rtol=0.0, atol=1e-12)
         assert pairs > 0, f"{tag} must have a q/-q pair"
 
 
@@ -552,7 +550,7 @@ def test_free_energy_and_mode_counts_are_the_full_grid_sums(name: str) -> None:
     gamma = int(np.flatnonzero(np.all(sampler.grid.full.labels == 0, axis=1))[0])
     represented[gamma, np.argsort(np.abs(frequencies[gamma]))[:3]] = False
     included = represented & (np.abs(frequencies) > sampler.cutoff_frequency)
-    imaginary = represented & (frequencies < -sampler.imaginary_tolerance)
+    imaginary = represented & (frequencies < 0.0)
 
     state = sampler.state
     assert state.total_modes == int(np.count_nonzero(represented))

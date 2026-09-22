@@ -36,7 +36,6 @@ perturb_structures(
     statistics: Literal["quantum", "classical"] = "quantum",
     cutoff_frequency: float = 0.01,
     imaginary_modes: Literal["error", "absolute", "exclude"] = "error",
-    imaginary_tolerance: float = 1e-6,
     max_displacement: float | None = None,
     random_seed: int | None = None,
 ) -> list[Atoms]

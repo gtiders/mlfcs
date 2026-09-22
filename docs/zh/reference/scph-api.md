@@ -28,7 +28,7 @@ LoopSCPH(
     frequency_cutoff_thz: float = 0.0,
     warm_start: ForceConstants | None = None,
     continuation: bool = True,
-    imaginary_modes: Literal["error", "absolute", "exclude"] = "error",
+    imaginary_modes: Literal["error", "absolute", "exclude"] = "absolute",
     asr_tolerance: float = 1e-6,
     symprec: float = 1e-5,
     time_reversal: bool = True,
@@ -50,7 +50,7 @@ LoopSCPH(
 | `frequency_cutoff_thz` | 低于该绝对频率的模态不进入协方差，必须非负。三个 $\Gamma$ 平移不是 cutoff 的问题：它们在任何权重成形之前就已从模态空间中移除。 |
 | `warm_start` | 可选初始有效 FC2，必须与输入结构关系兼容。 |
 | `continuation` | 多温度时是否用前一温度结果初始化下一温度。 |
-| `imaginary_modes` | 遇到非正本征值时的策略。`error`（默认）拒绝并报告 q 点、模编号、本征值、频率与温度；`absolute` 按 $\lvert\lambda\rvert$ 加权；`exclude` 把该模从协方差中剔除。软模不会被静默地当成稳定模。 |
+| `imaginary_modes` | 负本征值的处理策略。SCPH 的试探晶格出现虚频很正常，因此默认 `absolute` 按 $\lvert\lambda\rvert$ 加权；`exclude` 剔除该模，`error` 是调用方主动选择的诊断策略。不设置人为的“虚频容忍阈值”。 |
 | `asr_tolerance` | 声学求和规则证书 $\lVert D(\Gamma)B\rVert$ 相对网格尺度的容差。它用来*指明*拒绝的原因，而不是新增一个拒绝条件。 |
 | `symmetry_tolerance` | 全星协方差与 Hermitian 门禁的相对容差。设为 `None` 只关闭比较，非有限数据仍然会被拒绝。 |
 | `symprec` | 识别原胞对称性的几何容差；与任何动力学矩阵数值容差是两回事，会被记录在结果里。 |

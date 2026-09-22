@@ -17,6 +17,8 @@ They are red on the current baseline on purpose; each one names the behaviour th
 
 from __future__ import annotations
 
+import inspect
+
 import numpy as np
 import pytest
 from ase.build import bulk
@@ -250,3 +252,77 @@ def test_the_tutorial_script_no_longer_passes_the_removed_worker_argument() -> N
     """The K4As4Pt2 script has to run on the current HEAD, which has no qpoint_workers."""
     source = (__import__("pathlib").Path("tutorial/scph/K4As4Pt2/run.py")).read_text()
     assert "qpoint_workers" not in source
+
+
+def test_scph_uses_the_covariance_gate_and_caches_the_full_mode_policy(monkeypatch) -> None:
+    """The stricter covariance certificate is a production gate, not a test-only helper."""
+    import mlfcs.reciprocal.scph.solver as solver_module
+
+    force_constants, _ = scph_case("hcp_2x1x1")
+    solver = LoopSCPH(
+        fc2=force_constants,
+        fc4=scph_case("hcp_2x1x1")[1],
+        temperature=TEMPERATURE,
+        interpolation_multiplier=1,
+        scph_multiplier=1,
+        max_iterations=1,
+    )
+    policies = []
+    monkeypatch.setattr(solver_module, "require_star_covariance", lambda *args, **kwargs: 0.0)
+
+    def record_covariance_gate(*args, policy, **kwargs):
+        policies.append(policy)
+        return 0.0
+
+    monkeypatch.setattr(solver_module, "require_star_covariance_matrix", record_covariance_gate)
+    lattice = lattice_fc2(force_constants)
+    solver._require_covariant(lattice, 1, stage="initial", iteration=None, temperature=TEMPERATURE)
+    solver._require_covariant(lattice, 1, stage="initial", iteration=None, temperature=TEMPERATURE)
+    solver._require_covariant(lattice, 1, stage="initial", iteration=None, temperature=600.0)
+
+    assert [policy.temperature for policy in policies] == [TEMPERATURE, 600.0]
+    assert all(policy.imaginary_modes == "absolute" for policy in policies)
+
+
+def test_scph_asr_diagnostic_uses_the_grid_that_failed(monkeypatch) -> None:
+    """An interpolation-grid rejection must not be diagnosed on the SCPH grid."""
+    force_constants, _ = scph_case("hcp_2x1x1")
+    solver = LoopSCPH(
+        fc2=force_constants,
+        fc4=scph_case("hcp_2x1x1")[1],
+        temperature=TEMPERATURE,
+        interpolation_multiplier=1,
+        scph_multiplier=2,
+        max_iterations=1,
+    )
+    measured = []
+
+    def reject(*args, **kwargs):
+        raise SymmetryViolationError("star rejected")
+
+    def asr_on_grid(lattice, multiplier):
+        measured.append(multiplier)
+        return 2.0, 1.0
+
+    monkeypatch.setattr(solver, "_check_symmetry", reject)
+    monkeypatch.setattr(solver, "_asr_residual", asr_on_grid)
+    with pytest.raises(SymmetryViolationError, match="multiplier-1 grid"):
+        solver._require_covariant(
+            lattice_fc2(force_constants),
+            1,
+            stage="updated",
+            iteration=3,
+            temperature=TEMPERATURE,
+        )
+    assert measured == [1]
+
+
+def test_imaginary_frequency_tolerance_api_is_removed() -> None:
+    """A negative eigenvalue is physical data, not a threshold comparison."""
+    from mlfcs.reciprocal.sampling.harmonic import HarmonicSampler
+    from mlfcs.reciprocal.sampling.structures import perturb_structures
+    from mlfcs.reciprocal.sscha.solver import SSCHA
+
+    for function in (HarmonicSampler, perturb_structures, SSCHA):
+        assert "imaginary_tolerance" not in inspect.signature(function).parameters
+    assert inspect.signature(LoopSCPH).parameters["imaginary_modes"].default == "absolute"

@@ -35,7 +35,6 @@ def _sample_perturbations(
     statistics: Literal["quantum", "classical"] = "quantum",
     cutoff_frequency: float = 0.01,
     imaginary_modes: Literal["error", "absolute", "exclude"] = "error",
-    imaginary_tolerance: float = 1e-6,
     max_displacement: float | None = None,
     random_seed: int | None = None,
 ) -> SamplingBatch:
@@ -57,7 +56,7 @@ def _sample_perturbations(
             )
         if statistics != "quantum" or cutoff_frequency != 0.01:
             raise ValueError("statistics and cutoff_frequency require harmonic sampling")
-        if imaginary_modes != "error" or imaginary_tolerance != 1e-6:
+        if imaginary_modes != "error":
             raise ValueError("imaginary-mode options require harmonic sampling")
         values = gaussian_displacements(
             reference,
@@ -87,7 +86,6 @@ def _sample_perturbations(
             statistics=statistics,
             cutoff_frequency=cutoff_frequency,
             imaginary_modes=imaginary_modes,
-            imaginary_tolerance=imaginary_tolerance,
             max_displacement=max_displacement,
         )
         values = sampler.sample(snapshots, random_seed=random_seed)
@@ -131,7 +129,6 @@ def perturb_structures(
     statistics: Literal["quantum", "classical"] = "quantum",
     cutoff_frequency: float = 0.01,
     imaginary_modes: Literal["error", "absolute", "exclude"] = "error",
-    imaginary_tolerance: float = 1e-6,
     max_displacement: float | None = None,
     random_seed: int | None = None,
 ) -> list[Atoms]:
@@ -147,7 +144,6 @@ def perturb_structures(
             statistics=statistics,
             cutoff_frequency=cutoff_frequency,
             imaginary_modes=imaginary_modes,
-            imaginary_tolerance=imaginary_tolerance,
             max_displacement=max_displacement,
             random_seed=random_seed,
         ).structures

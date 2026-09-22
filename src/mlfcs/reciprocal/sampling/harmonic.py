@@ -211,7 +211,6 @@ class HarmonicSampler:
         statistics: Statistics = "quantum",
         cutoff_frequency: float = 0.01,
         imaginary_modes: ImaginaryModePolicy = "error",
-        imaginary_tolerance: float = 1e-6,
         max_displacement: float | None = None,
         symprec: float = 1e-5,
         symmetry_tolerance: float | None = 1e-6,
@@ -220,13 +219,12 @@ class HarmonicSampler:
             raise ValueError("temperature must be non-negative")
         if statistics not in {"quantum", "classical"}:
             raise ValueError("statistics must be 'quantum' or 'classical'")
-        if cutoff_frequency < 0 or imaginary_tolerance < 0:
-            raise ValueError("frequency tolerances must be non-negative")
+        if cutoff_frequency < 0:
+            raise ValueError("cutoff_frequency must be non-negative")
         if imaginary_modes not in {"error", "absolute", "exclude"}:
             raise ValueError("imaginary_modes must be 'error', 'absolute', or 'exclude'")
         if max_displacement is not None and max_displacement <= 0:
             raise ValueError("max_displacement must be positive or None")
-
 
         self.primitive = primitive.copy()
         self.supercell = supercell.copy()
@@ -236,12 +234,10 @@ class HarmonicSampler:
         self.imaginary_modes = imaginary_modes
         if imaginary_modes != "error":
             logger.warning(
-                "Imaginary harmonic modes use policy '%s'; frequencies below %.3e THz "
-                "will not raise an exception",
+                "Imaginary harmonic modes use policy '%s'; negative eigenvalues will not "
+                "raise an exception",
                 imaginary_modes,
-                imaginary_tolerance,
             )
-        self.imaginary_tolerance = float(imaginary_tolerance)
         self.max_displacement = max_displacement
         # The tolerance that identifies the primitive symmetry is a geometric quantity and
         # is therefore an explicit argument, recorded next to the decomposition it built.
@@ -289,9 +285,7 @@ class HarmonicSampler:
             self._index.supercell_matrix, self._symmetry, time_reversal=True
         )
         validate_site_masses(self._symmetry, self._masses, context="HarmonicSampler")
-        self._plan = ReciprocalExpansionPlan.from_grid(
-            self._symmetry, self._grid, self._positions
-        )
+        self._plan = ReciprocalExpansionPlan.from_grid(self._symmetry, self._grid, self._positions)
         require_star_covariance(
             self._dynamical_matrices,
             self._symmetry,
@@ -463,7 +457,7 @@ class HarmonicSampler:
             frequencies = np.where(translations, 0.0, frequencies)
             included &= ~translations
             imaginary_count += int(grid.weights[star]) * int(
-                np.count_nonzero(~included & (frequencies < 0.0))
+                np.count_nonzero(~translations & (frequencies < 0.0))
             )
             stars.append(
                 _StarModes(
