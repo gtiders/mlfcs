@@ -238,7 +238,7 @@ def _compile_order(parameterization: OrderParameterization) -> OrderPlan:
 
 
 class ForceDesignOperator:
-    """Snapshot displacements plus the design plan and constraint coordinates.
+    """Snapshot displacements plus the physical-column design plan.
 
     Snapshots are processed one at a time: one design matrix fits the working set
     of one structure, and the compiled kernel takes its parallelism from the orbit
@@ -250,7 +250,6 @@ class ForceDesignOperator:
         displacements,
         parameterizations=(),
         *,
-        parameter_map=None,
         plan: ForceDesignPlan | None = None,
     ):
         values = np.ascontiguousarray(displacements, dtype=float)
@@ -260,12 +259,6 @@ class ForceDesignOperator:
         self.rows_per_snapshot = int(np.prod(self.force_shape[1:]))
         self.displacements = values.reshape(len(values), self.rows_per_snapshot)
         self.plan = ForceDesignPlan.compile(parameterizations) if plan is None else plan
-        if parameter_map is not None and parameter_map.shape[0] != self.plan.n_parameters:
-            raise ValueError("the constraint map does not match the compiled design columns")
-        self.parameter_map = parameter_map
-        self.fit_n_parameters = (
-            parameter_map.shape[1] if parameter_map is not None else self.plan.n_parameters
-        )
         self._scratch = None
         if plan is None:
             pairs = sum(order.pair_count for order in self.plan.orders)
@@ -283,7 +276,6 @@ class ForceDesignOperator:
         """Reuse one compiled plan for another snapshot subset."""
         return ForceDesignOperator(
             displacements,
-            parameter_map=self.parameter_map,
             plan=self.plan,
         )
 
@@ -294,12 +286,6 @@ class ForceDesignOperator:
         design = np.zeros((self.rows_per_snapshot, self.plan.n_parameters), dtype=float)
         self.plan.accumulate(self.displacements[index], design, self._scratch)
         return design
-
-    def reduce(self, design: np.ndarray) -> np.ndarray:
-        """Map physical columns onto the independent constrained coordinates."""
-        if self.parameter_map is None:
-            return design
-        return np.asarray(self.parameter_map.T @ design.T).T
 
 
 __all__ = ["ForceDesignOperator", "ForceDesignPlan", "OrderPlan"]

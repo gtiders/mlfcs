@@ -6,6 +6,23 @@ All notable changes are documented here. Releases follow semantic versioning.
 
 ## Unreleased
 
+- **Breaking:** fitting Grams are always constructed in the full physical Taylor coordinate space;
+  `prepare_gram()` no longer accepts `acoustic_sum_rule`, and reduced ASR parameter maps and the
+  constrained-CG path are removed. `fit(acoustic_sum_rule=True)` now solves the unconstrained
+  force-only least-squares problem and applies the same order-local Euclidean ASR projection used by
+  finite differences. One Gram can therefore be reused with ASR on or off, and carries a stable
+  physical-design identity that prevents incompatible merge, load, or fit operations.
+- `FittingResult` records raw and projected parameters and training errors, ASR residuals before and
+  after projection, the correction norm, and projection iterations. Finite-difference metadata and
+  logs report the same projection policy and diagnostics through the shared
+  `TranslationalASRProjector`.
+- The unconstrained physical Gram is solved with MINRES, which supports the positive-semidefinite,
+  rank-deficient systems produced by unobserved physical directions without introducing a reduced
+  parameter space.
+- Crystal-operation site matching and negative-cutoff neighbour-shell identity now use the one
+  declared Cartesian length precision, `symprec`, without a hidden 10x relaxation or independent
+  relative/absolute shell tolerances. Gram preconditioning likewise retains every nonzero physical
+  column instead of silently dropping columns below `1e-12` of the largest norm.
 - Consolidated optional structure utilities in `mlfcs.tools.supercell`: supercell construction now
   always uses the project implementation without importing phonopy, and `align_structures` moved
   into the same module without a compatibility shim.

@@ -1,0 +1,36 @@
+{
+  "case": "SnSe-expanded-2x2x2",
+  "initialization_seconds": 39.099733166978694,
+  "max_body_orders": {
+    "2": null,
+    "3": null,
+    "4": null,
+    "5": 3,
+    "6": 3
+  },
+  "orders": [
+    2,
+    3,
+    4,
+    5,
+    6
+  ],
+  "parameters": 1721,
+  "peak_rss_mib": 2673.73046875,
+  "primitive_atoms": 64,
+  "reference_atoms": 256,
+  "requested_cutoff_shells": {
+    "2": -8,
+    "3": -6,
+    "4": -3,
+    "5": -2,
+    "6": -2
+  },
+  "resolved_cutoffs_angstrom": {
+    "2": 4.317138601183058,
+    "3": 4.1030575019242175,
+    "4": 3.3456632916209763,
+    "5": 3.0376951512256998,
+    "6": 3.0376951512256998
+  }
+}

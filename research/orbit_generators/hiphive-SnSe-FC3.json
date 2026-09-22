@@ -1,0 +1,21 @@
+{
+  "case": "SnSe",
+  "clusters": 377,
+  "cutoffs_angstrom": [
+    4.317138601183058,
+    4.103057501924217
+  ],
+  "initialization_seconds": 0.32959498796844855,
+  "max_body_order": 3,
+  "orders": [
+    2,
+    3
+  ],
+  "parameters": 298,
+  "peak_rss_mib": 264.7734375,
+  "primitive_atoms": 8,
+  "shell_cutoffs": {
+    "2": -8,
+    "3": -6
+  }
+}

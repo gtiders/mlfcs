@@ -12,8 +12,22 @@ code_verified: 4.0.0a6
 ## 拟合与有限差分中的 ASR
 
 `FiniteDifferenceCalculation.reap/run(acoustic_sum_rule=True)` 和
-`ForceConstantFitter.fit(acoustic_sum_rule=True)` 都在参数重建/求解阶段施加平移声学求和规则。拟合侧先在
-physical Taylor 参数空间直接构造约束，因此 ASR 与拟合参数具有相同的物理语义。
+`ForceConstantFitter.fit(acoustic_sum_rule=True)` 共用同一个逐阶 `TranslationalASRProjector`。两条路径都先在
+正交 Cartesian orbit 基中得到无约束物理参数 $\theta_0$，再做欧氏投影
+$\operatorname*{argmin}_{A\theta=0}\lVert\theta-\theta_0\rVert_2$。
+
+拟合的 Gram 不编码 ASR，所以同一个物理 `GramStatistics` 可分别用于开启或关闭 ASR 的拟合。结果同时报告
+投影前后的训练误差、ASR 残差、参数修正范数和投影迭代次数。
+
+## `TranslationalASRProjector`
+
+```python
+from mlfcs.constraints import TranslationalASRProjector
+```
+
+`TranslationalASRProjector.from_orbit_space(orbit_space)` 为单个 IFC 阶数构造 Cartesian ASR 方程；
+`project(parameters, tolerance=...)` 返回含投影参数和完整诊断的 `ASRProjectionResult`。这里的 tolerance 是
+相对残差停止准则，不参与判定哪些约束系数存在。
 
 ## `enforce_rotational_sum_rules`
 

@@ -72,7 +72,7 @@ def test_calculator_matches_taylor_fitting_design_prediction():
         cutoffs={2: 4.1},
     )
     result = fitter.fit(
-        fitter.prepare_gram(structures, acoustic_sum_rule=False),
+        fitter.prepare_gram(structures),
         acoustic_sum_rule=False,
     )
     calculator = MLFCSCalculator(result.force_constants)

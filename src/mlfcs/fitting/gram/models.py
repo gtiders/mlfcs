@@ -8,6 +8,13 @@ from typing import Any
 
 import numpy as np
 
+DESIGN_IDENTITY_FIELDS = (
+    "design_schema",
+    "design_fingerprint",
+    "physical_parameter_count",
+    "orders",
+)
+
 
 @dataclass(frozen=True, slots=True)
 class GramStatistics:
@@ -19,12 +26,41 @@ class GramStatistics:
     n_equations: int
     metadata: dict[str, Any]
 
+    @property
+    def design_identity(self) -> dict[str, Any]:
+        """Return the stable identity of the physical columns of this Gram."""
+        missing = [field for field in DESIGN_IDENTITY_FIELDS if field not in self.metadata]
+        if missing:
+            raise ValueError(
+                "these Gram statistics have no complete physical-design identity; "
+                f"missing {missing}. Rebuild them with ForceConstantFitter.prepare_gram()."
+            )
+        return {field: self.metadata[field] for field in DESIGN_IDENTITY_FIELDS}
+
+    def require_design(self, expected: dict[str, Any]) -> None:
+        """Raise unless the statistics use exactly the expected physical columns."""
+        identity = self.design_identity
+        for field in DESIGN_IDENTITY_FIELDS:
+            if identity[field] != expected[field]:
+                raise ValueError(
+                    "these Gram statistics were prepared for a different physical design: "
+                    f"{field} is {identity[field]!r}, expected {expected[field]!r}"
+                )
+
     def merge(self, other: GramStatistics) -> GramStatistics:
         """Combine statistics only when they describe the same design space."""
         if not isinstance(other, GramStatistics):
             raise TypeError("can only merge GramStatistics")
         if self.gram.shape != other.gram.shape or self.rhs.shape != other.rhs.shape:
             raise ValueError("incompatible Gram dimensions")
+        first = self.design_identity
+        second = other.design_identity
+        for field in DESIGN_IDENTITY_FIELDS:
+            if first[field] != second[field]:
+                raise ValueError(
+                    "cannot merge Gram statistics from different physical designs: "
+                    f"{field} is {first[field]!r} here and {second[field]!r} there"
+                )
         return GramStatistics(
             self.gram + other.gram,
             self.rhs + other.rhs,
@@ -34,18 +70,27 @@ class GramStatistics:
         )
 
     def exact_column_scale(self):
-        norm = np.sqrt(np.maximum(np.diag(self.gram), 0.0))
-        threshold = max(float(np.max(norm)) * 1e-12, np.finfo(float).tiny)
+        diagonal = np.diag(self.gram)
+        if not np.all(np.isfinite(diagonal)) or np.any(diagonal < 0.0):
+            raise ValueError("Gram diagonal must contain finite nonnegative column norms")
+        norm = np.sqrt(diagonal)
+        if norm.size == 0:
+            return norm
         result = np.zeros_like(norm)
-        active = norm > threshold
+        active = norm > 0.0
         result[active] = 1.0 / norm[active]
         return result
 
     def force_metrics(self, parameters):
-        residual_squared = max(
-            float(parameters @ self.gram @ parameters - 2 * parameters @ self.rhs + self.target_norm),
-            0.0,
+        model_norm = float(parameters @ self.gram @ parameters)
+        cross = float(parameters @ self.rhs)
+        residual_squared = model_norm - 2 * cross + self.target_norm
+        cancellation_bound = (
+            32 * np.finfo(float).eps * (abs(model_norm) + 2 * abs(cross) + abs(self.target_norm))
         )
+        if abs(residual_squared) <= cancellation_bound:
+            residual_squared = 0.0
+        residual_squared = max(float(residual_squared), 0.0)
         relative = (
             float(np.sqrt(residual_squared / self.target_norm))
             if self.target_norm > 0
@@ -64,16 +109,21 @@ class GramStatistics:
             offset += count
         return result
 
-    def solve(self, scale, constraints, *, tolerance, max_iterations):
+    def solve(self, scale, *, tolerance, max_iterations):
         from mlfcs.fitting.linear_solvers import solve_gram_system
 
         return solve_gram_system(
-            self.gram, self.rhs, self.target_norm, scale, constraints,
-            tolerance=tolerance, max_iterations=max_iterations,
+            self.gram,
+            self.rhs,
+            self.target_norm,
+            scale,
+            tolerance=tolerance,
+            max_iterations=max_iterations,
         )
 
     def save(self, path: str | Path) -> None:
         """Write statistics and metadata in a portable NumPy archive."""
+        _ = self.design_identity
         arrays = {
             "gram": np.asarray(self.gram),
             "rhs": np.asarray(self.rhs),
@@ -86,15 +136,9 @@ class GramStatistics:
         serializable = {
             key: value
             for key, value in self.metadata.items()
-            if not isinstance(value, np.ndarray) and isinstance(value, (str, int, float, bool, type(None)))
+            if not isinstance(value, np.ndarray)
+            and isinstance(value, (str, int, float, bool, list, tuple, dict, type(None)))
         }
-        for key in tuple(serializable):
-            if key == "parameter_map":
-                serializable.pop(key)
-        if isinstance(self.metadata.get("parameter_map"), np.ndarray):
-            arrays["metadata::parameter_map"] = self.metadata["parameter_map"]
-        elif self.metadata.get("parameter_map") is not None:
-            arrays["metadata::parameter_map"] = self.metadata["parameter_map"].toarray()
         arrays["metadata::json"] = np.asarray(serializable, dtype=object)
         np.savez(path, **arrays)
 
@@ -110,10 +154,12 @@ class GramStatistics:
                     if key.startswith("metadata::") and key != "metadata::json"
                 }
             )
-            return cls(
+            statistics = cls(
                 archive["gram"].copy(),
                 archive["rhs"].copy(),
                 float(archive["target_norm"]),
                 int(archive["n_equations"]),
                 metadata,
             )
+        _ = statistics.design_identity
+        return statistics

@@ -9,8 +9,15 @@ code_verified: 4.0.0a6
 # Sum rules
 
 MLFCS applies the acoustic sum rule (ASR) in each finite-difference or fitting
-calculation when `acoustic_sum_rule=True`, which is the default. It is an
-order-local constraint in the orbit parameter space.
+calculation when `acoustic_sum_rule=True`, which is the default. Both paths first recover
+unconstrained physical orbit coefficients $\theta_0$ and then use the same order-local Euclidean
+projection onto $A\theta=0$. ASR is therefore a physical postprocessing operation, not a reduced
+fitting coordinate system or a constrained least-squares estimator.
+
+This distinction is deliberate. A fitting Gram matrix describes only the force observations and is
+reusable with ASR enabled or disabled. Projection can increase the training residual because it
+chooses the closest ASR-feasible parameter vector to the unconstrained solution, rather than the
+ASR-feasible vector that minimizes the training loss. The result reports both values.
 
 Born-Huang and Huang conditions have different semantics. They are physical
 FC2-only postprocessing conditions applied after force constants have been

@@ -145,7 +145,7 @@ class InteractionSpace:
             "%d primitive atoms, %d supercell atoms", len(self.primitive), len(self.supercell)
         )
         logger.info("Resolving the interaction cutoff")
-        self.cutoff = resolve_primitive_cutoff(self.primitive, cutoff)
+        self.cutoff = resolve_primitive_cutoff(self.primitive, cutoff, symprec=self.config.symprec)
         logger.info("Cutoff radius: %.10f Å", self.cutoff)
         logger.info("Analyzing crystal symmetries")
         self.symmetry = frame.symmetry

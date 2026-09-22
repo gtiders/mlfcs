@@ -25,6 +25,11 @@ solver = SSCHA(
 `SSCHA` is the iterative workflow. Harmonic structure generation outside that workflow uses the
 reciprocal sampler explicitly:
 
+At each update, SSCHA builds the complete physical FC2 Gram independently of ASR and passes
+`acoustic_sum_rule` only to `ForceConstantFitter.fit()`. ASR therefore uses the same post-solve
+Euclidean projection and diagnostics as ordinary force fitting; it never changes sampling-plan or
+Gram identity.
+
 ```python
 from mlfcs.reciprocal import perturb_structures
 

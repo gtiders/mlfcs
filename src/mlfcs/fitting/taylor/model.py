@@ -32,12 +32,10 @@ class TaylorModel:
         calculations,
         training_displacements,
         parameterizations,
-        parameter_map,
     ) -> PreparedTaylorBasis:
         operator = ForceDesignOperator(
             training_displacements,
             parameterizations,
-            parameter_map=parameter_map,
         )
         return PreparedTaylorBasis(tuple(calculations), operator)
 

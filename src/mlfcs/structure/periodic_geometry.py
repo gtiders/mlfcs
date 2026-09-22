@@ -173,13 +173,18 @@ class PeriodicGeometry:
         return np.asarray(compatible, dtype=np.int32)
 
 
-def unique_periodic_distances(
-    values: np.ndarray, *, rtol: float = 1e-5, atol: float = 1e-8
-) -> list[float]:
-    """Return sorted nonzero periodic distances with duplicates removed."""
+def unique_periodic_distances(values: np.ndarray, *, symprec: float) -> list[float]:
+    """Return distinct nonzero distances at the declared geometric precision.
+
+    Distances are measured in angstrom, so shell identity uses the same absolute
+    ``symprec`` as crystal-symmetry and atom-mapping decisions.  There is no
+    independent relative tolerance whose effective width grows with distance.
+    """
+    if not np.isfinite(symprec) or symprec <= 0.0:
+        raise ValueError("symprec must be a finite positive distance in angstrom")
     result: list[float] = []
     for value in np.sort(values):
-        if value > atol and (not result or not np.isclose(value, result[-1], atol=atol, rtol=rtol)):
+        if value >= symprec and (not result or value - result[-1] >= symprec):
             result.append(float(value))
     if not result:
         raise ValueError("no periodic neighbors found; supercell is too small")

@@ -87,11 +87,13 @@ class PrimitiveSymmetryOperations:
                 differences = position - scaled[candidates]
                 integers = np.rint(differences).astype(np.int32)
                 residuals = np.linalg.norm((differences - integers) @ lattice, axis=1)
-                selected = np.flatnonzero(residuals < symprec * 10.0)
+                selected = np.flatnonzero(residuals < symprec)
                 if len(selected) != 1:
+                    nearest = float(np.min(residuals)) if residuals.size else float("inf")
                     raise ValueError(
                         f"symmetry operation {operation} maps primitive site {site} "
-                        f"to {len(selected)} sites"
+                        f"to {len(selected)} sites inside symprec {symprec:g} angstrom; "
+                        f"the nearest residual is {nearest:.10g} angstrom"
                     )
                 location = int(selected[0])
                 permutations_array[operation, site] = int(candidates[location])

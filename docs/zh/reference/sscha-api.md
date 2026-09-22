@@ -110,6 +110,10 @@ SSCHA(
 虚频、统计、频率 cutoff、裁剪和随机种子语义与 harmonic `perturb_structures` 相同。SSCHA 只返回有效
 谐波 FC2，不把输入或中间的高阶 IFC 塞进结果。
 
+每次更新都先构造与 ASR 无关的完整物理 FC2 Gram，`acoustic_sum_rule` 只传给
+`ForceConstantFitter.fit()`。因此 ASR 与普通力拟合共用求解后的欧氏投影和诊断，不改变采样计划或 Gram
+身份。
+
 ## 增量接口
 
 ```python

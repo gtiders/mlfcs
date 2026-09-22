@@ -1,0 +1,21 @@
+[
+  {
+    "case": "Ba8Ga16Ge30",
+    "initialization_seconds": 2.7466115269926377,
+    "orders": [
+      2,
+      3
+    ],
+    "parameters": 10534,
+    "peak_rss_mib": 412.8125,
+    "reference_atoms": 432,
+    "requested_cutoff_shells": {
+      "2": -8,
+      "3": -6
+    },
+    "resolved_cutoffs_angstrom": {
+      "2": 4.874560779052022,
+      "3": 4.049670647733018
+    }
+  }
+]

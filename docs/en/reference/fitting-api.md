@@ -23,7 +23,7 @@ fitter = ForceConstantFitter(
     periodic_fc2_completion=False,
     symprec=1e-5,
 )
-gram = fitter.prepare_gram(structures, acoustic_sum_rule=True)
+gram = fitter.prepare_gram(structures)
 gram.save("training-gram.npz")
 result = fitter.fit(gram, acoustic_sum_rule=True)
 ```
@@ -32,16 +32,18 @@ result = fitter.fit(gram, acoustic_sum_rule=True)
 processes one snapshot at a time and takes its parallelism from the interaction orbits, so no
 snapshot batch size is exposed; the compiled design kernel is sized by the fitting problem, not by
 a batch. `GramStatistics.load()` restores them on any host. `fit()` only solves and reconstructs
-Taylor IFCs; it does not split validation data or calculate test-set predictions.
+Taylor IFCs; it does not split validation data or calculate test-set predictions. The Gram matrix is
+always built in the complete physical coordinate space and contains no ASR policy, so the same object
+can be fitted both with and without ASR.
 
 
 `FittingResult` contains the fitted force constants, Taylor parameters, Gram statistics, training
-error derived from the Gram quadratic form, solver state, constraint residuals, and optional
-periodic FC2 completion. Force evaluation is owned by `MLFCSCalculator`.
+errors derived from the Gram quadratic form, solver state, and ASR projection diagnostics. The raw
+least-squares parameters are retained as `unprojected_parameters`; `fitting_parameters` contains the
+optional order-local Euclidean ASR projection. Force evaluation is owned by `MLFCSCalculator`.
 
-Periodic completion requires FC2, strict ASR, and unregularized least squares. The transferable
-exact-$R$ FC2 remains in `force_constants.sparse[2]`; the source-owned finite Hessian remains in
-`force_constants.periodic_fc2_completion`.
+Saved Gram statistics contain a physical-design identity. Loading, merging, or fitting statistics
+from a different structure, order set, cutoff, or orbit parameterization is rejected explicitly.
 
 ## What a parameter means
 

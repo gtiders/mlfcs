@@ -15,12 +15,16 @@ order-$n$ force constant in eV/angstrom$^n$.
 
 | Parameter | Unit | Meaning |
 |---|---:|---|
-| `symprec` | angstrom | Primitive symmetry, primitive/reference lattice relation, atom mapping, and fixed-cell identity |
+| `symprec` | angstrom | Primitive symmetry, primitive/reference lattice relation, atom mapping, neighbour-shell identity, and fixed-cell identity |
 
 `symprec` asks one physical question: how far apart two periodic Cartesian geometries may be while
 still representing the same object. Dimensionless matrix entries, fractional-coordinate errors,
 and angles are not compared directly with it. The core does not expose separate
 `mapping_tolerance`, `cell_tolerance`, or `position_tolerance` parameters.
+
+For a negative interaction cutoff, two computed neighbour distances belong to the same shell only
+when their absolute difference is smaller than `symprec`. Shell grouping has no relative tolerance,
+so its width does not grow with the distance from the origin.
 
 spglib's `angle_tolerance` remains on its automatic policy and is not a second MLFCS length
 precision. The required `tolerance` of `mlfcs.tools.supercell.align_structures` is a separate external

@@ -4,13 +4,11 @@ import numpy as np
 import pytest
 from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
-from scipy import sparse
 
 from mlfcs.fitting import ForceConstantFitter
 from mlfcs.fitting.design_operator import ForceDesignOperator as _ForceDesignOperator
 from mlfcs.fitting.design_operator import ForceDesignPlan as _ForceDesignPlan
 from mlfcs.fitting.gram import GramBuilder, GramStatistics
-from mlfcs.fitting.linear_solvers import explicit_constraint_null_space
 from mlfcs.fitting.parameterization import OrderParameterization as _OrderTensor
 from mlfcs.fitting.parameterization import image_parameter_basis
 
@@ -19,6 +17,7 @@ def test_fitter_fit_exposes_only_strict_solver_controls():
     signature = inspect.signature(ForceConstantFitter.fit)
     assert "damping" not in signature.parameters
     assert "frozen_force_constants" not in signature.parameters
+    assert "acoustic_sum_rule" not in inspect.signature(ForceConstantFitter.prepare_gram).parameters
 
 
 def test_streaming_gram_zero_target_has_finite_zero_relative_error():
@@ -27,18 +26,6 @@ def test_streaming_gram_zero_target_has_finite_zero_relative_error():
 
     assert rmse == 0.0
     assert relative == 0.0
-
-
-def test_explicit_constraint_parameterization_preserves_null_space():
-    constraints = sparse.csr_matrix(
-        [[1.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, -2.0], [2.0, 2.0, 0.0, 0.0]]
-    )
-
-    parameter_map = explicit_constraint_null_space(constraints)
-
-    assert parameter_map.shape == (4, 2)
-    np.testing.assert_allclose((constraints @ parameter_map).toarray(), 0.0, atol=1e-13)
-    assert np.linalg.matrix_rank(parameter_map.toarray()) == 2
 
 
 def _one_parameter_fc2_tensor(n_orbits: int = 1, n_parameters: int = 1):
@@ -110,11 +97,11 @@ def test_unconverged_fit_requires_explicit_opt_in_and_exposes_gram_cache(monkeyp
         cutoffs={2: 4.1},
     )
 
-    def incomplete(self, scale, constraints, **kwargs):
+    def incomplete(self, scale, **kwargs):
         return np.zeros_like(scale), 7, 7, 1.0, 1.0
 
     monkeypatch.setattr(GramStatistics, "solve", incomplete)
-    gram = fitter.prepare_gram(structures, acoustic_sum_rule=False)
+    gram = fitter.prepare_gram(structures)
     with pytest.raises(RuntimeError, match="did not converge"):
         fitter.fit(gram, acoustic_sum_rule=False)
     result = fitter.fit(
@@ -177,7 +164,7 @@ def test_regularization_argument_is_gone():
         atoms.calc = SinglePointCalculator(atoms, forces=forces)
         structures.append(atoms)
     fitter = ForceConstantFitter(primitive, reference, orders=(2,), cutoffs={2: 4.1})
-    gram = fitter.prepare_gram(structures, acoustic_sum_rule=False)
+    gram = fitter.prepare_gram(structures)
 
     with pytest.raises(TypeError, match="regularization"):
         fitter.fit(gram, acoustic_sum_rule=False, regularization="scaled_group_lasso")
@@ -186,6 +173,68 @@ def test_regularization_argument_is_gone():
     assert result.stop_code == 0
     assert not hasattr(result, "regularization")
     assert result.force_constants.metadata["solver"] == "gram"
+
+
+def test_one_physical_gram_supports_raw_and_post_projected_results():
+    primitive = Atoms("Ar", cell=np.eye(3) * 4, scaled_positions=[[0, 0, 0]], pbc=True)
+    reference = primitive.repeat((2, 1, 1))
+    structures = []
+    for displacement in (-0.04, -0.02, 0.02, 0.04):
+        atoms = reference.copy()
+        atoms.positions[0, 0] += displacement
+        forces = np.zeros((2, 3))
+        forces[0, 0] = -2.0 * displacement
+        forces[1, 0] = 1.5 * displacement
+        atoms.calc = SinglePointCalculator(atoms, forces=forces)
+        structures.append(atoms)
+    fitter = ForceConstantFitter(primitive, reference, orders=(2,), cutoffs={2: 4.1})
+    gram = fitter.prepare_gram(structures)
+
+    raw = fitter.fit(gram, acoustic_sum_rule=False, tolerance=1e-10)
+    projected = fitter.fit(gram, acoustic_sum_rule=True, tolerance=1e-10)
+
+    assert raw.gram_statistics is projected.gram_statistics is gram
+    np.testing.assert_array_equal(raw.fitting_parameters, raw.unprojected_parameters)
+    np.testing.assert_allclose(
+        projected.unprojected_parameters,
+        raw.unprojected_parameters,
+        rtol=1e-12,
+        atol=1e-12,
+    )
+    assert projected.maximum_asr_residual_after <= projected.maximum_asr_residual_before
+
+
+def test_gram_merge_rejects_a_different_physical_design():
+    identity = {
+        "design_schema": 1,
+        "design_fingerprint": "first",
+        "physical_parameter_count": 2,
+        "orders": [2],
+    }
+    first = GramStatistics(np.eye(2), np.ones(2), 2.0, 2, identity)
+    second_identity = dict(identity, design_fingerprint="second")
+    second = GramStatistics(np.eye(2), np.ones(2), 2.0, 2, second_identity)
+
+    with pytest.raises(ValueError, match="different physical designs"):
+        first.merge(second)
+
+
+def test_physical_gram_design_identity_survives_save_and_load(tmp_path):
+    identity = {
+        "design_schema": 1,
+        "design_fingerprint": "stable",
+        "physical_parameter_count": 2,
+        "orders": [2, 3],
+    }
+    statistics = GramStatistics(np.eye(2), np.ones(2), 2.0, 2, identity)
+    path = tmp_path / "physical-gram.npz"
+
+    statistics.save(path)
+    restored = GramStatistics.load(path)
+
+    assert restored.design_identity == identity
+    np.testing.assert_array_equal(restored.gram, statistics.gram)
+    np.testing.assert_array_equal(restored.rhs, statistics.rhs)
 
 
 def test_streaming_gram_recovers_force_constant_and_force_error():
@@ -198,21 +247,54 @@ def test_streaming_gram_recovers_force_constant_and_force_error():
     target = design @ expected
     gram = GramBuilder.from_operator(operator, target)
     scale = gram.exact_column_scale()
-    actual = (
-        gram.solve(
-            scale,
-            sparse.csr_matrix((0, 1)),
-            tolerance=1e-12,
-            max_iterations=100,
-        )[0]
-        * scale
-    )
+    actual = gram.solve(scale, tolerance=1e-12, max_iterations=100)[0] * scale
     np.testing.assert_allclose(actual, expected, rtol=1e-12, atol=1e-12)
     residual = design @ actual - target
     rmse = float(np.sqrt(np.mean(residual**2)))
     relative = float(np.linalg.norm(residual) / np.linalg.norm(target))
     assert rmse < 1e-12
     assert 100 * relative < 1e-9
+
+
+def test_physical_gram_solver_handles_a_consistent_rank_deficient_system():
+    statistics = GramStatistics(
+        np.array([[1.0, 1.0], [1.0, 1.0]]),
+        np.array([2.0, 2.0]),
+        4.0,
+        2,
+        {},
+    )
+
+    parameters, stop_code, iterations, residual, stationarity = statistics.solve(
+        np.ones(2), tolerance=1e-12, max_iterations=100
+    )
+
+    assert stop_code == 0
+    assert iterations > 0
+    assert residual == 0.0
+    assert stationarity < 1e-12
+    np.testing.assert_allclose(parameters.sum(), 2.0, rtol=1e-12, atol=1e-12)
+
+
+def test_column_scaling_keeps_every_nonzero_physical_column():
+    statistics = GramStatistics(
+        np.diag([1.0, 1e-30, 0.0]),
+        np.zeros(3),
+        0.0,
+        1,
+        {},
+    )
+
+    scale = statistics.exact_column_scale()
+    np.testing.assert_array_equal(scale[[0, 2]], [1.0, 0.0])
+    assert scale[1] == pytest.approx(1e15)
+
+
+@pytest.mark.parametrize("diagonal", ([1.0, -1e-30], [1.0, np.inf], [1.0, np.nan]))
+def test_column_scaling_rejects_invalid_gram_norms(diagonal):
+    statistics = GramStatistics(np.diag(diagonal), np.zeros(2), 0.0, 1, {})
+    with pytest.raises(ValueError, match="finite nonnegative"):
+        statistics.exact_column_scale()
 
 
 def test_snapshot_design_matches_the_numpy_reference():
@@ -237,7 +319,7 @@ def test_operator_reuses_one_plan_for_another_snapshot_subset():
     subset = operator.with_displacements(displacements[:1])
 
     assert subset.plan is operator.plan
-    assert subset.fit_n_parameters == operator.fit_n_parameters
+    assert subset.n_parameters == operator.n_parameters
     np.testing.assert_allclose(subset.design(0), operator.design(0))
 
 
@@ -258,34 +340,19 @@ def test_operator_normalizes_valid_displacements_to_force_rows():
     assert operator.rows_per_snapshot == 3
 
 
-def test_design_reduction_matches_sparse_constraint_map():
-    mapping = sparse.csc_matrix([[1.0, 0.0], [0.5, -1.0], [0.0, 2.0], [-3.0, 0.0]])
-    design = np.arange(12, dtype=float).reshape(3, 4)
-    tensor = _one_parameter_fc2_tensor(n_orbits=4, n_parameters=4)
-    operator = _ForceDesignOperator(np.zeros((1, 1, 3)), (tensor,), parameter_map=mapping)
-
-    assert operator.fit_n_parameters == 2
-    np.testing.assert_allclose(
-        operator.reduce(design), np.asarray(mapping.T @ design.T).T, rtol=0.0, atol=0.0
-    )
-
-
-def test_constrained_gram_matches_the_reduced_design():
+def test_gram_matches_the_physical_design():
     rng = np.random.default_rng(81)
     tensor = _one_parameter_fc2_tensor(n_orbits=2, n_parameters=2)
     displacements = rng.normal(size=(5, 1, 3))
-    parameter_map = sparse.csc_matrix([[1.0], [-0.5]])
-    operator = _ForceDesignOperator(displacements, (tensor,), parameter_map=parameter_map)
-    reduced = np.concatenate(
-        [operator.reduce(operator.design(index)) for index in range(len(displacements))]
-    )
-    target = reduced @ np.array([1.75])
+    operator = _ForceDesignOperator(displacements, (tensor,))
+    design = np.concatenate([operator.design(index) for index in range(len(displacements))])
+    target = design @ np.array([1.75, -0.5])
 
     statistics = GramBuilder.from_operator(operator, target)
 
-    np.testing.assert_allclose(statistics.gram, reduced.T @ reduced, rtol=1e-12, atol=1e-12)
-    np.testing.assert_allclose(statistics.rhs, reduced.T @ target, rtol=1e-12, atol=1e-12)
-    assert statistics.metadata["parameter_map"] is parameter_map
+    np.testing.assert_allclose(statistics.gram, design.T @ design, rtol=1e-12, atol=1e-12)
+    np.testing.assert_allclose(statistics.rhs, design.T @ target, rtol=1e-12, atol=1e-12)
+    assert "parameter_map" not in statistics.metadata
 
 
 def test_order_design_rejects_non_prefix_parameter_masks():
