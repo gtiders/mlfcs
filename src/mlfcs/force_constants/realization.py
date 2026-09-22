@@ -57,15 +57,29 @@ def _export_cache_key(force_constants: ForceConstants, primitive, supercell) -> 
     )
 
 
-def _unimodular_change(target: np.ndarray, source: np.ndarray, *, name: str) -> np.ndarray:
-    change = np.asarray(target) @ np.linalg.inv(np.asarray(source))
-    integer = np.rint(change).astype(np.int32)
-    if (
-        not np.allclose(change, integer, atol=1e-7, rtol=0.0)
-        or abs(round(np.linalg.det(integer))) != 1
-    ):
-        raise ValueError(f"target {name} is not the same lattice as the source {name}")
-    return integer
+def _unimodular_change(
+    target: np.ndarray, source: np.ndarray, *, name: str, symprec: float
+) -> np.ndarray:
+    """Return the unimodular integer change of basis between two cell descriptions.
+
+    The candidate matrix is rounded once and then verified in cartesian length: the difference
+    between the target cell and the reconstructed one has to be inside ``symprec`` angstrom, which
+    is the same precision the relation itself uses.  Comparing the dimensionless matrix against a
+    private tolerance would be a second threshold, and comparing it exactly would reject the
+    roundoff of two floating-point cells.
+    """
+    target_cell = np.asarray(target, dtype=float)
+    source_cell = np.asarray(source, dtype=float)
+    change = target_cell @ np.linalg.inv(source_cell)
+    integer = np.rint(change).astype(np.int64)
+    residual = float(np.max(np.linalg.norm(target_cell - integer @ source_cell, axis=1)))
+    if residual >= symprec or abs(round(float(np.linalg.det(integer)))) != 1:
+        raise ValueError(
+            f"target {name} is not the same lattice as the source {name}: lattice residual "
+            f"{residual:.6e} angstrom against symprec {symprec:.6e} angstrom for the candidate "
+            f"change of basis {integer.tolist()}"
+        )
+    return integer.astype(np.int32)
 
 
 def _site_mapping(source: Atoms, target: Atoms) -> tuple[np.ndarray, np.ndarray]:
@@ -129,7 +143,10 @@ def build_export_view(
     target_primitive = source.primitive if primitive is None else primitive
     target_supercell = source.reference if supercell is None else supercell
     primitive_change = _unimodular_change(
-        np.asarray(target_primitive.cell), np.asarray(source.primitive.cell), name="primitive"
+        np.asarray(target_primitive.cell),
+        np.asarray(source.primitive.cell),
+        name="primitive",
+        symprec=source.symprec,
     )
     target = StructureRelation.from_atoms(
         target_primitive, target_supercell, symprec=source.symprec
