@@ -47,7 +47,7 @@ from mlfcs.physics.scph.solver import LoopSCPHResult, SCPHIteration
 from mlfcs.physics.sscha.solver import SSCHAResult, SSCHAIteration
 from mlfcs.physics.temperature import TemperatureSeriesResult
 from mlfcs.structure.relation import StructureRelation
-from mlfcs.tools.structure_alignment import align_structures
+from mlfcs.tools.supercell import align_structures
 ```
 
 这些对象适合结果分析、诊断和高级工作流；整数格、orbit、design packing 等内部实现不构成公共兼容承诺。
