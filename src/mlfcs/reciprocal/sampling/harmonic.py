@@ -121,6 +121,7 @@ from ase import Atoms, units
 from mlfcs.exceptions import SymmetryViolationError
 from mlfcs.reciprocal.fourier import compact_dynamical_matrices, compact_dynamical_matrix
 from mlfcs.reciprocal.grid import IrreducibleReciprocalGrid, irreducible_reciprocal_grid
+from mlfcs.reciprocal.modes import ModePolicy, internal_mode_basis, modal_eigenpairs
 from mlfcs.reciprocal.plan import ReciprocalExpansionPlan
 from mlfcs.reciprocal.statistics import HBAR_ASE, OMEGA_TO_THZ, mode_sigma
 from mlfcs.reciprocal.symmetry import (
@@ -437,46 +438,41 @@ class HarmonicSampler:
         grid = self._grid
         points = grid.full.points[grid.representatives]
         matrices = np.stack([self._dynamical_matrix(qpoint) for qpoint in points])
-        bases = self._translation_basis()
         gamma = self._gamma_star()
-        if gamma is not None:
-            matrices[gamma] = self._project_gamma(matrices[gamma], bases)
-        eigenvalues, eigenvectors = np.linalg.eigh(matrices)
+        policy = self._mode_policy()
         stars = []
         imaginary_count = 0
         for star, index in enumerate(grid.representatives.tolist()):
-            values = eigenvalues[star]
-            frequencies = np.sqrt(np.abs(values)) * np.sign(values) * _OMEGA_TO_THZ
-            translations = np.zeros(len(values), dtype=bool)
+            # The Gamma representative is solved in the internal subspace, so its star has
+            # three modes fewer than the others: the translations are not excluded afterwards,
+            # they are structurally absent, and no eigenvector gauge decides which they are.
+            eigenvalues, eigenvectors, frequencies, included = modal_eigenpairs(
+                matrices[star],
+                self._masses,
+                is_gamma=star == gamma,
+                keep_translations=True,
+                policy=policy,
+                context=(
+                    "HarmonicSampler at "
+                    f"{tuple(int(value) for value in points[star])} ({self.temperature} K)"
+                ),
+            )
+            translations = np.zeros(eigenvalues.size, dtype=bool)
             if star == gamma:
-                overlap = bases.T @ eigenvectors[star]
-                strength = np.einsum("kj,kj->j", overlap, overlap)
-                translations[np.argsort(strength)[-_TRANSLATIONS:]] = True
-                # The projected directions are zero modes by construction; reporting the
-                # rounding noise of the projection as a frequency would be an artefact.
-                frequencies = np.where(translations, 0.0, frequencies)
-            # The projected translations are not modes of the sampler: they are never
-            # sampled, counted or reported, exactly as when they were dropped outright.
-            imaginary = (frequencies < -self.imaginary_tolerance) & ~translations
-            if self.imaginary_modes == "error" and np.any(imaginary):
-                minimum = float(np.min(frequencies[~translations]))
-                raise ValueError(
-                    f"imaginary harmonic modes detected (minimum {minimum:.8f} THz); "
-                    "choose imaginary_modes='absolute' or 'exclude' explicitly"
-                )
-            included = np.abs(frequencies) > self.cutoff_frequency
-            if self.imaginary_modes == "exclude":
-                included &= ~imaginary
+                translations[-_TRANSLATIONS:] = True
+            frequencies = np.where(translations, 0.0, frequencies)
             included &= ~translations
-            imaginary_count += int(grid.weights[star]) * int(np.count_nonzero(imaginary))
+            imaginary_count += int(grid.weights[star]) * int(
+                np.count_nonzero(~included & (frequencies < 0.0))
+            )
             stars.append(
                 _StarModes(
                     int(index),
                     tuple(int(value) for value in grid.full.labels[index]),
                     grid.full.points[index],
                     int(grid.weights[star]),
-                    values,
-                    eigenvectors[star],
+                    eigenvalues,
+                    eigenvectors,
                     frequencies,
                     included,
                     translations,
@@ -519,19 +515,14 @@ class HarmonicSampler:
             )
         return tuple(members)
 
-    def _project_gamma(self, matrix: np.ndarray, bases: np.ndarray) -> np.ndarray:
-        """Return the Gamma matrix with the uniform translations projected out.
-
-        The three acoustic zero modes of a translation-invariant model are not sampled modes,
-        so the representative that carries Gamma is diagonalized in the orthogonal complement
-        of the mass-weighted translations.  Every later comparison has to use the same
-        projected matrix, otherwise it would compare a reconstruction with a matrix that was
-        never diagonalized.
-        """
-        projected = np.asarray(matrix).real
-        projected = projected - bases @ (bases.T @ projected)
-        projected = projected - (projected @ bases) @ bases.T
-        return projected
+    def _mode_policy(self) -> ModePolicy:
+        """Return the thermodynamic policy of this sampler, as the caller stated it."""
+        return ModePolicy(
+            statistics=self.statistics,
+            temperature=float(self.temperature),
+            frequency_cutoff_thz=self.cutoff_frequency,
+            imaginary_modes=self.imaginary_modes,
+        )
 
     def _validate_expansion(self) -> None:
         r"""Raise unless every expanded eigenbasis reproduces its member's own matrix.
@@ -549,11 +540,14 @@ class HarmonicSampler:
         if tolerance is None:
             return
         gamma = self._gamma_star()
-        bases = self._translation_basis()
+        projector = None
+        if gamma is not None:
+            basis = internal_mode_basis(self._masses)
+            projector = basis @ basis.conj().T
         matrices = [self._dynamical_matrix(member.qpoint) for member in self._members]
         for index, member in enumerate(self._members):
-            if member.star == gamma:
-                matrices[index] = self._project_gamma(matrices[index], bases)
+            if member.star == gamma and projector is not None:
+                matrices[index] = projector @ matrices[index] @ projector
         # The scale is the largest element over the whole mesh, not per member: a Gamma
         # matrix of a translation-invariant model is zero by construction, so a per-member
         # scale would turn its rounding noise into a violation.
@@ -573,13 +567,6 @@ class HarmonicSampler:
                     "expansion, the positional gauge or the antiunitary conjugation is "
                     "inconsistent with the force constants."
                 )
-
-    def _translation_basis(self) -> np.ndarray:
-        """Return the orthonormal mass-weighted uniform translations, one per column."""
-        basis = np.zeros((3 * self._n_primitive, _TRANSLATIONS))
-        for axis in range(_TRANSLATIONS):
-            basis[axis::3, axis] = np.sqrt(self._masses)
-        return basis / np.linalg.norm(basis, axis=0)
 
     def _gamma_star(self) -> int:
         """Return the star index that owns the Gamma point, which is always irreducible."""

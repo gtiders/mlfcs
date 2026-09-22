@@ -22,7 +22,6 @@ import pytest
 from ase import Atoms
 from test_reciprocal_full_grid_oracle import pair_bond_force_constants, scph_case
 
-from mlfcs.tools.supercell import build_supercell
 from mlfcs.exceptions import SymmetryViolationError
 from mlfcs.force_constants.dense import lattice_fc2, replace_lattice_fc2
 from mlfcs.force_constants.representation import ForceConstants, SparseOrderForceConstants
@@ -37,6 +36,7 @@ from mlfcs.reciprocal.symmetry import (
 )
 from mlfcs.structure.relation import StructureRelation
 from mlfcs.structure.symmetry import PrimitiveSymmetryOperations
+from mlfcs.tools.supercell import build_supercell
 
 CASES = ("diamond_2x1x1", "hcp_2x1x1", "cubic_2x1x1")
 TEMPERATURE = 300.0

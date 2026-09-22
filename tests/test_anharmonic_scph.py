@@ -41,7 +41,12 @@ def _force_constants(*, cell=4.0):
 
 
 def test_loop_scph_accepts_independent_fc2_and_fc4_and_writes_effective_fc2(tmp_path):
-    fc2, fc4 = _force_constants()
+    """The loop correction softens the on-site FC2, and the effective FC2 is written out.
+
+    A monatomic cell has no internal mode at Gamma, so its correction is exactly zero there and
+    the fixture has to carry an optical mode for the loop correction to do anything at all.
+    """
+    fc2, fc4 = _diatomic_force_constants()
     result = LoopSCPH(
         fc2=fc2,
         fc4=fc4,
@@ -61,8 +66,48 @@ def test_loop_scph_accepts_independent_fc2_and_fc4_and_writes_effective_fc2(tmp_
     assert result.history[0].frequency_change_thz >= 0.0
 
 
+def _diatomic_force_constants(*, cell=4.0, spring=1.0):
+    """Return a two-atom cell whose Gamma spectrum has exactly three internal modes."""
+    primitive = Atoms(
+        "H2", positions=[[0.0, 0.0, 0.0], [0.5, 0.0, 0.0]], cell=np.eye(3) * cell, pbc=True
+    )
+    relation = StructureRelation.from_atoms(primitive, primitive, symprec=1e-5)
+    # A translation-invariant chain: the on-site block balances the two bonds per atom, and the
+    # bond appears once per distinct lattice vector, so the acoustic sum rule holds exactly.
+    fc2_tensor = np.zeros((3, 3, 3))
+    for axis in range(3):
+        fc2_tensor[0, axis, axis] = 2.0 * spring
+        fc2_tensor[1, axis, axis] = -spring
+        fc2_tensor[2, axis, axis] = -spring
+    quartic = np.zeros((1, 3, 3, 3, 3))
+    for axis in range(3):
+        quartic[0, axis, axis, axis, axis] = 1.0
+    fc2 = SparseOrderForceConstants(
+        2,
+        np.array([[0, 0], [0, 1], [0, 1]]),
+        np.array([[[0, 0, 0]], [[0, 0, 0]], [[-1, 0, 0]]]),
+        fc2_tensor,
+    )
+    fc4 = SparseOrderForceConstants(
+        4,
+        np.array([[0, 0, 0, 0]]),
+        np.zeros((1, 3, 3), dtype=int),
+        quartic,
+    )
+    return (
+        ForceConstants({}, primitive, sparse={2: fc2}, relation=relation),
+        ForceConstants({}, primitive, sparse={4: fc4}, relation=relation),
+    )
+
+
 def test_loop_correction_has_quartic_one_half_factor():
-    fc2, fc4 = _force_constants()
+    """The correction is ``-1/2`` times the covariance, and only the internal Gamma modes count.
+
+    A monatomic cell has no internal mode at Gamma, so a fixture that used to weight the three
+    translations no longer has anything to weight there: this one has three optical modes with
+    the analytic eigenvalue ``2 k / m``, which is what the one-half factor is checked against.
+    """
+    fc2, fc4 = _diatomic_force_constants()
     result = LoopSCPH(
         fc2=fc2,
         fc4=fc4,
@@ -73,8 +118,11 @@ def test_loop_correction_has_quartic_one_half_factor():
         max_iterations=1,
     ).run()
     mass = fc2.relation.primitive.get_masses()[0]
-    sigma2 = mode_sigma(np.ones(3) / mass, temperature=300, statistics="quantum") ** 2 / mass
-    expected = np.linalg.norm(np.diag(0.5 * sigma2))
+    # The Gamma optical mode has eigenvalue 2 k / m on this cell, and its eigenvector
+    # (1, -1) / sqrt(2) puts half of its weight on the first atom, so the on-site block the
+    # quartic term reads is half the mass-weighted covariance of that mode.
+    block = mode_sigma(np.full(3, 2.0 / mass), temperature=300, statistics="quantum") ** 2 / mass
+    expected = np.linalg.norm(np.diag(0.5 * 0.5 * block))
     assert result.history[0].correction_norm == pytest.approx(expected, rel=1e-12, abs=1e-12)
 
 

@@ -340,12 +340,18 @@ def require_star_covariance(
     both the direct and the expanded matrices, because a legitimate model's absolute residual
     scales with the model itself.  The check never averages, projects or repairs the input.
     """
-    if tolerance is None:
-        return 0.0
+    from mlfcs.reciprocal.modes import require_finite
+
     direct, expanded = _star_expansion(build, symmetry, grid, primitive_positions, plan=plan)
+    # Finiteness is checked before any comparison and before the tolerance is consulted: a NaN
+    # would make every comparison false, so switching the tolerance off must not admit it.
+    require_finite(direct, role="direct dynamical matrices", context=context)
+    require_finite(expanded, role="expanded dynamical matrices", context=context)
     residuals = _star_residuals(direct, expanded, grid)
     if not residuals:
         return 0.0
+    if tolerance is None:
+        return float(max(entry.residual for entry in residuals))
     scale = float(
         max(
             np.linalg.norm(direct, ord=np.inf, axis=(-2, -1)).max(),
@@ -354,6 +360,11 @@ def require_star_covariance(
     )
     worst = max(residuals, key=lambda entry: entry.residual)
     allowed = tolerance * scale if scale > 0 else tolerance
+    if not np.isfinite(scale) or not np.isfinite(worst.residual) or not np.isfinite(allowed):
+        raise SymmetryViolationError(
+            f"{context}: the covariance comparison is not finite (scale {scale!r}, residual "
+            f"{worst.residual!r}, allowed {allowed!r})"
+        )
     if worst.residual > allowed:
         raise SymmetryViolationError(
             f"{context}: the force constants are not covariant on the full star of "
@@ -623,12 +634,31 @@ def require_hermitian(
 
     A covariant expansion of a Hermitian ``D(q)`` is Hermitian; a violation means the input
     force constants were not, and the real-space sum built from it would be complex.
+
+    Non-finite data is refused before the comparison and regardless of ``tolerance``: a NaN makes
+    ``residual > allowed`` false, so a gate that only compares would admit it silently.
     """
+    from mlfcs.reciprocal.modes import require_finite
+
+    values = require_finite(matrix, role="expanded matrix", context=context)
+    if not np.isfinite(scale):
+        raise SymmetryViolationError(
+            f"{context}: the comparison scale is not finite ({scale!r}); non-finite data is "
+            "refused whether or not the tolerance comparisons are switched off"
+        )
+    residual = float(np.max(np.abs(values - values.conj().swapaxes(-1, -2))))
+    if not np.isfinite(residual):
+        raise SymmetryViolationError(
+            f"{context}: the Hermiticity residual for label {list(label)} with operation "
+            f"{operation} is not finite ({residual!r})"
+        )
     if tolerance is None:
         return
-    values = np.asarray(matrix)
-    residual = float(np.max(np.abs(values - values.conj().swapaxes(-1, -2))))
     allowed = tolerance * scale if scale > 0 else tolerance
+    if not np.isfinite(allowed):
+        raise SymmetryViolationError(
+            f"{context}: the allowed Hermiticity residual is not finite ({allowed!r})"
+        )
     if residual > allowed:
         raise SymmetryViolationError(
             f"{context}: the matrix expanded for label {list(label)} with operation "

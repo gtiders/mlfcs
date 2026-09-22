@@ -3,6 +3,7 @@ import pytest
 from ase import Atoms, units
 from supercell_helpers import make_supercell, monoatomic_periodic
 
+from mlfcs.exceptions import SymmetryViolationError
 from mlfcs.reciprocal.sampling.harmonic import HarmonicSampler
 
 
@@ -59,8 +60,9 @@ def test_maximum_displacement_is_optional_and_reports_clipping():
 
 
 def test_imaginary_mode_policy_is_explicit():
+    """A soft mode is reported where it is, and is never silently turned into a stable one."""
     primitive, supercell, fc2 = _chain(spring=-1.0)
-    with pytest.raises(ValueError, match="imaginary harmonic modes"):
+    with pytest.raises(SymmetryViolationError, match="non-positive internal mode"):
         HarmonicSampler(primitive, supercell, fc2, temperature=300)
     excluded = HarmonicSampler(
         primitive, supercell, fc2, temperature=300, imaginary_modes="exclude"

@@ -23,10 +23,10 @@ from ase.calculators.lj import LennardJones
 from ase.neighborlist import neighbor_list
 
 from mlfcs import FiniteDifferenceCalculation
-from mlfcs.tools.supercell import build_supercell
 from mlfcs.force_constants.representation import ForceConstants
 from mlfcs.structure.relation import StructureRelation
 from mlfcs.structure.symmetry import PrimitiveSymmetryOperations, SymmetryOperations
+from mlfcs.tools.supercell import build_supercell
 
 SUPERCELLS = {
     "diagonal": np.diag((2, 2, 2)).astype(np.int64),

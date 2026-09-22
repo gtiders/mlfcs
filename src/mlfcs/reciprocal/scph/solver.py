@@ -15,6 +15,7 @@ from functools import partial
 
 import numpy as np
 
+from mlfcs.exceptions import SymmetryViolationError
 from mlfcs.force_constants.dense import lattice_fc2, replace_lattice_fc2
 from mlfcs.force_constants.representation import (
     ForceConstants,
@@ -25,13 +26,19 @@ from mlfcs.reciprocal.grid import (
     irreducible_reciprocal_grid,
 )
 from mlfcs.reciprocal.kernels import dynamical_matrices_compiled
+from mlfcs.reciprocal.modes import (
+    ModePolicy,
+    gamma_acoustic_residual,
+    modal_covariance,
+    require_finite,
+)
 from mlfcs.reciprocal.plan import FourierPlan, ReciprocalExpansionPlan
 from mlfcs.reciprocal.scph.fourier import (
     _multiplier,
     _needed_covariances,
     _validate_relation,
 )
-from mlfcs.reciprocal.statistics import HBAR_ASE, OMEGA_TO_THZ, mode_sigma
+from mlfcs.reciprocal.statistics import HBAR_ASE, OMEGA_TO_THZ
 from mlfcs.reciprocal.symmetry import (
     expand_star_values,
     require_hermitian,
@@ -127,6 +134,8 @@ class LoopSCPH:
         frequency_cutoff_thz: float = 0.0,
         warm_start: ForceConstants | None = None,
         continuation: bool = True,
+        imaginary_modes: str = "error",
+        asr_tolerance: float = 1e-6,
         symprec: float = 1e-5,
         time_reversal: bool = True,
         symmetry_tolerance: float | None = 1e-6,
@@ -173,6 +182,12 @@ class LoopSCPH:
         # quantity from any dynamical-matrix tolerance, so it is a public argument and is
         # recorded in every result instead of being a module constant.
         self.time_reversal = bool(time_reversal)
+        if imaginary_modes not in {"error", "absolute", "exclude"}:
+            raise ValueError("imaginary_modes must be 'error', 'absolute' or 'exclude'")
+        self.imaginary_modes = imaginary_modes
+        if not np.isfinite(asr_tolerance) or asr_tolerance < 0:
+            raise ValueError("asr_tolerance must be finite and non-negative")
+        self.asr_tolerance = float(asr_tolerance)
         self.symmetry_tolerance = validate_symmetry_tolerance(
             symmetry_tolerance, context="LoopSCPH"
         )
@@ -245,6 +260,13 @@ class LoopSCPH:
                     for key, value in covariance.items()
                 }
             correction = self._loop_correction(covariance)
+            # A non-finite correction would poison the iterate, and a NaN makes every later
+            # tolerance comparison false, so it is refused here rather than silently accepted.
+            require_finite(
+                np.asarray([np.max(np.abs(value)) for value in correction.values()]),
+                role="loop correction",
+                context=f"LoopSCPH loop correction at iteration {iteration}",
+            )
             correction_norm = float(
                 np.sqrt(sum(np.vdot(value, value).real for value in correction.values()))
             )
@@ -364,20 +386,25 @@ class LoopSCPH:
         # One composite action per member: the operation, the antiunitary flag and the
         # positional gauge that brings the result onto the label the grid stores.
         plan = self._plan(multiplier)
+        gamma_star = self._gamma_star(multiplier)
+        policy = self._mode_policy(temperature)
+
         def covariance_of_stars(star_chunk: np.ndarray) -> dict[tuple, np.ndarray]:
             result: dict[tuple[int, int, tuple[int, int, int]], np.ndarray] = {}
             points = grid.full.points[representatives[star_chunk]]
-            eigenvalues, vectors = np.linalg.eigh(dynamical_matrices(terms, masses, points))
-            sigma2 = (
-                mode_sigma(
-                    eigenvalues,
-                    temperature=temperature,
-                    statistics=self.statistics,
-                    cutoff_frequency_thz=self.frequency_cutoff_thz,
-                )
-                ** 2
-            )
-            weighted = (vectors * sigma2[..., None, :]) @ vectors.conj().swapaxes(-1, -2)
+            matrices = dynamical_matrices(terms, masses, points)
+            require_finite(matrices, role="dynamical matrices", context="LoopSCPH covariance")
+            weighted = np.empty_like(matrices)
+            for local, star in enumerate(star_chunk.tolist()):
+                # The Gamma representative is diagonalized in the internal subspace, so the
+                # three translations never enter 1/omega^2 at all.
+                weighted[local] = modal_covariance(
+                    matrices[local],
+                    masses,
+                    is_gamma=star == gamma_star,
+                    policy=policy,
+                    context=f"LoopSCPH covariance at {tuple(int(v) for v in points[local])}",
+                ).matrix
             for local, star in enumerate(star_chunk.tolist()):
                 for member in members[star].tolist():
                     expanded = plan.apply_to_matrix(int(member), weighted[local])
@@ -525,22 +552,100 @@ class LoopSCPH:
         returned.  The certificate is content-addressed, so the same iterate is never
         validated twice within one run.
         """
+        where = (
+            f"{stage} FC2"
+            if iteration is None
+            else f"{stage} FC2 at iteration {iteration} (after the loop correction)"
+        )
         if self.symmetry_tolerance is None:
             return
         cache_key = (self._lattice_fingerprint(lattice), multiplier)
         if cache_key in self._certificates:
             return
-        where = (
-            f"{stage} FC2"
-            if iteration is None
-            else f"{stage} FC2 at iteration {iteration}"
-        )
-        self._check_symmetry(
-            lattice,
-            multiplier,
-            f"LoopSCPH {where} ({temperature} K, multiplier {multiplier})",
-        )
+        try:
+            self._check_symmetry(
+                lattice,
+                multiplier,
+                f"LoopSCPH {where} ({temperature} K, multiplier {multiplier})",
+            )
+        except SymmetryViolationError as error:
+            # A broken acoustic sum rule is the usual root cause of a star-gate failure, and
+            # reporting only the star would send the caller to the symmetry code instead of to
+            # the quartic contraction.  The accept/reject decision is unchanged: this only
+            # names the cause of a rejection that already happened.
+            self._raise_asr_cause(
+                lattice, stage=where, iteration=None, temperature=temperature, cause=error
+            )
+            raise
         self._certificates.add(cache_key)
+
+    def _gamma_star(self, multiplier: int) -> int:
+        """Return the star index that owns the Gamma point."""
+        grid = self._mesh(multiplier)
+        zero = np.flatnonzero(np.all(grid.full.labels == 0, axis=1))
+        if len(zero) != 1:
+            raise RuntimeError("the reciprocal grid must contain the Gamma point exactly once")
+        return int(grid.full_to_irreducible[int(zero[0])])
+
+    def _mode_policy(self, temperature: float) -> ModePolicy:
+        """Return the thermodynamic policy of one sweep, as the caller stated it."""
+        return ModePolicy(
+            statistics=self.statistics,
+            temperature=float(temperature),
+            frequency_cutoff_thz=self.frequency_cutoff_thz,
+            imaginary_modes=self.imaginary_modes,
+        )
+
+    def _asr_residual(
+        self,
+        lattice: dict[tuple[int, int, tuple[int, int, int]], np.ndarray],
+        multiplier: int,
+    ) -> tuple[float, float]:
+        """Return the ``||D(Gamma) B||`` residual and its allowed value on this grid."""
+        relation = self.fc2.relation
+        assert relation is not None
+        masses = np.asarray(relation.primitive.get_masses(), dtype=float)
+        terms = fourier_terms(lattice, relation.primitive)
+        gamma = dynamical_matrices(terms, masses, np.zeros((1, 3)))[0]
+        residual = gamma_acoustic_residual(gamma, masses)
+        scale = float(
+            np.max(np.abs(dynamical_matrices(terms, masses, self._mesh(multiplier).full.points)))
+        )
+        return residual, self.asr_tolerance * scale if scale > 0 else self.asr_tolerance
+
+    def _raise_asr_cause(
+        self,
+        lattice: dict[tuple[int, int, tuple[int, int, int]], np.ndarray],
+        *,
+        stage: str,
+        iteration: int | None,
+        temperature: float,
+        cause: Exception,
+    ) -> None:
+        """Re-raise a star-gate rejection as an acoustic-sum-rule failure when it is one.
+
+        The residual is ``||D(Gamma) B||`` in the mass-weighted space, reported against the scale
+        of the whole grid.  When it explains the rejection, the caller is told which physics is
+        wrong instead of which star member failed first.
+        """
+        multiplier = self.scph_multiplier
+        residual, allowed = self._asr_residual(lattice, multiplier)
+        relation = self.fc2.relation
+        assert relation is not None
+        masses = np.asarray(relation.primitive.get_masses(), dtype=float)
+        terms = fourier_terms(lattice, relation.primitive)
+        gamma = dynamical_matrices(terms, masses, np.zeros((1, 3)))[0]
+        residual = gamma_acoustic_residual(gamma, masses)
+        scale = float(np.max(np.abs(dynamical_matrices(terms, masses, self._mesh(self.scph_multiplier).full.points))))
+        allowed = self.asr_tolerance * scale if scale > 0 else self.asr_tolerance
+        where = stage if iteration is None else f"{stage} at iteration {iteration}"
+        if residual > allowed or not np.isfinite(residual):
+            raise SymmetryViolationError(
+                f"LoopSCPH {where}: the force constants violate the acoustic sum rule (ASR): "
+                f"||D(Gamma) B|| = {residual:.6e} against an allowed {allowed:.6e} "
+                f"(scale of the grid) at {temperature} K, which is why the star gate rejected "
+                "them. Fix the force constants or the quartic contraction."
+            ) from cause
 
     def _check_symmetry(
         self,

@@ -45,6 +45,7 @@ from test_reciprocal_full_grid_oracle import (
 
 from mlfcs.force_constants.dense import lattice_fc2
 from mlfcs.reciprocal.fourier import dynamical_matrices, fourier_terms
+from mlfcs.reciprocal.modes import internal_mode_basis
 from mlfcs.reciprocal.sampling.harmonic import HarmonicSampler
 from mlfcs.reciprocal.statistics import HBAR_ASE, OMEGA_TO_THZ
 from mlfcs.reciprocal.symmetry import star_member_gauge, star_member_operator
@@ -177,7 +178,12 @@ def _diagonalization_residual(matrix: np.ndarray, vectors: np.ndarray, values: n
 
 @pytest.mark.parametrize("name", CASES)
 def test_sampler_diagonalizes_representatives_once(name: str, monkeypatch) -> None:
-    """One construction enters the eigensolver once, on a batch of representatives."""
+    """One construction enters the eigensolver once per representative, and never again.
+
+    The shape of each call is not pinned: the Gamma representative is solved in the internal
+    subspace and the others in the full mass-weighted space, so their widths legitimately
+    differ.  What matters is that the cost is one solve per irreducible star.
+    """
     calls: list[tuple[int, ...]] = []
     original = np.linalg.eigh
 
@@ -188,10 +194,9 @@ def test_sampler_diagonalizes_representatives_once(name: str, monkeypatch) -> No
     monkeypatch.setattr(np.linalg, "eigh", counting)
     sampler = _sampler(name)
 
-    force_constants, _ = _force_constants(name)
-    n_modes = 3 * len(force_constants.relation.primitive)
     mesh = sampler.grid
-    assert calls == [(mesh.n_irreducible, n_modes, n_modes)]
+    assert len(calls) == mesh.n_irreducible
+    assert all(shape[0] == shape[1] for shape in calls)
     assert mesh.n_irreducible <= mesh.n_qpoints
 
     before = len(calls)
@@ -232,16 +237,16 @@ def test_expanded_modes_diagonalize_the_member_dynamical_matrix(name: str) -> No
     sampler = _sampler(name)
     force_constants, _ = _force_constants(name)
     matrices = _dynamical_matrices(sampler, force_constants)
-    basis = sampler._translation_basis()
+    basis = internal_mode_basis(sampler._masses)
+    projector = basis @ basis.conj().T
 
     for index, member in enumerate(sampler._members):
         matrix = matrices[index]
         if member.translations.any():
-            # Gamma: the sampler projects the uniform translations out before diagonalizing,
-            # so the member's own matrix has to be projected the same way before comparing.
-            matrix = matrix.real
-            matrix = matrix - basis @ (basis.T @ matrix)
-            matrix = matrix - (matrix @ basis) @ basis.T
+            # Gamma: the sampler diagonalizes the internal subspace, so the member's own matrix
+            # has to be projected onto the same subspace before comparing.  The translations are
+            # carried as zero modes, which reproduce a zero block either way.
+            matrix = projector @ matrix @ projector
         residual = _diagonalization_residual(matrix, member.eigenvectors, member.eigenvalues)
         assert residual < 1e-10, f"member {member.label} is not diagonalized: {residual}"
 
