@@ -7,9 +7,9 @@ import numpy as np
 import pytest
 from ase import Atoms
 
-from mlfcs import build_supercell
+from mlfcs.tools.supercell import build_supercell
 from mlfcs.structure.integer_lattice import normalize_supercell_matrix
-from mlfcs.structure.supercell import _fallback_phonopy_old_style, _from_phonopy
+from mlfcs.tools.supercell import _fallback_phonopy_old_style, _from_phonopy
 
 
 def _primitive() -> Atoms:
@@ -32,7 +32,7 @@ def test_builder_uses_phonopy_order_and_returns_plain_ase_atoms():
 
 
 def test_builder_has_no_calculation_or_workflow_dependency():
-    path = Path(__file__).parents[1] / "src/mlfcs/structure/supercell.py"
+    path = Path(__file__).parents[1] / "src/mlfcs/tools/supercell.py"
     tree = ast.parse(path.read_text())
     imports = {
         node.module

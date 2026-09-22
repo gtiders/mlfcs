@@ -11,7 +11,8 @@ from pathlib import Path
 from ase.io import read, write
 from calorine.calculators import CPUNEP
 
-from mlfcs import FiniteDifferenceCalculation, build_supercell, write_force_constants
+from mlfcs import FiniteDifferenceCalculation, write_force_constants
+from mlfcs.tools.supercell import build_supercell
 
 MODEL = "Si_2022_NEP3_5body.txt"
 LOG = Path("extrapolation.log")

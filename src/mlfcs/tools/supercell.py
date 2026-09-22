@@ -8,6 +8,14 @@ from ase import Atoms
 from mlfcs.structure.integer_lattice import determinant_3x3, normalize_supercell_matrix
 
 
+def _is_integer_matrix(matrix: object) -> bool:
+    """Return whether every entry of a candidate matrix is a Python or NumPy integer."""
+    values = np.asarray(matrix)
+    if values.dtype == object:
+        return all(isinstance(value, (int, np.integer)) for value in values.ravel())
+    return bool(np.issubdtype(values.dtype, np.integer))
+
+
 def _phonopy_atoms(atoms: Atoms):
     from phonopy.structure.atoms import PhonopyAtoms
 
@@ -98,14 +106,24 @@ def build_supercell(
 ) -> Atoms:
     """Build an ASE reference supercell in phonopy's old-style ordering.
 
-    This is a structure-generation utility only.  Calculation APIs never
-    invoke it implicitly: pass its result as the explicit reference
-    supercell when that ordering is required.
+    This is a structure-generation utility only, and it is the *only* supported way to obtain a
+    reference supercell.  Calculation APIs never invoke it implicitly: the caller builds the
+    supercell in one explicit step and passes it as ``reference`` in the next.
+
+    ``supercell_matrix`` is a discrete construction parameter, so a floating-point form such as
+    ``[[2.0, 0.0, 0.0], ...]`` is refused: that is not a numerical approximation question but a
+    statement about what the caller meant.  ``symprec`` is passed to phonopy, or used by the
+    fallback to de-duplicate the generated slots with the same length precision.
     """
     if not isinstance(primitive, Atoms):
         raise TypeError("primitive must be an ASE Atoms object")
     if not np.all(primitive.pbc):
         raise ValueError("primitive must be periodic")
+    if not _is_integer_matrix(supercell_matrix):
+        raise TypeError(
+            "supercell_matrix must be an integer matrix, integer triple or a nested sequence of "
+            f"Python/NumPy integers; got {supercell_matrix!r}"
+        )
     matrix = normalize_supercell_matrix(supercell_matrix)
     try:
         return _from_phonopy(primitive, matrix, symprec=symprec)
