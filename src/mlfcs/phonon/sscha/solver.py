@@ -107,7 +107,7 @@ class SSCHA:
         self.primitive.wrap()
         from mlfcs.structure.relation import StructureRelation
 
-        relation = StructureRelation.from_atoms(self.primitive, reference, tolerance=symprec)
+        relation = StructureRelation.from_atoms(self.primitive, reference, symprec=symprec)
         self._reference, self._index = relation.reference, relation.index
         self.supercell = self._index.supercell_matrix
         self.temperatures = temperatures

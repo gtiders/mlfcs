@@ -15,7 +15,7 @@ from mlfcs.structure.relation import StructureRelation
 
 def _force_constants(*, cell=4.0):
     primitive = Atoms("H", positions=[[0, 0, 0]], cell=np.eye(3) * cell, pbc=True)
-    relation = StructureRelation.from_atoms(primitive, primitive)
+    relation = StructureRelation.from_atoms(primitive, primitive, symprec=1e-5)
     fc2_tensor = np.eye(3)[None, ...]
     quartic = np.zeros((1, 3, 3, 3, 3))
     for axis in range(3):
@@ -185,7 +185,7 @@ def test_loop_scph_keeps_fc4_induced_pair_support():
         cell=np.diag([2.0, 2.0, 2.0]),
         pbc=True,
     )
-    relation = StructureRelation.from_atoms(primitive, primitive)
+    relation = StructureRelation.from_atoms(primitive, primitive, symprec=1e-5)
     fc2 = SparseOrderForceConstants(
         2,
         np.array([[0, 0]]),

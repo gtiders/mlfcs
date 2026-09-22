@@ -23,10 +23,10 @@ from ase.build import bulk
 from ase.calculators.lj import LennardJones
 
 from mlfcs import FiniteDifferenceCalculation
-from mlfcs.tools.supercell import build_supercell
 from mlfcs.force_constants.expansion import expand_primitive_parameters
 from mlfcs.interactions.primitive.builder import build_primitive_interaction_space
 from mlfcs.interactions.realization import realize_interaction_space
+from mlfcs.tools.supercell import build_supercell
 
 # Every shear is a unimodular integer matrix (unit diagonal, so determinant one) that
 # keeps the crystal and changes nothing but the primitive basis.
@@ -158,11 +158,11 @@ def test_identifiability_agrees_under_unimodular_rebasing(material, order, shear
 
     direct = realize_interaction_space(
         _space(atoms, order, cutoff),
-        StructureRelation.from_atoms(atoms, supercell).index,
+        StructureRelation.from_atoms(atoms, supercell, symprec=1e-5).index,
     )
     rebased = realize_interaction_space(
         _space(rebased_atoms, order, cutoff),
-        StructureRelation.from_atoms(rebased_atoms, rebased_supercell).index,
+        StructureRelation.from_atoms(rebased_atoms, rebased_supercell, symprec=1e-5).index,
     )
     assert len(rebased.orbits) == len(direct.orbits)
     assert [orbit.dimension for orbit in rebased.orbits] == [

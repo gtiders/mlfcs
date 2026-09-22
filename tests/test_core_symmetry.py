@@ -10,7 +10,7 @@ from mlfcs.structure.symmetry import PrimitiveSymmetryOperations, SymmetryOperat
 def test_every_symmetry_operation_is_an_atom_permutation():
     primitive = bulk("Si", "diamond", a=5.43)
     supercell, _ = make_supercell(primitive, (2, 2, 2))
-    relation = StructureRelation.from_atoms(primitive, supercell)
+    relation = StructureRelation.from_atoms(primitive, supercell, symprec=1e-5)
     primitive_operations = PrimitiveSymmetryOperations.from_atoms(primitive, symprec=1e-5)
     operations = SymmetryOperations.from_primitive_operations(primitive_operations, relation.index)
     assert operations.size > 1
@@ -22,7 +22,7 @@ def test_exact_affine_permutations_match_cartesian_symmetry_positions():
     primitive = bulk("Si", "diamond", a=5.43)
     supercell, _ = make_supercell(primitive, [[2, 1, 0], [0, 2, 0], [0, 0, 1]])
     supercell = supercell[np.random.default_rng(8).permutation(len(supercell))]
-    relation = StructureRelation.from_atoms(primitive, supercell)
+    relation = StructureRelation.from_atoms(primitive, supercell, symprec=1e-5)
     primitive_operations = PrimitiveSymmetryOperations.from_atoms(primitive, symprec=1e-5)
     operations = SymmetryOperations.from_primitive_operations(primitive_operations, relation.index)
     inverse = np.linalg.inv(np.asarray(primitive.cell))

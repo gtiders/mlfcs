@@ -44,6 +44,7 @@ def write_hdf5(target: str | Path, force_constants: ForceConstants) -> None:
     with h5py.File(target, "w") as handle:
         handle.attrs["format"] = "mlfcs-force-constants"
         handle.attrs["schema_version"] = SCHEMA_VERSION
+        handle.attrs["symprec"] = float(relation.symprec)
         handle.attrs["units"] = "eV/angstrom^order"
         handle.attrs["tensor_basis"] = "cartesian"
         structures = handle.create_group("structures")
@@ -70,9 +71,16 @@ def read_hdf5(source: str | Path) -> ForceConstants:
         if int(handle.attrs.get("schema_version", 0)) != SCHEMA_VERSION:
             raise ValueError("unsupported native MLFCS HDF5 schema; only v3 is supported")
         primitive = _read_atoms(handle["structures/primitive"])
-        # Canonical exact-R storage has no source-supercell identity.
-        reference = primitive
-        relation = StructureRelation.from_atoms(primitive, reference)
+        # Canonical exact-R storage has no source-supercell identity, so this is the identity
+        # relation; the precision is read from the file because it is what the fixed-cell
+        # training-frame check uses.
+        stored = handle.attrs.get("symprec")
+        if stored is None:
+            raise ValueError(
+                "native MLFCS HDF5 file does not record symprec; re-write it with this version "
+                "so the training-frame check has a declared length precision"
+            )
+        relation = StructureRelation.identity(primitive, symprec=float(stored))
         sparse: dict[int, SparseOrderForceConstants] = {}
         for name, entry in handle["force_constants"].items():
             order = int(name)
@@ -83,7 +91,7 @@ def read_hdf5(source: str | Path) -> ForceConstants:
         metadata = {
             key: value.item() if isinstance(value, np.generic) else value
             for key, value in handle.attrs.items()
-            if key not in {"format", "schema_version", "units", "tensor_basis"}
+            if key not in {"format", "schema_version", "units", "tensor_basis", "symprec"}
         }
     return ForceConstants(
         {},

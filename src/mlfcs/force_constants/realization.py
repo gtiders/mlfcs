@@ -131,7 +131,9 @@ def build_export_view(
     primitive_change = _unimodular_change(
         np.asarray(target_primitive.cell), np.asarray(source.primitive.cell), name="primitive"
     )
-    target = StructureRelation.from_atoms(target_primitive, target_supercell)
+    target = StructureRelation.from_atoms(
+        target_primitive, target_supercell, symprec=source.symprec
+    )
     site_map, site_shift = _site_mapping(source.primitive, target.primitive)
     source_to_target_translation = np.linalg.inv(primitive_change)
     sparse: dict[int, SparseOrderForceConstants] = {}

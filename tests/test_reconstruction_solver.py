@@ -54,7 +54,7 @@ def test_reconstructs_every_orbit_from_independent_components(order):
         {},
         supercell,
         sparse={order: sparse},
-        relation=StructureRelation.from_atoms(primitive, supercell),
+        relation=StructureRelation.from_atoms(primitive, supercell, symprec=1e-5),
     ).materialize(order)
     for cluster, tensor in expected.items():
         dense_key = (index.primitive[cluster[0]], *cluster[1:])

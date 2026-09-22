@@ -8,7 +8,8 @@ from supercell_helpers import make_supercell
 from mlfcs.finite_difference.calculation import FiniteDifferenceCalculation
 from mlfcs.finite_difference.plan_identity import ForceBatch
 from mlfcs.structure.periodic_geometry import PeriodicGeometry
-from mlfcs.structure.relation import StructureRelation, align_structures
+from mlfcs.structure.relation import StructureRelation
+from mlfcs.tools.structure_alignment import align_structures
 
 
 def _batch(job, forces):
@@ -31,7 +32,7 @@ def test_relation_preserves_reference_order_for_a_nondiagonal_supercell():
     permutation = np.asarray([3, 0, 6, 1, 7, 2, 5, 4])
     reference = generated[permutation]
 
-    relation = StructureRelation.from_atoms(primitive, reference)
+    relation = StructureRelation.from_atoms(primitive, reference, symprec=1e-5)
 
     np.testing.assert_array_equal(relation.reference.numbers, reference.numbers)
     np.testing.assert_array_equal(relation.supercell_matrix, matrix)
@@ -59,7 +60,7 @@ def test_relation_maps_a_reordered_primitive_without_changing_reference_labels()
     )
     reference, _ = make_supercell(primitive, (2, 1, 1))
     reordered_primitive = primitive[[1, 0]]
-    relation = StructureRelation.from_atoms(reordered_primitive, reference[[3, 0, 2, 1]])
+    relation = StructureRelation.from_atoms(reordered_primitive, reference[[3, 0, 2, 1]], symprec=1e-5)
 
     assert relation.index.n_primitive == 2
     np.testing.assert_array_equal(relation.reference.numbers, reference[[3, 0, 2, 1]].numbers)
@@ -71,7 +72,7 @@ def test_relation_uses_global_species_assignment_not_greedy_nearest_match():
     # A greedy argmin maps both to site 0, whereas the global optimum is
     # reference[0] -> site 1 and reference[1] -> site 0.
     reference = Atoms("H2", positions=[[0.5, 0, 0], [0, 0, 0]], cell=np.eye(3) * 10, pbc=True)
-    relation = StructureRelation.from_atoms(primitive, reference, tolerance=0.6)
+    relation = StructureRelation.from_atoms(primitive, reference, symprec=0.6)
 
     np.testing.assert_array_equal(relation.primitive_index, [1, 0])
 
@@ -81,7 +82,7 @@ def test_align_structures_is_explicit_and_preserves_reference_order():
         "NaCl", scaled_positions=[[0, 0, 0], [0.5, 0.5, 0.5]], cell=np.eye(3) * 4, pbc=True
     )
     incoming = reference[[1, 0]]
-    aligned, residual = align_structures(reference, incoming)
+    aligned, residual = align_structures(reference, incoming, tolerance=0.6)
 
     assert residual < 1e-12
     np.testing.assert_array_equal(aligned.numbers, reference.numbers)
