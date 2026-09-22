@@ -53,3 +53,26 @@ $$
 $$
 
 其中 `mixing` 即 $\alpha$，范围为 $(0,1]$。较小值通常更稳但更慢；它是迭代松弛参数，不是物理参数。
+
+## `symprec`：唯一的长度精度
+
+核心原胞—超胞关系中只有一个用户可配置的长度精度：
+
+| 参数 | 单位 | 覆盖的判定 |
+|---|---:|---|
+| `symprec` | Å | spglib 原胞对称性识别、原胞与显式超胞的整数复制关系、超胞原子到「原胞原子 + 整数格矢」的匹配、固定胞训练帧的胞身份 |
+
+它表达一个统一的物理问题：两个周期几何对象在笛卡尔空间中相差多少时仍视为同一个对象。因此：
+
+- 只有笛卡尔长度（或「每个原胞晶格系数」的笛卡尔长度）可以与 `symprec` 比较；无量纲矩阵元素、分数
+  坐标差和角度都不允许直接比较；
+- 不允许新增 `mapping_tolerance`、`cell_tolerance`、`position_tolerance` 等同义参数；
+- `mlfcs.tools.structure_alignment` 的 `tolerance` 是**外部导入策略**，用于重排独立程序或 MD 产生的
+  结构，不参与核心结构身份判定；
+- spglib 的 `angle_tolerance` 由 spglib 自动处理（不传或传 `-1.0`），MLFCS 不暴露它，也不用它做
+  原胞—超胞映射。
+
+参考超胞必须由用户显式提供：`InteractionSpace`、`FiniteDifferenceCalculation`、`ForceConstantFitter`
+和 `SSCHA` 的 `reference` 都是无默认值的必需参数。需要便利构造时显式调用
+`mlfcs.tools.supercell.build_supercell(primitive, matrix, symprec=...)`；主线不依赖该工具，也不会根据
+cutoff 猜测超胞。MLFCS 接受任何在 `symprec` 内与原胞构成整数复制关系的显式超胞，不要求它来自本工具。

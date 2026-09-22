@@ -9,9 +9,11 @@ code_verified: 4.0.0a6
 
 # 结构、超胞与对齐 API
 
-## `build_supercell`
+## `mlfcs.tools.supercell.build_supercell`
 
 ```python
+from mlfcs.tools.supercell import build_supercell
+
 build_supercell(
     primitive: Atoms,
     supercell_matrix: object,
@@ -26,34 +28,37 @@ build_supercell(
 | 参数 | 含义 |
 |---|---|
 | `primitive` | 三维周期 ASE `Atoms`。坐标、元素和质量被复制到目标胞。 |
-| `supercell_matrix` | 长度为 3 的整数 repeats，或非奇异整数 $3\times3$ 矩阵。内部统一采用 row-vector convention。 |
+| `supercell_matrix` | 长度为 3 的整数 repeats，或非奇异整数 $3\times3$ 矩阵。内部统一采用 row-vector convention。**不接受浮点形式**（如 `[[2.0, ...]]`）：扩胞矩阵是离散构造参数，不是可以四舍五入的近似量。 |
 | `symprec` | 去重及 phonopy 构造容差，单位 Å。 |
 
 返回新的周期 `Atoms`。若安装 phonopy，直接调用其 old-style 构造；否则使用项目内等价实现。非整数、奇异
 矩阵、非周期 primitive 或非正 determinant 的 phonopy ordering 会抛出 `ValueError`。
+
+`mlfcs.tools` 是叶子便利包：它可以依赖 `mlfcs.structure`，但主线计算包不得导入它。主线入口不会为你
+构造超胞，也不会在缺少 `reference` 时猜测一个；构造超胞与传入 `reference` 是两个显式步骤。
 
 ```python
 primitive = read("primitive.vasp")
 reference = build_supercell(primitive, (4, 4, 4))
 ```
 
-## `align_structures`
-
-高级导入：
+## `mlfcs.tools.structure_alignment.align_structures`
 
 ```python
-from mlfcs.structure.relation import align_structures
+from mlfcs.tools.structure_alignment import align_structures
 
 align_structures(
     reference: Atoms,
     atoms: Atoms,
     *,
-    tolerance: float = 1e-5,
+    tolerance: float,
 ) -> tuple[Atoms, float]
 ```
 
-显式把 `atoms` 重排到 `reference` 原子顺序并返回最大匹配残差。它用于整理外部数据，不应隐藏在拟合或
-有限差分内部。两结构必须拥有相同晶格、PBC、原子数和元素多重集；匹配超过 `tolerance` 时拒绝。
+显式把 `atoms` 重排到 `reference` 原子顺序并返回最大匹配残差。它整理的是外部程序或 MD 产生的结构，
+属于**外部导入策略**：`tolerance` 没有默认值，必须由调用方给出，而且它不参与核心结构身份判定。主线计算
+路径不调用它——拟合与有限差分不会静默重排训练帧。两结构必须拥有相同晶格、PBC、原子数和元素多重集；
+匹配超过 `tolerance` 时拒绝。
 
 ## `StructureRelation`
 
@@ -64,7 +69,7 @@ StructureRelation.from_atoms(
     primitive: Atoms,
     reference: Atoms,
     *,
-    tolerance: float = 1e-5,
+    symprec: float,
 ) -> StructureRelation
 ```
 
@@ -73,7 +78,14 @@ StructureRelation.from_atoms(
 - `primitive`、`reference`；
 - 整数 `supercell_matrix`；
 - HNF-backed `PeriodicIndex`；
-- reference 原子与 `(primitive_site, translation)` 的双射。
+- reference 原子与 `(primitive_site, translation)` 的双射；
+- `symprec`：本次判定使用的唯一长度精度，单位 Å；
+- `cell_residual`：每个原胞晶格系数的最大晶格残差，单位 Å；
+- `position_residual`：原子映射的最大残差，单位 Å。
+
+`tolerance` 已改名为 `symprec`，不保留别名。两处几何判定都使用严格小于：晶格残差与原子映射残差都必须
+`< symprec`；超限时异常给出实测残差、`symprec`（单位 Å）与候选整数矩阵。晶格残差按 $\sum_j|S_{ij}|$
+归一化，因此同一个 `symprec` 对 $1\times1\times1$ 与大重复矩阵含义一致——这不是第二个阈值。
 
 普通用户通常不直接构造它；`ForceConstants.relation`、realization、采样和 writer 会复用这一关系。
 
