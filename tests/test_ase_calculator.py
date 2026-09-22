@@ -9,7 +9,8 @@ import pytest
 from ase import Atoms
 from ase.calculators.singlepoint import SinglePointCalculator
 
-from mlfcs import ForceConstantFitter, MLFCSCalculator, build_supercell
+from mlfcs import ForceConstantFitter, MLFCSCalculator
+from mlfcs.tools.supercell import build_supercell
 from mlfcs.calculators.taylor import TaylorPotential
 from mlfcs.force_constants.representation import ForceConstants, SparseOrderForceConstants
 from mlfcs.io.hdf5 import write_hdf5

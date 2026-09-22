@@ -22,7 +22,8 @@ from ase import Atoms
 from ase.build import bulk
 from ase.calculators.lj import LennardJones
 
-from mlfcs import FiniteDifferenceCalculation, build_supercell
+from mlfcs import FiniteDifferenceCalculation
+from mlfcs.tools.supercell import build_supercell
 from mlfcs.force_constants.expansion import expand_primitive_parameters
 from mlfcs.interactions.primitive.builder import build_primitive_interaction_space
 from mlfcs.interactions.realization import realize_interaction_space

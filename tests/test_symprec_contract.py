@@ -94,7 +94,7 @@ def test_the_root_namespace_no_longer_offers_the_supercell_builder() -> None:
 
 def test_the_structure_package_no_longer_offers_the_supercell_builder() -> None:
     """``mlfcs.structure`` is the base layer; it does not own optional construction helpers."""
-    code = "from mlfcs.structure import build_supercell"
+    code = "from mlfcs.tools.supercell import build_supercell"
     completed = subprocess.run(
         [sys.executable, "-c", code], capture_output=True, text=True, check=False
     )

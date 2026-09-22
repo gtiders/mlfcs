@@ -3,7 +3,8 @@ from ase import Atoms
 from ase.build import bulk
 from supercell_helpers import make_supercell
 
-from mlfcs import FiniteDifferenceCalculation, build_supercell
+from mlfcs import FiniteDifferenceCalculation
+from mlfcs.tools.supercell import build_supercell
 from mlfcs.phonon.sscha.solver import SSCHA
 
 

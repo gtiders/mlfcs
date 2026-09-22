@@ -35,7 +35,6 @@ from mlfcs.io.write import write_force_constants
 from mlfcs.phonon.sampling.structures import perturb_structures
 from mlfcs.phonon.scph.solver import LoopSCPH
 from mlfcs.phonon.sscha.solver import SSCHA
-from mlfcs.structure.supercell import build_supercell
 
 __all__ = [
     "SSCHA",
@@ -48,7 +47,6 @@ __all__ = [
     "PrimitiveInteractionSpace",
     "RealizedInteractionSpace",
     "ReferenceFrame",
-    "build_supercell",
     "enforce_rotational_sum_rules",
     "perturb_structures",
     "read_hdf5",

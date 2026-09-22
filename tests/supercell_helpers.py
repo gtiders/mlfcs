@@ -2,7 +2,7 @@
 
 from ase import Atoms
 
-from mlfcs import build_supercell
+from mlfcs.tools.supercell import build_supercell
 from mlfcs.structure.relation import StructureRelation
 
 
