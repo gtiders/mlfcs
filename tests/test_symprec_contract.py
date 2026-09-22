@@ -53,9 +53,10 @@ def test_the_old_tolerance_keyword_is_gone() -> None:
     """``tolerance`` is renamed, not aliased: the call has to fail by name."""
     primitive, reference = _primitive_and_reference()
     with pytest.raises(TypeError) as failure:
-        StructureRelation.from_atoms(primitive, reference, tolerance=1e-5, symprec=1e-5)
+        StructureRelation.from_atoms(primitive, reference, tolerance=1e-5)
     assert "tolerance" in str(failure.value)
-    assert "symprec" in str(failure.value)
+    parameters = inspect.signature(StructureRelation.from_atoms).parameters
+    assert "symprec" in parameters and "tolerance" not in parameters
 
 
 def test_the_relation_accepts_the_single_precision() -> None:
@@ -90,32 +91,15 @@ def test_every_computation_entry_requires_an_explicit_reference(module: str, nam
     }
 
 
-def test_the_root_namespace_no_longer_offers_the_supercell_builder() -> None:
-    """The convenience builder moved to a leaf tool package; the root must not re-export it."""
-    code = "import mlfcs; mlfcs.build_supercell"
-    completed = subprocess.run(
-        [sys.executable, "-c", code],
-        capture_output=True,
-        text=True,
-        check=False,
-        env=_subprocess_env(),
-    )
-    assert completed.returncode != 0, completed.stdout
-    assert "build_supercell" in completed.stderr
+def test_the_root_and_structure_namespaces_no_longer_offer_the_builder() -> None:
+    """The convenience builder moved to a leaf tool package; neither namespace re-exports it."""
+    import mlfcs
+    import mlfcs.structure
 
-
-def test_the_structure_package_no_longer_offers_the_supercell_builder() -> None:
-    """``mlfcs.structure`` is the base layer; it does not own optional construction helpers."""
-    code = "from mlfcs.tools.supercell import build_supercell"
-    completed = subprocess.run(
-        [sys.executable, "-c", code],
-        capture_output=True,
-        text=True,
-        check=False,
-        env=_subprocess_env(),
-    )
-    assert completed.returncode != 0, completed.stdout
-    assert "build_supercell" in completed.stderr
+    assert not hasattr(mlfcs, "build_supercell")
+    assert not hasattr(mlfcs.structure, "build_supercell")
+    assert "build_supercell" not in mlfcs.__all__
+    assert "build_supercell" not in mlfcs.structure.__all__
 
 
 def test_the_tools_package_offers_the_supercell_builder() -> None:
