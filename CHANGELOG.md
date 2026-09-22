@@ -44,6 +44,12 @@ All notable changes are documented here. Releases follow semantic versioning.
 - `mlfcs.reciprocal.fourier` exposes the phase vector and tensor of every primitive-lattice
   term of an order-2 force-constant set, so the lattice gauge and the compact kernel of the
   samplers can be compared term by term.
+- `mlfcs.reciprocal.modes` states the modal space once for SCPH and the harmonic sampler:
+  `ModePolicy` (statistics, temperature, cutoff and an explicit `error`/`absolute`/`exclude`
+  policy for a non-positive eigenvalue), `ModalCovariance`, `modal_eigenpairs`,
+  `mass_weighted_translations`, `internal_mode_basis`, `gamma_acoustic_residual`,
+  `require_finite` and `require_star_covariance_matrix`. Both consumers use the same Gamma
+  internal subspace and the same weights, so neither can drift into its own convention.
 - The frequency, covariance and sampling paths report their irreducible wedge:
   `harmonic_frequencies` returns a `HarmonicMeshResult` and `LoopSCPHResult` carries
   `irreducible_qpoints`, `irreducible_frequencies`, `weights` and the star decomposition,
@@ -74,6 +80,18 @@ All notable changes are documented here. Releases follow semantic versioning.
   covariance sum still runs over every full q point, workers are scheduled over
   representatives, and the SCPH stopping metric is the star-weighted full-grid RMS
   `sqrt(sum_s w_s ||w_s^n - w_s^{n-1}||^2 / (N_q N_b))`.
+- **Breaking:** the three Gamma translations are removed from the modal space before
+  `1 / omega^2` is formed, instead of being weighted like modes and hidden afterwards by
+  `frequency_cutoff_thz`. The default-cutoff covariance of the hcp cell drops from `9.6e12` to
+  `2.4e-3` and agrees with the cutoff-guarded path; a Gamma mode count changes by three.
+- **Breaking:** a non-positive eigenvalue is refused by default. `imaginary_modes="error"`
+  reports the q point, the mode index, the eigenvalue, the frequency and the temperature, and
+  a model with a soft mode has to choose `absolute` or `exclude` explicitly rather than
+  receive `sqrt(abs(lambda))` silently.
+- The covariance and Hermiticity gates refuse non-finite data before comparing, and even when
+  `symmetry_tolerance` is `None`, where a NaN made every comparison false. A star-gate
+  rejection whose cause is a broken acoustic sum rule now reports `||D(Gamma) B||` against the
+  grid scale instead of blaming a star member.
 
 ### Fixed
 
