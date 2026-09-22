@@ -48,7 +48,7 @@ def _run() -> None:
         cutoffs={2: 5.4},
         max_body_orders={2: 2},
     )
-    gram = fitter.prepare_gram(read(INPUT / "train.extxyz", index=":"), acoustic_sum_rule=True)
+    gram = fitter.prepare_gram(read(INPUT / "train.extxyz", index=":"))
     result = fitter.fit(gram)
     write_force_constants(result.force_constants, ROOT / "mlfcs.h5", format="hdf5")
     write_force_constants(

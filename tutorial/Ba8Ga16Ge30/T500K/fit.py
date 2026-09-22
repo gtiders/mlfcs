@@ -54,10 +54,7 @@ def _fit() -> None:
         max_body_orders={2: 2, 3: 2},
         symprec=1e-4,
     )
-    gram = fitter.prepare_gram(
-        snapshots,
-        acoustic_sum_rule=True,
-    )
+    gram = fitter.prepare_gram(snapshots)
     result = fitter.fit(
         gram,
         tolerance=1e-8,
@@ -67,9 +64,7 @@ def _fit() -> None:
     write_force_constants(
         result.force_constants, ROOT / "FORCE_CONSTANTS_2ND", format="phonopy", order=2
     )
-    write_force_constants(
-        result.force_constants, ROOT / "fc2.h5", format="phonopy_hdf5", order=2
-    )
+    write_force_constants(result.force_constants, ROOT / "fc2.h5", format="phonopy_hdf5", order=2)
     write_force_constants(
         result.force_constants, ROOT / "FORCE_CONSTANTS_3RD", format="shengbte", order=3
     )

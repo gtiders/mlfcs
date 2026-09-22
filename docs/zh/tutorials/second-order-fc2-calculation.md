@@ -295,7 +295,6 @@ fitter = ForceConstantFitter(
 
 gram = fitter.prepare_gram(
     training,
-    acoustic_sum_rule=True,
 )
 gram.save("training-gram.npz")
 result = fitter.fit(gram, acoustic_sum_rule=True)

@@ -1,0 +1,21 @@
+[
+  {
+    "case": "SnSe",
+    "initialization_seconds": 0.30617043003439903,
+    "orders": [
+      2,
+      3
+    ],
+    "parameters": 461,
+    "peak_rss_mib": 288.171875,
+    "reference_atoms": 256,
+    "requested_cutoff_shells": {
+      "2": -8,
+      "3": -6
+    },
+    "resolved_cutoffs_angstrom": {
+      "2": 4.317138601183058,
+      "3": 4.103057501924217
+    }
+  }
+]

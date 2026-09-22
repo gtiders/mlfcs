@@ -22,7 +22,7 @@ fitter = ForceConstantFitter(
     periodic_fc2_completion=False,
     symprec=1e-5,
 )
-gram = fitter.prepare_gram(structures, acoustic_sum_rule=True)
+gram = fitter.prepare_gram(structures)
 gram.save("training-gram.npz")
 result = fitter.fit(gram, acoustic_sum_rule=True)
 ```
@@ -30,16 +30,16 @@ result = fitter.fit(gram, acoustic_sum_rule=True)
 `prepare_gram()` 接收一份用户管理的数据集并返回可移植的充分统计量。它逐构型处理，
 并行度来自相互作用 orbit，因此不再暴露构型批次大小；编译后的设计核规模由拟合问题决定，
 而不是由 batch 决定。`GramStatistics.load()` 可在任意主机恢复。`fit()` 只负责求解和重建
-Taylor IFC，不再隐式划分验证集或计算测试集预测。
+Taylor IFC，不再隐式划分验证集或计算测试集预测。Gram 始终在完整物理坐标中构造，不携带 ASR 策略，
+所以同一对象可以分别用于开启与关闭 ASR 的拟合。
 
 
-`FittingResult` 保存拟合后的力常数、Taylor 参数、Gram 统计量、由 Gram 二次型得到的训练误差、
-求解状态、约束残差以及可选 periodic FC2 completion。模型力统一由
-`MLFCSCalculator` 计算。
+`FittingResult` 保存拟合后的力常数、Taylor 参数、Gram 统计量、由 Gram 二次型得到的投影前后训练误差、
+求解状态和 ASR 投影诊断。原始最小二乘参数保存在 `unprojected_parameters`，
+`fitting_parameters` 是可选的逐阶欧氏 ASR 投影。模型力统一由 `MLFCSCalculator` 计算。
 
-Periodic completion 要求 FC2、严格 ASR 和无正则最小二乘。可迁移 exact-$R$ FC2 保存在
-`force_constants.sparse[2]`，source-owned 有限 Hessian 保存在
-`force_constants.periodic_fc2_completion`。
+保存的 Gram 统计量携带物理设计身份。若结构、阶数集合、cutoff 或 orbit 参数化不同，读取后合并或拟合都会
+明确拒绝。
 
 ## 参数的含义
 

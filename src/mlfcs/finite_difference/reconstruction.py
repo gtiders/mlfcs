@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import dataclass
 
 import numpy as np
 
@@ -15,15 +16,28 @@ from mlfcs.interactions.models import RealizedInteractionSpace
 from mlfcs.structure.supercell_mapping import PeriodicIndex
 
 
+@dataclass(frozen=True, slots=True)
+class ASRProjectionReport:
+    """Order-local ASR measurements attached to a reconstructed force constant set."""
+
+    initial_residual: float
+    final_residual: float
+    correction_norm: float
+    relative_correction: float
+    iterations: int
+
+
 def reconstruct_sparse(
     orbit_space: RealizedInteractionSpace,
     index: PeriodicIndex,
     derivatives: dict[DisplacementKey, np.ndarray],
     *,
     enforce_asr: bool = True,
+    asr_tolerance: float = 1e-10,
     report: Callable[[str], None] | None = None,
     primitive_interaction_space=None,
-) -> SparseOrderForceConstants:
+    return_diagnostics: bool = False,
+) -> SparseOrderForceConstants | tuple[SparseOrderForceConstants, ASRProjectionReport]:
     """Reconstruct only symmetry-generated cluster tensors.
 
     The parameters of one orbit are the coefficients of its Cartesian basis $Q$, and the
@@ -48,13 +62,16 @@ def reconstruct_sparse(
 
     if enforce_asr:
         constraint_space = primitive_interaction_space or orbit_space
-        coefficients, initial_drift, final_drift = project_acoustic_sum_rule(
-            constraint_space, coefficients, return_drift=True
+        coefficients, projection = project_acoustic_sum_rule(
+            constraint_space,
+            coefficients,
+            tolerance=asr_tolerance,
+            return_result=True,
         )
         if report is not None:
             report(
-                f"- Max drift of fc{order}: {initial_drift:.10e} -> "
-                f"{final_drift:.10e} eV/angstrom^{order}"
+                f"- Max drift of fc{order}: {projection.initial_residual:.10e} -> "
+                f"{projection.final_residual:.10e} eV/angstrom^{order}"
             )
             _report_parameter_correction(
                 report,
@@ -63,15 +80,29 @@ def reconstruct_sparse(
                 coefficients,
                 label="ASR",
             )
-    elif report is not None:
+            report(
+                f"- ASR projection: relative correction="
+                f"{projection.relative_correction:.10e}, iterations={projection.iterations}"
+            )
+        diagnostics = ASRProjectionReport(
+            projection.initial_residual,
+            projection.final_residual,
+            projection.correction_norm,
+            projection.relative_correction,
+            projection.iterations,
+        )
+    else:
         drift = maximum_acoustic_sum_rule_drift(
             primitive_interaction_space or orbit_space, coefficients
         )
-        report(f"- Max drift of fc{order}: {drift:.10e} eV/angstrom^{order} (ASR disabled)")
+        if report is not None:
+            report(f"- Max drift of fc{order}: {drift:.10e} eV/angstrom^{order} (ASR disabled)")
+        diagnostics = ASRProjectionReport(drift, drift, 0.0, 0.0, 0)
     parameters = np.concatenate(coefficients) if coefficients else np.empty(0, dtype=float)
     if primitive_interaction_space is None:
         raise ValueError("reconstruction requires a primitive exact interaction space")
-    return expand_primitive_parameters(primitive_interaction_space, parameters)
+    reconstructed = expand_primitive_parameters(primitive_interaction_space, parameters)
+    return (reconstructed, diagnostics) if return_diagnostics else reconstructed
 
 
 def _report_parameter_correction(
@@ -91,3 +122,6 @@ def _report_parameter_correction(
         f"- {label} parameter correction: maximum={maximum:.10e} "
         f"eV/angstrom^{order}, relative L2={relative:.10e}"
     )
+
+
+__all__ = ["ASRProjectionReport", "reconstruct_sparse"]

@@ -43,7 +43,7 @@ def _fit() -> None:
         max_body_orders={2: 2, 3: 3, 4: 3},
         symprec=1e-4,
     )
-    gram = fitter.prepare_gram(snapshots, acoustic_sum_rule=True)
+    gram = fitter.prepare_gram(snapshots)
     result = fitter.fit(
         gram,
         tolerance=1e-8,
@@ -63,12 +63,27 @@ def _fit() -> None:
         "atoms": len(supercell),
         "frames": len(snapshots),
         "orders": list(fitter.orders),
-        "cutoffs_angstrom": {str(order): space.cutoff for order, space in zip(fitter.orders, fitter.calculations, strict=True)},
-        "orbits": {str(order): len(space.realized_orbit_space.orbits) for order, space in zip(fitter.orders, fitter.calculations, strict=True)},
+        "cutoffs_angstrom": {
+            str(order): space.cutoff
+            for order, space in zip(fitter.orders, fitter.calculations, strict=True)
+        },
+        "orbits": {
+            str(order): len(space.realized_orbit_space.orbits)
+            for order, space in zip(fitter.orders, fitter.calculations, strict=True)
+        },
         "parameters": fitter.n_parameters,
         "training_force_rmse_ev_per_angstrom": result.training_force_rmse,
         "training_relative_force_error": result.training_relative_force_error,
-        "maximum_constraint_residual": result.maximum_constraint_residual,
+        "unprojected_training_force_rmse_ev_per_angstrom": (
+            result.unprojected_training_force_rmse
+        ),
+        "unprojected_training_relative_force_error": (
+            result.unprojected_training_relative_force_error
+        ),
+        "maximum_asr_residual_before": result.maximum_asr_residual_before,
+        "maximum_asr_residual_after": result.maximum_asr_residual_after,
+        "asr_parameter_correction": result.asr_parameter_correction,
+        "asr_projection_iterations": result.asr_projection_iterations,
         "solver_iterations": result.iterations,
         "solver_stop_code": result.stop_code,
         "order_force_rms": result.order_force_rms,

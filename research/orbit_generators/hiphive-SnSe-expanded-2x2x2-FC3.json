@@ -1,0 +1,21 @@
+{
+  "case": "SnSe-expanded-2x2x2",
+  "clusters": 377,
+  "cutoffs_angstrom": [
+    4.317138601183058,
+    4.103057501924217
+  ],
+  "initialization_seconds": 0.34664398402674124,
+  "max_body_order": 3,
+  "orders": [
+    2,
+    3
+  ],
+  "parameters": 298,
+  "peak_rss_mib": 275.328125,
+  "primitive_atoms": 64,
+  "shell_cutoffs": {
+    "2": -8,
+    "3": -6
+  }
+}

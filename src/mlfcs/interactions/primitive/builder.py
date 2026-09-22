@@ -56,7 +56,7 @@ def build_primitive_interaction_space(
 
     primitive = primitive.copy()
     primitive.wrap()
-    radius = resolve_primitive_cutoff(primitive, cutoff)
+    radius = resolve_primitive_cutoff(primitive, cutoff, symprec=symprec)
     frame = LatticeFrame.from_atoms(primitive, symprec=symprec) if frame is None else frame
     algebra = frame.algebra_atoms()
     symmetry = PrimitiveSymmetryOperations.from_atoms(algebra, symprec=symprec)

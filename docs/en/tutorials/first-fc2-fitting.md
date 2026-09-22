@@ -26,7 +26,7 @@ fitter = ForceConstantFitter(
     cutoffs={2: 5.4},
     max_body_orders={2: 2},
 )
-gram = fitter.prepare_gram(training, acoustic_sum_rule=True)
+gram = fitter.prepare_gram(training)
 gram.save("training-gram.npz")
 result = fitter.fit(gram, acoustic_sum_rule=True)
 write_force_constants(result.force_constants, "mlfcs.h5", format="hdf5")

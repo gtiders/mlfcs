@@ -58,18 +58,24 @@ def test_asr_reports_phonopy_style_maximum_drift():
     derivatives = {key: rng.normal(size=(len(supercell), 3)) for key in space.displacement_keys}
     messages = []
 
-    reconstruct_sparse(
+    _, diagnostics = reconstruct_sparse(
         space,
         index,
         derivatives,
         enforce_asr=True,
         report=messages.append,
         primitive_interaction_space=primitive_space,
+        return_diagnostics=True,
     )
 
-    assert len(messages) == 2
+    assert len(messages) == 3
     assert messages[0].startswith("- Max drift of fc3: ")
     assert " -> " in messages[0]
     assert messages[0].endswith(" eV/angstrom^3")
     assert messages[1].startswith("- ASR parameter correction: maximum=")
     assert "relative L2=" in messages[1]
+    assert messages[2].startswith("- ASR projection: relative correction=")
+    assert diagnostics.initial_residual > diagnostics.final_residual
+    assert diagnostics.correction_norm > 0.0
+    assert diagnostics.relative_correction > 0.0
+    assert diagnostics.iterations > 0

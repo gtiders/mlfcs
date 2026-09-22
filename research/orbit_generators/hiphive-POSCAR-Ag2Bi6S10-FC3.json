@@ -1,0 +1,21 @@
+{
+  "case": "POSCAR-Ag2Bi6S10",
+  "clusters": 1706,
+  "cutoffs_angstrom": [
+    4.8832416856934575,
+    4.73481340485406
+  ],
+  "initialization_seconds": 17.982371042016894,
+  "max_body_order": 3,
+  "orders": [
+    2,
+    3
+  ],
+  "parameters": 3068,
+  "peak_rss_mib": 296.41796875,
+  "primitive_atoms": 18,
+  "shell_cutoffs": {
+    "2": -8,
+    "3": -6
+  }
+}

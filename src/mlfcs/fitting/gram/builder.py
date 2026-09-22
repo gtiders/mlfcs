@@ -22,10 +22,10 @@ class GramAccumulator:
         self.target_norm = target_norm
 
     @classmethod
-    def from_operator(cls, operator, target):
+    def from_operator(cls, operator, target, *, metadata=None):
         del cls
         started = perf_counter()
-        n_parameters = operator.fit_n_parameters
+        n_parameters = operator.n_parameters
         gram = np.zeros((n_parameters, n_parameters), dtype=float, order="F")
         rhs = np.zeros(n_parameters, dtype=float)
         target_shaped = np.asarray(target).reshape(operator.force_shape)
@@ -36,28 +36,24 @@ class GramAccumulator:
             f"backend=Numba design + OpenBLAS Gram"
         )
         design_seconds = 0.0
-        reduction_seconds = 0.0
         gram_seconds = 0.0
 
         for index in range(count):
             design_started = perf_counter()
             design = operator.design(index)
             design_seconds += perf_counter() - design_started
-            reduction_started = perf_counter()
-            reduced = operator.reduce(design)
-            reduction_seconds += perf_counter() - reduction_started
             force = target_shaped[index].reshape(-1)
             gram_started = perf_counter()
             dsyrk(
                 1.0,
-                a=reduced,
+                a=design,
                 c=gram,
                 beta=1.0,
                 trans=1,
                 lower=0,
                 overwrite_c=1,
             )
-            rhs += reduced.T @ force
+            rhs += design.T @ force
             gram_seconds += perf_counter() - gram_started
             if logger.isEnabledFor(logging.INFO) and (
                 index == 0 or index + 1 == count or (index + 1) % 20 == 0
@@ -72,22 +68,22 @@ class GramAccumulator:
         logger.info(f"- Streamed Gram system ready in {perf_counter() - started:.2f} s")
         if logger.isEnabledFor(logging.INFO):
             logger.info(
-                "- Gram phase timing: "
-                f"design={design_seconds:.2f} s, reduction={reduction_seconds:.2f} s, "
-                f"BLAS={gram_seconds:.2f} s"
+                f"- Gram phase timing: design={design_seconds:.2f} s, BLAS={gram_seconds:.2f} s"
             )
         target_norm = float(np.vdot(target, target))
         return GramStatistics(
-            np.asarray(gram), np.asarray(rhs), target_norm, len(target),
-            {
-                "parameter_map": operator.parameter_map,
-            },
+            np.asarray(gram),
+            np.asarray(rhs),
+            target_norm,
+            len(target),
+            dict(metadata or {}),
         )
+
 
 class GramBuilder:
     """Explicit entry point for one-shot, portable Gram construction."""
 
     @classmethod
-    def from_operator(cls, operator, target) -> GramStatistics:
+    def from_operator(cls, operator, target, *, metadata=None) -> GramStatistics:
         del cls
-        return GramAccumulator.from_operator(operator, target)
+        return GramAccumulator.from_operator(operator, target, metadata=metadata)

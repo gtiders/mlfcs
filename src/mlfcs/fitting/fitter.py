@@ -1,18 +1,17 @@
 from __future__ import annotations
 
+import json
 import logging
 from dataclasses import dataclass
+from hashlib import sha256
 from time import perf_counter
 
 import numpy as np
 from ase import Atoms
-from scipy import sparse
 
-from mlfcs.constraints.translational import project_parameters
-from mlfcs.fitting.constraints import build_joint_constraints
+from mlfcs.constraints.translational import TranslationalASRProjector
 from mlfcs.fitting.dataset import FitDataset
 from mlfcs.fitting.gram import GramBuilder, GramStatistics
-from mlfcs.fitting.linear_solvers import explicit_constraint_null_space
 from mlfcs.fitting.parameterization import pack_order
 from mlfcs.fitting.taylor.model import TaylorModel
 from mlfcs.force_constants.expansion import expand_fitted_orders
@@ -24,22 +23,30 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True, slots=True)
 class FittingResult:
+    """One physical-coordinate fit followed by an optional ASR projection."""
+
     force_constants: ForceConstants
     fitting_parameters: np.ndarray
+    unprojected_parameters: np.ndarray
     parameter_scale: np.ndarray
     gram_statistics: GramStatistics
     iterations: int
     training_force_rmse: float
     training_relative_force_error: float
+    unprojected_training_force_rmse: float
+    unprojected_training_relative_force_error: float
     order_force_rms: dict[int, float]
     stop_code: int
     residual_norm: float
-    normal_equation_residual: float
-    maximum_constraint_residual: float
+    solver_normal_equation_residual: float
+    maximum_asr_residual_before: float
+    maximum_asr_residual_after: float
+    asr_parameter_correction: float
+    asr_projection_iterations: int
 
 
 class ForceConstantFitter:
-    """Jointly fit consecutive symmetry-reduced IFC orders from ASE force snapshots."""
+    """Jointly fit consecutive IFC orders and optionally project the result onto ASR."""
 
     def __init__(
         self,
@@ -74,7 +81,7 @@ class ForceConstantFitter:
         self.symprec = symprec
         self._taylor = TaylorModel()
         order_text = "+".join(f"FC{order}" for order in self.orders)
-        logger.info(f"Preparing independent {order_text} fitting parameterization")
+        logger.info("Preparing physical %s fitting parameterization", order_text)
         self.calculations = tuple(
             InteractionSpace.from_frame(
                 frame,
@@ -87,18 +94,31 @@ class ForceConstantFitter:
         )
         offset = 0
         tensors = []
+        counts = []
         for calculation in self.calculations:
             tensor, offset = pack_order(calculation, offset)
             tensors.append(tensor)
+            count = sum(orbit.dimension for orbit in calculation.realized_orbit_space.orbits)
+            counts.append(count)
             logger.info(
-                f"- FC{tensor.order}: {len(calculation.realized_orbit_space.orbits)} orbits, "
-                f"{np.count_nonzero(tensor.parameter_mask)} parameters"
+                "- FC%d: %d orbits, %d physical parameters",
+                tensor.order,
+                len(calculation.realized_orbit_space.orbits),
+                count,
             )
         self.order_tensors = tuple(tensors)
+        self._order_counts = tuple(counts)
         self.n_parameters = offset
+        if self.n_parameters != sum(self._order_counts):
+            raise RuntimeError("compiled design and orbit spaces disagree on parameter count")
+        self._projectors = tuple(
+            TranslationalASRProjector.from_orbit_space(calculation.primitive_orbit_space)
+            for calculation in self.calculations
+        )
         self.index = self.calculations[0].index
         self.canonical_supercell = self.calculations[0].supercell
-        logger.info(f"- Joint parameter count: {self.n_parameters}")
+        self._design_identity = self._physical_design_identity()
+        logger.info("- Joint physical parameter count: %d", self.n_parameters)
 
     def fit(
         self,
@@ -107,59 +127,41 @@ class ForceConstantFitter:
         tolerance: float = 1e-8,
         max_iterations: int = 1000,
         acoustic_sum_rule: bool = True,
+        asr_tolerance: float = 1e-10,
         precondition: bool = True,
         allow_unconverged: bool = False,
     ) -> FittingResult:
+        """Solve the physical Gram and then optionally project each IFC order onto ASR."""
         if not isinstance(gram, GramStatistics):
             raise TypeError("fit expects a GramStatistics object")
+        gram.require_design(self._design_identity)
+        if gram.gram.shape != (self.n_parameters, self.n_parameters):
+            raise ValueError(
+                f"the Gram system has shape {gram.gram.shape}, expected "
+                f"{(self.n_parameters, self.n_parameters)} physical parameters"
+            )
+        if gram.rhs.shape != (self.n_parameters,):
+            raise ValueError(
+                f"the Gram right-hand side has shape {gram.rhs.shape}, expected "
+                f"{(self.n_parameters,)}"
+            )
         if max_iterations < 1:
             raise ValueError("max_iterations must be positive")
         if tolerance <= 0:
             raise ValueError("tolerance must be positive")
-        constraints = build_joint_constraints(
-            self.calculations,
-            acoustic=acoustic_sum_rule,
-        )
-        logger.info(
-            f"Constraint system: {constraints.matrix.shape[0]} rows after duplicate removal "
-            f"({constraints.translational_rows} ASR before compression)"
-        )
-        parameter_map = gram.metadata.get("parameter_map")
-        if parameter_map is None and constraints.matrix.shape[0]:
-            parameter_map = explicit_constraint_null_space(
-                constraints.matrix,
-                tolerance=1e-11,
-            )
-        gram_system = gram
+        if not np.isfinite(asr_tolerance) or asr_tolerance <= 0:
+            raise ValueError("asr_tolerance must be finite and positive")
+
         if precondition:
-            parameter_scale = gram_system.exact_column_scale()
-            if parameter_map is None:
-                self._report_parameter_scale(parameter_scale)
-            else:
-                active_scale = parameter_scale[parameter_scale > 0]
-                logger.info("Column-norm preconditioning in constrained coordinates")
-                if len(active_scale):
-                    logger.info(
-                        f"- Inverse column scale: {np.min(active_scale):.6e} to "
-                        f"{np.max(active_scale):.6e}"
-                    )
-                else:
-                    logger.info("- Inverse column scale: no active columns")
+            parameter_scale = gram.exact_column_scale()
+            self._report_parameter_scale(parameter_scale)
         else:
-            parameter_scale = np.ones(gram_system.gram.shape[0])
+            parameter_scale = np.ones(gram.gram.shape[0])
             logger.info("- Parameter preconditioning disabled")
-        logger.info("Solving the force-only least-squares problem with streamed Gram")
-        logger.info(f"- Equations: {gram.n_equations}, unknowns: {gram_system.gram.shape[0]}")
-        solve_constraint_matrix = (
-            sparse.csr_matrix((0, gram_system.gram.shape[0]))
-            if parameter_map is not None
-            else constraints.matrix
-        )
-        scaled_constraints = solve_constraint_matrix @ sparse.diags(parameter_scale)
-        solve_constraints = self._normalize_constraint_rows(scaled_constraints)
-        solution = gram_system.solve(
+        logger.info("Solving the unconstrained force-only least-squares problem")
+        logger.info("- Equations: %d, physical unknowns: %d", gram.n_equations, self.n_parameters)
+        solution = gram.solve(
             parameter_scale,
-            solve_constraints,
             tolerance=tolerance,
             max_iterations=max_iterations,
         )
@@ -168,66 +170,83 @@ class ForceConstantFitter:
             raise RuntimeError(
                 "force-constant fitting did not converge: "
                 f"stop_code={stop_code}, iterations={iterations}, "
-                f"projected normal residual={normal_residual:.6e}; "
+                f"normal residual={normal_residual:.6e}; "
                 "set allow_unconverged=True only to inspect the incomplete solution"
             )
-        if solve_constraints.shape[0]:
-            # Krylov stopping criteria control the full KKT residual and can
-            # leave a visible equality-constraint tail.  Finish in null(C)
-            # before converting back to physical FC parameters.
-            projection_tolerance = tolerance / max(float(np.linalg.norm(scaled_parameters)), 1.0)
-            scaled_parameters = project_parameters(
-                solve_constraints,
-                np.asarray(scaled_parameters),
-                tolerance=projection_tolerance,
-            )
-        reduced_parameters = np.asarray(scaled_parameters) * parameter_scale
-        parameters_numpy = (
-            np.asarray(parameter_map @ reduced_parameters)
-            if parameter_map is not None
-            else reduced_parameters
+        unprojected = np.asarray(scaled_parameters) * parameter_scale
+        unprojected_metrics = gram.force_metrics(unprojected)
+
+        parameters = unprojected.copy()
+        before = 0.0
+        after = 0.0
+        correction_squared = 0.0
+        projection_iterations = 0
+        offset = 0
+        for order, count, projector in zip(
+            self.orders,
+            self._order_counts,
+            self._projectors,
+            strict=True,
+        ):
+            block = parameters[offset : offset + count]
+            initial = projector.maximum_residual(block)
+            before = max(before, initial)
+            if acoustic_sum_rule:
+                projection = projector.project(block, tolerance=asr_tolerance)
+                parameters[offset : offset + count] = projection.parameters
+                final = projection.final_residual
+                correction_squared += projection.correction_norm**2
+                projection_iterations += projection.iterations
+                logger.info(
+                    "- FC%d post-fit ASR drift: %.10e -> %.10e, relative correction %.10e",
+                    order,
+                    projection.initial_residual,
+                    projection.final_residual,
+                    projection.relative_correction,
+                )
+            else:
+                final = initial
+                logger.info("- FC%d ASR drift: %.10e (projection disabled)", order, initial)
+            after = max(after, final)
+            offset += count
+
+        training_metrics = gram.force_metrics(parameters)
+        order_force_rms = gram.order_force_rms(
+            parameters,
+            self.orders,
+            self._order_counts,
+            gram.n_equations,
         )
-        constraint_residual = self._constraint_drift(
-            parameters_numpy[: self.n_parameters], constraints
-        )
-        training_metrics = gram_system.force_metrics(reduced_parameters)
-        counts = [
-            sum(orbit.dimension for orbit in calculation.realized_orbit_space.orbits)
-            for calculation in self.calculations
-        ]
-        if parameter_map is None:
-            order_force_rms = gram_system.order_force_rms(
-                parameters_numpy, self.orders, counts, gram.n_equations
-            )
-        else:
-            # A reduced Gram does not contain cross-order physical blocks when
-            # the constraint map mixes orders.  Do not recreate an operator or
-            # silently perform a second feature pass for this diagnostic.
-            order_force_rms = {}
         logger.info("Force fitting summary")
-        logger.info(f"- Training relative error: {100 * training_metrics[1]:.6f} %")
-        logger.info(f"- Training force RMSE: {training_metrics[0]:.10e} eV/Å")
+        logger.info(
+            "- Unprojected training relative error: %.6f %%",
+            100 * unprojected_metrics[1],
+        )
+        logger.info("- Training relative error: %.6f %%", 100 * training_metrics[1])
+        logger.info("- Training force RMSE: %.10e eV/Å", training_metrics[0])
         for order, rms in order_force_rms.items():
-            logger.info(f"- FC{order} force contribution RMS: {rms:.10e} eV/Å")
-        logger.info("- Independent Gram statistics: one compiled design plan")
-        logger.info(f"- Solver iterations={iterations}, stop_code={stop_code}")
+            logger.info("- FC%d force contribution RMS: %.10e eV/Å", order, rms)
+        logger.info("- Solver iterations=%d, stop_code=%d", iterations, stop_code)
         if stop_code != 0:
             logger.warning(
-                "Returning unconverged fitting solution: stop_code=%d, iterations=%d, residual=%.6e",
+                "Returning unconverged fitting solution: stop_code=%d, iterations=%d, "
+                "residual=%.6e",
                 stop_code,
                 iterations,
                 normal_residual,
             )
-        lowering = self._taylor.lower(None, parameters_numpy[: self.n_parameters])
+
+        lowering = self._taylor.lower(None, parameters[: self.n_parameters])
         expansion_started = perf_counter()
-        logger.info("Expanding fitted Taylor parameters into sparse physical IFCs")
-        taylor_parameters = lowering.taylor_parameters
-        residual_sparse = expand_fitted_orders(taylor_parameters, self.calculations)
+        logger.info("Expanding post-processed Taylor parameters into sparse physical IFCs")
+        residual_sparse = expand_fitted_orders(lowering.taylor_parameters, self.calculations)
         sparse_values = dict(residual_sparse)
         logger.info(
-            f"- Expanded {sum(len(value.tensors) for value in sparse_values.values())} "
-            f"sparse tensors in {perf_counter() - expansion_started:.2f} s"
+            "- Expanded %d sparse tensors in %.2f s",
+            sum(len(value.tensors) for value in sparse_values.values()),
+            perf_counter() - expansion_started,
         )
+        correction_norm = float(np.sqrt(correction_squared))
         force_constants = ForceConstants(
             {},
             self.canonical_supercell.copy(),
@@ -242,110 +261,127 @@ class ForceConstantFitter:
                     for calculation in self.calculations
                 },
                 "acoustic_sum_rule": acoustic_sum_rule,
+                "asr_projection_tolerance": asr_tolerance if acoustic_sum_rule else None,
+                "maximum_asr_residual_before": before,
+                "maximum_asr_residual_after": after,
+                "asr_parameter_correction": correction_norm,
                 "training_equations": gram.n_equations,
             },
             sparse=sparse_values,
             relation=self.geometry,
         )
-        result = FittingResult(
+        return FittingResult(
             force_constants=force_constants,
-            fitting_parameters=parameters_numpy,
+            fitting_parameters=parameters,
+            unprojected_parameters=unprojected,
             parameter_scale=parameter_scale,
             gram_statistics=gram,
             iterations=int(iterations),
             training_force_rmse=training_metrics[0],
             training_relative_force_error=training_metrics[1],
+            unprojected_training_force_rmse=unprojected_metrics[0],
+            unprojected_training_relative_force_error=unprojected_metrics[1],
             order_force_rms=order_force_rms,
             stop_code=int(stop_code),
             residual_norm=float(residual_norm),
-            normal_equation_residual=float(normal_residual),
-            maximum_constraint_residual=constraint_residual,
+            solver_normal_equation_residual=float(normal_residual),
+            maximum_asr_residual_before=before,
+            maximum_asr_residual_after=after,
+            asr_parameter_correction=correction_norm,
+            asr_projection_iterations=projection_iterations,
         )
-        return result
-
-    def evaluate_force_error(
-        self,
-        result: FittingResult,
-        structures: list[Atoms] | tuple[Atoms, ...],
-    ) -> tuple[float, float]:
-        """Evaluate RMSE and relative force error for any supplied structures.
-
-        The structures are evaluated through the public Taylor calculator;
-        this method does not use or mutate the Gram cache and makes no
-        distinction between training and test data.
-        """
-        if not isinstance(result, FittingResult):
-            raise TypeError("result must be a FittingResult")
-        dataset = FitDataset.from_atoms(self.geometry, structures)
-        from mlfcs.calculators.ase import MLFCSCalculator
-
-        calculator = MLFCSCalculator(result.force_constants, reference=self.reference)
-        predicted = calculator.force_design_batch(dataset.displacements)
-        residual = predicted - dataset.forces
-        squared = float(np.sum(residual**2))
-        count = residual.size
-        target_squared = float(np.sum(dataset.forces**2))
-        rmse = float(np.sqrt(squared / count)) if count else 0.0
-        relative = (
-            float(np.sqrt(squared / target_squared))
-            if target_squared
-            else (0.0 if squared == 0 else float("inf"))
-        )
-        return rmse, relative
 
     def prepare_gram(
         self,
         structures: list[Atoms] | tuple[Atoms, ...],
-        *,
-        acoustic_sum_rule: bool = True,
     ) -> GramStatistics:
-        """Build independent training statistics for a user-owned dataset."""
+        """Build one reusable Gram system in the complete physical parameter space."""
         dataset = FitDataset.from_atoms(self.geometry, structures)
-        constraints = build_joint_constraints(self.calculations, acoustic=acoustic_sum_rule)
-        parameter_map = None
-        if constraints.matrix.shape[0]:
-            parameter_map = explicit_constraint_null_space(constraints.matrix)
         prepared = self._taylor.prepare(
             calculations=self.calculations,
             training_displacements=dataset.displacements,
             parameterizations=self.order_tensors,
-            parameter_map=parameter_map,
         )
         return GramBuilder.from_operator(
             prepared.operator,
             dataset.forces.reshape(-1),
+            metadata=self._design_identity,
         )
 
-    @staticmethod
-    def _normalize_constraint_rows(constraints):
-        if constraints.shape[0] == 0:
-            return constraints
-        norms = np.sqrt(np.asarray(constraints.multiply(constraints).sum(axis=1)).reshape(-1))
-        scale = np.ones_like(norms)
-        active = norms > np.finfo(float).tiny
-        scale[active] = 1.0 / norms[active]
-        return sparse.diags(scale) @ constraints
+    def _physical_design_identity(self) -> dict[str, object]:
+        def structure_document(atoms: Atoms) -> dict[str, object]:
+            return {
+                "numbers": [int(value) for value in atoms.numbers],
+                "cell": [
+                    [float(value).hex() for value in row]
+                    for row in np.asarray(atoms.cell, dtype=float)
+                ],
+                "scaled_positions": [
+                    [float(value).hex() for value in row]
+                    for row in atoms.get_scaled_positions(wrap=True)
+                ],
+            }
 
-    def _constraint_drift(self, parameters, constraints):
-        residual = constraints.matrix @ parameters
-        maximum = float(np.max(np.abs(residual))) if len(residual) else 0.0
-        logger.info(f"- Maximum joint constraint residual: {maximum:.6e}")
-        return maximum
+        orbit_documents = []
+        for calculation in self.calculations:
+            entries = []
+            for orbit in calculation.primitive_orbit_space.orbits:
+                representative = orbit.representative
+                entries.append(
+                    {
+                        "sites": [int(value) for value in representative.sites],
+                        "translations": [
+                            [int(value) for value in row] for row in representative.translations
+                        ],
+                        "dimension": int(orbit.dimension),
+                    }
+                )
+            orbit_documents.append(entries)
+        document = {
+            "schema": 1,
+            "primitive": structure_document(self.primitive),
+            "reference": structure_document(self.reference),
+            "orders": list(self.orders),
+            "cutoffs": {str(order): float(self.cutoffs[order]).hex() for order in self.orders},
+            "max_body_orders": {
+                str(order): self.max_body_orders.get(order) for order in self.orders
+            },
+            "symprec": float(self.symprec).hex(),
+            "orbits": orbit_documents,
+        }
+        encoded = json.dumps(
+            document,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=True,
+        ).encode()
+        return {
+            "design_schema": 1,
+            "design_fingerprint": sha256(encoded).hexdigest(),
+            "physical_parameter_count": self.n_parameters,
+            "orders": list(self.orders),
+        }
 
     def _report_parameter_scale(self, parameter_scale):
-        logger.info("Column-norm preconditioning (exact from streamed Gram matrix)")
+        logger.info("Column-norm preconditioning in physical coordinates")
         offset = 0
-        for calculation in self.calculations:
-            count = sum(orbit.dimension for orbit in calculation.realized_orbit_space.orbits)
+        for calculation, count in zip(
+            self.calculations,
+            self._order_counts,
+            strict=True,
+        ):
             values = parameter_scale[offset : offset + count]
             active = values[values > 0]
             if len(active):
                 logger.info(
-                    f"- FC{calculation.config.order} inverse column scale: "
-                    f"{np.min(active):.6e} to {np.max(active):.6e}"
+                    "- FC%d inverse column scale: %.6e to %.6e",
+                    calculation.config.order,
+                    np.min(active),
+                    np.max(active),
                 )
             else:
                 logger.info(
-                    f"- FC{calculation.config.order} inverse column scale: no active columns"
+                    "- FC%d inverse column scale: no active columns",
+                    calculation.config.order,
                 )
             offset += count

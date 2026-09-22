@@ -45,7 +45,7 @@ def _fit(name: str, dataset: str):
         cutoffs={2: CUTOFF},
         max_body_orders={2: 2},
     )
-    gram = fitter.prepare_gram(structures, acoustic_sum_rule=True)
+    gram = fitter.prepare_gram(structures)
     result = fitter.fit(
         gram,
         tolerance=1e-10,
@@ -72,7 +72,16 @@ def _run() -> None:
             "parameters": total_fitter.n_parameters,
             "training_force_rmse_ev_per_angstrom": total_result.training_force_rmse,
             "training_relative_force_error": total_result.training_relative_force_error,
-            "maximum_constraint_residual": total_result.maximum_constraint_residual,
+            "unprojected_training_force_rmse_ev_per_angstrom": (
+                total_result.unprojected_training_force_rmse
+            ),
+            "unprojected_training_relative_force_error": (
+                total_result.unprojected_training_relative_force_error
+            ),
+            "maximum_asr_residual_before": total_result.maximum_asr_residual_before,
+            "maximum_asr_residual_after": total_result.maximum_asr_residual_after,
+            "asr_parameter_correction": total_result.asr_parameter_correction,
+            "asr_projection_iterations": total_result.asr_projection_iterations,
             "solver_iterations": total_result.iterations,
             "solver_stop_code": total_result.stop_code,
         },
@@ -81,7 +90,16 @@ def _run() -> None:
             "parameters": short_fitter.n_parameters,
             "training_force_rmse_ev_per_angstrom": short_result.training_force_rmse,
             "training_relative_force_error": short_result.training_relative_force_error,
-            "maximum_constraint_residual": short_result.maximum_constraint_residual,
+            "unprojected_training_force_rmse_ev_per_angstrom": (
+                short_result.unprojected_training_force_rmse
+            ),
+            "unprojected_training_relative_force_error": (
+                short_result.unprojected_training_relative_force_error
+            ),
+            "maximum_asr_residual_before": short_result.maximum_asr_residual_before,
+            "maximum_asr_residual_after": short_result.maximum_asr_residual_after,
+            "asr_parameter_correction": short_result.asr_parameter_correction,
+            "asr_projection_iterations": short_result.asr_projection_iterations,
             "solver_iterations": short_result.iterations,
             "solver_stop_code": short_result.stop_code,
         },

@@ -55,14 +55,17 @@ def _run() -> None:
         cutoffs={2: 8.0},
         max_body_orders={2: 2},
     )
-    gram = fitter.prepare_gram([snapshot], acoustic_sum_rule=True)
+    gram = fitter.prepare_gram([snapshot])
     result = fitter.fit(gram)
     correction = enforce_rotational_sum_rules(result.force_constants, born_huang=True, huang=True)
     write_force_constants(correction.force_constants, ROOT / "mlfcs.h5", format="hdf5")
-    write_force_constants(correction.force_constants, ROOT / "FORCE_CONSTANTS_2ND", format="phonopy", order=2)
+    write_force_constants(
+        correction.force_constants, ROOT / "FORCE_CONSTANTS_2ND", format="phonopy", order=2
+    )
     payload = {"fit": asdict(result), "rotational_sum_rules": asdict(correction)}
     (ROOT / "metrics.json").write_text(
-        json.dumps(_json_ready(payload), default=str, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        json.dumps(_json_ready(payload), default=str, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
     )
 
 

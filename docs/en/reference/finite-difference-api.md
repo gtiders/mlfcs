@@ -91,6 +91,7 @@ reap(
     forces: ForceBatch,
     *,
     acoustic_sum_rule: bool = True,
+    asr_tolerance: float = 1e-10,
 ) -> ForceConstants
 ```
 
@@ -152,6 +153,7 @@ run(
     *,
     progress: Callable[[int, int], None] | None = None,
     acoustic_sum_rule: bool = True,
+    asr_tolerance: float = 1e-10,
     derivative_backend: Literal["central", "extrapolate"] = "central",
     extrapolation_spacing: float | None = None,
     extrapolation_side_steps: int = 1,
@@ -162,6 +164,11 @@ run(
 `calculator` must be an ASE `Calculator`. `evaluate()` computes the forces of the central plan only and
 returns a `ForceBatch` bound to the plan; `run()` performs the calculation and reconstruction serially.
 `progress(done, total)` is called after every force evaluation.
+
+When ASR is enabled, reconstruction first obtains the unconstrained physical orbit coefficients and
+then uses the same order-local Euclidean projector as force fitting. `asr_tolerance` is its positive,
+finite relative-residual stopping criterion. The reconstruction log reports the residual before and
+after projection, the parameter correction, and the projection iteration count.
 
 `derivative_backend="extrapolate"` runs the whole central plan at several positive steps and extrapolates
 to zero step with a polynomial in $h^2$:
@@ -182,8 +189,8 @@ fc2 = calculation.run(calculator, acoustic_sum_rule=True)
 ```
 
 The returned `ForceConstants.metadata` records the order, the resolved cutoff, the displacement, the
-space group, ASR, the configuration count, the derivative backend, and the plan `plan_fingerprint` and
-`plan_schema_version`.
+space group, ASR, `asr_projection_tolerance`, the configuration count, the derivative backend, and
+the plan `plan_fingerprint` and `plan_schema_version`.
 
 ## How reconstruction recovers parameters
 

@@ -48,7 +48,7 @@ def _run() -> None:
         cutoffs={2: 5.4, 3: 5.4, 4: 4.6},
         max_body_orders={2: 2, 3: 3, 4: 3},
     )
-    gram = fitter.prepare_gram(read(INPUT / "train.extxyz", index=":"), acoustic_sum_rule=True)
+    gram = fitter.prepare_gram(read(INPUT / "train.extxyz", index=":"))
     result = fitter.fit(
         gram,
         max_iterations=10_000,

@@ -51,10 +51,12 @@ def _run() -> None:
         cutoffs={2: 8.0},
         max_body_orders={2: 2},
     )
-    gram = fitter.prepare_gram(snapshots, acoustic_sum_rule=True)
+    gram = fitter.prepare_gram(snapshots)
     result = fitter.fit(gram)
     write_force_constants(result.force_constants, ROOT / "mlfcs.h5", format="hdf5")
-    write_force_constants(result.force_constants, ROOT / "FORCE_CONSTANTS_2ND", format="phonopy", order=2)
+    write_force_constants(
+        result.force_constants, ROOT / "FORCE_CONSTANTS_2ND", format="phonopy", order=2
+    )
     (ROOT / "metrics.json").write_text(
         json.dumps(_json_ready(asdict(result)), default=str, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",

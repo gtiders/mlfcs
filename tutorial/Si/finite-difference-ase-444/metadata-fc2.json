@@ -1,0 +1,9 @@
+{
+  "order": 2,
+  "cutoff_angstrom": 7.723740495133356,
+  "displacement_angstrom": 0.01,
+  "spacegroup": "Fd-3m",
+  "acoustic_sum_rule": true,
+  "derivative_backend": "central",
+  "configurations": 6
+}

@@ -71,7 +71,7 @@ def _run() -> None:
         orders=(2,),
         cutoffs={2: 7.7237404951},
     )
-    gram = fitter.prepare_gram(training, acoustic_sum_rule=True)
+    gram = fitter.prepare_gram(training)
     result = fitter.fit(gram)
     # Training-data diagnostics come from the dataset, not from the fitter: the
     # per-snapshot net force and center-of-mass displacement describe the inputs.
@@ -101,7 +101,16 @@ def _run() -> None:
                 "stop_code": result.stop_code,
                 "training_force_rmse_eV_per_A": result.training_force_rmse,
                 "training_relative_force_error": result.training_relative_force_error,
-                "maximum_constraint_residual": result.maximum_constraint_residual,
+                "unprojected_training_force_rmse_eV_per_A": (
+                    result.unprojected_training_force_rmse
+                ),
+                "unprojected_training_relative_force_error": (
+                    result.unprojected_training_relative_force_error
+                ),
+                "maximum_asr_residual_before": result.maximum_asr_residual_before,
+                "maximum_asr_residual_after": result.maximum_asr_residual_after,
+                "asr_parameter_correction": result.asr_parameter_correction,
+                "asr_projection_iterations": result.asr_projection_iterations,
                 "maximum_snapshot_net_force_eV_per_A": maximum_snapshot_net_force,
                 "maximum_center_of_mass_displacement_A": maximum_center_of_mass_displacement,
                 "order_force_rms_eV_per_A": {

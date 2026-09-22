@@ -1,4 +1,4 @@
-INFO mlfcs.fitting.fitter: Preparing independent FC2 fitting parameterization
+INFO mlfcs.fitting.fitter: Preparing physical FC2 fitting parameterization
 INFO mlfcs.interactions.space: Creating reference supercell with matrix [[-2, 2, 2], [2, -2, 2], [2, 2, -2]]
 INFO mlfcs.interactions.space: 2 primitive atoms, 64 supercell atoms
 INFO mlfcs.interactions.space: Resolving the interaction cutoff
@@ -10,26 +10,25 @@ INFO mlfcs.interactions.space: Finding symmetry-inequivalent order-2 interaction
 INFO mlfcs.interactions.space: 4 cluster equivalence classes
 INFO mlfcs.interactions.space: 11 independent tensor parameters
 INFO mlfcs.interactions.space: Maximum body order: 2
-INFO mlfcs.fitting.fitter: - FC2: 4 orbits, 11 parameters
-INFO mlfcs.fitting.fitter: - Joint parameter count: 11
-INFO mlfcs.fitting.linear_solvers: Explicit constraint parameterization: 11 -> 10 parameters in 2 blocks, rank=1, nnz=19
+INFO mlfcs.fitting.fitter: - FC2: 4 orbits, 11 physical parameters
+INFO mlfcs.fitting.fitter: - Joint physical parameter count: 11
 INFO mlfcs.fitting.design_operator: - Compiled design plan: 1 orders, 4 orbits, 58 image pairs, 0.0 MiB arrays
-INFO mlfcs.fitting.gram.builder: Accumulating streamed Gram system: 10 x 10 (0.0 MiB) over 1 snapshots, backend=Numba design + OpenBLAS Gram
-INFO mlfcs.fitting.gram.builder: - Gram structures: 1/1, elapsed=0.17 s
-INFO mlfcs.fitting.gram.builder: - Streamed Gram system ready in 0.17 s
-INFO mlfcs.fitting.gram.builder: - Gram phase timing: design=0.16 s, reduction=0.00 s, BLAS=0.00 s
-INFO mlfcs.fitting.fitter: Constraint system: 1 rows after duplicate removal (18 ASR before compression)
-INFO mlfcs.fitting.fitter: Column-norm preconditioning in constrained coordinates
-INFO mlfcs.fitting.fitter: - Inverse column scale: 3.535545e+01 to 1.623010e+02
-INFO mlfcs.fitting.fitter: Solving the force-only least-squares problem with streamed Gram
-INFO mlfcs.fitting.fitter: - Equations: 192, unknowns: 10
-INFO mlfcs.fitting.fitter: - Maximum joint constraint residual: 0.000000e+00
+INFO mlfcs.fitting.gram.builder: Accumulating streamed Gram system: 11 x 11 (0.0 MiB) over 1 snapshots, backend=Numba design + OpenBLAS Gram
+INFO mlfcs.fitting.gram.builder: - Gram structures: 1/1, elapsed=0.12 s
+INFO mlfcs.fitting.gram.builder: - Streamed Gram system ready in 0.12 s
+INFO mlfcs.fitting.gram.builder: - Gram phase timing: design=0.12 s, BLAS=0.00 s
+INFO mlfcs.fitting.fitter: Column-norm preconditioning in physical coordinates
+INFO mlfcs.fitting.fitter: - FC2 inverse column scale: 5.000015e+01 to 1.732056e+02
+INFO mlfcs.fitting.fitter: Solving the unconstrained force-only least-squares problem
+INFO mlfcs.fitting.fitter: - Equations: 192, physical unknowns: 11
+INFO mlfcs.fitting.fitter: - FC2 post-fit ASR drift: 9.3697981093e-01 -> 2.6645352591e-15, relative correction 3.8332629007e-03
 INFO mlfcs.fitting.fitter: Force fitting summary
-INFO mlfcs.fitting.fitter: - Training relative error: 4.080152 %
-INFO mlfcs.fitting.fitter: - Training force RMSE: 4.7500248203e-04 eV/Å
-INFO mlfcs.fitting.fitter: - Independent Gram statistics: one compiled design plan
-INFO mlfcs.fitting.fitter: - Solver iterations=9, stop_code=0
-INFO mlfcs.fitting.fitter: Expanding fitted Taylor parameters into sparse physical IFCs
+INFO mlfcs.fitting.fitter: - Unprojected training relative error: 3.935006 %
+INFO mlfcs.fitting.fitter: - Training relative error: 4.094050 %
+INFO mlfcs.fitting.fitter: - Training force RMSE: 4.7662045470e-04 eV/Å
+INFO mlfcs.fitting.fitter: - FC2 force contribution RMS: 1.1637750029e-02 eV/Å
+INFO mlfcs.fitting.fitter: - Solver iterations=1, stop_code=0
+INFO mlfcs.fitting.fitter: Expanding post-processed Taylor parameters into sparse physical IFCs
 INFO mlfcs.fitting.fitter: - Expanded 58 sparse tensors in 0.00 s
 INFO mlfcs.force_constants.realization: Export view cache miss; constructing new view
 INFO mlfcs.force_constants.realization: Export view cache hit; reusing existing view

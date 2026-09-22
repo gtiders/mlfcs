@@ -86,6 +86,7 @@ reap(
     forces: ForceBatch,
     *,
     acoustic_sum_rule: bool = True,
+    asr_tolerance: float = 1e-10,
 ) -> ForceConstants
 ```
 
@@ -144,6 +145,7 @@ run(
     *,
     progress: Callable[[int, int], None] | None = None,
     acoustic_sum_rule: bool = True,
+    asr_tolerance: float = 1e-10,
     derivative_backend: Literal["central", "extrapolate"] = "central",
     extrapolation_spacing: float | None = None,
     extrapolation_side_steps: int = 1,
@@ -153,6 +155,9 @@ run(
 
 `calculator` 必须是 ASE `Calculator`。`evaluate()` 只计算 central plan 的力并返回绑定计划的
 `ForceBatch`；`run()` 串行完成计算与重建。`progress(done,total)` 在每次力计算后调用。
+
+开启 ASR 时，重建先得到无约束物理 orbit 参数，再使用与力拟合相同的逐阶欧氏投影器。
+`asr_tolerance` 是有限且为正的相对残差停止准则。重建日志会报告投影前后残差、参数修正和投影迭代次数。
 
 `derivative_backend="extrapolate"` 会在多个正步长执行完整 central plan，并以 $h^2$ 多项式外推到零步长：
 
@@ -170,8 +175,9 @@ calculation = FiniteDifferenceCalculation(
 fc2 = calculation.run(calculator, acoustic_sum_rule=True)
 ```
 
-返回的 `ForceConstants.metadata` 记录 order、实际解析后的 cutoff、位移、空间群、ASR、构型数、
-导数后端，以及计划指纹 `plan_fingerprint` 与 `plan_schema_version`。
+返回的 `ForceConstants.metadata` 记录 order、实际解析后的 cutoff、位移、空间群、ASR、
+`asr_projection_tolerance`、构型数、导数后端，以及计划指纹 `plan_fingerprint` 与
+`plan_schema_version`。
 
 ## 重建如何得到参数
 

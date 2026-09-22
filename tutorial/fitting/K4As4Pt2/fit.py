@@ -49,16 +49,22 @@ def _run() -> None:
         cutoffs={2: 6.5, 3: 12 * Bohr, 4: 8 * Bohr},
         max_body_orders={2: 2, 3: 3, 4: 3},
     )
-    gram = fitter.prepare_gram(read(INPUT / "train.extxyz", index=":"), acoustic_sum_rule=True)
+    gram = fitter.prepare_gram(read(INPUT / "train.extxyz", index=":"))
     result = fitter.fit(
         gram,
         tolerance=1e-5,
         max_iterations=10_000,
     )
     write_force_constants(result.force_constants, ROOT / "mlfcs.h5", format="hdf5")
-    write_force_constants(result.force_constants, ROOT / "FORCE_CONSTANTS_2ND", format="phonopy", order=2)
-    write_force_constants(result.force_constants, ROOT / "FORCE_CONSTANTS_3RD", format="shengbte", order=3)
-    write_force_constants(result.force_constants, ROOT / "FORCE_CONSTANTS_4TH", format="shengbte", order=4)
+    write_force_constants(
+        result.force_constants, ROOT / "FORCE_CONSTANTS_2ND", format="phonopy", order=2
+    )
+    write_force_constants(
+        result.force_constants, ROOT / "FORCE_CONSTANTS_3RD", format="shengbte", order=3
+    )
+    write_force_constants(
+        result.force_constants, ROOT / "FORCE_CONSTANTS_4TH", format="shengbte", order=4
+    )
     (ROOT / "metrics.json").write_text(
         json.dumps(_json_ready(asdict(result)), default=str, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",

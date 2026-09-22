@@ -1,10 +1,34 @@
+from types import SimpleNamespace
+
 import numpy as np
+import pytest
 from ase.build import bulk
 from supercell_helpers import make_supercell
 
 from mlfcs.structure.periodic_geometry import PeriodicGeometry
 from mlfcs.structure.relation import StructureRelation
 from mlfcs.structure.symmetry import PrimitiveSymmetryOperations, SymmetryOperations
+
+
+@pytest.mark.parametrize(("residual", "accepted"), ((0.5e-5, True), (5e-5, False)))
+def test_primitive_symmetry_mapping_uses_exactly_symprec(monkeypatch, residual, accepted):
+    primitive = bulk("Ar", "sc", a=1.0)
+    dataset = SimpleNamespace(
+        rotations=np.eye(3, dtype=np.int32)[None, :, :],
+        translations=np.array([[residual, 0.0, 0.0]]),
+        international="P1",
+    )
+    monkeypatch.setattr(
+        "mlfcs.structure.symmetry.spglib.get_symmetry_dataset",
+        lambda cell, symprec: dataset,
+    )
+
+    if accepted:
+        operations = PrimitiveSymmetryOperations.from_atoms(primitive, symprec=1e-5)
+        assert operations.size == 1
+    else:
+        with pytest.raises(ValueError, match="nearest residual.*angstrom"):
+            PrimitiveSymmetryOperations.from_atoms(primitive, symprec=1e-5)
 
 
 def test_every_symmetry_operation_is_an_atom_permutation():

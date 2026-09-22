@@ -6,6 +6,18 @@
 
 ## 未发布
 
+- **破坏性：** 拟合 Gram 始终在完整物理 Taylor 坐标中构造；`prepare_gram()` 不再接受
+  `acoustic_sum_rule`，ASR 缩减参数映射与 constrained-CG 路径均已删除。
+  `fit(acoustic_sum_rule=True)` 现在先求无约束的纯力最小二乘解，再使用与有限差分相同的逐阶欧氏 ASR
+  投影。同一个 Gram 因而可以分别用于开启或关闭 ASR，并携带稳定的物理设计身份，防止不相容的合并、读取或
+  拟合。
+- `FittingResult` 同时记录投影前后的参数与训练误差、ASR 残差、修正范数和投影迭代次数；有限差分通过共享的
+  `TranslationalASRProjector` 在元数据与日志中报告同一套投影策略和诊断。
+- 无约束物理 Gram 改用 MINRES 求解；它能直接处理未观测物理方向产生的半正定、秩亏系统，不需要重新引入
+  缩减参数空间。
+- 晶体操作的站点匹配与负 cutoff 的近邻壳层判定现在统一使用公开的笛卡尔长度精度 `symprec`，删除隐藏的
+  10 倍放宽以及独立的相对/绝对壳层容差。Gram 预条件也保留每个非零物理列，不再静默删除范数小于最大值
+  `1e-12` 的列。
 - 将可选结构工具统一收敛到 `mlfcs.tools.supercell`：超胞构造只使用项目自身实现，不再导入 phonopy；
   `align_structures` 同步迁入该模块，旧模块不保留兼容层。
 - **破坏性：** 独立 Cartesian Gaussian 微扰从顶层命名空间及已删除的 `mlfcs.sampling` 包迁到

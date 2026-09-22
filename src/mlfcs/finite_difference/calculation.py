@@ -155,6 +155,7 @@ class FiniteDifferenceCalculation:
         forces: ForceBatch,
         *,
         acoustic_sum_rule: bool = True,
+        asr_tolerance: float = 1e-10,
     ) -> ForceConstants:
         """Reconstruct force constants from forces verified against this plan.
 
@@ -172,6 +173,7 @@ class FiniteDifferenceCalculation:
         return self._reconstruct(
             derivatives,
             acoustic_sum_rule=acoustic_sum_rule,
+            asr_tolerance=asr_tolerance,
             metadata={
                 "derivative_backend": "central",
                 "configurations": len(self.plan),
@@ -231,19 +233,22 @@ class FiniteDifferenceCalculation:
         derivatives,
         *,
         acoustic_sum_rule: bool,
+        asr_tolerance: float,
         metadata: dict[str, object],
     ) -> ForceConstants:
         logger.info(
             "Reconstructing symmetry-expanded force constants "
             f"(ASR {'enabled' if acoustic_sum_rule else 'disabled'})"
         )
-        sparse = reconstruct_sparse(
+        sparse, diagnostics = reconstruct_sparse(
             self.realized_orbit_space,
             self.index,
             derivatives,
             enforce_asr=acoustic_sum_rule,
+            asr_tolerance=asr_tolerance,
             report=logger.info,
             primitive_interaction_space=self.interaction_space.primitive_orbit_space,
+            return_diagnostics=True,
         )
         logger.info("Reconstructed %d sparse cluster tensors", len(sparse.tensors))
         return ForceConstants(
@@ -255,6 +260,12 @@ class FiniteDifferenceCalculation:
                 "displacement_angstrom": self.config.displacement,
                 "spacegroup": self.symmetry.symbol,
                 "acoustic_sum_rule": acoustic_sum_rule,
+                "asr_projection_tolerance": asr_tolerance if acoustic_sum_rule else None,
+                "maximum_asr_residual_before": diagnostics.initial_residual,
+                "maximum_asr_residual_after": diagnostics.final_residual,
+                "asr_parameter_correction": diagnostics.correction_norm,
+                "asr_relative_parameter_correction": diagnostics.relative_correction,
+                "asr_projection_iterations": diagnostics.iterations,
                 **metadata,
             },
             sparse={self.config.order: sparse},
@@ -267,6 +278,7 @@ class FiniteDifferenceCalculation:
         *,
         progress: Progress | None = None,
         acoustic_sum_rule: bool = True,
+        asr_tolerance: float = 1e-10,
         derivative_backend: Literal["central", "extrapolate"] = "central",
         extrapolation_spacing: float | None = None,
         extrapolation_side_steps: int = 1,
@@ -285,6 +297,7 @@ class FiniteDifferenceCalculation:
                 degree=extrapolation_degree,
                 progress=progress,
                 acoustic_sum_rule=acoustic_sum_rule,
+                asr_tolerance=asr_tolerance,
             )
         if derivative_backend != "central":
             raise ValueError("derivative_backend must be 'central' or 'extrapolate'")
@@ -298,6 +311,7 @@ class FiniteDifferenceCalculation:
         return self.reap(
             forces,
             acoustic_sum_rule=acoustic_sum_rule,
+            asr_tolerance=asr_tolerance,
         )
 
     def _run_extrapolation(
@@ -309,6 +323,7 @@ class FiniteDifferenceCalculation:
         degree: int,
         progress: Progress | None,
         acoustic_sum_rule: bool,
+        asr_tolerance: float,
     ) -> ForceConstants:
         if not isinstance(calculator, Calculator):
             raise TypeError("calculator must be an ASE Calculator")
@@ -383,6 +398,7 @@ class FiniteDifferenceCalculation:
         return self._reconstruct(
             derivatives,
             acoustic_sum_rule=acoustic_sum_rule,
+            asr_tolerance=asr_tolerance,
             metadata={
                 "derivative_backend": "extrapolate",
                 "configurations": total,

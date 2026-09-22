@@ -12,7 +12,7 @@ from mlfcs.interactions.keys import InteractionKey
 from mlfcs.structure.periodic_geometry import unique_periodic_distances
 
 
-def resolve_primitive_cutoff(primitive: Atoms, cutoff: float) -> float:
+def resolve_primitive_cutoff(primitive: Atoms, cutoff: float, *, symprec: float) -> float:
     """Resolve an explicit interaction radius.
 
     A positive value is a distance in angstrom and a negative integer is a primitive
@@ -22,6 +22,8 @@ def resolve_primitive_cutoff(primitive: Atoms, cutoff: float) -> float:
     model is a separate question, answered by realization identifiability, which raises
     ``InteractionAliasingError`` instead of quietly shortening the model.
     """
+    if not np.isfinite(symprec) or symprec <= 0.0:
+        raise ValueError("symprec must be a finite positive distance in angstrom")
     if cutoff is None:
         raise ValueError(
             "cutoff must be a positive distance in angstrom or a negative neighbour-shell "
@@ -43,7 +45,7 @@ def resolve_primitive_cutoff(primitive: Atoms, cutoff: float) -> float:
         shells = []
         for site in range(len(primitive)):
             try:
-                shells.append(unique_periodic_distances(distances[first == site]))
+                shells.append(unique_periodic_distances(distances[first == site], symprec=symprec))
             except ValueError:
                 shells.append([])
         if all(len(values) > shell for values in shells):
