@@ -30,8 +30,11 @@ LoopSCPH(
     frequency_cutoff_thz: float = 0.0,
     warm_start: ForceConstants | None = None,
     continuation: bool = True,
+    imaginary_modes: Literal["error", "absolute", "exclude"] = "error",
+    asr_tolerance: float = 1e-6,
     symprec: float = 1e-5,
     time_reversal: bool = True,
+    symmetry_tolerance: float | None = 1e-6,
 )
 ```
 
@@ -46,11 +49,29 @@ LoopSCPH(
 | `mixing` | In $(0,1]$; mixes the covariance of consecutive iterations. |
 | `tolerance` | Stopping threshold for the frequency change in THz; the criterion is the star-weighted full-grid RMS described below. |
 | `max_iterations` | Maximum iterations per temperature, at least 1. |
-| `frequency_cutoff_thz` | Modes below this absolute frequency do not enter the covariance; must be non-negative. |
+| `frequency_cutoff_thz` | Modes below this absolute frequency do not enter the covariance; must be non-negative. The three Gamma translations are not a cutoff question: they are removed from the modal space before any weight is formed. |
 | `warm_start` | Optional initial effective FC2 that must be compatible with the input structure relation. |
 | `continuation` | Whether a multi-temperature run initializes each temperature from the previous result. |
+| `imaginary_modes` | What to do about a non-positive eigenvalue. `error` (the default) refuses it and reports the q point, the mode index, the eigenvalue, the frequency and the temperature; `absolute` weights $\lvert\lambda\rvert$; `exclude` drops the mode from the covariance. A soft mode is never turned into a stable one silently. |
+| `asr_tolerance` | Relative tolerance of the acoustic-sum-rule certificate $\lVert D(\Gamma)B\rVert$ against the scale of the grid. It is used to *name* the cause of a rejection, not to add a new one. |
+| `symmetry_tolerance` | Relative tolerance of the full-star covariance and Hermiticity gates. `None` switches the comparisons off, but non-finite data is still refused. |
 | `symprec` | Geometric tolerance used to identify the primitive symmetry. It is a different quantity from any dynamical-matrix tolerance and is recorded in the result. |
 | `time_reversal` | Whether time reversal joins the star decomposition as an antiunitary member; turning it off can only add irreducible points. |
+
+### Gamma, the cutoff and the covariance
+
+The three acoustic translations are the null space of the mass-weighted translation operator, so
+they are removed from the modal space *before* $1/\omega^2$ is evaluated, at every step and not
+only when `frequency_cutoff_thz` happens to be non-zero. At $\Gamma$ the solver therefore
+diagonalizes the dynamical matrix in the internal subspace and lifts the resulting covariance
+back, which is why the covariance of a translation-invariant model is finite with or without a
+cutoff.
+
+The covariance gate is stricter than the dynamical-matrix gate: the weights go like
+$1/\lambda$, so a matrix residual the matrix gate accepts can still leave the covariance
+non-covariant by more than the same relative tolerance. The solver compares the expanded
+covariance of every star member with the one built directly at that member's own q point, and
+reports the member, the operation and the residual when they disagree.
 
 The grid does not accept arbitrary triples. Its size is fixed by the reference supercell matrix
 and the integer multiplier, so the q grid can never be incompatible with the periodic group of

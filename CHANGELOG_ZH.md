@@ -29,6 +29,11 @@
 
 ### 新增
 
+- `mlfcs.reciprocal.modes` 为 SCPH 与谐波采样统一给出一套模态空间:`ModePolicy`(统计、温度、cutoff,
+  以及针对非正本征值的 `error`/`absolute`/`exclude` 显式策略)、`ModalCovariance`、`modal_eigenpairs`、
+  `mass_weighted_translations`、`internal_mode_basis`、`gamma_acoustic_residual`、`require_finite` 与
+  `require_star_covariance_matrix`。两个调用方共用同一个 $\Gamma$ 内部子空间与同一套权重,不会各自
+  漂移出不同的约定。
 - `mlfcs.reciprocal.symmetry` 统一给出质量加权位移空间的空群表示
   `D(gq) = U_g(q) D(q) U_g(q)^dagger`,其中 `U_g(q)` 由精确整数旋转与单胞站点置换构造。
   若某组力常数破坏其晶体的对称性,诊断会报告具体的操作、q 标签与残差,而不是把它平均成对称的力常数。
@@ -55,6 +60,14 @@
 - SCPH 频率、SCPH 协方差与谐波采样只在星代表点上对角化,再通过空间群表示与位置规范精确展开到完整网格;
   展开过程不会再次进入对角化器,协方差求和仍然是完整网格求和,线程按代表点调度,SCPH 停止判据是
   星权重下的完整网格 RMS `sqrt(sum_s w_s ||w_s^n - w_s^{n-1}||^2 / (N_q N_b))`。
+- **破坏性:** 三个 $\Gamma$ 平移在构造 $1/\omega^2$ 之前就从模态空间移除,不再被当成普通模态加权、
+  再靠 `frequency_cutoff_thz` 掩盖。hcp 单胞在默认 cutoff 下的协方差从 `9.6e12` 降到 `2.4e-3`,
+  并与显式 cutoff 路径一致;$\Gamma$ 的模态计数相应少三个。
+- **破坏性:** 非正本征值默认被拒绝。`imaginary_modes="error"` 会报告 q 点、模编号、本征值、频率与温度;
+  含软模的模型必须显式选择 `absolute` 或 `exclude`,而不是静默收到 `sqrt(abs(lambda))`。
+- 协方差与 Hermitian 门禁在比较之前、且在 `symmetry_tolerance=None` 时同样拒绝非有限数据——此前的
+  NaN 会让所有比较为假。因声学求和规则破坏而被星门禁拒绝时,现在报告 $\lVert D(\Gamma)B\rVert$
+  相对网格尺度的数值,而不是把责任推给某个星成员。
 
 ### 修复
 

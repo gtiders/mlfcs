@@ -46,7 +46,14 @@ $$
 $$
 
 where $W(q)=V\operatorname{diag}(\sigma^2)V^\dagger$ is the basis-independent covariance
-matrix; a member reached through time reversal is complex conjugated first. Frequencies and
+matrix; a member reached through time reversal is complex conjugated first. At $\Gamma$ the
+modal space is the *internal* subspace: the three mass-weighted translations are the null space
+of the translation operator, so they are projected out before the eigenproblem and the
+covariance is lifted back afterwards. They are therefore absent from $W(\Gamma)$ rather than
+present with a weight of $1/\omega^2$, and a translation-invariant model has a finite
+$\Gamma$ covariance with or without a frequency cutoff. The columns of an eigenbasis inside a
+degenerate subspace are a gauge, so only projectors, frequencies and covariances are compared
+across a star -- never columns. Frequencies and
 every other spectral quantity are equal across a star, so the full mesh is *exactly* expanded
 from the representative data, and the expansion never enters an eigensolver again. The
 positional gauge turns the primitive reciprocal lattice translation between a member's stored
@@ -64,6 +71,15 @@ An SCPH iteration therefore works on representatives only:
 4. stop when the star-weighted full-grid RMS frequency change
    $\Delta\omega=\sqrt{\frac{1}{N_qN_b}\sum_s w_s\lVert\omega_s^{(n)}-\omega_s^{(n-1)}\rVert_2^2}$
    falls below the tolerance, which equals the RMS of the expanded change.
+
+The covariance gate is stricter than the dynamical-matrix gate. The weights go like
+$1/\lambda$, so a residual the matrix gate accepts at a relative tolerance is amplified by the
+ratio of the largest to the smallest included eigenvalue, and the expanded covariance can
+disagree with the one built directly at a member's own q point by more than that tolerance.
+The solver checks the covariance itself, member by member, instead of inferring it from the
+covariance of the matrix. A soft or imaginary eigenvalue is reported where it is -- q point,
+mode index, eigenvalue, frequency, temperature -- and is never converted into a stable mode by
+$\sqrt{\lvert\lambda\rvert}$ unless the caller asks for that policy explicitly.
 
 The star weights $w_s$ are the star sizes and sum to $N_q$. The covariance sum is a *real*
 sum over the full star: weights are used for statistics (free energy, mode counts, the

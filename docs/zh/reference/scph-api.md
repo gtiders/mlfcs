@@ -28,8 +28,11 @@ LoopSCPH(
     frequency_cutoff_thz: float = 0.0,
     warm_start: ForceConstants | None = None,
     continuation: bool = True,
+    imaginary_modes: Literal["error", "absolute", "exclude"] = "error",
+    asr_tolerance: float = 1e-6,
     symprec: float = 1e-5,
     time_reversal: bool = True,
+    symmetry_tolerance: float | None = 1e-6,
 )
 ```
 
@@ -44,11 +47,24 @@ LoopSCPH(
 | `mixing` | $(0,1]$；混合相邻迭代 covariance。 |
 | `tolerance` | 相邻两次频率变化的停止阈值，单位 THz；判据是星权重下的全网格 RMS（见下）。 |
 | `max_iterations` | 每温度最多迭代数，至少 1。 |
-| `frequency_cutoff_thz` | 低于该绝对频率的模态不进入协方差，必须非负。 |
+| `frequency_cutoff_thz` | 低于该绝对频率的模态不进入协方差，必须非负。三个 $\Gamma$ 平移不是 cutoff 的问题：它们在任何权重成形之前就已从模态空间中移除。 |
 | `warm_start` | 可选初始有效 FC2，必须与输入结构关系兼容。 |
 | `continuation` | 多温度时是否用前一温度结果初始化下一温度。 |
+| `imaginary_modes` | 遇到非正本征值时的策略。`error`（默认）拒绝并报告 q 点、模编号、本征值、频率与温度；`absolute` 按 $\lvert\lambda\rvert$ 加权；`exclude` 把该模从协方差中剔除。软模不会被静默地当成稳定模。 |
+| `asr_tolerance` | 声学求和规则证书 $\lVert D(\Gamma)B\rVert$ 相对网格尺度的容差。它用来*指明*拒绝的原因，而不是新增一个拒绝条件。 |
+| `symmetry_tolerance` | 全星协方差与 Hermitian 门禁的相对容差。设为 `None` 只关闭比较，非有限数据仍然会被拒绝。 |
 | `symprec` | 识别原胞对称性的几何容差；与任何动力学矩阵数值容差是两回事，会被记录在结果里。 |
 | `time_reversal` | 是否把时间反演作为反幺正成员参与星分解；关闭后不可约点只会更多。 |
+
+### $\Gamma$、cutoff 与协方差
+
+三个声学平移是质量加权平移算符的零空间，因此在计算 $1/\omega^2$ 之前就已从模态空间中移除，
+与 `frequency_cutoff_thz` 是否非零无关。求解器在 $\Gamma$ 点于内部子空间中对角化动力学矩阵，
+再把协方差抬回全空间，所以平移不变模型的协方差无论是否设置 cutoff 都是有限的。
+
+协方差门禁比动力学矩阵门禁更严格：权重按 $1/\lambda$ 放大，因此矩阵门禁接受的残差仍可能让协方差
+超出同一相对容差。求解器把每个星成员展开后的协方差与该成员自身 q 点上直接构造的协方差逐一比较，
+不一致时报告成员、操作与残差。
 
 网格不接受任意三元组。其尺寸由 reference supercell matrix 与整数 multiplier 确定，从而避免 q 网格与
 有限超胞周期群不相容。
