@@ -22,7 +22,7 @@ import pytest
 from ase import Atoms
 from test_reciprocal_full_grid_oracle import pair_bond_force_constants, scph_case
 
-from mlfcs import build_supercell
+from mlfcs.tools.supercell import build_supercell
 from mlfcs.exceptions import SymmetryViolationError
 from mlfcs.force_constants.dense import lattice_fc2, replace_lattice_fc2
 from mlfcs.force_constants.representation import ForceConstants, SparseOrderForceConstants
@@ -306,7 +306,7 @@ def _scalar_spectrum_force_constants(
     primitive = Atoms("Ar", scaled_positions=[[0.0, 0.0, 0.0]], cell=np.eye(3) * 4.0, pbc=True)
     matrix = np.diag((3, 3, 3)).astype(np.int64)
     reference = build_supercell(primitive, matrix)
-    relation = StructureRelation.from_atoms(primitive, reference)
+    relation = StructureRelation.from_atoms(primitive, reference, symprec=1e-5)
     grid = reciprocal_quotient_grid(matrix)
     decomposition = irreducible_reciprocal_grid(
         matrix, PrimitiveSymmetryOperations.from_atoms(primitive, symprec=1e-5)

@@ -31,7 +31,7 @@ ENTRY_POINTS = (
     ("mlfcs.interactions.space", "InteractionSpace"),
     ("mlfcs.finite_difference.calculation", "FiniteDifferenceCalculation"),
     ("mlfcs.fitting.fitter", "ForceConstantFitter"),
-    ("mlfcs.phonon.sscha.solver", "SSCHA"),
+    ("mlfcs.reciprocal.sscha.solver", "SSCHA"),
 )
 
 
@@ -53,7 +53,7 @@ def test_the_old_tolerance_keyword_is_gone() -> None:
     """``tolerance`` is renamed, not aliased: the call has to fail by name."""
     primitive, reference = _primitive_and_reference()
     with pytest.raises(TypeError) as failure:
-        StructureRelation.from_atoms(primitive, reference, tolerance=1e-5)
+        StructureRelation.from_atoms(primitive, reference, tolerance=1e-5, symprec=1e-5)
     assert "tolerance" in str(failure.value)
     parameters = inspect.signature(StructureRelation.from_atoms).parameters
     assert "symprec" in parameters and "tolerance" not in parameters

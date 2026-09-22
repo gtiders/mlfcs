@@ -120,7 +120,7 @@ from ase.build import bulk
 from ase.geometry import cellpar_to_cell
 from ase.neighborlist import neighbor_list
 
-from mlfcs import build_supercell
+from mlfcs.tools.supercell import build_supercell
 from mlfcs.force_constants.dense import lattice_fc2
 from mlfcs.force_constants.representation import ForceConstants, SparseOrderForceConstants
 from mlfcs.reciprocal.fourier import dynamical_matrix, fourier_terms
@@ -214,7 +214,7 @@ def pair_bond_force_constants(
     ``matrix`` is the reference supercell matrix of the structure relation.
     """
     reference = build_supercell(primitive, matrix)
-    relation = StructureRelation.from_atoms(primitive, reference)
+    relation = StructureRelation.from_atoms(primitive, reference, symprec=1e-5)
     cell = np.asarray(primitive.cell, dtype=float)
     positions = np.asarray(primitive.get_scaled_positions(wrap=False), dtype=float)
     second: dict[tuple[int, int, tuple[int, int, int]], np.ndarray] = {}
