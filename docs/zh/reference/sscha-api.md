@@ -24,7 +24,6 @@ perturb_structures(
     statistics: Literal["quantum", "classical"] = "quantum",
     cutoff_frequency: float = 0.01,
     imaginary_modes: Literal["error", "absolute", "exclude"] = "error",
-    imaginary_tolerance: float = 1e-6,
     max_displacement: float | None = None,
     random_seed: int | None = None,
 ) -> list[Atoms]
@@ -54,8 +53,7 @@ snapshots = perturb_structures(
 |---|---|
 | `statistics` | quantum 或 classical。 |
 | `cutoff_frequency` | 小于该正频率的平移/近零模不采样，THz。 |
-| `imaginary_modes` | `error` 拒绝；`absolute` 用绝对频率；`exclude` 不采样虚频模。 |
-| `imaginary_tolerance` | 判为虚频的容差，THz。 |
+| `imaginary_modes` | 负本征值就是虚频，不另设人为容忍阈值；`error` 拒绝，`absolute` 用 $|\lambda|$ 构造幅度，`exclude` 不采样虚频模。 |
 | `max_displacement` | 可选逐原子位移模裁剪上限，Å；裁剪会 warning。 |
 | `random_seed` | 固定后保证同一 q 点顺序与参数下可复现。 |
 
@@ -78,7 +76,6 @@ SSCHA(
     symprec: float = 1e-5,
     cutoff_frequency: float = 0.01,
     imaginary_modes: Literal["error", "absolute", "exclude"] = "error",
-    imaginary_tolerance: float = 1e-6,
     max_displacement: float | None = None,
     initial_force_constants: ForceConstants | None = None,
     acoustic_sum_rule: bool = True,

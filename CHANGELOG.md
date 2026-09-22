@@ -50,7 +50,7 @@ All notable changes are documented here. Releases follow semantic versioning.
   samplers can be compared term by term.
 - `mlfcs.reciprocal.modes` states the modal space once for SCPH and the harmonic sampler:
   `ModePolicy` (statistics, temperature, cutoff and an explicit `error`/`absolute`/`exclude`
-  policy for a non-positive eigenvalue), `ModalCovariance`, `modal_eigenpairs`,
+  policy for a negative eigenvalue), `ModalCovariance`, `modal_eigenpairs`,
   `mass_weighted_translations`, `internal_mode_basis`, `gamma_acoustic_residual`,
   `require_finite` and `require_star_covariance_matrix`. Both consumers use the same Gamma
   internal subspace and the same weights, so neither can drift into its own convention.
@@ -88,10 +88,10 @@ All notable changes are documented here. Releases follow semantic versioning.
   `1 / omega^2` is formed, instead of being weighted like modes and hidden afterwards by
   `frequency_cutoff_thz`. The default-cutoff covariance of the hcp cell drops from `9.6e12` to
   `2.4e-3` and agrees with the cutoff-guarded path; a Gamma mode count changes by three.
-- **Breaking:** a non-positive eigenvalue is refused by default. `imaginary_modes="error"`
-  reports the q point, the mode index, the eigenvalue, the frequency and the temperature, and
-  a model with a soft mode has to choose `absolute` or `exclude` explicitly rather than
-  receive `sqrt(abs(lambda))` silently.
+- **Breaking:** `imaginary_tolerance` is removed from harmonic sampling and SSCHA. A negative
+  eigenvalue is an imaginary mode without an arbitrary numerical boundary. SCPH defaults to
+  `imaginary_modes="absolute"`, because an unstable trial lattice is normal in a self-consistent
+  calculation; callers may still choose `exclude` or the diagnostic `error` policy explicitly.
 - The covariance and Hermiticity gates refuse non-finite data before comparing, and even when
   `symmetry_tolerance` is `None`, where a NaN made every comparison false. A star-gate
   rejection whose cause is a broken acoustic sum rule now reports `||D(Gamma) B||` against the

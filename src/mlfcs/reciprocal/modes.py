@@ -8,7 +8,7 @@ Three things that look like one are kept apart here:
   mass-weighted translation operator, and they leave the modal space structurally, before any
   ``1 / omega^2`` is evaluated;
 * everything else is a mode policy the caller states explicitly -- statistics, temperature, cutoff
-  and what to do about a non-positive eigenvalue.
+  and what to do about a negative eigenvalue.
 
 The covariance returned here is the basis-independent ``V diag(sigma^2) V^dagger`` of the modes the
 policy accepted.  SCPH and the harmonic sampler both consume it, so neither can drift into its own
@@ -123,7 +123,9 @@ def gamma_acoustic_residual(matrix: np.ndarray, masses: np.ndarray) -> float:
     return float(np.max(np.linalg.norm(values @ translations, axis=0)))
 
 
-def _mode_weights(eigenvalues: np.ndarray, policy: ModePolicy, *, context: str) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def _mode_weights(
+    eigenvalues: np.ndarray, policy: ModePolicy, *, context: str
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Return ``(weights, included, excluded)`` of one internal or full mode set."""
     values = require_finite(eigenvalues, role="eigenvalues", context=context)
     frequencies = np.sqrt(np.abs(values)) * np.sign(values) * OMEGA_TO_THZ
@@ -258,7 +260,9 @@ def require_star_covariance_matrix(
     representatives = np.asarray(grid.representatives, dtype=np.int64)
     points = grid.full.points
     if gamma_star is None:
-        gamma_star = int(grid.full_to_irreducible[int(np.flatnonzero(np.all(grid.full.labels == 0, axis=1))[0])])
+        gamma_star = int(
+            grid.full_to_irreducible[int(np.flatnonzero(np.all(grid.full.labels == 0, axis=1))[0])]
+        )
 
     def covariance_at(qpoints: np.ndarray) -> np.ndarray:
         matrices = build(qpoints)
