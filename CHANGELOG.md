@@ -6,6 +6,8 @@ All notable changes are documented here. Releases follow semantic versioning.
 
 ## Unreleased
 
+## 4.5.0 — 2026-09-24
+
 - **Breaking:** fitting Grams are always constructed in the full physical Taylor coordinate space;
   `prepare_gram()` no longer accepts `acoustic_sum_rule`, and reduced ASR parameter maps and the
   constrained-CG path are removed. `fit(acoustic_sum_rule=True)` now solves the unconstrained
