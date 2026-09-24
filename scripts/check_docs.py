@@ -12,14 +12,13 @@ ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / "docs"
 PAGES = {
     Path("index.md"),
-    Path("en/index.md"),
-    Path("en/Q&A.md"),
-    Path("en/api/finite-difference-api.md"),
-    Path("en/api/fitting-api.md"),
+    Path("Q&A.md"),
+    Path("finite-difference-api.md"),
+    Path("fitting-api.md"),
     Path("zh/index.md"),
     Path("zh/Q&A.md"),
-    Path("zh/api/finite-difference-api.md"),
-    Path("zh/api/fitting-api.md"),
+    Path("zh/finite-difference-api.md"),
+    Path("zh/fitting-api.md"),
 }
 LEGACY_MATH = re.compile(r"(?<!\\)\\(?:\(|\)|\[|\])")
 LINK = re.compile(r"!?\[[^\]]*\]\((<[^>]+>|[^)\s]+)(?:\s+[^)]*)?\)")
@@ -27,8 +26,8 @@ FENCE = re.compile(r"^\s*(?:```|~~~)")
 MIRRORED = (
     Path("index.md"),
     Path("Q&A.md"),
-    Path("api/finite-difference-api.md"),
-    Path("api/fitting-api.md"),
+    Path("finite-difference-api.md"),
+    Path("fitting-api.md"),
 )
 
 
@@ -86,7 +85,7 @@ def main() -> int:
         errors.extend(_check_local_links(path, text))
 
     for relative in MIRRORED:
-        english = DOCS / "en" / relative
+        english = DOCS / relative
         chinese = DOCS / "zh" / relative
         if not english.is_file() or not chinese.is_file():
             continue

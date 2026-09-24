@@ -1,13 +1,13 @@
 # MLFCS
 
 [![Documentation](https://github.com/gtiders/mlfcs/actions/workflows/ci.yml/badge.svg)](https://github.com/gtiders/mlfcs/actions/workflows/ci.yml)
-[![Documentation site](https://img.shields.io/badge/docs-GitHub%20Pages-0f766e)](https://gtiders.github.io/mlfcs/en/)
+[![Documentation site](https://img.shields.io/badge/docs-GitHub%20Pages-0f766e)](https://gtiders.github.io/mlfcs/)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-3776ab)](https://www.python.org/)
 [![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)](LICENSE)
 
 English | [简体中文](README.zh-CN.md)
 
-<!-- BEGIN GENERATED: docs/en/index.md -->
+<!-- BEGIN GENERATED: docs/index.md -->
 
 MLFCS builds primitive-cell force constants from ASE structures and forces. Its public workflow has three explicit objects:
 
@@ -19,9 +19,9 @@ All structures use ASE. Lengths are in Å, energies in eV, and forces in eV/Å. 
 
 ## Start with a workflow
 
-- [Finite differences](docs/en/api/finite-difference-api.md): generate ordered displaced structures, evaluate an ASE calculator, and reconstruct one order.
-- [Force fitting](docs/en/api/fitting-api.md): stream ASE structures with stored forces into a reusable fit system and solve multiple orders together.
-- [Q&A](docs/en/Q&A.md): answers about force storage, ordering, identifiability, solvers, and common choices.
+- [Finite differences](docs/finite-difference-api.md): generate ordered displaced structures, evaluate an ASE calculator, and reconstruct one order.
+- [Force fitting](docs/fitting-api.md): stream ASE structures with stored forces into a reusable fit system and solve multiple orders together.
+- [Q&A](docs/Q&A.md): answers about force storage, ordering, identifiability, solvers, and common choices.
 
 ## Minimal model setup
 
@@ -51,11 +51,11 @@ The supercell is explicit input data; MLFCS does not silently choose or enlarge 
 
 Each `FiniteDifference` object handles one order. A `FitSystem` can handle all orders in a single `ClusterSpace`. Force constants are primitive-cell objects; supercell realizations and external file formats are derived operations.
 
-<!-- END GENERATED: docs/en/index.md -->
+<!-- END GENERATED: docs/index.md -->
 
 ## Documentation
 
-Read the [English documentation](https://gtiders.github.io/mlfcs/en/) or the [Chinese documentation](https://gtiders.github.io/mlfcs/zh/). The source pages live under [docs/en](docs/en/) and [docs/zh](docs/zh/).
+Read the [English documentation](https://gtiders.github.io/mlfcs/) or the [Chinese documentation](https://gtiders.github.io/mlfcs/zh/). The source pages live at [docs](docs/) for English and [docs/zh](docs/zh/) for Chinese.
 
 ## Citation
 

@@ -48,3 +48,15 @@
 .md-sidebar--primary .md-nav__title {
   font-weight: 700;
 }
+
+/* Brand block: show the site logo above the primary navigation on wide screens. */
+@media screen and (min-width: 76.25em) {
+  .md-nav--primary > .md-nav__title {
+    padding-top: 0.6rem;
+  }
+
+  .md-nav--primary > .md-nav__title .md-nav__button.md-logo {
+    display: block;
+    margin: 0 0 0.3rem;
+  }
+}
