@@ -1,0 +1,40 @@
+{
+  "asr": {
+    "correction_norm": 0.0042557666393145625,
+    "equations": 18,
+    "iterations": 1,
+    "order": 2,
+    "parameters": 28,
+    "relative_after": 3.4435681285059254e-18,
+    "relative_before": 0.00010292131994871252,
+    "relative_correction": 0.00032643774462693407,
+    "residual_after": 3.748367329389597e-15,
+    "residual_before": 0.11203260210311516
+  },
+  "configurations": 6,
+  "cutoff_angstrom": 7.7237404951,
+  "displacement_angstrom": 0.01,
+  "force_constants_fingerprint": "3f25ecd7ccfea8896f750f5f2d375803fc6a665ee2c63a0011ac198c58fd6381",
+  "orbits": 9,
+  "order": 2,
+  "parameters": 28,
+  "primitive_atoms": 2,
+  "supercell_atoms": 128,
+  "supercell_matrix": [
+    [
+      4,
+      0,
+      0
+    ],
+    [
+      0,
+      4,
+      0
+    ],
+    [
+      0,
+      0,
+      4
+    ]
+  ]
+}

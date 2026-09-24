@@ -1,35 +1,5 @@
-INFO mlfcs.fitting.fitter: Preparing physical FC2 fitting parameterization
-INFO mlfcs.interactions.space: Creating reference supercell with matrix [[8, 0, 0], [0, 8, 0], [0, 0, 1]]
-INFO mlfcs.interactions.space: 3 primitive atoms, 192 supercell atoms
-INFO mlfcs.interactions.space: Resolving the interaction cutoff
-INFO mlfcs.interactions.space: Cutoff radius: 8.0000000000 Å
-INFO mlfcs.interactions.space: Analyzing crystal symmetries
-INFO mlfcs.interactions.space: Space group P-6m2
-INFO mlfcs.interactions.space: 12 symmetry operations
-INFO mlfcs.interactions.space: Finding symmetry-inequivalent order-2 interaction clusters
-INFO mlfcs.interactions.space: 17 cluster equivalence classes
-INFO mlfcs.interactions.space: 84 independent tensor parameters
-INFO mlfcs.interactions.space: Maximum body order: 2
-INFO mlfcs.fitting.fitter: - FC2: 17 orbits, 84 physical parameters
-INFO mlfcs.fitting.fitter: - Joint physical parameter count: 84
-INFO mlfcs.fitting.design_operator: - Compiled design plan: 1 orders, 17 orbits, 179 image pairs, 0.2 MiB arrays
-INFO mlfcs.fitting.gram.builder: Accumulating streamed Gram system: 84 x 84 (0.1 MiB) over 5 snapshots, backend=Numba design + OpenBLAS Gram
-INFO mlfcs.fitting.gram.builder: - Gram structures: 1/5, elapsed=0.13 s
-INFO mlfcs.fitting.gram.builder: - Gram structures: 5/5, elapsed=0.14 s
-INFO mlfcs.fitting.gram.builder: - Streamed Gram system ready in 0.14 s
-INFO mlfcs.fitting.gram.builder: - Gram phase timing: design=0.14 s, BLAS=0.00 s
-INFO mlfcs.fitting.fitter: Column-norm preconditioning in physical coordinates
-INFO mlfcs.fitting.fitter: - FC2 inverse column scale: 3.719701e-01 to 1.894134e+00
-INFO mlfcs.fitting.fitter: Solving the unconstrained force-only least-squares problem
-INFO mlfcs.fitting.fitter: - Equations: 2880, physical unknowns: 84
-INFO mlfcs.fitting.fitter: - FC2 post-fit ASR drift: 3.6183759711e-01 -> 7.1054273576e-15, relative correction 6.5855658835e-04
-INFO mlfcs.fitting.fitter: Force fitting summary
-INFO mlfcs.fitting.fitter: - Unprojected training relative error: 10.052448 %
-INFO mlfcs.fitting.fitter: - Training relative error: 10.054167 %
-INFO mlfcs.fitting.fitter: - Training force RMSE: 6.5320424198e-02 eV/Å
-INFO mlfcs.fitting.fitter: - FC2 force contribution RMS: 6.4645916521e-01 eV/Å
-INFO mlfcs.fitting.fitter: - Solver iterations=10, stop_code=0
-INFO mlfcs.fitting.fitter: Expanding post-processed Taylor parameters into sparse physical IFCs
-INFO mlfcs.fitting.fitter: - Expanded 179 sparse tensors in 0.00 s
-INFO mlfcs.force_constants.realization: Export view cache miss; constructing new view
-INFO mlfcs.force_constants.realization: Export view cache hit; reusing existing view
+INFO mlfcs.cluster_space.builder: Building FC2 cluster space: cutoff 8 Å, maximum body order 2
+INFO mlfcs.cluster_space.builder: FC2: 17 orbits, 84 parameters
+INFO mlfcs.fitting.build: Built 84-parameter fit system from 5 structures in 0.04 s
+INFO mlfcs.fitting.solver: MINRES finished after 16 steps: stop code 0, normal residual 2.3233079713e-05
+MoS2 ASR + Born-Huang + Huang: 5 frames, 84 parameters; relative force error 10.054869% after projection

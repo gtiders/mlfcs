@@ -9,122 +9,47 @@ English | [简体中文](README.zh-CN.md)
 
 <!-- BEGIN GENERATED: docs/en/index.md -->
 
-<p align="center">
-  <img src="https://gtiders.github.io/mlfcs/assets/images/logo.png" alt="MLFCS" width="560">
-</p>
+MLFCS builds primitive-cell force constants from ASE structures and forces. Its public workflow has three explicit objects:
 
+1. `PrimitiveCell` and `build_cluster_space` define the primitive motif, symmetry, interaction cutoffs, and parameter space.
+2. `Supercell` and `ClusterMap` connect that primitive model to one explicit supercell.
+3. `FiniteDifference` reconstructs one force-constant order, while `FitSystem` builds and solves a joint force-only fit.
 
+All structures use ASE. Lengths are in Å, energies in eV, and forces in eV/Å. The resulting order-`n` force constants have units eV/Åⁿ.
 
-MLFCS is an ASE-first Python library for constructing symmetry-reduced harmonic and anharmonic force constants from atomic forces. It provides finite differences, force-only fitting, physical constraints, sparse primitive real-space storage, temperature-dependent effective harmonic workflows, and explicit export to downstream phonon and transport software.
+## Start with a workflow
 
-## Why MLFCS
+- [Finite differences](docs/en/api/finite-difference-api.md): generate ordered displaced structures, evaluate an ASE calculator, and reconstruct one order.
+- [Force fitting](docs/en/api/fitting-api.md): stream ASE structures with stored forces into a reusable fit system and solve multiple orders together.
+- [Q&A](docs/en/Q&A.md): answers about force storage, ordering, identifiability, solvers, and common choices.
 
-High-order force constants combine rapidly growing interaction spaces, Cartesian tensor symmetry, large training sets, and errors coupled across Taylor orders. MLFCS keeps structures, symmetry-reduced interactions, polynomial bases, fitting, force constants, and format conversion as explicit stages so that each approximation can be inspected and validated.
-
-## Core capabilities
-
-- FC2 and arbitrarily higher-order finite differences with production validation centered on FC2–FC4.
-- Joint force-only fitting on one fixed reference supercell using Taylor coordinates.
-- Primitive-site plus exact integer-translation force constants with sparse native HDF5 v4 storage.
-- Translational constraints and explicit FC2 Born–Huang/Huang post-processing.
-- Target-supercell realization and writers for phonopy, phono3py, ShengBTE, and ALAMODE.
-- An ASE Calculator for reference-relative energies and forces from canonical Taylor IFCs.
-- FC4 loop SCPH and stochastic effective-harmonic SSCHA workflows.
-
-MLFCS is a Python library, not a command-line application. Force generation remains under the user's ASE calculator or external electronic-structure workflow.
-
-## Quick start
+## Minimal model setup
 
 ```python
+import numpy as np
 from ase.build import bulk
-from ase.calculators.emt import EMT
-from mlfcs import FiniteDifferenceCalculation, write_force_constants
-from mlfcs.tools.supercell import build_supercell
+from mlfcs import PrimitiveCell, Supercell, ClusterMap, build_cluster_space
 
-primitive = bulk("Al", "fcc", a=4.05)
-reference = build_supercell(primitive, (2, 2, 2))
-calculation = FiniteDifferenceCalculation(
+primitive_atoms = bulk("Al", "fcc", a=4.05)
+primitive = PrimitiveCell.from_atoms(primitive_atoms, symprec=1e-5)
+space = build_cluster_space(
     primitive,
-    reference=reference,
-    order=2,
-    cutoff=4.0,  # nearest-neighbour shell of fcc Al
+    cutoffs={2: 4.0, 3: 3.0},
+    max_body_orders={2: 2, 3: 3},
 )
-fc2 = calculation.run(EMT())
-write_force_constants(fc2, "mlfcs.h5", format="hdf5")
+
+supercell_atoms = primitive_atoms.repeat((3, 3, 3))
+supercell = Supercell.from_atoms(
+    primitive, supercell_atoms, matrix=np.diag([3, 3, 3])
+)
+mapping = ClusterMap.build(space, supercell)
 ```
 
-See the [first finite-difference FC2 tutorial](docs/en/tutorials/first-fc2-finite-difference.md) before applying the workflow to an external calculator or a higher order.
+The supercell is explicit input data; MLFCS does not silently choose or enlarge it. Check that it identifies the requested model with `mapping.rank_info()` before generating expensive forces. The examples in the API pages show the finite-difference and fitting paths separately.
 
-## Typical workflows
+## Scope
 
-| Goal | Start here |
-|---|---|
-| Calculate force constants from an ASE calculator | [Finite-difference workflow](docs/en/tutorials/finite-difference-workflow.md) |
-| Send structures to VASP or another external program | [External calculator tutorial](docs/en/tutorials/external-calculator.md) |
-| Fit force constants from displaced or MD snapshots | [First fitting tutorial](docs/en/tutorials/first-fc2-fitting.md) |
-| Fit FC2, FC3, and FC4 together | [Joint high-order fitting](docs/en/tutorials/joint-fc2-fc3-fc4.md) |
-| Apply FC2 rotational conditions | [Rotational constraints](docs/en/tutorials/rotational-constraints.md) |
-| Calculate an FC4 loop correction | [SCPH workflow](docs/en/tutorials/scph-workflow.md) |
-| Calculate a stochastic effective FC2 | [SSCHA workflow](docs/en/tutorials/sscha-workflow.md) |
-| Use fitted Taylor IFCs as an ASE potential | [ASE Calculator API](docs/en/reference/calculator-api.md) |
-| Export to another program or supercell | Interoperability |
-
-## Choose structures before calculation
-
-Decide which downstream program will consume the result before generating force constants. Prefer its primitive and reference supercell, keep the reference atom order unchanged through force collection, and use target realization only for validated integer-supercell representations. MLFCS does not silently redefine a primitive cell, enlarge a training supercell, apply strain, or perform a rigid Cartesian rotation.
-
-## Current scope and limitations
-
-- One fit uses one fixed reference supercell; multi-supercell joint fitting is not supported.
-- Third and fourth order are the main production-validated high-order paths; higher orders may be prohibitively expensive.
-- Native HDF5 uses schema v4; older native schemas are intentionally rejected.
-- ShengBTE output supports FC3 and FC4; ALAMODE output supports the implemented FC2–FC4 mapping.
-- Long-range electrostatic force subtraction, multipole corrections, and explicit FC3 bubble self-energies are not implemented.
-- SCPH and SSCHA require explicit convergence inspection.
-
-The [capability status](docs/en/overview/capabilities.md) and [roadmap](docs/en/roadmap/index.md) distinguish stable, experimental, planned, research, and No-Go work.
-
-## Documentation map
-
-### Theory
-
-Start with the [theory](docs/en/theory/index.md) for derivations and numerical conventions.
-
-### Concepts
-
-Use the core concepts to understand structures, translations, interactions, orbits, parameters, bases, and realizations.
-
-### Tutorials
-
-Follow the [tutorial learning paths](docs/en/tutorials/index.md) for complete, executable workflows.
-
-### How-to guides
-
-Use the task guides to complete focused tasks.
-
-### Interoperability
-
-Read formats and structure conventions before exporting.
-
-### Examples
-
-The material cases connect scripts, reference data, results, and figures.
-
-### Q&A
-
-The questions and answers route common problems to authoritative pages.
-
-### API reference
-
-The [manually maintained API reference](docs/en/reference/index.md) records public contracts.
-
-### Roadmap
-
-The [roadmap](docs/en/roadmap/index.md) separates stable, planned, research, and No-Go work.
-
-### Developer documentation
-
-The developer guide covers architecture, testing, validation, and maintenance.
+Each `FiniteDifference` object handles one order. A `FitSystem` can handle all orders in a single `ClusterSpace`. Force constants are primitive-cell objects; supercell realizations and external file formats are derived operations.
 
 <!-- END GENERATED: docs/en/index.md -->
 
@@ -138,7 +63,7 @@ If MLFCS contributes to published work, cite the software metadata in [CITATION.
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md), the [issue tracker](https://github.com/gtiders/mlfcs/issues), and the [developer documentation](https://gtiders.github.io/mlfcs/en/development/).
+See [CONTRIBUTING.md](CONTRIBUTING.md) and the [issue tracker](https://github.com/gtiders/mlfcs/issues).
 
 ## License
 

@@ -23,9 +23,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
+          enable-cache: true
           python-version: "3.12"
+          version: "0.11.26"
 
       - name: Install documentation dependencies
         run: uv sync --group docs
@@ -44,6 +46,12 @@ jobs:
           test -f site/index.html
           test -f site/en/index.html
           test -f site/zh/index.html
+          test -f site/en/api/finite-difference-api/index.html
+          test -f site/zh/api/finite-difference-api/index.html
+          test -f site/en/api/fitting-api/index.html
+          test -f site/zh/api/fitting-api/index.html
+          test -f 'site/en/Q&A/index.html'
+          test -f 'site/zh/Q&A/index.html'
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

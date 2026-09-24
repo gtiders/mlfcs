@@ -1,0 +1,77 @@
+{
+  "asr": {
+    "2": {
+      "correction_norm": 0.052084644531889664,
+      "equations": 486,
+      "iterations": 17,
+      "order": 2,
+      "parameters": 1809,
+      "relative_after": 3.3856520472917566e-15,
+      "relative_before": 0.00027495367697765447,
+      "relative_correction": 0.0008494511996684549,
+      "residual_after": 7.835260218187513e-13,
+      "residual_before": 0.06363710560628663
+    },
+    "3": {
+      "correction_norm": 2.207267434004218,
+      "equations": 29970,
+      "iterations": 79,
+      "order": 3,
+      "parameters": 6520,
+      "relative_after": 2.452893385716934e-13,
+      "relative_before": 0.0007904470803993892,
+      "relative_correction": 0.01404428991483229,
+      "residual_after": 1.1272585642707611e-10,
+      "residual_before": 0.3638457846874047
+    }
+  },
+  "column_scale": "1 / sqrt(diag(FitSystem.matrix))",
+  "cutoffs_angstrom": {
+    "2": 5.4,
+    "3": 4.35
+  },
+  "fit_system_fingerprint": "e75c571972be677415227c4241cd45ad981d300b9e25777cbcbc8e39a50613f6",
+  "force_constants_fingerprint": "d142a792c49f29a736c896c17fab2f6e2175b5aee448c8629e433e8097ab4bf4",
+  "max_body_orders": {
+    "2": 2,
+    "3": 2
+  },
+  "orbits": {
+    "2": 215,
+    "3": 382
+  },
+  "orders": [
+    2,
+    3
+  ],
+  "parameters": 8329,
+  "primitive_atoms": 54,
+  "solver": "column-scaled MINRES",
+  "solver_max_steps": 10000,
+  "solver_rtol": 1e-08,
+  "supercell_atoms": 432,
+  "supercell_matrix": [
+    [
+      2,
+      0,
+      0
+    ],
+    [
+      0,
+      2,
+      0
+    ],
+    [
+      0,
+      0,
+      2
+    ]
+  ],
+  "temperature_K": 300,
+  "training_equations": 130896,
+  "training_force_rmse_after_asr_eV_per_angstrom": 0.02244511711861288,
+  "training_force_rmse_before_asr_eV_per_angstrom": 0.020935680513857264,
+  "training_relative_force_error_after_asr": 0.05295640935000394,
+  "training_relative_force_error_before_asr": 0.04939508497344134,
+  "training_structures": 101
+}

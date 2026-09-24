@@ -6,7 +6,6 @@ build/
 dist/
 wheels/
 *.egg-info
-.mlfcs-cache/
 .omo
 uv.lock
 
@@ -17,22 +16,6 @@ site/
 # ====================== examples / examples-next / tutorial / tests：白名单模式 ======================
 # 逻辑：先忽略目录下全部文件，再把需要追踪的后缀加回来
 # 允许后缀：py md toml png jpg jpeg svg gif fcp txt log cff yaml yml json vasp extxyz
-/examples/**/*
-!/examples/**/*.py
-!/examples/**/*.md
-!/examples/**/*.toml
-!/examples/**/*.png
-!/examples/**/*.jpg
-!/examples/**/*.jpeg
-!/examples/**/*.svg
-!/examples/**/*.gif
-!/examples/**/*.fcp
-!/examples/**/*.txt
-!/examples/**/*.log
-!/examples/**/*.cff
-!/examples/**/*.yaml
-!/examples/**/*.yml
-!/examples/**/*.json
 
 /tutorial/**/*
 !/tutorial/**/
@@ -55,6 +38,8 @@ site/
 !/tutorial/**/*.extxyz
 !/tutorial/**/*.xyz
 !/tutorial/**/BORN
+# Tutorial force-constant models and external phonon/transport HDF5 outputs.
+!/tutorial/**/*.hdf5
 
 /tests/**/*
 !/tests/**/*.py

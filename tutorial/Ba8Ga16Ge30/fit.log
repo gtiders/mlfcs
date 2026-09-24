@@ -1,0 +1,7 @@
+INFO mlfcs.cluster_space.builder: Building FC2 cluster space: cutoff 5.4 Å, maximum body order 2
+INFO mlfcs.cluster_space.builder: FC2: 215 orbits, 1809 parameters
+INFO mlfcs.cluster_space.builder: Building FC3 cluster space: cutoff 4.35 Å, maximum body order 2
+INFO mlfcs.cluster_space.builder: FC3: 382 orbits, 6520 parameters
+INFO mlfcs.fitting.build: Built 8329-parameter fit system from 101 structures in 44.51 s
+INFO mlfcs.fitting.solver: MINRES finished after 346 steps: stop code 0, normal residual 8.9080501448e-03
+Ba8Ga16Ge30 at 300 K: 101 frames, 8329 parameters; training relative force error 5.295641% after ASR

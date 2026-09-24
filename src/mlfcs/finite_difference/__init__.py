@@ -1,11 +1,5 @@
-"""Recursive finite-difference stencils and displacement plans."""
+"""Persistent finite-difference experiments."""
 
-from mlfcs.finite_difference.calculation import FiniteDifferenceCalculation
-from mlfcs.finite_difference.extrapolation import ExtrapolationBackend
-from mlfcs.finite_difference.stencil import CentralDifferenceStencil
+from mlfcs.finite_difference.difference import FiniteDifference
 
-__all__ = [
-    "CentralDifferenceStencil",
-    "ExtrapolationBackend",
-    "FiniteDifferenceCalculation",
-]
+__all__ = ["FiniteDifference"]

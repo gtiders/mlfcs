@@ -1,0 +1,26 @@
+{
+  "force_constants": {
+    "fc2": "fc2.hdf5",
+    "fc3": "fc3.hdf5",
+    "format": "full dense HDF5",
+    "supercell_atoms": 120
+  },
+  "isotope_scattering": true,
+  "kappa_file": "kappa-m101010.m101010.hdf5",
+  "material": "K4As4Pt2",
+  "mesh": [
+    10,
+    10,
+    10
+  ],
+  "method": "phono3py RTA",
+  "temperatures_K": [
+    300,
+    400,
+    500,
+    600,
+    700,
+    800,
+    900
+  ]
+}

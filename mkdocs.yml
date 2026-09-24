@@ -7,6 +7,19 @@ repo_name: gtiders/mlfcs
 edit_uri: edit/dev/docs/
 copyright: MLFCS contributors
 
+nav:
+  - Home: index.md
+  - English:
+      - Overview: en/index.md
+      - Finite difference: en/api/finite-difference-api.md
+      - Fitting: en/api/fitting-api.md
+      - Q&A: en/Q&A.md
+  - 中文:
+      - 概览: zh/index.md
+      - 有限差分: zh/api/finite-difference-api.md
+      - 拟合: zh/api/fitting-api.md
+      - Q&A: zh/Q&A.md
+
 theme:
   name: material
   language: en
@@ -64,4 +77,4 @@ extra:
       lang: zh
 
 extra_css:
-  - stylesheets/extra.css
+  - assets/stylesheets/extra.css

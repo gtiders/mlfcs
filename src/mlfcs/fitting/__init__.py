@@ -1,13 +1,5 @@
-"""Isolated force-constant fitting from externally sampled ASE structures."""
+"""Streamed construction and solution of force-fitting systems."""
 
-from mlfcs.fitting.dataset import FitDataset
-from mlfcs.fitting.fitter import FittingResult, ForceConstantFitter
-from mlfcs.fitting.gram import GramBuilder, GramStatistics
+from mlfcs.fitting.system import FitSystem
 
-__all__ = [
-    "FitDataset",
-    "FittingResult",
-    "ForceConstantFitter",
-    "GramBuilder",
-    "GramStatistics",
-]
+__all__ = ["FitSystem"]
