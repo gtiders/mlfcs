@@ -1,0 +1,5 @@
+INFO mlfcs.cluster_space.builder: Building FC3 cluster space: cutoff 7.723740495 Å, maximum body order 3
+INFO mlfcs.cluster_space.builder: FC3: 46 orbits, 711 parameters
+INFO mlfcs.finite_difference.difference: Prepared FC3 finite difference: 700 configurations at displacements 0.01, 0.015, 0.02, 0.025, 0.03 Å
+INFO mlfcs.finite_difference.difference: Prepared FC3 finite difference: 140 configurations at displacements 0.02 Å
+FC3 zero-step extrapolation: 5 steps, 700 configurations; relative L2 correction from 0.02 Å 6.558112e-04; ASR residual 3.826e-05 -> 2.835e-16

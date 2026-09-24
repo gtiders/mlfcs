@@ -1,127 +1,115 @@
+"""Reconstruct primitive force constants from evaluated ASE structures."""
+
 from __future__ import annotations
 
-from collections.abc import Callable
-from dataclasses import dataclass
+from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 import numpy as np
+from ase import Atoms
 
-from mlfcs.constraints.translational import (
-    maximum_acoustic_sum_rule_drift,
-    project_acoustic_sum_rule,
-)
-from mlfcs.finite_difference.sampling import DisplacementKey
-from mlfcs.force_constants.expansion import expand_primitive_parameters
-from mlfcs.force_constants.representation import SparseOrderForceConstants
-from mlfcs.interactions.models import RealizedInteractionSpace
-from mlfcs.structure.supercell_mapping import PeriodicIndex
+from mlfcs.force_constants import ForceConstants
+
+if TYPE_CHECKING:
+    from mlfcs.finite_difference.difference import FiniteDifference
 
 
-@dataclass(frozen=True, slots=True)
-class ASRProjectionReport:
-    """Order-local ASR measurements attached to a reconstructed force constant set."""
+def _forces(difference: FiniteDifference, structures: Sequence[Atoms]) -> np.ndarray:
+    if isinstance(structures, (Atoms, np.ndarray)) or not isinstance(structures, Sequence):
+        raise TypeError("reconstruct() accepts only an ordered sequence of ASE Atoms")
+    if len(structures) != difference.n_configurations:
+        raise ValueError(
+            f"expected {difference.n_configurations} structures, got {len(structures)}; "
+            "structure i must correspond to displacements()[i]"
+        )
+    expected = difference.displacements()
+    cell = difference.mapping.supercell.cell
+    inverse = np.linalg.inv(cell)
+    symprec = difference.mapping.space.primitive.symprec
+    forces = []
+    for index, (atoms, target) in enumerate(zip(structures, expected, strict=True)):
+        if not isinstance(atoms, Atoms):
+            raise TypeError(f"structure {index} is not an ASE Atoms object")
+        if not np.array_equal(atoms.numbers, target.numbers):
+            raise ValueError(f"structure {index} has a different atom sequence")
+        if not np.array_equal(atoms.pbc, target.pbc):
+            raise ValueError(f"structure {index} has different periodic boundary conditions")
+        cell_residual = float(
+            np.max(np.linalg.norm(np.asarray(atoms.cell) - np.asarray(target.cell), axis=1))
+        )
+        difference_scaled = (atoms.positions - target.positions) @ inverse
+        difference_scaled -= np.rint(difference_scaled)
+        position_residual = float(np.max(np.linalg.norm(difference_scaled @ cell, axis=1)))
+        if cell_residual >= symprec or position_residual >= symprec:
+            raise ValueError(
+                f"structure {index} does not match displacements()[{index}]: cell residual "
+                f"{cell_residual:.10g} Å, position residual {position_residual:.10g} Å, "
+                f"symprec {symprec:.10g} Å"
+            )
+        if atoms.calc is None:
+            raise ValueError(f"structure {index} has no stored ASE forces")
+        values = atoms.calc.get_property("forces", atoms, allow_calculation=False)
+        if values is None:
+            raise ValueError(f"structure {index} has no stored ASE forces")
+        array = np.asarray(values, dtype=np.float64)
+        if array.shape != (len(atoms), 3) or not np.all(np.isfinite(array)):
+            raise ValueError(f"structure {index} contains invalid forces")
+        forces.append(array)
+    return np.asarray(forces)
 
-    initial_residual: float
-    final_residual: float
-    correction_norm: float
-    relative_correction: float
-    iterations: int
+
+def _weights(disps: tuple[float, ...]) -> np.ndarray:
+    """Return the unique even-error extrapolation weights at zero displacement."""
+    squared = np.square(np.asarray(disps, dtype=np.float64))
+    weights = np.ones(len(squared), dtype=np.float64)
+    for index, value in enumerate(squared):
+        for other, other_value in enumerate(squared):
+            if other != index:
+                weights[index] *= -other_value / (value - other_value)
+    return weights
 
 
-def reconstruct_sparse(
-    orbit_space: RealizedInteractionSpace,
-    index: PeriodicIndex,
-    derivatives: dict[DisplacementKey, np.ndarray],
-    *,
-    enforce_asr: bool = True,
-    asr_tolerance: float = 1e-10,
-    report: Callable[[str], None] | None = None,
-    primitive_interaction_space=None,
-    return_diagnostics: bool = False,
-) -> SparseOrderForceConstants | tuple[SparseOrderForceConstants, ASRProjectionReport]:
-    """Reconstruct only symmetry-generated cluster tensors.
+def reconstruct(difference: FiniteDifference, structures: Sequence[Atoms]) -> ForceConstants:
+    values = _forces(difference, structures)
+    order = difference.order
+    signs = np.asarray(difference._signs, dtype=np.float64)
+    sign_weights = np.prod(signs, axis=1)
+    disp_weights = _weights(difference.disps)
+    sign_count = len(signs)
+    disp_count = len(difference.disps)
+    derivatives: dict[tuple[tuple[int, int], ...], np.ndarray] = {}
+    for key_index, key in enumerate(difference._keys):
+        estimates = []
+        base = key_index * disp_count * sign_count
+        for disp_index, disp in enumerate(difference.disps):
+            begin = base + disp_index * sign_count
+            estimates.append(
+                -np.tensordot(
+                    sign_weights,
+                    values[begin : begin + sign_count],
+                    axes=(0, 0),
+                )
+                / (2.0 * disp) ** (order - 1)
+            )
+        derivatives[key] = np.tensordot(disp_weights, estimates, axes=(0, 0))
 
-    The parameters of one orbit are the coefficients of its Cartesian basis $Q$, and the
-    finite-difference plan measured the component rows ``observation_rows``.  Those rows
-    therefore determine the parameters through the square system
-    ``Q[observation_rows] @ theta = y``, which is solved explicitly here instead of
-    assuming that an observed component *is* a parameter.
-    """
-    order = orbit_space.order
-    coefficients: list[np.ndarray] = []
-    for orbit in orbit_space.orbits:
-        observed: list[float] = []
+    mapping = difference.mapping
+    space = mapping.space
+    block = space.block(order)
+    coefficients = []
+    for orbit_index in range(block.orbits.start, block.orbits.stop):
+        orbit = space.orbits[orbit_index]
+        image = orbit.clusters.index(orbit.representative)
+        atoms = tuple(int(value) for value in mapping.atoms[orbit_index][image])
+        observed = []
         for row in orbit.observation_rows:
-            components = np.unravel_index(int(row), (3,) * order)
-            key = tuple(
-                (orbit.representative[axis], int(components[axis])) for axis in range(order - 1)
-            )
-            observed.append(derivatives[key][orbit.representative[-1], int(components[-1])])
-        coefficients.append(np.linalg.solve(orbit.observation_matrix, np.asarray(observed)))
-
-    original_parameters = np.concatenate(coefficients) if coefficients else np.empty(0, dtype=float)
-
-    if enforce_asr:
-        constraint_space = primitive_interaction_space or orbit_space
-        coefficients, projection = project_acoustic_sum_rule(
-            constraint_space,
-            coefficients,
-            tolerance=asr_tolerance,
-            return_result=True,
+            directions = np.unravel_index(int(row), (3,) * order)
+            key = tuple((atoms[axis], int(directions[axis])) for axis in range(order - 1))
+            observed.append(derivatives[key][atoms[-1], int(directions[-1])])
+        coefficients.append(
+            np.linalg.solve(orbit.observation_matrix, np.asarray(observed, dtype=np.float64))
         )
-        if report is not None:
-            report(
-                f"- Max drift of fc{order}: {projection.initial_residual:.10e} -> "
-                f"{projection.final_residual:.10e} eV/angstrom^{order}"
-            )
-            _report_parameter_correction(
-                report,
-                order,
-                original_parameters,
-                coefficients,
-                label="ASR",
-            )
-            report(
-                f"- ASR projection: relative correction="
-                f"{projection.relative_correction:.10e}, iterations={projection.iterations}"
-            )
-        diagnostics = ASRProjectionReport(
-            projection.initial_residual,
-            projection.final_residual,
-            projection.correction_norm,
-            projection.relative_correction,
-            projection.iterations,
-        )
-    else:
-        drift = maximum_acoustic_sum_rule_drift(
-            primitive_interaction_space or orbit_space, coefficients
-        )
-        if report is not None:
-            report(f"- Max drift of fc{order}: {drift:.10e} eV/angstrom^{order} (ASR disabled)")
-        diagnostics = ASRProjectionReport(drift, drift, 0.0, 0.0, 0)
-    parameters = np.concatenate(coefficients) if coefficients else np.empty(0, dtype=float)
-    if primitive_interaction_space is None:
-        raise ValueError("reconstruction requires a primitive exact interaction space")
-    reconstructed = expand_primitive_parameters(primitive_interaction_space, parameters)
-    return (reconstructed, diagnostics) if return_diagnostics else reconstructed
+    return ForceConstants(space, {order: np.concatenate(coefficients)})
 
 
-def _report_parameter_correction(
-    report: Callable[[str], None],
-    order: int,
-    original: np.ndarray,
-    projected: list[np.ndarray],
-    *,
-    label: str,
-) -> None:
-    values = np.concatenate(projected) if projected else np.empty(0, dtype=float)
-    correction = values - original
-    maximum = float(np.max(np.abs(correction))) if len(correction) else 0.0
-    denominator = max(float(np.linalg.norm(original)), np.finfo(float).tiny)
-    relative = float(np.linalg.norm(correction) / denominator)
-    report(
-        f"- {label} parameter correction: maximum={maximum:.10e} "
-        f"eV/angstrom^{order}, relative L2={relative:.10e}"
-    )
-
-
-__all__ = ["ASRProjectionReport", "reconstruct_sparse"]
+__all__ = ["reconstruct"]

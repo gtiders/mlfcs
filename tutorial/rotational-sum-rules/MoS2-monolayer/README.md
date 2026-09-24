@@ -1,11 +1,15 @@
-# MoS2 单层旋转约束
+# MoS2 monolayer
 
-本案例以同一组显式位移/力数据分别进行 FC2 Taylor 拟合，并比较严格 ASR 与
-Born–Huang/Huang 后处理对二维声子谱的影响。两个任务各自保存输入、`fit.py`、
-`fit.log` 与 `metrics.json`。
+The two independent FC2 fits use the same $8\times8\times1$ supercell, 8 Å cutoff, and
+two-body cluster space. The training trajectory already contains displaced
+ASE structures and their stored forces. `asr/fit.py` applies ASR only;
+`born-huang-huang/fit.py` applies ASR, Born–Huang, and Huang constraints.
 
-```bash
-uv run python asr/fit.py
-uv run python born-huang-huang/fit.py
-uv run --with phonopy --with seekpath --with matplotlib python plot.py
-```
+The band plot compares the resulting Phonopy FC2 text files. Run both fit
+scripts before `plot.py`.
+
+For the supplied trajectory, the rotational projection keeps the training
+relative force error near 10.05%. It retains the two rotational directions
+resolvable above the measured geometry error while preserving the separate
+ASR result. The reported Born–Huang and Huang residuals are small but not
+exactly zero; this is not a claim of strict rotational invariance.

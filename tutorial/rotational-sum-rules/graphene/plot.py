@@ -1,4 +1,5 @@
 """Plot ASR and Born-Huang/Huang graphene phonon bands."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -13,9 +14,11 @@ ROOT = Path(__file__).resolve().parent
 
 
 def _bands(force_constants: Path):
-    cell, _ = read_crystal_structure(filename=str(ROOT / "asr/supercell.vasp"), interface_mode="vasp")
+    cell, _ = read_crystal_structure(
+        filename=str(ROOT / "asr/supercell.vasp"), interface_mode="vasp"
+    )
     if cell is None:
-        raise ValueError("cannot read graphene reference supercell")
+        raise ValueError("cannot read graphene supercell")
     phonon = Phonopy(cell, np.eye(3, dtype=int), primitive_matrix="auto")
     phonon.force_constants = parse_FORCE_CONSTANTS(filename=str(force_constants))
     points = {"Γ": (0.0, 0.0, 0.0), "M": (0.5, 0.0, 0.0), "K": (1 / 3, 1 / 3, 0.0)}
@@ -26,15 +29,27 @@ def _bands(force_constants: Path):
 
 
 def main() -> None:
-    labels, asr = _bands(ROOT / "asr/FORCE_CONSTANTS_2ND")
+    _labels, asr = _bands(ROOT / "asr/FORCE_CONSTANTS_2ND")
     constrained_path = ROOT / "born-huang-huang/FORCE_CONSTANTS_2ND"
     constrained = _bands(constrained_path)[1] if constrained_path.is_file() else None
-    ticks = [float(asr.distances[0][0]), float(asr.distances[0][-1]), float(asr.distances[1][-1]), float(asr.distances[2][-1])]
+    ticks = [
+        float(asr.distances[0][0]),
+        float(asr.distances[0][-1]),
+        float(asr.distances[1][-1]),
+        float(asr.distances[2][-1]),
+    ]
     tick_labels = ["Γ", "M", "K", "Γ"]
     panels = [(asr, "ASR", "#176b87")]
     if constrained is not None:
         panels.append((constrained, "Born-Huang + Huang", "#a34e25"))
-    figure, axes = plt.subplots(1, len(panels), figsize=(6.2 * len(panels), 4.6), sharey=True, squeeze=False, constrained_layout=True)
+    figure, axes = plt.subplots(
+        1,
+        len(panels),
+        figsize=(6.2 * len(panels), 4.6),
+        sharey=True,
+        squeeze=False,
+        constrained_layout=True,
+    )
     axes = axes[0]
     for axis, (band, title, color) in zip(axes, panels, strict=True):
         for distance, values in zip(band.distances, band.frequencies, strict=True):

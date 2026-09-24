@@ -1,0 +1,4 @@
+INFO mlfcs.cluster_space.builder: Building FC2 cluster space: cutoff 7.723740495 Å, maximum body order 2
+INFO mlfcs.cluster_space.builder: FC2: 9 orbits, 28 parameters
+INFO mlfcs.finite_difference.difference: Prepared FC2 finite difference: 6 configurations at displacements 0.01 Å
+FC2: 28 parameters, 6 configurations; ASR relative residual 1.029e-04 -> 3.444e-18

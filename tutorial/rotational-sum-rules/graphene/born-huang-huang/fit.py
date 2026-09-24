@@ -1,4 +1,4 @@
-"""Fit graphene FC2, then enforce Born-Huang and Huang conditions."""
+"""Fit graphene FC2 and project ASR, Born-Huang and Huang rules."""
 
 from __future__ import annotations
 
@@ -6,86 +6,134 @@ import json
 import logging
 import sys
 import traceback
-from dataclasses import asdict
 from pathlib import Path
 
 from ase.calculators.singlepoint import SinglePointCalculator
-from ase.io import read
+from ase.io import iread, read
 
-from mlfcs import enforce_rotational_sum_rules, write_force_constants
-from mlfcs.fitting import ForceConstantFitter
+from mlfcs import ClusterMap, FitSystem, PrimitiveCell, Supercell, build_cluster_space
 
 ROOT = Path(__file__).resolve().parent
+SUPERCELL_MATRIX = ((7, 0, 0), (0, 7, 0), (0, 0, 1))
+SYMPREC_ANGSTROM = 1e-5
+SOLVER_RTOL = 1e-8
 
 
 class _Tee:
     def __init__(self, terminal, log_file) -> None:
-        self._terminal = terminal
-        self._log_file = log_file
+        self.terminal = terminal
+        self.log_file = log_file
 
-    def write(self, text: str) -> int:
-        self._terminal.write(text)
-        self._log_file.write(text)
-        return len(text)
+    def write(self, value: str) -> int:
+        self.terminal.write(value)
+        self.log_file.write(value)
+        return len(value)
 
     def flush(self) -> None:
-        self._terminal.flush()
-        self._log_file.flush()
+        self.terminal.flush()
+        self.log_file.flush()
 
 
-def _json_ready(value):
-    if isinstance(value, dict):
-        return {str(key): _json_ready(item) for key, item in value.items()}
-    if isinstance(value, tuple | list):
-        return [_json_ready(item) for item in value]
-    return value
+def _training_structures(supercell_atoms):
+    for source in iread(ROOT / "training.extxyz", index=":"):
+        atoms = supercell_atoms.copy()
+        atoms.positions += source.arrays["displacements"]
+        forces = source.calc.get_property("forces", source, allow_calculation=False)
+        atoms.calc = SinglePointCalculator(atoms, forces=forces)
+        yield atoms
 
 
-def _run() -> None:
-    primitive = read(ROOT / "primitive.vasp")
-    reference = read(ROOT / "supercell.vasp")
-    source = read(ROOT / "training.extxyz")
-    snapshot = reference.copy()
-    snapshot.positions += source.arrays["displacements"]
-    snapshot.calc = SinglePointCalculator(snapshot, forces=source.get_forces())
-    fitter = ForceConstantFitter(
-        primitive,
-        reference,
-        orders=(2,),
-        cutoffs={2: 8.0},
-        max_body_orders={2: 2},
-    )
-    gram = fitter.prepare_gram([snapshot])
-    result = fitter.fit(gram)
-    correction = enforce_rotational_sum_rules(result.force_constants, born_huang=True, huang=True)
-    write_force_constants(correction.force_constants, ROOT / "mlfcs.h5", format="hdf5")
-    write_force_constants(
-        correction.force_constants, ROOT / "FORCE_CONSTANTS_2ND", format="phonopy", order=2
-    )
-    payload = {"fit": asdict(result), "rotational_sum_rules": asdict(correction)}
+def _fit() -> None:
+    primitive = PrimitiveCell.from_atoms(read(ROOT / "primitive.vasp"), symprec=SYMPREC_ANGSTROM)
+    supercell_atoms = read(ROOT / "supercell.vasp")
+    supercell = Supercell.from_atoms(primitive, supercell_atoms, matrix=SUPERCELL_MATRIX)
+    space = build_cluster_space(primitive, cutoffs={2: 8.0}, max_body_orders={2: 2})
+    mapping = ClusterMap.build(space, supercell)
+    system = FitSystem.from_atoms(mapping, _training_structures(supercell_atoms))
+    parameters = system.solve(rtol=SOLVER_RTOL, max_steps=10000)
+    raw = system.force_constants(parameters)
+    projection = raw.enforce_asr().force_constants.enforce_rotation(born_huang=True, huang=True)
+    model = projection.force_constants
+    model.save(ROOT / "force_constants.mlfcs")
+    model.write(ROOT / "FORCE_CONSTANTS_2ND", mapping, format="phonopy", order=2, storage="text")
+    projected_parameters = model.parameters()
+    metrics = {
+        "projection": "ASR + Born-Huang + Huang",
+        "primitive_atoms": primitive.size,
+        "supercell_atoms": len(supercell.numbers),
+        "supercell_matrix": [list(row) for row in SUPERCELL_MATRIX],
+        "training_structures": system.n_structures,
+        "training_equations": system.n_equations,
+        "orders": list(space.orders),
+        "cutoff_angstrom": 8.0,
+        "max_body_order": 2,
+        "orbits": space.block(2).orbits.stop - space.block(2).orbits.start,
+        "parameters": system.n_parameters,
+        "solver": "column-scaled MINRES",
+        "solver_rtol": SOLVER_RTOL,
+        "fit_system_fingerprint": system.fingerprint,
+        "force_constants_fingerprint": model.fingerprint,
+        "training_force_rmse_before_projection_eV_per_angstrom": system.rmse(parameters),
+        "training_relative_force_error_before_projection": system.relative_error(parameters),
+        "training_force_rmse_after_projection_eV_per_angstrom": system.rmse(projected_parameters),
+        "training_relative_force_error_after_projection": system.relative_error(
+            projected_parameters
+        ),
+        "rotational_projection": {
+            name: getattr(projection, name)
+            for name in (
+                "born_huang",
+                "huang",
+                "length_scale",
+                "equations",
+                "acoustic_before",
+                "acoustic_after",
+                "born_huang_before",
+                "born_huang_after",
+                "huang_before",
+                "huang_after",
+                "relative_before",
+                "relative_after",
+                "correction_norm",
+                "relative_correction",
+                "retained_rank",
+                "rank_rtol",
+                "automatic_rank",
+                "rank_cutoff",
+                "smallest_retained_singular_value",
+                "largest_discarded_singular_value",
+                "geometry_residual",
+                "orthogonality_residual",
+            )
+        },
+    }
     (ROOT / "metrics.json").write_text(
-        json.dumps(_json_ready(payload), default=str, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
+        json.dumps(metrics, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    print(
+        f"Graphene ASR + Born-Huang + Huang: {system.n_structures} frames, "
+        f"{system.n_parameters} parameters; relative force error "
+        f"{system.relative_error(projected_parameters):.6%} after projection"
     )
 
 
 def main() -> None:
-    log_path = ROOT / "fit.log"
-    with log_path.open("w", encoding="utf-8") as log_file:
-        handler = logging.StreamHandler(log_file)
-        handler.setFormatter(logging.Formatter("%(levelname)s %(name)s: %(message)s"))
-        package_logger = logging.getLogger("mlfcs")
-        package_logger.addHandler(handler)
+    with (ROOT / "fit.log").open("w", encoding="utf-8") as log_file:
         stdout, stderr = sys.stdout, sys.stderr
         sys.stdout, sys.stderr = _Tee(stdout, log_file), _Tee(stderr, log_file)
+        package_logger = logging.getLogger("mlfcs")
+        handler = logging.StreamHandler(log_file)
+        handler.setFormatter(logging.Formatter("%(levelname)s %(name)s: %(message)s"))
+        package_logger.addHandler(handler)
         try:
-            _run()
+            _fit()
         except BaseException:
             traceback.print_exc()
             raise
         finally:
-            sys.stdout, sys.stderr = stdout, stderr
             package_logger.removeHandler(handler)
+            handler.close()
+            sys.stdout, sys.stderr = stdout, stderr
 
 
 if __name__ == "__main__":

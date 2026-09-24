@@ -1,0 +1,38 @@
+{
+  "compact_fc3_file": "fc3-compact.hdf5",
+  "fc2_file": "fc2.hdf5",
+  "fc3_file": "fc3.hdf5",
+  "isotope_scattering": true,
+  "kappa_W_mK": [
+    [
+      0.7430497750833588,
+      0.7430331489455595,
+      0.7431003554453881,
+      -0.004265761221975374,
+      -0.0042653683388021125,
+      0.004258325887547949
+    ]
+  ],
+  "kappa_diagonal_W_mK": [
+    [
+      0.7430497750833588,
+      0.7430331489455595,
+      0.7431003554453881
+    ]
+  ],
+  "kappa_file": "kappa-m777.ba8-m777-T300.hdf5",
+  "material": "Ba8Ga16Ge30",
+  "mesh": [
+    7,
+    7,
+    7
+  ],
+  "phono3py_version": "4.4.0",
+  "primitive_atoms": 54,
+  "primitive_matrix": "auto",
+  "supercell_atoms": 432,
+  "temperature_K": 300,
+  "temperatures_K": [
+    300.0
+  ]
+}

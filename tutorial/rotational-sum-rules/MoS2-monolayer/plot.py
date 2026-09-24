@@ -1,4 +1,5 @@
 """Plot ASR and Born-Huang/Huang MoS2 phonon bands."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -26,15 +27,31 @@ def _bands(supercell: Path, force_constants: Path):
 
 
 def main() -> None:
-    labels, asr = _bands(ROOT / "asr/supercell.vasp", ROOT / "asr/FORCE_CONSTANTS_2ND")
+    _labels, asr = _bands(ROOT / "asr/supercell.vasp", ROOT / "asr/FORCE_CONSTANTS_2ND")
     constrained_path = ROOT / "born-huang-huang/FORCE_CONSTANTS_2ND"
-    constrained = _bands(ROOT / "asr/supercell.vasp", constrained_path)[1] if constrained_path.is_file() else None
-    ticks = [float(asr.distances[0][0]), float(asr.distances[0][-1]), float(asr.distances[1][-1]), float(asr.distances[2][-1])]
+    constrained = (
+        _bands(ROOT / "asr/supercell.vasp", constrained_path)[1]
+        if constrained_path.is_file()
+        else None
+    )
+    ticks = [
+        float(asr.distances[0][0]),
+        float(asr.distances[0][-1]),
+        float(asr.distances[1][-1]),
+        float(asr.distances[2][-1]),
+    ]
     tick_labels = ["Γ", "M", "K", "Γ"]
     panels = [(asr, "ASR", "#176b87")]
     if constrained is not None:
         panels.append((constrained, "Born-Huang + Huang", "#a34e25"))
-    figure, axes = plt.subplots(1, len(panels), figsize=(6.2 * len(panels), 4.6), sharey=True, squeeze=False, constrained_layout=True)
+    figure, axes = plt.subplots(
+        1,
+        len(panels),
+        figsize=(6.2 * len(panels), 4.6),
+        sharey=True,
+        squeeze=False,
+        constrained_layout=True,
+    )
     axes = axes[0]
     for axis, (band, title, color) in zip(axes, panels, strict=True):
         for distance, values in zip(band.distances, band.frequencies, strict=True):
