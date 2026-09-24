@@ -48,4 +48,4 @@ __all__ = [
     "write_force_constants",
 ]
 
-__version__ = "4.0.0a6"
+__version__ = "4.5.0"

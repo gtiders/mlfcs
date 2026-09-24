@@ -6,6 +6,8 @@
 
 ## 未发布
 
+## 4.5.0 — 2026-09-24
+
 - **破坏性：** 拟合 Gram 始终在完整物理 Taylor 坐标中构造；`prepare_gram()` 不再接受
   `acoustic_sum_rule`，ASR 缩减参数映射与 constrained-CG 路径均已删除。
   `fit(acoustic_sum_rule=True)` 现在先求无约束的纯力最小二乘解，再使用与有限差分相同的逐阶欧氏 ASR
