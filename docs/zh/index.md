@@ -10,8 +10,8 @@ MLFCS 从 ASE 结构和原子力构造原胞力常数。公共工作流由三个
 
 ## 选择工作流
 
-- [有限差分](api/finite-difference-api.md)：生成有序位移结构，调用 ASE calculator，并重建一个阶次。
-- [力拟合](api/fitting-api.md)：将带有已存储原子力的 ASE 结构流式写入可复用拟合系统，并联合求解多个阶次。
+- [有限差分](finite-difference-api.md)：生成有序位移结构，调用 ASE calculator，并重建一个阶次。
+- [力拟合](fitting-api.md)：将带有已存储原子力的 ASE 结构流式写入可复用拟合系统，并联合求解多个阶次。
 - [Q&A](Q&A.md)：了解力的存储、顺序、可辨识性、求解器和常见选择。
 
 ## 最小模型设置

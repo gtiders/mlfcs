@@ -19,8 +19,8 @@ MLFCS 从 ASE 结构和原子力构造原胞力常数。公共工作流由三个
 
 ## 选择工作流
 
-- [有限差分](docs/zh/api/finite-difference-api.md)：生成有序位移结构，调用 ASE calculator，并重建一个阶次。
-- [力拟合](docs/zh/api/fitting-api.md)：将带有已存储原子力的 ASE 结构流式写入可复用拟合系统，并联合求解多个阶次。
+- [有限差分](docs/zh/finite-difference-api.md)：生成有序位移结构，调用 ASE calculator，并重建一个阶次。
+- [力拟合](docs/zh/fitting-api.md)：将带有已存储原子力的 ASE 结构流式写入可复用拟合系统，并联合求解多个阶次。
 - [Q&A](docs/zh/Q&A.md)：了解力的存储、顺序、可辨识性、求解器和常见选择。
 
 ## 最小模型设置
@@ -55,7 +55,7 @@ mapping = ClusterMap.build(space, supercell)
 
 ## 文档
 
-阅读[中文文档](https://gtiders.github.io/mlfcs/zh/)或[英文文档](https://gtiders.github.io/mlfcs/en/)。源文件分别位于 [docs/zh](docs/zh/) 和 [docs/en](docs/en/)。
+阅读[中文文档](https://gtiders.github.io/mlfcs/zh/)或[英文文档](https://gtiders.github.io/mlfcs/)。源文件分别位于 [docs/zh](docs/zh/) 和 [docs](docs/)。
 
 ## 引用
 

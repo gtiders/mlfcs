@@ -6,6 +6,11 @@
 
 ## 未发布
 
+- **破坏性：** 文档站点不再提供 `/mlfcs/en/` 前缀：`https://gtiders.github.io/mlfcs/` 提供英文
+  页面，`https://gtiders.github.io/mlfcs/zh/` 提供中文页面；带旧前缀的链接与书签需要去掉该段路径。
+- 文档源文件改为扁平结构：`docs/*.md` 为英文，`docs/zh/*.md` 为其中文镜像。逐页语言 alternate、
+  语言选择器和本地化导航由 `mkdocs-static-i18n` 生成，站点在主导航上方显示项目 logo。
+
 ## 4.5.1 — 2026-09-24
 
 - 补丁版本发布；项目元数据与运行时版本统一为 4.5.1。

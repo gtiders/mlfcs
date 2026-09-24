@@ -31,11 +31,10 @@ jobs:
       - name: Verify published layout
         run: |
           test -f site/index.html
-          test -f site/en/index.html
           test -f site/zh/index.html
-          test -f site/en/api/finite-difference-api/index.html
-          test -f site/zh/api/finite-difference-api/index.html
-          test -f site/en/api/fitting-api/index.html
-          test -f site/zh/api/fitting-api/index.html
-          test -f 'site/en/Q&A/index.html'
+          test -f site/finite-difference-api/index.html
+          test -f site/zh/finite-difference-api/index.html
+          test -f site/fitting-api/index.html
+          test -f site/zh/fitting-api/index.html
+          test -f 'site/Q&A/index.html'
           test -f 'site/zh/Q&A/index.html'
