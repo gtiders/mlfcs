@@ -6,6 +6,10 @@ All notable changes are documented here. Releases follow semantic versioning.
 
 ## Unreleased
 
+## 4.5.1 — 2026-09-24
+
+- Patch release; synchronize the project and runtime version to 4.5.1.
+
 ## 4.5.0 — 2026-09-24
 
 - **Breaking:** fitting Grams are always constructed in the full physical Taylor coordinate space;

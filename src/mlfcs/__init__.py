@@ -22,4 +22,4 @@ __all__ = [
     "build_cluster_space",
 ]
 
-__version__ = "4.5.0"
+__version__ = "4.5.1"
