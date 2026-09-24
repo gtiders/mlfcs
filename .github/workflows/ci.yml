@@ -23,9 +23,9 @@ jobs:
       - name: Install documentation environment
         run: uv sync --group docs
       - name: Verify README single source of truth
-        run: uv run python scripts/sync_readmes.py --check
+        run: uv run python docs/scripts/sync_readmes.py --check
       - name: Verify bilingual documentation structure
-        run: uv run python scripts/check_docs.py
+        run: uv run python docs/scripts/check_docs.py
       - name: Build documentation
         run: uv run --group docs mkdocs build --strict -f mkdocs.yml
       - name: Verify published layout

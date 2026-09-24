@@ -7,6 +7,12 @@ repo_name: gtiders/mlfcs
 edit_uri: edit/dev/docs/
 copyright: MLFCS contributors
 
+# The documentation tooling lives inside docs_dir, so everything that belongs to the site
+# sits in one tree; it must not be published as static files.
+exclude_docs: |
+  /overrides/
+  /scripts/
+
 nav:
   - Home: index.md
   - Finite difference: finite-difference-api.md
@@ -15,7 +21,7 @@ nav:
 
 theme:
   name: material
-  custom_dir: overrides
+  custom_dir: docs/overrides
   language: en
   logo: assets/images/logo.png
   favicon: assets/images/logo.png
@@ -30,14 +36,16 @@ theme:
     - content.code.copy
     - content.action.edit
   palette:
+    # The paper colour of the light scheme and its dark counterpart are tinted in
+    # docs/assets/stylesheets/extra.css; these entries only pick the scheme bases.
     - scheme: default
-      primary: teal
+      primary: white
       accent: blue
       toggle:
         icon: material/weather-night
         name: Switch to dark mode
     - scheme: slate
-      primary: teal
+      primary: black
       accent: light blue
       toggle:
         icon: material/weather-sunny
