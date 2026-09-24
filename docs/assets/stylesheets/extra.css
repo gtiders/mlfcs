@@ -60,7 +60,11 @@
     margin: 0 0 0.4rem;
   }
 
+  /* The site name measures 18.1ch in this font, and the logo artwork fills 98.8% of
+     its box, so 22.5ch keeps the visible mark at least four characters wider than
+     the name. */
   .md-nav--primary > .md-nav__title .md-nav__button.md-logo img {
-    height: 5rem;
+    height: auto;
+    width: 22.5ch;
   }
 }
