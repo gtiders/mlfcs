@@ -49,22 +49,78 @@
   font-weight: 700;
 }
 
-/* Brand block: show the site logo above the primary navigation on wide screens. */
+/* Sidebar brand block, in the style of the ALAMODE documentation sidebar: the
+   site name with a home icon, the logo, and a search field on the primary colour,
+   with the navigation below it. Only the wide layout uses it; the mobile drawer
+   keeps the theme title. */
+.md-nav__brand {
+  display: none;
+}
+
 @media screen and (min-width: 76.25em) {
   .md-nav--primary > .md-nav__title {
-    padding-top: 0.6rem;
+    display: none;
   }
 
-  .md-nav--primary > .md-nav__title .md-nav__button.md-logo {
+  .md-nav__brand {
+    background-color: var(--md-primary-fg-color);
+    color: var(--md-primary-bg-color);
     display: block;
-    margin: 0 0 0.4rem;
+    /* Letter spacing is set on the band so the logo width below is expressed in the
+       same character width as the site name. */
+    letter-spacing: 0.02em;
+    /* Bleed to the sidebar edges: the theme indents the navigation by the
+       0.2rem scrollwrap gutter plus a 0.2rem scrollbar gutter on the right. */
+    margin-left: -0.2rem;
+    margin-right: -0.4rem;
+    padding: 0.8rem 0.6rem 1rem;
+    text-align: center;
   }
 
-  /* The site name measures 18.1ch in this font, and the logo artwork fills 98.8% of
-     its box, so 22.5ch keeps the visible mark at least four characters wider than
-     the name. */
-  .md-nav--primary > .md-nav__title .md-nav__button.md-logo img {
+  .md-nav__brand-name {
+    align-items: center;
+    color: inherit;
+    display: flex;
+    font-weight: 700;
+    gap: 0.3rem;
+    justify-content: center;
+    text-decoration: none;
+  }
+
+  .md-nav__brand-name svg {
+    fill: currentcolor;
+    height: 0.9rem;
+    width: 0.9rem;
+  }
+
+  /* The site name renders 18.1ch wide in the band font and the logo artwork fills
+     98.8% of its box, so 24.5ch keeps the visible logo at least four characters
+     wider than the name. */
+  .md-nav__brand-logo {
+    display: block;
     height: auto;
-    width: 22.5ch;
+    margin: 0.7rem auto 0;
+    width: 24.5ch;
+  }
+
+  .md-nav__brand-search {
+    align-items: center;
+    background-color: var(--md-default-bg-color);
+    border-radius: 1rem;
+    color: var(--md-default-fg-color--light);
+    cursor: text;
+    display: flex;
+    font-size: 0.7rem;
+    gap: 0.3rem;
+    margin-top: 0.9rem;
+    padding: 0.35rem 0.6rem;
+    text-align: left;
+  }
+
+  .md-nav__brand-search svg {
+    fill: currentcolor;
+    flex: none;
+    height: 0.8rem;
+    width: 0.8rem;
   }
 }
