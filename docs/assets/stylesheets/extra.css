@@ -1,14 +1,42 @@
-:root {
-  --md-primary-fg-color: #0f766e;
-  --md-primary-fg-color--light: #2dd4bf;
-  --md-primary-fg-color--dark: #115e59;
-  --md-accent-fg-color: #2563eb;
+/* One paper colour for the page, the header and the sidebar brand block, with a dark
+   counterpart for the slate scheme. The selectors carry both the scheme and the primary
+   attribute because Material declares the same variables with that specificity on <body>,
+   where a plain :root block never applies. The primary names match the palette entries
+   in mkdocs.yml. */
+[data-md-color-scheme="default"][data-md-color-primary="white"] {
+  --md-primary-fg-color: #eff5f4;
+  --md-primary-fg-color--light: #e6eeec;
+  --md-primary-fg-color--dark: #e0e8e6;
+  --md-primary-bg-color: #000000de;
+  --md-primary-bg-color--light: #0000008a;
+  --md-default-bg-color: #eff5f4;
+  --md-default-bg-color--light: #f4f8f7;
+  --md-code-bg-color: #e3ebe9;
+  --md-typeset-a-color: #0f766e;
+  --md-accent-fg-color: #0f766e;
+  /* The flat palette separates surfaces with hairlines only, so they are set slightly
+     stronger than the theme's own lightest divider. */
+  --md-hairline: #0000001f;
 }
 
-[data-md-color-scheme="slate"] {
+[data-md-color-scheme="slate"][data-md-color-primary="black"] {
+  --md-primary-fg-color: #182235;
+  --md-primary-fg-color--light: #1f2c43;
+  --md-primary-fg-color--dark: #0f1a2b;
+  --md-primary-bg-color: #ffffffde;
+  --md-primary-bg-color--light: #ffffff8a;
   --md-default-bg-color: #111827;
   --md-default-bg-color--light: #182235;
   --md-code-bg-color: #0b1220;
+  --md-typeset-a-color: #2dd4bf;
+  --md-accent-fg-color: #2dd4bf;
+  --md-hairline: #ffffff1f;
+}
+
+/* The black primary paints the header with a hardcoded surface instead of the primary
+   variable, so the header is re-pointed at the scheme colour to match the brand block. */
+[data-md-color-primary="black"] .md-header {
+  background-color: var(--md-primary-fg-color);
 }
 
 .md-grid {
@@ -45,6 +73,12 @@
   height: 1.45rem;
 }
 
+/* The header shares the page colour, so it carries its own hairline. A border keeps the
+   theme's on-scroll shadow (.md-header--shadow) intact. */
+.md-header {
+  border-bottom: 0.05rem solid var(--md-hairline);
+}
+
 .md-sidebar--primary .md-nav__title {
   font-weight: 700;
 }
@@ -66,6 +100,8 @@
     background-color: var(--md-primary-fg-color);
     color: var(--md-primary-bg-color);
     display: block;
+    /* The band shares the page colour too, so it is closed off by a hairline. */
+    box-shadow: inset 0 -0.05rem 0 var(--md-hairline);
     /* Letter spacing is set on the band so the logo width below is expressed in the
        same character width as the site name. */
     letter-spacing: 0.02em;
@@ -103,9 +139,11 @@
     width: 24.5ch;
   }
 
+  /* The field reuses the page colour, so it is outlined rather than filled. */
   .md-nav__brand-search {
     align-items: center;
     background-color: var(--md-default-bg-color);
+    border: 0.05rem solid var(--md-hairline);
     border-radius: 1rem;
     color: var(--md-default-fg-color--light);
     cursor: text;
