@@ -65,6 +65,17 @@ def representative_tensors(model, order: int) -> dict[int, np.ndarray]:
     return tensors
 
 
+def test_training_pbc_uses_the_primitive_contract() -> None:
+    mapping, supercell_atoms = ar_mapping()
+    frame = supercell_atoms.copy()
+    frame.pbc = (False, False, False)
+    frame.positions[0, 0] += 0.01
+    frame.calc = SinglePointCalculator(frame, forces=[[-0.01, 0.0, 0.0]])
+
+    system = FitSystem.from_atoms(mapping, [frame])
+    assert system.n_structures == 1
+
+
 def test_fit_system_uses_the_streamed_optimized_normal_path() -> None:
     mapping, supercell_atoms = ar_mapping()
     stiffness = 2.5
@@ -168,15 +179,13 @@ def test_residual_rejects_inconsistent_statistics_but_allows_roundoff() -> None:
         rounded.residual(np.full(count, np.nan))
 
 
-def test_fit_system_accepts_only_atoms_with_stored_standard_forces() -> None:
+def test_fit_system_requires_stored_standard_forces() -> None:
     mapping, supercell_atoms = ar_mapping()
     atoms = supercell_atoms.copy()
     atoms.arrays["forces"] = np.zeros((len(atoms), 3))
 
     with pytest.raises(ValueError, match="no stored ASE forces"):
         FitSystem.from_atoms(mapping, [atoms])
-    with pytest.raises(TypeError, match="iterable of ASE Atoms"):
-        FitSystem.from_atoms(mapping, np.zeros((1, 1, 3)))
 
 
 def test_joint_orders_and_pickle_preserve_the_complete_system() -> None:

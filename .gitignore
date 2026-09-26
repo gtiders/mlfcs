@@ -24,3 +24,6 @@ site/
 # Keep native MLFCS models visible, including names such as fc-fit.mlfcs.
 /tutorial/**/fc*.*
 !/tutorial/**/*.mlfcs
+
+# External Phonopy export used for the ans SSCHA implementation comparison.
+/ans/sscha/fc*.hdf5

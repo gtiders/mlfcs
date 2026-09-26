@@ -69,8 +69,6 @@ class Supercell:
         """
         if not isinstance(primitive, PrimitiveCell) or not isinstance(atoms, Atoms):
             raise TypeError("from_atoms requires a PrimitiveCell and ASE Atoms")
-        if not bool(np.all(atoms.pbc)):
-            raise ValueError("supercell must be periodic in all three directions")
         actual_cell = np.asarray(atoms.cell, dtype=np.float64)
         if not np.all(np.isfinite(actual_cell)):
             raise ValueError("supercell lattice must be finite")
@@ -182,6 +180,11 @@ class Supercell:
             sum(int(translation[axis]) * adjugate[axis][column] for axis in range(3)) % modulus
             for column in range(3)
         )
+
+    @property
+    def pbc(self) -> tuple[bool, bool, bool]:
+        """Inherit periodicity from the certified primitive cell."""
+        return self.primitive.pbc
 
     @property
     def cell_translations(self) -> tuple[tuple[int, int, int], ...]:

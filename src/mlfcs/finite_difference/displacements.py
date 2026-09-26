@@ -18,7 +18,7 @@ def supercell_atoms(difference: FiniteDifference) -> Atoms:
         numbers=supercell.numbers,
         scaled_positions=supercell.scaled_positions,
         cell=supercell.cell,
-        pbc=True,
+        pbc=supercell.pbc,
     )
 
 

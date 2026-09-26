@@ -145,7 +145,10 @@ class TaylorCalculator(Calculator):
     def supercell(self) -> Atoms:
         """Return a fresh ASE copy of the fixed supercell."""
         return Atoms(
-            numbers=self._numbers, positions=self._supercell_positions, cell=self._cell, pbc=True
+            numbers=self._numbers,
+            positions=self._supercell_positions,
+            cell=self._cell,
+            pbc=self.mapping.supercell.pbc,
         )
 
     def calculate(self, atoms=None, properties=("energy", "forces"), system_changes=all_changes):
@@ -154,8 +157,6 @@ class TaylorCalculator(Calculator):
             raise TypeError("TaylorCalculator requires an ASE Atoms object")
         if not np.array_equal(atoms.numbers, self._numbers):
             raise ValueError("atoms have a different supercell atom sequence")
-        if not bool(np.all(atoms.pbc)):
-            raise ValueError("atoms must retain periodic boundary conditions")
         if not np.array_equal(np.asarray(atoms.cell), self._cell):
             raise ValueError("TaylorCalculator requires the fixed supercell; stress is unsupported")
         super().calculate(atoms, properties, system_changes)

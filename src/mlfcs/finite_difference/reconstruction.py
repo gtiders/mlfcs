@@ -37,8 +37,6 @@ def _forces(difference: FiniteDifference, structures: Sequence[Atoms]) -> np.nda
             raise TypeError(f"structure {index} is not an ASE Atoms object")
         if not np.array_equal(atoms.numbers, target.numbers):
             raise ValueError(f"structure {index} has a different atom sequence")
-        if not np.array_equal(atoms.pbc, target.pbc):
-            raise ValueError(f"structure {index} has different periodic boundary conditions")
         cell_residual = float(
             np.max(np.linalg.norm(np.asarray(atoms.cell) - np.asarray(target.cell), axis=1))
         )

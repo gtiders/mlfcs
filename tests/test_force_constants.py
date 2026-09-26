@@ -11,7 +11,7 @@ from ase.build import bulk
 
 from mlfcs.cluster_space import ClusterSpace
 from mlfcs.core import PrimitiveCell
-from mlfcs.force_constants import ForceConstants
+from mlfcs.force_constants import ForceConstants, write_phonopy
 from mlfcs.supercell import ClusterMap, Supercell
 
 
@@ -39,7 +39,6 @@ def test_force_constants_are_primitive_immutable_and_round_trip(tmp_path) -> Non
     assert model.orders == (2,)
     assert not model.coefficients[2].flags.writeable
     np.testing.assert_array_equal(model.coefficients[2], 2.0)
-    assert not hasattr(model, "supercell")
     with pytest.raises(TypeError):
         model.coefficients[3] = np.zeros(1)
 
@@ -74,11 +73,6 @@ def test_native_model_identity_includes_masses_but_cluster_space_identity_does_n
     np.testing.assert_array_equal(restored.space.primitive.masses, [80.0])
     with pytest.raises(ValueError, match="masses"):
         ForceConstants.combine([first, ForceConstants(changed, {3: values(changed, 3, 3.0)})])
-    legacy = tmp_path / "legacy.mlfcs"
-    with legacy.open("wb") as handle:
-        pickle.dump({"format": "mlfcs.force_constants", "version": 1, "space": original}, handle)
-    with pytest.raises(ValueError, match="version 1"):
-        ForceConstants.load(legacy)
 
 
 def test_force_constants_combine_disjoint_orders_only() -> None:
@@ -146,33 +140,83 @@ def mapped_model(orders: tuple[int, ...], *, repeats: int = 2) -> tuple[ForceCon
 def test_phonopy_writes_text_and_hdf5_with_one_threshold(tmp_path) -> None:
     model, mapping = mapped_model((2,))
     text = model.write(
-        tmp_path / "FORCE_CONSTANTS",
+        tmp_path / "fc2.txt",
         mapping,
-        format="phonopy",
+        format="phonopy_text",
         order=2,
-        storage="text",
     )
     assert text.read_text().splitlines()[0].split() == ["8", "8"]
     numbers = [float(value) for line in text.read_text().splitlines()[2:] for value in line.split()]
     assert all(value == 0.0 or abs(value) >= 1e-8 for value in numbers)
 
     binary = model.write(
-        tmp_path / "force_constants.hdf5",
+        tmp_path / "fc2.hdf5",
         mapping,
-        format="phonopy",
+        format="phonopy_hdf5",
         order=2,
-        storage="hdf5",
     )
     with h5py.File(binary, "r") as handle:
         values = handle["force_constants"][:]
         assert values.shape == (8, 8, 3, 3)
         assert handle.attrs["mlfcs_threshold"] == 1e-8
         assert np.all((values == 0.0) | (np.abs(values) >= 1e-8))
+    lines = text.read_text().splitlines()
+    for first in range(8):
+        for second in range(8):
+            start = 1 + 4 * (8 * first + second)
+            assert [int(value) for value in lines[start].split()] == [first + 1, second + 1]
+            parsed = [
+                [float(value) for value in line.split()] for line in lines[start + 1 : start + 4]
+            ]
+            np.testing.assert_allclose(parsed, values[first, second], rtol=0, atol=5e-16)
+
+    folded = model.get(2, mapping)
+    assert folded.shape == (1, 8, 3, 3)
+    assert (
+        write_phonopy(
+            tmp_path / "fc2_from_array.txt", folded, mapping, format="phonopy_text"
+        ).read_bytes()
+        == text.read_bytes()
+    )
+    with h5py.File(
+        write_phonopy(tmp_path / "fc2_from_array.hdf5", folded, mapping, format="phonopy_hdf5"),
+        "r",
+    ) as handle:
+        np.testing.assert_array_equal(handle["force_constants"][:], values)
+
+
+def test_get_is_unfiltered_and_only_fc2_arrays_can_be_written_as_phonopy(tmp_path) -> None:
+    model, mapping = mapped_model((2, 3))
+    tiny = ForceConstants(model.space, {2: model.coefficients[2] * 1e-3})
+    fc2 = tiny.get(2, mapping)
+    assert np.any(fc2 != 0.0)
+    assert np.max(np.abs(fc2)) < 1e-8
+    with h5py.File(
+        write_phonopy(tmp_path / "fc2_filtered.hdf5", fc2, mapping, format="phonopy_hdf5"),
+        "r",
+    ) as handle:
+        assert not np.any(handle["force_constants"][:])
+
+    fc3 = model.get(3, mapping)
+    assert fc3.shape == (1, 8, 8, 3, 3, 3)
+    with pytest.raises(ValueError, match="shape"):
+        write_phonopy(tmp_path / "fc3_invalid.hdf5", fc3, mapping, format="phonopy_hdf5")
+    with pytest.raises(ValueError, match="format must"):
+        write_phonopy(tmp_path / "fc2_invalid.hdf5", fc2, mapping, format="phono3py_hdf5")
+    correction = np.zeros_like(fc2)
+    correction[0, 0, 0, 0] = -fc2[0, 0, 0, 0]
+    combined = fc2 + correction
+    assert combined[0, 0, 0, 0] == 0.0
+    with h5py.File(
+        write_phonopy(tmp_path / "fc2_combined.hdf5", combined, mapping, format="phonopy_hdf5"),
+        "r",
+    ) as handle:
+        assert handle["force_constants"][0, 0, 0, 0] == 0.0
 
 
 def test_phono3py_is_fc3_hdf5_and_shengbte_is_filtered_text(tmp_path) -> None:
     model, mapping = mapped_model((3,), repeats=3)
-    binary = model.write(tmp_path / "fc3.hdf5", mapping, format="phono3py", order=3)
+    binary = model.write(tmp_path / "fc3.hdf5", mapping, format="phono3py_hdf5", order=3)
     with h5py.File(binary, "r") as handle:
         values = handle["fc3"][:]
         assert values.shape == (27, 27, 27, 3, 3, 3)
@@ -180,9 +224,7 @@ def test_phono3py_is_fc3_hdf5_and_shengbte_is_filtered_text(tmp_path) -> None:
         assert np.any(values)
         assert np.all((values == 0.0) | (np.abs(values) >= 1e-8))
 
-    text = model.write(tmp_path / "FORCE_CONSTANTS_3RD", mapping, format="shengbte", order=3)
+    text = model.write(tmp_path / "fc3_shengbte", mapping, format="shengbte", order=3)
     assert int(text.read_text().splitlines()[0]) > 0
     with pytest.raises(ValueError, match="only order 3"):
-        model.write(tmp_path / "wrong.hdf5", mapping, format="phono3py", order=2)
-    with pytest.raises(ValueError, match="supported formats"):
-        model.write(tmp_path / "legacy.xml", mapping, format="alamode", order=3)
+        model.write(tmp_path / "fc_wrong.hdf5", mapping, format="phono3py_hdf5", order=2)

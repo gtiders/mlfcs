@@ -29,8 +29,6 @@ def _sample(
     supercell = mapping.supercell
     if not np.array_equal(atoms.numbers, supercell.numbers):
         raise ValueError(f"training structure {index} has a different atom sequence")
-    if not np.array_equal(atoms.pbc, np.ones(3, dtype=bool)):
-        raise ValueError(f"training structure {index} must be periodic in all directions")
     cell = np.asarray(atoms.cell, dtype=np.float64)
     cell_residual = float(np.max(np.linalg.norm(cell - supercell.cell, axis=1)))
     symprec = mapping.space.primitive.symprec

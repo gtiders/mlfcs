@@ -32,16 +32,15 @@ for order in (2, 3):
         model.write(
             ROOT / "fc2-extrapolated.hdf5",
             mapping,
-            format="phonopy",
+            format="phonopy_hdf5",
             order=2,
-            storage="hdf5",
         )
     else:
         model.save(ROOT / "fc3-extrapolated.mlfcs")
         model.write(
             ROOT / "fc3-extrapolated.hdf5",
             mapping,
-            format="phono3py",
+            format="phono3py_hdf5",
             order=3,
         )
     print(

@@ -54,7 +54,7 @@ def reap():
     model = projection.force_constants
     report = projection.report(2)
     output = ROOT / "fc2-phonopy.txt"
-    model.write(output, fd.mapping, format="phonopy", order=2, storage="text")
+    model.write(output, fd.mapping, format="phonopy_text", order=2)
     print(
         f"reaped {len(structures)} structures into {output}; "
         f"FC2 ASR relative residual {report.relative_before:.3e} "

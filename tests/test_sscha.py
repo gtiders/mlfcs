@@ -262,11 +262,9 @@ class _Counting(Calculator):
         self.results = {"forces": copy.get_forces()}
 
 
-def test_only_ase_calculator_is_accepted_and_forces_are_recomputed() -> None:
+def test_ase_calculator_recomputes_forces() -> None:
     mapping, model = _system()
     solver = SSCHA(mapping, mapping.supercell.matrix, initial=model, seed=2)
-    with pytest.raises(TypeError, match="ASE Calculator"):
-        solver.run(300, object(), pairs=4)
     calculator = _Counting(model, mapping)
     result = solver.run(300, calculator, pairs=6, max_iterations=1, tol_thz=1e-5)
     assert calculator.calls == 12

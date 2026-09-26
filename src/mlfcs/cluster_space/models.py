@@ -184,6 +184,11 @@ class ClusterSpace:
     def orders(self) -> tuple[int, ...]:
         return tuple(block.order for block in self.blocks)
 
+    @property
+    def pbc(self) -> tuple[bool, bool, bool]:
+        """Inherit the primitive's supported periodic directions."""
+        return self.primitive.pbc
+
     def block(self, order: int) -> OrderBlock:
         """Return the slices belonging to one tensor order."""
         for block in self.blocks:

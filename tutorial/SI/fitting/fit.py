@@ -46,14 +46,13 @@ def fit() -> None:
     model.write(
         ROOT / "fc2-phonopy.hdf5",
         mapping,
-        format="phonopy",
+        format="phonopy_hdf5",
         order=2,
-        storage="hdf5",
     )
     model.write(
         ROOT / "fc3-phono3py.hdf5",
         mapping,
-        format="phono3py",
+        format="phono3py_hdf5",
         order=3,
     )
     print(f"saved ASR-projected model and FC2/FC3 HDF5 files in {ROOT}")

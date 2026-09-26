@@ -32,12 +32,18 @@ class PrimitiveCell:
     numbers: np.ndarray
     symprec: float = 1e-5
     masses: np.ndarray | None = None
+    pbc: tuple[bool, bool, bool] = (True, True, True)
 
     def __post_init__(self) -> None:
         cell = _readonly(self.cell, dtype=np.float64)
         positions = np.asarray(self.scaled_positions, dtype=np.float64)
         numbers = np.asarray(self.numbers)
         symprec = float(self.symprec)
+        pbc = np.asarray(self.pbc)
+        if pbc.shape != (3,) or pbc.dtype != np.dtype(bool):
+            raise TypeError("primitive pbc must contain three booleans")
+        if not np.all(pbc):
+            raise ValueError("only three-dimensional periodic primitive cells are supported")
         if cell.shape != (3, 3):
             raise ValueError("primitive cell must have shape (3, 3)")
         if positions.ndim != 2 or positions.shape[1:] != (3,):
@@ -82,6 +88,7 @@ class PrimitiveCell:
         object.__setattr__(self, "numbers", _readonly(numbers, dtype=np.int32))
         object.__setattr__(self, "symprec", symprec)
         object.__setattr__(self, "masses", _readonly(masses, dtype=np.float64))
+        object.__setattr__(self, "pbc", tuple(bool(value) for value in pbc))
 
     def __reduce__(self):
         return type(self), (
@@ -90,6 +97,7 @@ class PrimitiveCell:
             self.numbers,
             self.symprec,
             self.masses,
+            self.pbc,
         )
 
     @classmethod
@@ -97,14 +105,13 @@ class PrimitiveCell:
         cls, atoms: Atoms, *, symprec: float = 1e-5, masses: object | None = None
     ) -> PrimitiveCell:
         """Copy a primitive structure; omitted masses use ASE's element defaults."""
-        if not bool(np.all(atoms.pbc)):
-            raise ValueError("primitive cell must be periodic in all three directions")
         return cls(
             cell=np.asarray(atoms.cell),
             scaled_positions=atoms.get_scaled_positions(wrap=False),
             numbers=atoms.numbers,
             symprec=symprec,
             masses=masses,
+            pbc=tuple(bool(value) for value in atoms.pbc),
         )
 
     def with_masses(self, masses: object) -> PrimitiveCell:
@@ -115,6 +122,7 @@ class PrimitiveCell:
             self.numbers,
             self.symprec,
             masses,
+            self.pbc,
         )
 
     @property
@@ -145,7 +153,7 @@ class PrimitiveCell:
             numbers=self.numbers,
             scaled_positions=self.scaled_positions,
             cell=self.cell,
-            pbc=True,
+            pbc=self.pbc,
         )
         atoms.set_masses(self.masses)
         return atoms

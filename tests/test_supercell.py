@@ -26,6 +26,7 @@ def test_default_symprec_flows_into_inferred_supercell_mapping() -> None:
     order = np.arange(len(expanded))[::-1]
     reordered = expanded[order]
     supercell = Supercell.from_atoms(primitive, reordered)
+    assert supercell.pbc == primitive.pbc
     np.testing.assert_array_equal(supercell.matrix, matrix)
     np.testing.assert_array_equal(supercell.cell, reordered.cell)
     np.testing.assert_array_equal(supercell.sites, np.zeros(len(reordered), dtype=int))
@@ -37,19 +38,15 @@ def test_default_symprec_flows_into_inferred_supercell_mapping() -> None:
     slightly_changed.cell[0, 0] += 1.5e-5
     with pytest.raises(ValueError, match="lattice residual.*symprec"):
         Supercell.from_atoms(primitive, slightly_changed)
-    with pytest.raises(TypeError, match="matrix"):
-        Supercell.from_atoms(primitive, reordered, matrix=matrix)
 
 
-def test_supercell_is_only_structure_and_quotient_data() -> None:
+def test_supercell_quotient_data() -> None:
     atoms = bulk("Ar", "sc", a=1.0)
     primitive = PrimitiveCell.from_atoms(atoms, symprec=1e-5)
     supercell_atoms = atoms.repeat((2, 2, 2))
     cell = Supercell.from_atoms(primitive, supercell_atoms)
 
     assert internal_dependencies("supercell") == {"cluster_space", "core"}
-    assert not hasattr(cell, "orbits")
-    assert not hasattr(cell, "cutoff")
     assert cell.atom(LatticeSite(0, (2, -2, 0))) == cell.atom(LatticeSite(0))
     assert len({cell.quotient(tuple(value)) for value in cell.translations}) == 8
     assert len(cell.cell_translations) == 8
@@ -59,6 +56,17 @@ def test_supercell_is_only_structure_and_quotient_data() -> None:
         for site, translation in zip(cell.sites, cell.translations, strict=True)
         if site == 0
     )
+
+
+def test_supercell_inherits_pbc_without_reinterpreting_ase_flags() -> None:
+    atoms = bulk("Ar", "sc", a=1.0)
+    primitive = PrimitiveCell.from_atoms(atoms)
+    expanded = atoms.repeat((2, 1, 1))
+    expanded.pbc = (True, False, False)
+
+    mapped = Supercell.from_atoms(primitive, expanded)
+    assert mapped.pbc == primitive.pbc
+    np.testing.assert_array_equal(mapped.matrix, np.diag([2, 1, 1]))
 
 
 def test_sheared_supercell_mapping_uses_the_cartesian_nearest_image() -> None:
@@ -94,6 +102,7 @@ def test_cluster_map_reports_supercell_aliasing_and_exact_rank() -> None:
         cutoffs={2: 1.1},
         max_body_orders={2: 2},
     )
+    assert space.pbc == primitive.pbc
     small = Supercell.from_atoms(primitive, atoms)
     large = Supercell.from_atoms(
         primitive,

@@ -180,9 +180,8 @@ class ForceConstants:
         file: str | os.PathLike[str],
         mapping: ClusterMap | None = None,
         *,
-        format: Literal["phonopy", "phono3py", "shengbte", "tdep"],
+        format: Literal["phonopy_text", "phonopy_hdf5", "phono3py_hdf5", "shengbte", "tdep"],
         order: int,
-        storage: Literal["text", "hdf5"] | None = None,
         threshold: float = 1e-8,
     ) -> Path:
         """Write one order in a supported external force-constant format.
@@ -200,9 +199,18 @@ class ForceConstants:
             mapping,
             format=format,
             order=order,
-            storage=storage,
             threshold=threshold,
         )
+
+    def get(self, order: int, mapping: ClusterMap) -> np.ndarray:
+        """Return unfiltered primitive-first FC tensors folded into ``mapping``.
+
+        The result has shape ``(n_primitive, n_supercell, ..., 3, 3, ...)``
+        with ``order - 1`` supercell axes and ``order`` Cartesian axes.
+        """
+        from mlfcs.force_constants.export import compact
+
+        return compact(self, mapping, order, threshold=0.0)
 
     def enforce_asr(
         self,

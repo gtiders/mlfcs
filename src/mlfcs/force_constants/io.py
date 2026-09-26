@@ -25,41 +25,33 @@ def write(
     *,
     format: str,
     order: int,
-    storage: str | None = None,
     threshold: float = DEFAULT_THRESHOLD,
 ) -> Path:
     """Write one explicitly selected order in one supported external format."""
-    path = Path(file).resolve()
-    path.parent.mkdir(parents=True, exist_ok=True)
     threshold = threshold_value(threshold)
-    started = perf_counter()
-    if format == "phonopy":
+    if format in {"phonopy_text", "phonopy_hdf5"}:
         if order != 2:
             raise ValueError("phonopy output supports only order 2")
-        selected_storage = "text" if storage is None else storage
-        if selected_storage not in {"text", "hdf5"}:
-            raise ValueError("phonopy storage must be 'text' or 'hdf5'")
-        validate(model, mapping, order)
-        write_phonopy(path, model, mapping, storage=selected_storage, threshold=threshold)
-    elif format == "phono3py":
+        return write_phonopy(
+            file, model.get(order, mapping), mapping, format=format, threshold=threshold
+        )
+
+    path = Path(file).resolve()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    started = perf_counter()
+    if format == "phono3py_hdf5":
         if order != 3:
             raise ValueError("phono3py output supports only order 3")
-        if storage not in {None, "hdf5"}:
-            raise ValueError("phono3py output uses HDF5 storage")
         validate(model, mapping, order)
         write_phono3py(path, model, mapping, threshold=threshold)
     elif format == "shengbte":
         if order not in {3, 4}:
             raise ValueError("ShengBTE output supports only orders 3 and 4")
-        if storage not in {None, "text"}:
-            raise ValueError("ShengBTE output uses text storage")
         validate(model, mapping, order)
         write_shengbte(path, model, mapping, order=order, threshold=threshold)
     elif format == "tdep":
         if order not in {2, 3, 4}:
             raise ValueError("TDEP output supports only orders 2, 3 and 4")
-        if storage not in {None, "text"}:
-            raise ValueError("TDEP output uses text storage")
         if order not in model.coefficients:
             raise ValueError(f"force constants do not contain order {order}")
         if mapping is not None:
@@ -68,13 +60,12 @@ def write(
     else:
         raise ValueError(
             f"unsupported force-constant format {format!r}; supported formats are "
-            "phonopy, phono3py, shengbte, and tdep"
+            "phonopy_text, phonopy_hdf5, phono3py_hdf5, shengbte, and tdep"
         )
     logger.info(
-        "Exported FC%d: format=%s storage=%s threshold=%.6g file=%s elapsed=%.2f s",
+        "Exported FC%d: format=%s threshold=%.6g file=%s elapsed=%.2f s",
         order,
         format,
-        storage or ("text" if format in {"phonopy", "shengbte", "tdep"} else "hdf5"),
         threshold,
         path,
         perf_counter() - started,

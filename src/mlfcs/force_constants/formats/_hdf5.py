@@ -8,21 +8,19 @@ from pathlib import Path
 import h5py
 import numpy as np
 
-from mlfcs.force_constants.export import compact, primitive_to_supercell, translated_atoms
-from mlfcs.force_constants.model import ForceConstants
+from mlfcs.force_constants.export import primitive_to_supercell, translated_atoms
 from mlfcs.supercell import ClusterMap
 
 
 def write_hdf5(
     path: Path,
-    model: ForceConstants,
+    values: np.ndarray,
     mapping: ClusterMap,
     *,
     order: int,
     threshold: float,
 ) -> None:
     """Write full-supercell FC2 or FC3 in phonon HDF5 conventions."""
-    values = compact(model, mapping, order, threshold=threshold)
     size = len(mapping.supercell.numbers)
     shape = (size,) * order + (3,) * order
     name = "force_constants" if order == 2 else "fc3"

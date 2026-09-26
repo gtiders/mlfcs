@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
+from mlfcs.tools.ewald import Ewald
 from mlfcs.tools.supercell import build_supercell
 from mlfcs.tools.taylor import TaylorCalculator
 
-__all__ = ["TaylorCalculator", "build_supercell"]
+__all__ = ["Ewald", "TaylorCalculator", "build_supercell"]

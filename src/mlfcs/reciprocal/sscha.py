@@ -179,7 +179,7 @@ class SSCHA:
                     numbers=supercell.numbers,
                     positions=positions + sign * positive,
                     cell=supercell.cell,
-                    pbc=True,
+                    pbc=supercell.pbc,
                 )
                 atoms.set_masses(supercell.primitive.masses[supercell.sites])
                 atoms.calc = calculator
@@ -354,7 +354,7 @@ class SSCHA:
                 numbers=supercell.numbers,
                 positions=supercell.scaled_positions @ supercell.cell,
                 cell=supercell.cell,
-                pbc=True,
+                pbc=supercell.pbc,
             )
             atoms.set_masses(supercell.primitive.masses[supercell.sites])
             atoms.calc = calculator

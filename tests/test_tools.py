@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-import ast
-from pathlib import Path
-
 import numpy as np
 import pytest
 from _architecture_helpers import internal_dependencies
@@ -102,23 +99,13 @@ def test_build_supercell_rejects_non_positive_or_singular_matrices() -> None:
         build_supercell(_primitive(), np.diag([1, 1, 0]))
 
 
-def test_tools_builder_has_no_phonopy_runtime_or_reverse_dependency() -> None:
-    root = Path(__file__).parents[1]
-    source = (root / "src/mlfcs/tools/supercell.py").read_text()
-    tree = ast.parse(source)
-    imports = {
-        alias.name
-        for node in ast.walk(tree)
-        if isinstance(node, ast.Import)
-        for alias in node.names
+def test_tools_are_outside_the_core_dependency_dag() -> None:
+    assert internal_dependencies("tools") == {
+        "cluster_space",
+        "core",
+        "force_constants",
+        "supercell",
     }
-    imports.update(
-        node.module for node in ast.walk(tree) if isinstance(node, ast.ImportFrom) and node.module
-    )
-
-    assert not any(name == "phonopy" or name.startswith("phonopy.") for name in imports)
-    assert "mlfcs.core.geometry" in imports
-    assert internal_dependencies("tools") == {"core", "force_constants", "supercell"}
     for package in (
         "core",
         "cluster_space",

@@ -29,8 +29,8 @@ def run() -> None:
 
     fc2_path = HERE / "fc2.hdf5"
     fc3_path = HERE / "fc3.hdf5"
-    model.write(fc2_path, mapping, format="phonopy", order=2, storage="hdf5")
-    model.write(fc3_path, mapping, format="phono3py", order=3)
+    model.write(fc2_path, mapping, format="phonopy_hdf5", order=2)
+    model.write(fc3_path, mapping, format="phono3py_hdf5", order=3)
 
     atoms = read(ROOT / "supercell.vasp")
     unitcell = PhonopyAtoms(

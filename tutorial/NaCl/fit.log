@@ -1,0 +1,33 @@
+2026-09-26 16:23:32 INFO mlfcs.cluster_space.builder: Primitive symmetry: 2 atoms, 48 operations, symprec 1e-05 Å, fingerprint 0ff27bf8974eadfc
+2026-09-26 16:23:32 INFO mlfcs.cluster_space.builder: Building FC2 cluster space: requested cutoff 11 Å, resolved cutoff 11 Å, maximum body order 2
+2026-09-26 16:23:33 INFO mlfcs.cluster_space.builder: FC2 complete: 23 orbits, 76 parameters; exact integer bounds translation=3 rotation=1 shift=2 kernel=6
+2026-09-26 16:23:33 INFO mlfcs.cluster_space.builder: Cluster-space components complete: orders (2,), 23 orbits, 76 parameters
+2026-09-26 16:23:33 INFO mlfcs.cluster_space.models: ClusterSpace ready: fingerprint cf57d80a582ec874f0565cf27ed0bb36932a80dbe76257e15255dadb6f1d758b
+2026-09-26 16:23:33 INFO mlfcs.supercell.cell: Supercell mapped: 512 atoms, matrix [[-4, 4, 4], [4, -4, 4], [4, 4, -4]], determinant 256, cell residual 0 Å, maximum site residual 2.70421e-09 Å
+2026-09-26 16:23:33 INFO mlfcs.supercell.map: Cluster map ready: 512 supercell atoms, 502 cluster images, fingerprint c007bf43e0f31b208201048663a1f4ecf933fd40db31af591fa6f0df978294c9
+2026-09-26 16:23:33 INFO mlfcs.supercell.map: FC2 supercell realization rank: 76/76, nullity 0, folded aliases 0
+2026-09-26 16:23:37 INFO mlfcs.fitting.build: Fit-system construction started: mapping=c007bf43e0f31b208201048663a1f4ecf933fd40db31af591fa6f0df978294c9 supercell_atoms=512 orders=(2,) parameters=76 equations_per_structure=1536 gram_memory=0.04 MiB
+2026-09-26 16:23:37 INFO mlfcs.fitting.build: Fit-system accumulation: 1 structures, 1536 cumulative force equations, 0.03 s elapsed, 32.21 structures/s
+2026-09-26 16:23:37 INFO mlfcs.fitting.build: Fit system ready: 76 parameters, 2 structures, 3072 equations, force norm 1.0409975416e-03, fingerprint 48a75263505373466cb92f2f398eb97365623c6c6d38c7747e55a7ddb84eaee3, 0.04 s
+2026-09-26 16:23:37 INFO mlfcs.fitting.system: Fit solve started: structures=2 equations=3072 orders=(2,) blocks=[{'order': 2, 'cutoff_request': 11.0, 'cutoff_shells': None, 'cutoff_angstrom': 11.0, 'max_body_order': 2, 'orbits': 23, 'parameters': 76}] parameters=76 solver=column-scaled-MINRES rtol=1e-08 max_steps=10000 fit_system_fingerprint=48a75263505373466cb92f2f398eb97365623c6c6d38c7747e55a7ddb84eaee3
+2026-09-26 16:23:37 INFO mlfcs.fitting.solver: MINRES system: dimension=76 rhs_norm=3.2231049702e-02 column_scale=[17.6778, 100.001] rtol=1e-08 max_steps=10000
+2026-09-26 16:23:37 INFO mlfcs.fitting.solver: MINRES finished: steps=2 stop_code=0 normal_residual=5.2856679690e-13 relative_normal_residual=1.0311761110e-09 elapsed=0.00 s
+2026-09-26 16:23:37 INFO mlfcs.fitting.system: Fit complete: training_force_rmse=2.64980412412e-05 eV/Å training_relative_force_error=0.045519714 force_constants_fingerprint=bf6034ff84ffd30253e66d5f66103d0ab02fe5c197903a994a5bf1246f59fe81 elapsed=0.00 s
+2026-09-26 16:23:37 INFO mlfcs.force_constants.asr: FC2 ASR projection: equations=18 parameters=76 relative_residual 1.386983e-04 -> 7.836587e-19, relative_correction=5.297211e-04, iterations=2
+2026-09-26 16:23:37 INFO mlfcs.force_constants.model: Saved ForceConstants: file=/home/gwins/codespace/mlfcs-new/tutorial/NaCl/fc-direct.mlfcs orders=(2,) parameters=76 fingerprint=b3cd1b9669da00934560adca250929f1274a5f01ab5dac550734c052956d7d80
+2026-09-26 16:23:43 INFO mlfcs.force_constants.formats.phonopy: Exported FC2: format=phonopy_hdf5 threshold=1e-08 file=/home/gwins/codespace/mlfcs-new/tutorial/NaCl/fc2-direct.hdf5 elapsed=5.16 s
+Direct fit: relative force error 4.556565%
+2026-09-26 16:23:48 INFO mlfcs.tools.ewald: Ewald ready: 512 atoms, 146 reciprocal vectors, accuracy 1e-10, eta 0.121134 Å^-1, real radius 47.8686 Å, Born-charge sum 0 e, dielectric antisymmetry 0, maximum ASR residual 4.9e-15 eV/Å², elapsed 5.19 s
+2026-09-26 16:23:48 INFO mlfcs.supercell.map: FC2 supercell realization rank: 76/76, nullity 0, folded aliases 0
+2026-09-26 16:23:52 INFO mlfcs.fitting.build: Fit-system construction started: mapping=c007bf43e0f31b208201048663a1f4ecf933fd40db31af591fa6f0df978294c9 supercell_atoms=512 orders=(2,) parameters=76 equations_per_structure=1536 gram_memory=0.04 MiB
+2026-09-26 16:23:52 INFO mlfcs.fitting.build: Fit-system accumulation: 1 structures, 1536 cumulative force equations, 0.05 s elapsed, 21.25 structures/s
+2026-09-26 16:23:52 INFO mlfcs.fitting.build: Fit system ready: 76 parameters, 2 structures, 3072 equations, force norm 1.2787240289e-03, fingerprint 2f8dfd33210c7eba78e1fa8dc720f3a9512c84efc845bd0ae57bb3e8e004e688, 0.06 s
+2026-09-26 16:23:52 INFO mlfcs.fitting.system: Fit solve started: structures=2 equations=3072 orders=(2,) blocks=[{'order': 2, 'cutoff_request': 11.0, 'cutoff_shells': None, 'cutoff_angstrom': 11.0, 'max_body_order': 2, 'orbits': 23, 'parameters': 76}] parameters=76 solver=column-scaled-MINRES rtol=1e-08 max_steps=10000 fit_system_fingerprint=2f8dfd33210c7eba78e1fa8dc720f3a9512c84efc845bd0ae57bb3e8e004e688
+2026-09-26 16:23:52 INFO mlfcs.fitting.solver: MINRES system: dimension=76 rhs_norm=3.5749799524e-02 column_scale=[17.6778, 100.001] rtol=1e-08 max_steps=10000
+2026-09-26 16:23:52 INFO mlfcs.fitting.solver: MINRES finished: steps=2 stop_code=0 normal_residual=3.7781527978e-13 relative_normal_residual=7.1999654427e-10 elapsed=0.00 s
+2026-09-26 16:23:52 INFO mlfcs.fitting.system: Fit complete: training_force_rmse=1.48360406836e-05 eV/Å training_relative_force_error=0.02299536 force_constants_fingerprint=f4346520e7b2ff379d6e0b00c9e1e791870b646456eb52799d7562e24f16c01c elapsed=0.00 s
+2026-09-26 16:23:53 INFO mlfcs.force_constants.asr: FC2 ASR projection: equations=18 parameters=76 relative_residual 5.392013e-05 -> 1.565574e-18, relative_correction=2.224805e-04, iterations=2
+2026-09-26 16:23:53 INFO mlfcs.force_constants.model: Saved ForceConstants: file=/home/gwins/codespace/mlfcs-new/tutorial/NaCl/fc-short.mlfcs orders=(2,) parameters=76 fingerprint=834b23a8c4d1efd363d92182d616ed4154a129669965de9f54392b3a17eff245
+2026-09-26 16:23:58 INFO mlfcs.force_constants.formats.phonopy: Exported FC2: format=phonopy_hdf5 threshold=1e-08 file=/home/gwins/codespace/mlfcs-new/tutorial/NaCl/fc2-corrected.hdf5 elapsed=5.29 s
+Short-range fit: relative force error 2.300676%
+Saved direct and long-range-corrected FC2 for the phonon comparison.

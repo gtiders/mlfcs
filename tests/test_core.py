@@ -91,12 +91,22 @@ def test_primitive_cell_refuses_nonperiodic_or_singular_input() -> None:
 
     with pytest.raises(ValueError, match="periodic"):
         PrimitiveCell.from_atoms(nonperiodic, symprec=1e-5)
+    nonperiodic.pbc = (True, True, False)
+    with pytest.raises(ValueError, match="three-dimensional periodic"):
+        PrimitiveCell.from_atoms(nonperiodic, symprec=1e-5)
     with pytest.raises(ValueError, match="nonsingular"):
         PrimitiveCell.from_atoms(singular, symprec=1e-5)
 
     repeated = bulk("Si", "diamond", a=5.43).repeat((2, 1, 1))
     with pytest.raises(ValueError, match="primitive cell contains"):
         PrimitiveCell.from_atoms(repeated, symprec=1e-5)
+
+
+def test_primitive_periodicity_is_inherited_by_copies() -> None:
+    primitive = PrimitiveCell.from_atoms(bulk("Ar", "sc", a=1.0))
+    assert primitive.pbc == (True, True, True)
+    assert tuple(primitive.to_atoms().pbc) == primitive.pbc
+    assert primitive.with_masses([40.0]).pbc == primitive.pbc
 
 
 def test_primitive_symmetry_is_a_closed_action_on_the_motif() -> None:

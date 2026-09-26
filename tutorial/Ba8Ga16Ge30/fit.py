@@ -30,7 +30,7 @@ def fit():
     model = model.enforce_asr().force_constants
     model.save(ROOT / "fc-fit.mlfcs")
     model.write(
-        ROOT / "fc2-phonopy.txt", mapping, format="phonopy", order=2, storage="text"
+        ROOT / "fc2-phonopy.txt", mapping, format="phonopy_text", order=2
     )
     model.write(ROOT / "fc3-shengbte.txt", mapping, format="shengbte", order=3)
     print(

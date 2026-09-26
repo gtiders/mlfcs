@@ -98,7 +98,7 @@ def _build_supercell(atoms: Atoms, matrix: np.ndarray, *, symprec: float) -> Ato
         masses=masses[selected],
         scaled_positions=positions[selected],
         cell=target_cell,
-        pbc=True,
+        pbc=atoms.pbc,
     )
 
 

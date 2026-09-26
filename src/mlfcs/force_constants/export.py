@@ -76,17 +76,6 @@ def translated_atoms(mapping: ClusterMap, first: int) -> np.ndarray:
     return result
 
 
-def full_fc2(compact_values: np.ndarray, mapping: ClusterMap) -> np.ndarray:
-    """Expand primitive-first FC2 into the explicit full-supercell order."""
-    supercell = mapping.supercell
-    size = len(supercell.numbers)
-    result = np.empty((size, size, 3, 3), dtype=np.float64)
-    for first in range(size):
-        tails = translated_atoms(mapping, first)
-        result[first] = compact_values[int(supercell.sites[first]), tails]
-    return result
-
-
 def primitive_to_supercell(mapping: ClusterMap) -> np.ndarray:
     """Return the first explicit supercell atom for every primitive site."""
     sites = mapping.supercell.sites
@@ -99,7 +88,6 @@ __all__ = [
     "DEFAULT_THRESHOLD",
     "clean",
     "compact",
-    "full_fc2",
     "primitive_to_supercell",
     "threshold_value",
     "translated_atoms",

@@ -106,7 +106,6 @@ def test_taylor_calculator_uses_a_fixed_supercell_and_immutable_order_choice(mod
     model, mapping = model_and_map
     calculator = TaylorCalculator(model, mapping, orders=(4,))
     supercell = calculator.supercell
-    assert not hasattr(calculator, "reference")
     supercell.calc = calculator
     assert supercell.get_potential_energy() == 0.0
     np.testing.assert_array_equal(supercell.get_forces(), 0.0)

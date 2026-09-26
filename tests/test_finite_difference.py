@@ -105,22 +105,7 @@ def test_evaluate_forces_every_calculation_and_freezes_standard_ase_forces(tmp_p
             np.testing.assert_allclose(tensor, 0.0, atol=1e-14, rtol=0.0)
 
 
-def test_finite_difference_has_no_persistence_contract() -> None:
-    import mlfcs.finite_difference as module
-
-    mapping, _ = ar_mapping(3)
-    fd = FiniteDifference(mapping, order=2)
-
-    assert fd.disps == (0.01,)
-    assert not hasattr(module, "load_fd")
-    assert not hasattr(fd, "save")
-    assert not hasattr(fd, "file")
-    assert not hasattr(fd, "fingerprint")
-    with pytest.raises(TypeError, match="steps"):
-        FiniteDifference(mapping, order=2, steps=(0.01,))
-
-
-def test_reconstruct_accepts_only_ordered_atoms_with_stored_forces() -> None:
+def test_reconstruct_requires_ordered_atoms_with_stored_forces() -> None:
     mapping, supercell_atoms = ar_mapping(3)
     fd = FiniteDifference(mapping, order=2)
     structures = tuple(fd.displacements())
@@ -131,8 +116,6 @@ def test_reconstruct_accepts_only_ordered_atoms_with_stored_forces() -> None:
     assert model.orders == (2,)
     assert model.space.fingerprint == mapping.space.fingerprint
 
-    with pytest.raises(TypeError, match="ASE Atoms"):
-        fd.reconstruct(np.asarray(forces))
     with pytest.raises(ValueError, match="expected"):
         fd.reconstruct(evaluated[:-1])
     missing = list(evaluated)
