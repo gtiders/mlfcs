@@ -10,7 +10,10 @@ import numpy as np
 from ase import Atoms
 
 from mlfcs.core import LatticeSite, PrimitiveCell
-from mlfcs.core.algebra.exact import to_python_rows
+from mlfcs.core.geometry import PeriodicGeometry
+from mlfcs.core.log_error import get_logger
+
+logger = get_logger(__name__)
 
 
 def _determinant(rows: list[list[int]]) -> int:
@@ -56,18 +59,38 @@ class Supercell:
         cls,
         primitive: PrimitiveCell,
         atoms: Atoms,
-        *,
-        matrix: object,
     ) -> Supercell:
-        """Map an external supercell using the primitive ``symprec``."""
+        """Infer the integer basis change and map atoms at the primitive ``symprec``.
+
+        Spglib determines the primitive's symmetry; its standardized-cell
+        transformation is not the relation between these two supplied bases.
+        Each supercell lattice vector is matched to one primitive lattice
+        vector within ``symprec`` angstrom, in ASE's row convention.
+        """
+        if not isinstance(primitive, PrimitiveCell) or not isinstance(atoms, Atoms):
+            raise TypeError("from_atoms requires a PrimitiveCell and ASE Atoms")
         if not bool(np.all(atoms.pbc)):
             raise ValueError("supercell must be periodic in all three directions")
-        rows = to_python_rows(matrix)
-        if len(rows) != 3 or any(len(row) != 3 for row in rows):
-            raise ValueError("supercell matrix must have shape (3, 3)")
+        actual_cell = np.asarray(atoms.cell, dtype=np.float64)
+        if not np.all(np.isfinite(actual_cell)):
+            raise ValueError("supercell lattice must be finite")
+        geometry = PeriodicGeometry(primitive.cell)
+        rows = []
+        for axis, vector in enumerate(actual_cell):
+            images, shifts = geometry.closest_images(vector, symprec=primitive.symprec)
+            distances = np.linalg.norm(images, axis=1)
+            matches = np.flatnonzero(distances < primitive.symprec)
+            if len(matches) != 1:
+                nearest = float(np.min(distances)) if distances.size else float("inf")
+                raise ValueError(
+                    f"supercell lattice residual {nearest:.10g} angstrom for vector {axis}: "
+                    f"{len(matches)} integer matches below symprec "
+                    f"{primitive.symprec:.10g} angstrom"
+                )
+            rows.append([-int(value) for value in shifts[int(matches[0])]])
         determinant = _determinant(rows)
         if determinant == 0:
-            raise ValueError("supercell matrix must be nonsingular")
+            raise ValueError("inferred supercell matrix is singular")
         copies = abs(determinant)
         if len(atoms) != primitive.size * copies:
             raise ValueError(
@@ -76,12 +99,12 @@ class Supercell:
             )
         integer_matrix = np.asarray(rows, dtype=object)
         expected_cell = np.asarray(integer_matrix, dtype=np.float64) @ primitive.cell
-        actual_cell = np.asarray(atoms.cell, dtype=np.float64)
         residual = float(np.max(np.linalg.norm(expected_cell - actual_cell, axis=1)))
         if residual >= primitive.symprec:
             raise ValueError(
-                f"supercell lattice residual {residual:.10g} angstrom is not below "
-                f"symprec {primitive.symprec:.10g} angstrom"
+                f"inferred supercell matrix {rows} leaves lattice residual "
+                f"{residual:.10g} angstrom, not below symprec "
+                f"{primitive.symprec:.10g} angstrom"
             )
 
         cartesian = atoms.get_positions()
@@ -89,11 +112,11 @@ class Supercell:
         sites = np.empty(len(atoms), dtype=np.int32)
         translations = np.empty((len(atoms), 3), dtype=np.int64)
         numbers = np.asarray(atoms.numbers, dtype=np.int32)
+        maximum_mapping_residual = 0.0
         for atom, (number, position) in enumerate(zip(numbers, primitive_scaled, strict=True)):
             candidates = np.flatnonzero(primitive.numbers == number)
             differences = position - primitive.scaled_positions[candidates]
-            shifts = np.rint(differences).astype(np.int64)
-            distances = np.linalg.norm((differences - shifts) @ primitive.cell, axis=1)
+            _, distances = geometry.minimum_image(differences @ primitive.cell)
             matches = np.flatnonzero(distances < primitive.symprec)
             if len(matches) != 1:
                 nearest = float(np.min(distances)) if distances.size else float("inf")
@@ -102,8 +125,16 @@ class Supercell:
                     f"symprec; nearest residual is {nearest:.10g} angstrom"
                 )
             match = int(matches[0])
+            maximum_mapping_residual = max(maximum_mapping_residual, float(distances[match]))
+            _, image_shifts = geometry.closest_images(
+                differences[match] @ primitive.cell, symprec=primitive.symprec
+            )
+            if len(image_shifts) != 1:
+                raise ValueError(
+                    f"supercell atom {atom} has {len(image_shifts)} primitive images below symprec"
+                )
             sites[atom] = int(candidates[match])
-            translations[atom] = shifts[match]
+            translations[atom] = -image_shifts[0]
 
         adjugate = _adjugate(rows)
         modulus = abs(determinant)
@@ -119,6 +150,16 @@ class Supercell:
         ]
         if len(set(keys)) != len(keys):
             raise ValueError("supercell does not contain each primitive quotient site exactly once")
+
+        logger.info(
+            "Supercell mapped: %d atoms, matrix %s, determinant %d, cell residual %.6g Å, "
+            "maximum site residual %.6g Å",
+            len(atoms),
+            rows,
+            determinant,
+            residual,
+            maximum_mapping_residual,
+        )
 
         return cls(
             primitive=primitive,

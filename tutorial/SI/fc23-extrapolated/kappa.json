@@ -1,0 +1,25 @@
+{
+  "force_constants": {
+    "fc2": "fc2-extrapolated.hdf5",
+    "fc3": "fc3-extrapolated.hdf5",
+    "supercell_atoms": 128
+  },
+  "isotope_scattering": true,
+  "kappa_file": "kappa-m101010.Si101010-fc2-fc3-extrapolated.hdf5",
+  "material": "Si",
+  "mesh": [
+    10,
+    10,
+    10
+  ],
+  "method": "phono3py RTA",
+  "temperatures_K": [
+    300,
+    400,
+    500,
+    600,
+    700,
+    800,
+    900
+  ]
+}

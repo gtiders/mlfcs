@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from itertools import product
+from time import perf_counter
 from typing import Any
 
 import numpy as np
@@ -11,7 +12,7 @@ from ase import Atoms
 from ase.calculators.calculator import all_changes
 from ase.calculators.singlepoint import SinglePointCalculator
 
-from mlfcs.core.log import get_logger
+from mlfcs.core.log_error import get_logger
 from mlfcs.finite_difference.displacements import Displacements
 from mlfcs.finite_difference.reconstruction import reconstruct
 from mlfcs.force_constants import ForceConstants
@@ -82,7 +83,15 @@ class FiniteDifference:
     def evaluate(self, calculator: Any) -> tuple[Atoms, ...]:
         """Force a fresh calculation for every displacement and freeze its forces."""
         evaluated = []
-        for atoms in self.displacements():
+        started = perf_counter()
+        interval = max(1, self.n_configurations // 10)
+        logger.info(
+            "FC%d finite-difference evaluation started: %d configurations, disps=%s Å",
+            self.order,
+            self.n_configurations,
+            self.disps,
+        )
+        for index, atoms in enumerate(self.displacements(), start=1):
             atoms.calc = calculator
             calculator.calculate(
                 atoms=atoms,
@@ -97,6 +106,21 @@ class FiniteDifference:
                 raise ValueError("calculator returned invalid forces")
             atoms.calc = SinglePointCalculator(atoms, forces=values)
             evaluated.append(atoms)
+            if index == 1 or index % interval == 0 or index == self.n_configurations:
+                elapsed = perf_counter() - started
+                logger.info(
+                    "FC%d finite-difference progress: %d/%d configurations, %.2f s elapsed",
+                    self.order,
+                    index,
+                    self.n_configurations,
+                    elapsed,
+                )
+        logger.info(
+            "FC%d finite-difference evaluation complete: %d configurations, %.2f s",
+            self.order,
+            len(evaluated),
+            perf_counter() - started,
+        )
         return tuple(evaluated)
 
     def reconstruct(self, structures: Sequence[Atoms]) -> ForceConstants:

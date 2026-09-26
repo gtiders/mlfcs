@@ -47,3 +47,17 @@ No. Fit first, then apply the explicit force-constant post-processing projection
 ## How do I save or export the result?
 
 Use `ForceConstants.save(path)` for native trusted-pickle storage and `ForceConstants.load(path)` to read it back. For interoperable output, use `ForceConstants.write(path, mapping, format=..., order=...)`. Native pickle files must come from trusted sources.
+
+## How do I set isotope or other per-site masses?
+
+Pass a list in primitive-site order, in atomic mass units: `PrimitiveCell.from_atoms(atoms, symprec=1e-5, masses=[28.0, 29.0])`. A NumPy array also works. With `masses=None`, ASE's default elemental masses are used; custom masses stored on the input ASE `Atoms` are not implicitly adopted. `primitive.with_masses([...])` returns a new immutable primitive. Symmetry-related sites must have equal masses for reciprocal-space reduction.
+
+Native `.mlfcs` files now use version 2 and preserve these masses. Version 1 files are rejected; regenerate them with the fitting or finite-difference task that produced them. Changing masses leaves the cluster-space geometry and parameter layout unchanged, but changes the saved force-constant model's fingerprint and its phonon frequencies.
+
+## How do I run stochastic self-consistent harmonic fitting?
+
+Build an FC2-only `ClusterMap` for the explicit supercell, then pass it to `SSCHA(mapping, mesh, initial=fc2, seed=42)`. The mesh must be that supercell's reciprocal grid; for a diagonal 2×2×2 supercell, use `mesh=(2, 2, 2)`. Call `solver.run(300, calculator, pairs=128)` with any suitable ASE `Calculator`. SSCHA itself generates paired displacements, requests fresh forces, and fits FC2. It does not accept force arrays or pre-evaluated structures. `run_many([0, 100, 300], calculator)` solves from high to low temperature and returns results in ascending order.
+
+An imaginary frequency in the input FC2 is meaningful, but it cannot define a harmonic Gaussian sampling distribution. Supply a stable trial FC2 or set a physical `bootstrap_displacement` for a Cartesian initialization. Negative modes are never replaced by their absolute values or silently omitted. The returned `status` distinguishes convergence, sample limits, iteration limits, and an unstable update. This first implementation fixes both the cell and mean atomic positions; it is not a full structural or free-energy-Hessian optimization.
+
+If a Gaussian displacement crosses the supercell minimum-image boundary, the run stops before calculating its forces. Increase the supercell or choose a better stable trial; folding that displacement would silently change the FC2 fitting data.

@@ -1,8 +1,8 @@
 # MLFCS
 
-MLFCS builds primitive-cell force constants from ASE structures and forces. Its public workflow has three explicit objects:
+MLFCS builds primitive-cell force constants from ASE structures and forces. Its public workflow has three stages:
 
-1. `PrimitiveCell` and `build_cluster_space` define the primitive motif, symmetry, interaction cutoffs, and parameter space.
+1. `ClusterSpace` defines the primitive motif, symmetry, interaction cutoffs, and parameter space.
 2. `Supercell` and `ClusterMap` connect that primitive model to one explicit supercell.
 3. `FiniteDifference` reconstructs one force-constant order, while `FitSystem` builds and solves a joint force-only fit.
 
@@ -10,6 +10,7 @@ All structures use ASE. Lengths are in Å, energies in eV, and forces in eV/Å. 
 
 ## Start with a workflow
 
+- [Core concepts](core-concepts.md): understand the roles of CS, supercell, and mapping before choosing a calculation.
 - [Finite differences](finite-difference-api.md): generate ordered displaced structures, evaluate an ASE calculator, and reconstruct one order.
 - [Force fitting](fitting-api.md): stream ASE structures with stored forces into a reusable fit system and solve multiple orders together.
 - [Q&A](Q&A.md): answers about force storage, ordering, identifiability, solvers, and common choices.
@@ -17,22 +18,18 @@ All structures use ASE. Lengths are in Å, energies in eV, and forces in eV/Å. 
 ## Minimal model setup
 
 ```python
-import numpy as np
 from ase.build import bulk
-from mlfcs import PrimitiveCell, Supercell, ClusterMap, build_cluster_space
+from mlfcs import ClusterMap, ClusterSpace, Supercell
 
 primitive_atoms = bulk("Al", "fcc", a=4.05)
-primitive = PrimitiveCell.from_atoms(primitive_atoms, symprec=1e-5)
-space = build_cluster_space(
-    primitive,
+space = ClusterSpace(
+    primitive_atoms,
     cutoffs={2: 4.0, 3: 3.0},
     max_body_orders={2: 2, 3: 3},
 )
 
 supercell_atoms = primitive_atoms.repeat((3, 3, 3))
-supercell = Supercell.from_atoms(
-    primitive, supercell_atoms, matrix=np.diag([3, 3, 3])
-)
+supercell = Supercell.from_atoms(space.primitive, supercell_atoms)
 mapping = ClusterMap.build(space, supercell)
 ```
 

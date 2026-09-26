@@ -10,8 +10,10 @@ import numpy as np
 
 from mlfcs.cluster_space import ClusterSpace
 from mlfcs.cluster_space.invariants import apply_lattice_action
-from mlfcs.core.errors import AliasingError
+from mlfcs.core.log_error import AliasingError, get_logger
 from mlfcs.supercell.cell import Supercell
+
+logger = get_logger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -66,7 +68,14 @@ class ClusterMap:
                     values[image, axis] = lookup[key]
             values.setflags(write=False)
             folded.append(values)
-        return cls(space=space, supercell=supercell, atoms=tuple(folded))
+        result = cls(space=space, supercell=supercell, atoms=tuple(folded))
+        logger.info(
+            "Cluster map ready: %d supercell atoms, %d cluster images, fingerprint %s",
+            len(supercell.numbers),
+            sum(len(values) for values in folded),
+            result.fingerprint,
+        )
+        return result
 
     def aliases(self, order: int) -> tuple[tuple[tuple[int, int], ...], ...]:
         """Return folded atom tuples reached by more than one primitive image."""
@@ -99,11 +108,20 @@ class ClusterMap:
         aliases = sum(len(group) - 1 for group in groups.values())
         exclusive = {group[0][0] for group in groups.values() if len(group) == 1}
         if all(orbit_index in exclusive for orbit_index in orbit_indices):
-            return RankInfo(
+            result = RankInfo(
                 block.parameters.stop - block.parameters.start,
                 block.parameters.stop - block.parameters.start,
                 aliases,
             )
+            logger.info(
+                "FC%d supercell realization rank: %d/%d, nullity %d, folded aliases %d",
+                order,
+                result.rank,
+                result.parameters,
+                result.nullity,
+                result.aliases,
+            )
+            return result
 
         columns = {}
         start = 0
@@ -139,7 +157,16 @@ class ClusterMap:
         from sympy import SparseMatrix
 
         rank = int(SparseMatrix(len(nonempty), start, locations).rank())
-        return RankInfo(parameters=start, rank=rank, aliases=aliases)
+        result = RankInfo(parameters=start, rank=rank, aliases=aliases)
+        logger.info(
+            "FC%d supercell realization rank: %d/%d, nullity %d, folded aliases %d",
+            order,
+            result.rank,
+            result.parameters,
+            result.nullity,
+            result.aliases,
+        )
+        return result
 
     @property
     def fingerprint(self) -> str:

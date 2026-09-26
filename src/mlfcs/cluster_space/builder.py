@@ -8,12 +8,12 @@ from itertools import permutations
 import numpy as np
 
 from mlfcs.cluster_space._orbit_kernel import transform_cluster
-from mlfcs.cluster_space.candidates import iter_candidates
+from mlfcs.cluster_space.candidates import iter_candidates, resolve_cutoff
 from mlfcs.cluster_space.invariants import invariant_basis
-from mlfcs.cluster_space.models import Cluster, ClusterSpace, IntBounds, Orbit, OrderBlock
+from mlfcs.cluster_space.models import Cluster, IntBounds, Orbit, OrderBlock
 from mlfcs.cluster_space.observation import component_parameterization
 from mlfcs.core import PrimitiveCell, PrimitiveSymmetry
-from mlfcs.core.log import get_logger
+from mlfcs.core.log_error import get_logger
 
 logger = get_logger(__name__)
 
@@ -122,7 +122,7 @@ def _build_order(
     cutoff: float,
     max_body_order: int,
 ) -> tuple[tuple[Orbit, ...], IntBounds]:
-    """Build one tensor-order block for :func:`build_cluster_space`."""
+    """Build one tensor-order block for a cluster space."""
     permutation_values, permutation_array = _axis_permutations(order)
     covered: set[tuple[int, ...]] = set()
     generated: list[Orbit] = []
@@ -188,31 +188,40 @@ def _build_order(
     return tuple(generated), bounds
 
 
-def build_cluster_space(
+def _build_components(
     primitive: PrimitiveCell,
     *,
     cutoffs: Mapping[int, float],
     max_body_orders: Mapping[int, int],
-    symmetry: PrimitiveSymmetry | None = None,
-) -> ClusterSpace:
-    """Build a multi-order primitive cluster space."""
+) -> tuple[PrimitiveSymmetry, tuple[OrderBlock, ...], tuple[Orbit, ...]]:
+    """Build the symmetry and orbit components from one primitive cell."""
     orders = tuple(sorted(int(order) for order in cutoffs))
     if not orders or set(orders) != {int(order) for order in max_body_orders}:
         raise ValueError("cutoffs and max_body_orders must define the same nonempty orders")
-    symmetry = PrimitiveSymmetry.from_primitive(primitive) if symmetry is None else symmetry
-    if symmetry.symprec != primitive.symprec:
-        raise ValueError("primitive and symmetry must use the same declared symprec")
-    if symmetry.site_permutations.shape[1] != primitive.size:
-        raise ValueError("primitive symmetry acts on a different motif size")
+    symmetry = PrimitiveSymmetry.from_primitive(primitive)
+    logger.info(
+        "Primitive symmetry: %d atoms, %d operations, symprec %.6g Å, fingerprint %s",
+        primitive.size,
+        symmetry.size,
+        primitive.symprec,
+        primitive.fingerprint[:16],
+    )
 
     all_orbits: list[Orbit] = []
     blocks: list[OrderBlock] = []
     parameter_start = 0
     for order in orders:
+        cutoff = resolve_cutoff(primitive, cutoffs[order])
         logger.info(
-            "Building FC%d cluster space: cutoff %.10g Å, maximum body order %d",
+            "Building FC%d cluster space: requested cutoff %s, resolved cutoff %.10g Å, "
+            "maximum body order %d",
             order,
-            cutoffs[order],
+            (
+                f"{-int(cutoffs[order])} neighbor shells"
+                if float(cutoffs[order]) < 0.0
+                else f"{float(cutoffs[order]):.10g} Å"
+            ),
+            cutoff,
             max_body_orders[order],
         )
         orbit_start = len(all_orbits)
@@ -220,7 +229,7 @@ def build_cluster_space(
             primitive,
             symmetry,
             order=order,
-            cutoff=float(cutoffs[order]),
+            cutoff=cutoff,
             max_body_order=int(max_body_orders[order]),
         )
         all_orbits.extend(orbits)
@@ -228,7 +237,8 @@ def build_cluster_space(
         blocks.append(
             OrderBlock(
                 order=order,
-                cutoff=float(cutoffs[order]),
+                cutoff_request=float(cutoffs[order]),
+                cutoff=cutoff,
                 max_body_order=int(max_body_orders[order]),
                 orbits=slice(orbit_start, len(all_orbits)),
                 parameters=slice(parameter_start, parameter_stop),
@@ -236,19 +246,22 @@ def build_cluster_space(
             )
         )
         logger.info(
-            "FC%d: %d orbits, %d parameters",
+            "FC%d complete: %d orbits, %d parameters; exact integer bounds "
+            "translation=%d rotation=%d shift=%d kernel=%d",
             order,
             len(orbits),
             parameter_stop - parameter_start,
+            bounds.translation,
+            bounds.rotation,
+            bounds.shift,
+            bounds.kernel,
         )
         parameter_start = parameter_stop
 
-    return ClusterSpace(
-        primitive=primitive,
-        symmetry=symmetry,
-        blocks=tuple(blocks),
-        orbits=tuple(all_orbits),
+    logger.info(
+        "Cluster-space components complete: orders %s, %d orbits, %d parameters",
+        orders,
+        len(all_orbits),
+        parameter_start,
     )
-
-
-__all__ = ["build_cluster_space"]
+    return symmetry, tuple(blocks), tuple(all_orbits)

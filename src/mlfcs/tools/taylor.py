@@ -13,6 +13,7 @@ from ase.calculators.calculator import Calculator, all_changes
 from numba import njit
 
 from mlfcs.core import LatticeSite
+from mlfcs.core.geometry import PeriodicGeometry
 from mlfcs.force_constants import ForceConstants
 from mlfcs.force_constants.lattice import expand
 from mlfcs.supercell import ClusterMap
@@ -128,7 +129,7 @@ class TaylorCalculator(Calculator):
         self._cell = np.array(supercell.cell, dtype=np.float64, copy=True)
         self._numbers = np.array(supercell.numbers, dtype=np.int32, copy=True)
         self._supercell_positions = np.asarray(supercell.scaled_positions) @ self._cell
-        self._inverse_cell = np.linalg.inv(self._cell)
+        self._geometry = PeriodicGeometry(self._cell)
         translations = supercell.cell_translations
         self._terms = tuple(
             _compile(force_constants, mapping, order, translations) for order in selected
@@ -158,11 +159,11 @@ class TaylorCalculator(Calculator):
         if not np.array_equal(np.asarray(atoms.cell), self._cell):
             raise ValueError("TaylorCalculator requires the fixed supercell; stress is unsupported")
         super().calculate(atoms, properties, system_changes)
-        scaled = (atoms.positions - self._supercell_positions) @ self._inverse_cell
-        scaled -= np.rint(scaled)
-        displacement = np.ascontiguousarray(scaled @ self._cell)
-        if not np.all(np.isfinite(displacement)):
+        difference = atoms.positions - self._supercell_positions
+        if not np.all(np.isfinite(difference)):
             raise ValueError("atomic positions contain NaN or infinite values")
+        displacement, _ = self._geometry.minimum_image(difference)
+        displacement = np.ascontiguousarray(displacement)
 
         forces = np.zeros_like(displacement)
         energy = 0.0

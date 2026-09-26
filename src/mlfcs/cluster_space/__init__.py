@@ -1,6 +1,5 @@
 """Primitive-only cluster spaces for the rewritten architecture."""
 
-from mlfcs.cluster_space.builder import build_cluster_space
 from mlfcs.cluster_space.models import Cluster, ClusterSpace, IntBounds, Orbit, OrderBlock
 
 __all__ = [
@@ -9,5 +8,4 @@ __all__ = [
     "IntBounds",
     "Orbit",
     "OrderBlock",
-    "build_cluster_space",
 ]

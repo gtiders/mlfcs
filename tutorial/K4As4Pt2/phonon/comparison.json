@@ -1,0 +1,81 @@
+{
+  "material": "K4As4Pt2",
+  "model": "fc-fit.mlfcs",
+  "phonopy_fc2": "fc2-phonopy.txt",
+  "bravais_lattice": "oC",
+  "path": [
+    [
+      "GAMMA",
+      "Y"
+    ],
+    [
+      "Y",
+      "C_0"
+    ],
+    [
+      "SIGMA_0",
+      "GAMMA"
+    ],
+    [
+      "GAMMA",
+      "Z"
+    ],
+    [
+      "Z",
+      "A_0"
+    ],
+    [
+      "E_0",
+      "T"
+    ],
+    [
+      "T",
+      "Y"
+    ],
+    [
+      "GAMMA",
+      "S"
+    ],
+    [
+      "S",
+      "R"
+    ],
+    [
+      "R",
+      "Z"
+    ],
+    [
+      "Z",
+      "T"
+    ]
+  ],
+  "qpoint_count": 121,
+  "bands": 30,
+  "mesh_qpoints": 12,
+  "mesh_irreducible_qpoints": 6,
+  "mesh_star_weights": [
+    1,
+    2,
+    2,
+    4,
+    1,
+    2
+  ],
+  "mesh_maximum_absolute_difference_same_units_thz": 1.1060476412840304e-07,
+  "supercell_atom_order_residual_angstrom": 5.7826836061588174e-15,
+  "mlfcs_conversion_thz": 15.63330422893526,
+  "phonopy_conversion_thz": 15.633302300230191,
+  "maximum_absolute_difference_thz": 1.0365564708791908e-06,
+  "rms_difference_thz": 4.674541734267393e-07,
+  "maximum_absolute_difference_same_units_thz": 1.1060476412840304e-07,
+  "rms_difference_same_units_thz": 4.85475126350254e-09,
+  "maximum_absolute_difference_same_units_away_from_gamma_thz": 3.9575287491544486e-13,
+  "worst_qpoint": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "worst_band_index": 29,
+  "worst_mlfcs_thz": 8.401908014431712,
+  "worst_phonopy_thz": 8.40190697787524
+}

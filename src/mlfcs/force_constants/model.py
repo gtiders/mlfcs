@@ -16,6 +16,9 @@ from typing import TYPE_CHECKING, Literal
 import numpy as np
 
 from mlfcs.cluster_space import ClusterSpace
+from mlfcs.core.log_error import get_logger
+
+logger = get_logger(__name__)
 
 if TYPE_CHECKING:
     from mlfcs.force_constants.asr import ASRResult
@@ -23,12 +26,15 @@ if TYPE_CHECKING:
     from mlfcs.supercell import ClusterMap
 
 _FORMAT = "mlfcs.force_constants"
-_VERSION = 1
+_VERSION = 2
 
 
 def _digest(space: ClusterSpace, coefficients: Mapping[int, np.ndarray]) -> str:
     digest = hashlib.sha256()
     digest.update(space.fingerprint.encode("ascii"))
+    masses = np.ascontiguousarray(space.primitive.masses, dtype=np.float64)
+    digest.update(struct.pack(">q", len(masses)))
+    digest.update(masses.astype(masses.dtype.newbyteorder(">"), copy=False).tobytes())
     for order in sorted(coefficients):
         values = np.ascontiguousarray(coefficients[order], dtype=np.float64)
         digest.update(struct.pack(">q", order))
@@ -103,8 +109,10 @@ class ForceConstants:
         space = items[0].space
         coefficients: dict[int, np.ndarray] = {}
         for model in items:
-            if model.space.fingerprint != space.fingerprint:
-                raise ValueError("force constants use different cluster spaces")
+            if model.space.fingerprint != space.fingerprint or not np.array_equal(
+                model.space.primitive.masses, space.primitive.masses
+            ):
+                raise ValueError("force constants use different cluster spaces or masses")
             overlap = coefficients.keys() & model.coefficients.keys()
             if overlap:
                 raise ValueError(f"force-constant orders are duplicated: {tuple(sorted(overlap))}")
@@ -133,6 +141,13 @@ class ForceConstants:
         finally:
             if temporary is not None and os.path.exists(temporary):
                 os.unlink(temporary)
+        logger.info(
+            "Saved ForceConstants: file=%s orders=%s parameters=%d fingerprint=%s",
+            path,
+            self.orders,
+            sum(len(values) for values in self.coefficients.values()),
+            self.fingerprint,
+        )
         return path
 
     @classmethod
@@ -151,6 +166,13 @@ class ForceConstants:
         model = cls(payload.get("space"), payload.get("coefficients"))
         if payload.get("fingerprint") != model.fingerprint:
             raise ValueError("force-constant fingerprint does not match its contents")
+        logger.info(
+            "Loaded ForceConstants: file=%s orders=%s parameters=%d fingerprint=%s",
+            path,
+            model.orders,
+            sum(len(values) for values in model.coefficients.values()),
+            model.fingerprint,
+        )
         return model
 
     def write(

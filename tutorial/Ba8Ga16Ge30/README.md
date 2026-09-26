@@ -9,8 +9,10 @@ The fit uses 101 frames of the 432-atom $2\times2\times2$ supercell, a
 54-atom primitive cell, FC2/FC3 cutoffs of 5.4/4.35 Å, and a maximum body
 order of 2 for both orders. It builds the reusable `FitSystem`, solves its
 column-scaled normal equations with MINRES, then projects the resulting force
-constants onto translational invariance. `fit.log` is overwritten with the
-complete stdout, stderr, and traceback from each fitting run.
+constants onto translational invariance. It writes `fc-fit.mlfcs`,
+`fc2-phonopy.txt`, and `fc3-shengbte.txt`. `fit.log` is overwritten with the
+complete stdout, stderr, traceback, fit summary, and ASR diagnostics from each
+fitting run.
 
 Run the fit from this directory:
 

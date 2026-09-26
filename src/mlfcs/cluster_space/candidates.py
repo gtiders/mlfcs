@@ -9,6 +9,34 @@ from ase.neighborlist import neighbor_list
 
 from mlfcs.cluster_space.models import Cluster
 from mlfcs.core import LatticeSite, PrimitiveCell
+from mlfcs.core.geometry import unique_distances
+
+
+def resolve_cutoff(primitive: PrimitiveCell, cutoff: float) -> float:
+    """Resolve a positive radius or negative one-based neighbor-shell count."""
+    value = float(cutoff)
+    if not np.isfinite(value) or value == 0.0:
+        raise ValueError("cutoff must be a positive length or a negative shell count")
+    if value > 0.0:
+        return value
+    shells = int(-value)
+    if shells < 1 or value != -shells:
+        raise ValueError("a negative cutoff must be an integer neighbor-shell count")
+
+    atoms = primitive.to_atoms()
+    radius = max(float(np.min(np.linalg.norm(primitive.cell, axis=1))), 1.0)
+    while True:
+        first, _second, distances = neighbor_list("ijd", atoms, radius, self_interaction=False)
+        per_site = [
+            unique_distances(distances[first == site], symprec=primitive.symprec)
+            for site in range(primitive.size)
+        ]
+        if all(len(values) > shells for values in per_site):
+            boundaries = [(values[shells - 1] + values[shells]) / 2.0 for values in per_site]
+            return float(max(boundaries))
+        radius *= 2.0
+        if not np.isfinite(radius):
+            raise ValueError(f"could not resolve neighbor shell {shells}")
 
 
 def _neighbors(primitive: PrimitiveCell, cutoff: float) -> tuple[tuple[LatticeSite, ...], ...]:
@@ -73,4 +101,4 @@ def iter_candidates(
                 yield cluster
 
 
-__all__ = ["iter_candidates"]
+__all__ = ["iter_candidates", "resolve_cutoff"]

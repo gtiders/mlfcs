@@ -4,11 +4,16 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 import numpy as np
+from ase import Atoms
 
 from mlfcs.core import LatticeSite, PrimitiveCell, PrimitiveSymmetry
+from mlfcs.core.log_error import get_logger
+
+logger = get_logger(__name__)
 
 
 @dataclass(frozen=True, order=True, slots=True)
@@ -126,6 +131,7 @@ class OrderBlock:
     """Slices and physical truncation inputs for one tensor order."""
 
     order: int
+    cutoff_request: float
     cutoff: float
     max_body_order: int
     orbits: slice
@@ -141,6 +147,33 @@ class ClusterSpace:
     symmetry: PrimitiveSymmetry
     blocks: tuple[OrderBlock, ...]
     orbits: tuple[Orbit, ...]
+
+    def __init__(
+        self,
+        atoms: Atoms,
+        *,
+        cutoffs: Mapping[int, float],
+        max_body_orders: Mapping[int, int],
+        symprec: float = 1e-5,
+    ) -> None:
+        """Build a primitive cluster space directly from ASE atoms."""
+        if not isinstance(atoms, Atoms):
+            raise TypeError("the first ClusterSpace argument must be ASE Atoms")
+        from mlfcs.cluster_space.builder import _build_components
+
+        primitive = PrimitiveCell.from_atoms(atoms, symprec=symprec, masses=atoms.get_masses())
+        symmetry, blocks, orbits = _build_components(
+            primitive, cutoffs=cutoffs, max_body_orders=max_body_orders
+        )
+        object.__setattr__(self, "primitive", primitive)
+        object.__setattr__(self, "symmetry", symmetry)
+        object.__setattr__(self, "blocks", blocks)
+        object.__setattr__(self, "orbits", orbits)
+        self.__post_init__()
+        logger.info("ClusterSpace ready: fingerprint %s", self.fingerprint)
+
+    def __reduce__(self):
+        return _restore_space, (self.primitive, self.symmetry, self.blocks, self.orbits)
 
     def __post_init__(self) -> None:
         orders = tuple(block.order for block in self.blocks)
@@ -207,6 +240,21 @@ class ClusterSpace:
         }
         encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
         return hashlib.sha256(encoded).hexdigest()
+
+
+def _restore_space(
+    primitive: PrimitiveCell,
+    symmetry: PrimitiveSymmetry,
+    blocks: tuple[OrderBlock, ...],
+    orbits: tuple[Orbit, ...],
+) -> ClusterSpace:
+    space = object.__new__(ClusterSpace)
+    object.__setattr__(space, "primitive", primitive)
+    object.__setattr__(space, "symmetry", symmetry)
+    object.__setattr__(space, "blocks", blocks)
+    object.__setattr__(space, "orbits", orbits)
+    space.__post_init__()
+    return space
 
 
 __all__ = ["Cluster", "ClusterSpace", "IntBounds", "Orbit", "OrderBlock"]

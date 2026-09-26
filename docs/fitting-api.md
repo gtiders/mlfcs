@@ -5,21 +5,17 @@ Fitting is a force-only linear problem. `FitSystem` consumes ASE structures with
 ## Build the shared model and supercell mapping
 
 ```python
-import numpy as np
 from ase.build import bulk
-from mlfcs import PrimitiveCell, Supercell, ClusterMap, build_cluster_space
+from mlfcs import ClusterMap, ClusterSpace, Supercell
 
 primitive_atoms = bulk("Al", "fcc", a=4.05)
-primitive = PrimitiveCell.from_atoms(primitive_atoms, symprec=1e-5)
-space = build_cluster_space(
-    primitive,
+space = ClusterSpace(
+    primitive_atoms,
     cutoffs={2: 4.0, 3: 3.0},
     max_body_orders={2: 2, 3: 3},
 )
 supercell_atoms = primitive_atoms.repeat((3, 3, 3))
-supercell = Supercell.from_atoms(
-    primitive, supercell_atoms, matrix=np.diag([3, 3, 3])
-)
+supercell = Supercell.from_atoms(space.primitive, supercell_atoms)
 mapping = ClusterMap.build(space, supercell)
 mapping.rank_info().require_full()
 ```
@@ -53,6 +49,20 @@ system.force_constants(parameters)
 ```
 
 The default solve uses column-scaled MINRES on the normal system. The exact scale for parameter `i` is `1 / sqrt(H[i, i])`, where `H` is the normal matrix. A zero diagonal means that the training design never observes that parameter; the solve raises `UnobservedParameterError` rather than silently regularizing it. Add structurally informative training data or revise the model.
+
+To use the original equations with another least-squares solver, explicitly retain the design matrices:
+
+```python
+import numpy as np
+from mlfcs import FitData
+
+data = FitData.from_atoms(mapping, training)
+design, forces = data.arrays()
+parameters = np.linalg.lstsq(design, forces, rcond=None)[0]
+force_constants = data.force_constants(parameters)
+```
+
+`data.designs` and `data.forces` also expose one read-only matrix and force vector per structure. This route does not form a normal matrix unless you call `data.normal_system()`. Retaining every design matrix uses memory proportional to the number of force equations; the default `FitSystem.from_atoms` streams them instead.
 
 ## Reuse, merge, and inspect
 

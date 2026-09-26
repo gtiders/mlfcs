@@ -29,8 +29,8 @@ def _bands(force_constants: Path):
 
 
 def main() -> None:
-    _labels, asr = _bands(ROOT / "asr/FORCE_CONSTANTS_2ND")
-    constrained_path = ROOT / "born-huang-huang/FORCE_CONSTANTS_2ND"
+    _labels, asr = _bands(ROOT / "asr/fc2-phonopy.txt")
+    constrained_path = ROOT / "born-huang-huang/fc2-phonopy.txt"
     constrained = _bands(constrained_path)[1] if constrained_path.is_file() else None
     ticks = [
         float(asr.distances[0][0]),

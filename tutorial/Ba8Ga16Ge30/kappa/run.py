@@ -23,7 +23,6 @@ ROOT = Path(__file__).resolve().parents[1]
 HERE = Path(__file__).resolve().parent
 TEMPERATURE_K = 300
 MESH = (7, 7, 7)
-SUPERCELL_MATRIX = np.diag([2, 2, 2])
 OUTPUT_STEM = "ba8-m777-T300"
 
 
@@ -37,13 +36,9 @@ def _read_kappa(path: Path) -> tuple[list[float], np.ndarray]:
 
 
 def run() -> None:
-    model = ForceConstants.load(ROOT / "force_constants.mlfcs")
+    model = ForceConstants.load(ROOT / "fc-fit.mlfcs")
     primitive = model.space.primitive
-    supercell = Supercell.from_atoms(
-        primitive,
-        read(ROOT / "supercell.vasp"),
-        matrix=SUPERCELL_MATRIX,
-    )
+    supercell = Supercell.from_atoms(primitive, read(ROOT / "supercell.vasp"))
     mapping = ClusterMap.build(model.space, supercell)
 
     fc2_path = HERE / "fc2.hdf5"

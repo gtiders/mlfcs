@@ -7,6 +7,7 @@ from dataclasses import dataclass
 import numpy as np
 import spglib
 
+from mlfcs.core.geometry import PeriodicGeometry
 from mlfcs.core.lattice import LatticeSite
 from mlfcs.core.primitive import PrimitiveCell
 
@@ -98,6 +99,7 @@ class PrimitiveSymmetry:
         )
         permutations = np.empty((len(rotations), primitive.size), dtype=np.int32)
         shifts = np.empty((len(rotations), primitive.size, 3), dtype=np.int32)
+        geometry = PeriodicGeometry(primitive.cell)
 
         for operation, (rotation, translation) in enumerate(
             zip(rotations, translations, strict=True)
@@ -106,11 +108,7 @@ class PrimitiveSymmetry:
             for site, position in enumerate(transformed):
                 candidates = np.flatnonzero(primitive.numbers == primitive.numbers[site])
                 differences = position - primitive.scaled_positions[candidates]
-                lattice_shifts = np.rint(differences).astype(np.int32)
-                residuals = np.linalg.norm(
-                    (differences - lattice_shifts) @ primitive.cell,
-                    axis=1,
-                )
+                _, residuals = geometry.minimum_image(differences @ primitive.cell)
                 matches = np.flatnonzero(residuals < symprec)
                 if len(matches) != 1:
                     nearest = float(np.min(residuals)) if residuals.size else float("inf")
@@ -120,8 +118,16 @@ class PrimitiveSymmetry:
                         f"nearest residual is {nearest:.10g} angstrom"
                     )
                 match = int(matches[0])
+                _, image_shifts = geometry.closest_images(
+                    differences[match] @ primitive.cell, symprec=symprec
+                )
+                if len(image_shifts) != 1:
+                    raise ValueError(
+                        f"operation {operation} maps primitive site {site} to "
+                        f"{len(image_shifts)} periodic images within symprec {symprec:g} angstrom"
+                    )
                 permutations[operation, site] = int(candidates[match])
-                shifts[operation, site] = lattice_shifts[match]
+                shifts[operation, site] = -image_shifts[0]
 
         return cls(
             rotations=_readonly_int32(rotations, name="primitive rotations"),

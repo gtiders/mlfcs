@@ -17,19 +17,14 @@ from mlfcs import ClusterMap, ForceConstants, Supercell
 
 ROOT = Path(__file__).resolve().parents[1]
 HERE = Path(__file__).resolve().parent
-SUPERCELL_MATRIX = np.diag([2, 2, 3])
 MESH = (10, 10, 10)
 TEMPERATURES = tuple(range(300, 901, 100))
 
 
 def run() -> None:
-    model = ForceConstants.load(ROOT / "force_constants.mlfcs")
+    model = ForceConstants.load(ROOT / "fc-fit.mlfcs")
     primitive = model.space.primitive
-    supercell = Supercell.from_atoms(
-        primitive,
-        read(ROOT / "supercell.vasp"),
-        matrix=SUPERCELL_MATRIX,
-    )
+    supercell = Supercell.from_atoms(primitive, read(ROOT / "supercell.vasp"))
     mapping = ClusterMap.build(model.space, supercell)
 
     fc2_path = HERE / "fc2.hdf5"

@@ -9,6 +9,7 @@ from dataclasses import dataclass
 import numpy as np
 import spglib
 from ase import Atoms
+from ase.data import atomic_masses
 
 
 def _readonly(values: object, *, dtype: object) -> np.ndarray:
@@ -29,7 +30,8 @@ class PrimitiveCell:
     cell: np.ndarray
     scaled_positions: np.ndarray
     numbers: np.ndarray
-    symprec: float
+    symprec: float = 1e-5
+    masses: np.ndarray | None = None
 
     def __post_init__(self) -> None:
         cell = _readonly(self.cell, dtype=np.float64)
@@ -52,6 +54,14 @@ class PrimitiveCell:
             raise ValueError("primitive cell must be nonsingular")
         if not np.issubdtype(numbers.dtype, np.integer):
             raise TypeError("primitive atomic numbers must be integers")
+        if self.masses is None:
+            masses = np.asarray(atomic_masses[numbers], dtype=np.float64)
+        else:
+            masses = np.asarray(self.masses, dtype=np.float64)
+        if masses.shape != (len(numbers),):
+            raise ValueError("primitive masses must have one value per atom")
+        if not np.all(np.isfinite(masses)) or np.any(masses <= 0.0):
+            raise ValueError("primitive masses must be positive finite values in u")
         wrapped = np.mod(positions, 1.0)
         wrapped[wrapped == 1.0] = 0.0
         found = spglib.find_primitive(
@@ -71,10 +81,22 @@ class PrimitiveCell:
         object.__setattr__(self, "scaled_positions", _readonly(wrapped, dtype=np.float64))
         object.__setattr__(self, "numbers", _readonly(numbers, dtype=np.int32))
         object.__setattr__(self, "symprec", symprec)
+        object.__setattr__(self, "masses", _readonly(masses, dtype=np.float64))
+
+    def __reduce__(self):
+        return type(self), (
+            self.cell,
+            self.scaled_positions,
+            self.numbers,
+            self.symprec,
+            self.masses,
+        )
 
     @classmethod
-    def from_atoms(cls, atoms: Atoms, *, symprec: float) -> PrimitiveCell:
-        """Copy and certify one fully periodic primitive ASE structure."""
+    def from_atoms(
+        cls, atoms: Atoms, *, symprec: float = 1e-5, masses: object | None = None
+    ) -> PrimitiveCell:
+        """Copy a primitive structure; omitted masses use ASE's element defaults."""
         if not bool(np.all(atoms.pbc)):
             raise ValueError("primitive cell must be periodic in all three directions")
         return cls(
@@ -82,6 +104,17 @@ class PrimitiveCell:
             scaled_positions=atoms.get_scaled_positions(wrap=False),
             numbers=atoms.numbers,
             symprec=symprec,
+            masses=masses,
+        )
+
+    def with_masses(self, masses: object) -> PrimitiveCell:
+        """Return the same primitive structure with new per-site masses in u."""
+        return type(self)(
+            self.cell,
+            self.scaled_positions,
+            self.numbers,
+            self.symprec,
+            masses,
         )
 
     @property
@@ -108,9 +141,11 @@ class PrimitiveCell:
 
     def to_atoms(self) -> Atoms:
         """Return a detached ASE representation."""
-        return Atoms(
+        atoms = Atoms(
             numbers=self.numbers,
             scaled_positions=self.scaled_positions,
             cell=self.cell,
             pbc=True,
         )
+        atoms.set_masses(self.masses)
+        return atoms

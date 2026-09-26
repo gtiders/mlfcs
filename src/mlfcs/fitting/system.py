@@ -6,14 +6,17 @@ import hashlib
 import struct
 from collections.abc import Iterable
 from dataclasses import dataclass
+from time import perf_counter
 
 import numpy as np
 from ase import Atoms
 
 from mlfcs.cluster_space import ClusterSpace
-from mlfcs.core.errors import UnobservedParameterError
+from mlfcs.core.log_error import UnobservedParameterError, get_logger
 from mlfcs.force_constants import ForceConstants
 from mlfcs.supercell import ClusterMap
+
+logger = get_logger(__name__)
 
 
 def _readonly(values: object, shape: tuple[int, ...]) -> np.ndarray:
@@ -144,7 +147,47 @@ class FitSystem:
         self._require_observed()
         from mlfcs.fitting.solver import solve
 
-        return solve(self.matrix, self.rhs, rtol=rtol, max_steps=max_steps)
+        blocks = [
+            {
+                "order": block.order,
+                "cutoff_request": block.cutoff_request,
+                "cutoff_shells": (
+                    -int(block.cutoff_request) if block.cutoff_request < 0.0 else None
+                ),
+                "cutoff_angstrom": block.cutoff,
+                "max_body_order": block.max_body_order,
+                "orbits": block.orbits.stop - block.orbits.start,
+                "parameters": block.parameters.stop - block.parameters.start,
+            }
+            for block in self.space.blocks
+        ]
+        logger.info(
+            "Fit solve started: structures=%d equations=%d orders=%s blocks=%s "
+            "parameters=%d solver=column-scaled-MINRES rtol=%.3g max_steps=%d "
+            "fit_system_fingerprint=%s",
+            self.n_structures,
+            self.n_equations,
+            self.space.orders,
+            blocks,
+            self.n_parameters,
+            rtol,
+            max_steps,
+            self.fingerprint,
+        )
+        started = perf_counter()
+        parameters = solve(self.matrix, self.rhs, rtol=rtol, max_steps=max_steps)
+        model = self.force_constants(parameters)
+        rmse = self.rmse(parameters)
+        relative_error = self.relative_error(parameters)
+        logger.info(
+            "Fit complete: training_force_rmse=%.12g eV/Å training_relative_force_error=%.8g "
+            "force_constants_fingerprint=%s elapsed=%.2f s",
+            rmse,
+            relative_error,
+            model.fingerprint,
+            perf_counter() - started,
+        )
+        return parameters
 
     def force_constants(self, parameters: object) -> ForceConstants:
         """Bind a complete packed parameter vector to this cluster space."""

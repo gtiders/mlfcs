@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from time import perf_counter
 
+from mlfcs.core.log_error import get_logger
 from mlfcs.force_constants.export import DEFAULT_THRESHOLD, threshold_value, validate
 from mlfcs.force_constants.formats.phono3py import write_phono3py
 from mlfcs.force_constants.formats.phonopy import write_phonopy
@@ -12,6 +14,8 @@ from mlfcs.force_constants.formats.shengbte import write_shengbte
 from mlfcs.force_constants.formats.tdep import write_tdep
 from mlfcs.force_constants.model import ForceConstants
 from mlfcs.supercell import ClusterMap
+
+logger = get_logger(__name__)
 
 
 def write(
@@ -28,6 +32,7 @@ def write(
     path = Path(file).resolve()
     path.parent.mkdir(parents=True, exist_ok=True)
     threshold = threshold_value(threshold)
+    started = perf_counter()
     if format == "phonopy":
         if order != 2:
             raise ValueError("phonopy output supports only order 2")
@@ -65,6 +70,15 @@ def write(
             f"unsupported force-constant format {format!r}; supported formats are "
             "phonopy, phono3py, shengbte, and tdep"
         )
+    logger.info(
+        "Exported FC%d: format=%s storage=%s threshold=%.6g file=%s elapsed=%.2f s",
+        order,
+        format,
+        storage or ("text" if format in {"phonopy", "shengbte", "tdep"} else "hdf5"),
+        threshold,
+        path,
+        perf_counter() - started,
+    )
     return path
 
 

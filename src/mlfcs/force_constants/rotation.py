@@ -7,9 +7,12 @@ from dataclasses import dataclass
 import numpy as np
 from scipy import sparse
 
+from mlfcs.core.log_error import get_logger
 from mlfcs.force_constants.acoustic import constraint_matrix, relative_residual
 from mlfcs.force_constants.lattice import rotate_basis
 from mlfcs.force_constants.model import ForceConstants
+
+logger = get_logger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -230,7 +233,7 @@ def enforce_rotation(
     coefficients = dict(model.coefficients)
     coefficients[2] = projected
     result = ForceConstants(model.space, coefficients)
-    return RotationResult(
+    outcome = RotationResult(
         force_constants=result,
         born_huang=born_huang,
         huang=huang,
@@ -261,6 +264,22 @@ def enforce_rotation(
         geometry_residual=geometry_residual,
         orthogonality_residual=orthogonality_residual,
     )
+    logger.info(
+        "FC2 rotational projection: born_huang=%s huang=%s equations=%d retained_rank=%d "
+        "automatic_rank=%s rank_cutoff=%.6e relative_residual %.6e -> %.6e "
+        "relative_correction=%.6e geometry_residual=%.6e Å",
+        born_huang,
+        huang,
+        outcome.equations,
+        outcome.retained_rank,
+        outcome.automatic_rank,
+        outcome.rank_cutoff,
+        outcome.relative_before,
+        outcome.relative_after,
+        outcome.relative_correction,
+        outcome.geometry_residual,
+    )
+    return outcome
 
 
 __all__ = ["RotationResult", "enforce_rotation"]

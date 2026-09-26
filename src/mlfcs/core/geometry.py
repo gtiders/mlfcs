@@ -6,7 +6,6 @@ from itertools import product
 
 import numpy as np
 from ase.geometry import minkowski_reduce
-from ase.geometry.geometry import general_find_mic
 
 
 class PeriodicGeometry:
@@ -18,11 +17,17 @@ class PeriodicGeometry:
             raise ValueError("periodic geometry requires a finite cell with shape (3, 3)")
         if float(np.linalg.det(values)) == 0.0:
             raise ValueError("periodic geometry requires a nonsingular cell")
-        _reduced, transform = minkowski_reduce(values, pbc=True)
+        reduced, transform = minkowski_reduce(values, pbc=True)
         self._cell = values
         self._cell.setflags(write=False)
-        self._reduction = np.rint(transform).astype(np.int64)
+        self._reduced = np.asarray(reduced, dtype=np.float64)
+        self._reduced.setflags(write=False)
+        self._inverse = np.linalg.inv(self._reduced)
+        self._inverse.setflags(write=False)
+        self._reduction = np.asarray(transform, dtype=np.int64)
         self._reduction.setflags(write=False)
+        self._neighbors = np.asarray(tuple(product((-1, 0, 1), repeat=3)), dtype=np.int64)
+        self._neighbors.setflags(write=False)
 
     @property
     def cell(self) -> np.ndarray:
@@ -33,28 +38,43 @@ class PeriodicGeometry:
         values = np.asarray(vectors, dtype=np.float64)
         single = values.ndim == 1
         batch = np.atleast_2d(values)
-        if batch.ndim != 2 or batch.shape[1] != 3:
+        if batch.ndim != 2 or batch.shape[1] != 3 or not np.all(np.isfinite(batch)):
             raise ValueError("vectors must have shape (3,) or (n, 3)")
-        images, lengths = general_find_mic(batch, self.cell, pbc=np.ones(3, dtype=bool))
+        if len(batch) == 0:
+            return np.empty((0, 3)), np.empty(0)
+        scaled = batch @ self._inverse
+        base = -np.floor(scaled).astype(np.int64)
+        shifts = base[:, None, :] + self._neighbors[None, :, :]
+        candidates = batch[:, None, :] + shifts @ self._reduced
+        distances = np.linalg.norm(candidates, axis=2)
+        selected = np.argmin(distances, axis=1)
+        images = candidates[np.arange(len(batch)), selected]
+        lengths = distances[np.arange(len(batch)), selected]
         if single:
             return images[0], float(lengths[0])
-        return images, np.asarray(lengths)
+        return images, lengths
 
     def closest_images(self, vector: object, *, symprec: float) -> tuple[np.ndarray, np.ndarray]:
         """Return all lattice images tied at the minimum within ``symprec`` angstrom."""
         _require_symprec(symprec)
         value = np.asarray(vector, dtype=np.float64)
-        if value.shape != (3,):
-            raise ValueError("vector must have shape (3,)")
-        minimum_vector, minimum_length = self.minimum_image(value)
-        center = np.rint((minimum_vector - value) @ np.linalg.inv(self.cell)).astype(np.int64)
-        local = np.asarray(tuple(product((-1, 0, 1), repeat=3)), dtype=np.int64)
-        shifts = center + local @ self._reduction
-        images = value + shifts @ self.cell
+        if value.shape != (3,) or not np.all(np.isfinite(value)):
+            raise ValueError("vector must be a finite Cartesian triple")
+        _, minimum_length = self.minimum_image(value)
+        radius = minimum_length + symprec
+        center = -(value @ self._inverse)
+        span = radius * np.linalg.norm(self._inverse, axis=0)
+        lower = np.ceil(np.nextafter(center - span, -np.inf)).astype(np.int64)
+        upper = np.floor(np.nextafter(center + span, np.inf)).astype(np.int64)
+        reduced_shifts = np.asarray(
+            tuple(product(*(range(int(lo), int(hi) + 1) for lo, hi in zip(lower, upper)))),
+            dtype=np.int64,
+        ).reshape(-1, 3)
+        images = value + reduced_shifts @ self._reduced
         tied = np.abs(np.linalg.norm(images, axis=1) - minimum_length) < symprec
-        unique_shifts, locations = np.unique(shifts[tied], axis=0, return_index=True)
-        order = np.argsort(locations)
-        return images[tied][locations[order]], unique_shifts[order]
+        shifts = reduced_shifts[tied] @ self._reduction
+        order = np.lexsort((shifts[:, 2], shifts[:, 1], shifts[:, 0]))
+        return images[tied][order], shifts[order]
 
 
 def unique_distances(values: object, *, symprec: float) -> tuple[float, ...]:

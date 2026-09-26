@@ -47,3 +47,17 @@
 ## 如何保存或导出结果？
 
 使用 `ForceConstants.save(path)` 保存原生可信 pickle 格式，并用 `ForceConstants.load(path)` 读取。互操作输出使用 `ForceConstants.write(path, mapping, format=..., order=...)`。原生 pickle 文件必须来自可信来源。
+
+## 如何指定同位素或其他逐位点质量？
+
+按原胞位点顺序传入列表，单位为原子质量单位 u：`PrimitiveCell.from_atoms(atoms, symprec=1e-5, masses=[28.0, 29.0])`。也接受 NumPy 数组。`masses=None` 使用 ASE 的元素默认质量；输入 ASE `Atoms` 上的自定义质量不会被隐式采用。`primitive.with_masses([...])` 返回新的不可变原胞。倒空间约化要求对称性关联的位点具有相同质量。
+
+原生 `.mlfcs` 文件现为版本 2，会保存这些质量。版本 1 文件会被拒绝；请重新运行产生它的拟合或有限差分任务。改变质量不改变 cluster space 的几何和参数布局，但会改变保存的力常数模型指纹及声子频率。
+
+## 如何运行随机自洽谐波拟合？
+
+为显式超胞建立仅含 FC2 的 `ClusterMap`，传给 `SSCHA(mapping, mesh, initial=fc2, seed=42)`。网格必须是该超胞的倒空间网格；对角 2×2×2 超胞可使用 `mesh=(2, 2, 2)`。然后以任意合适的 ASE `Calculator` 调用 `solver.run(300, calculator, pairs=128)`。SSCHA 自己生成正负成对位移、重新计算力并拟合 FC2；不接受力数组或预先算好的结构。`run_many([0, 100, 300], calculator)` 从高温算到低温，结果仍按温度升序返回。
+
+输入 FC2 的虚频有物理意义，但不能直接定义谐波高斯采样分布。请提供稳定试探 FC2，或设置具有物理长度意义的 `bootstrap_displacement` 做 Cartesian 初始化；程序不会对负模取绝对值或悄悄丢弃。结果的 `status` 区分收敛、样本不足、迭代次数用尽和更新失稳。第一版固定晶胞及原子平均位置，不是完整的结构优化或自由能 Hessian 优化。
+
+若 Gaussian 位移越过超胞最小镜像边界，程序会在计算力之前停止。应扩大超胞或改善稳定试探态；把该位移折回会悄悄改变 FC2 拟合数据。

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from mlfcs.core.errors import IntegerRangeError
+from mlfcs.core.log_error import IntegerRangeError
 
 _INT64_SAFE_BOUND = 2**62
 

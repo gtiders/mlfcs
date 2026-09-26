@@ -1,60 +1,26 @@
-# ====================== 根目录：原有黑名单规则保留 ======================
-# Python-generated files
+# Python bytecode and packaging artifacts
 __pycache__/
-*.py[oc]
+*.py[cod]
+*.egg-info/
 build/
 dist/
 wheels/
-*.egg-info
-.omo
-.omp
-uv.lock
 
-# Virtual environments
-.venv
+# Local development environments and caches
+.venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
 site/
 
-# ====================== examples / examples-next / tutorial / tests：白名单模式 ======================
-# 逻辑：先忽略目录下全部文件，再把需要追踪的后缀加回来
-# 允许后缀：py md toml png jpg jpeg svg gif fcp txt log cff yaml yml json vasp extxyz
+# Repository-local generated files
+/docs.md
+/uv.lock
 
-/tutorial/**/*
-!/tutorial/**/
-!/tutorial/**/*.py
-!/tutorial/**/*.md
-!/tutorial/**/*.toml
-!/tutorial/**/*.png
-!/tutorial/**/*.jpg
-!/tutorial/**/*.jpeg
-!/tutorial/**/*.svg
-!/tutorial/**/*.gif
-!/tutorial/**/*.fcp
-!/tutorial/**/*.txt
-!/tutorial/**/*.log
-!/tutorial/**/*.cff
-!/tutorial/**/*.yaml
-!/tutorial/**/*.yml
-!/tutorial/**/*.json
-!/tutorial/**/*.vasp
-!/tutorial/**/*.extxyz
-!/tutorial/**/*.xyz
-!/tutorial/**/BORN
-# Tutorial force-constant models and external phonon/transport HDF5 outputs.
-!/tutorial/**/*.hdf5
-
-/tests/**/*
-!/tests/**/*.py
-!/tests/**/*.md
-!/tests/**/*.toml
-!/tests/**/*.png
-!/tests/**/*.jpg
-!/tests/**/*.jpeg
-!/tests/**/*.svg
-!/tests/**/*.gif
-!/tests/**/*.fcp
-!/tests/**/*.txt
-!/tests/**/*.log
-!/tests/**/*.cff
-!/tests/**/*.yaml
-!/tests/**/*.yml
-!/tests/**/*.json
+# Tutorial force-constant exports are reproducible and use the `fc` prefix.
+# Keep native MLFCS models visible, including names such as fc-fit.mlfcs.
+/tutorial/**/fc*.*
+!/tutorial/**/*.mlfcs

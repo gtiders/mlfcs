@@ -5,28 +5,24 @@
 ## Define the primitive model and supercell
 
 ```python
-import numpy as np
 from ase.build import bulk
 from mlfcs import (
-    PrimitiveCell, Supercell, ClusterMap, build_cluster_space, FiniteDifference,
+    ClusterMap, ClusterSpace, FiniteDifference, Supercell,
 )
 
 primitive_atoms = bulk("Al", "fcc", a=4.05)
-primitive = PrimitiveCell.from_atoms(primitive_atoms, symprec=1e-5)
-space = build_cluster_space(
-    primitive,
+space = ClusterSpace(
+    primitive_atoms,
     cutoffs={2: 4.0},
     max_body_orders={2: 2},
 )
 supercell_atoms = primitive_atoms.repeat((3, 3, 3))
-supercell = Supercell.from_atoms(
-    primitive, supercell_atoms, matrix=np.diag([3, 3, 3])
-)
+supercell = Supercell.from_atoms(space.primitive, supercell_atoms)
 mapping = ClusterMap.build(space, supercell)
 mapping.rank_info(2).require_full()
 ```
 
-`symprec` is the declared geometric tolerance in Å used for symmetry and primitive-to-supercell mapping. The integer supercell matrix is mandatory. The caller supplies the supercell and is responsible for selecting one large enough to identify the requested interactions.
+`symprec` is the declared geometric tolerance in Å used for symmetry and primitive-to-supercell mapping. The integer supercell matrix is inferred from the two supplied cells. The caller supplies the supercell and is responsible for selecting one large enough to identify the requested interactions.
 
 ## Generate and evaluate displacements
 

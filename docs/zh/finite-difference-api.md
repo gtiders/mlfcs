@@ -5,28 +5,24 @@
 ## 定义原胞模型和参考超胞
 
 ```python
-import numpy as np
 from ase.build import bulk
 from mlfcs import (
-    PrimitiveCell, Supercell, ClusterMap, build_cluster_space, FiniteDifference,
+    ClusterMap, ClusterSpace, FiniteDifference, Supercell,
 )
 
 primitive_atoms = bulk("Al", "fcc", a=4.05)
-primitive = PrimitiveCell.from_atoms(primitive_atoms, symprec=1e-5)
-space = build_cluster_space(
-    primitive,
+space = ClusterSpace(
+    primitive_atoms,
     cutoffs={2: 4.0},
     max_body_orders={2: 2},
 )
 supercell_atoms = primitive_atoms.repeat((3, 3, 3))
-supercell = Supercell.from_atoms(
-    primitive, supercell_atoms, matrix=np.diag([3, 3, 3])
-)
+supercell = Supercell.from_atoms(space.primitive, supercell_atoms)
 mapping = ClusterMap.build(space, supercell)
 mapping.rank_info(2).require_full()
 ```
 
-`symprec` 是以 Å 为单位声明的几何容差，用于对称性识别和原胞到超胞的映射。整数超胞矩阵必须显式提供。调用方提供参考超胞，并负责判断其大小是否足以辨识所需相互作用。
+`symprec` 是以 Å 为单位声明的几何容差，用于对称性识别和原胞到超胞的映射。整数扩包矩阵由已给定的两个胞推断。调用方提供超胞，并负责判断其大小是否足以辨识所需相互作用。
 
 ## 生成位移并计算
 

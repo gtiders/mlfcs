@@ -3,12 +3,17 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from time import perf_counter
 from typing import TYPE_CHECKING
 
 import numpy as np
 from ase import Atoms
 
+from mlfcs.core.geometry import PeriodicGeometry
+from mlfcs.core.log_error import get_logger
 from mlfcs.force_constants import ForceConstants
+
+logger = get_logger(__name__)
 
 if TYPE_CHECKING:
     from mlfcs.finite_difference.difference import FiniteDifference
@@ -24,7 +29,7 @@ def _forces(difference: FiniteDifference, structures: Sequence[Atoms]) -> np.nda
         )
     expected = difference.displacements()
     cell = difference.mapping.supercell.cell
-    inverse = np.linalg.inv(cell)
+    geometry = PeriodicGeometry(cell)
     symprec = difference.mapping.space.primitive.symprec
     forces = []
     for index, (atoms, target) in enumerate(zip(structures, expected, strict=True)):
@@ -37,9 +42,8 @@ def _forces(difference: FiniteDifference, structures: Sequence[Atoms]) -> np.nda
         cell_residual = float(
             np.max(np.linalg.norm(np.asarray(atoms.cell) - np.asarray(target.cell), axis=1))
         )
-        difference_scaled = (atoms.positions - target.positions) @ inverse
-        difference_scaled -= np.rint(difference_scaled)
-        position_residual = float(np.max(np.linalg.norm(difference_scaled @ cell, axis=1)))
+        _, distances = geometry.minimum_image(atoms.positions - target.positions)
+        position_residual = float(np.max(distances))
         if cell_residual >= symprec or position_residual >= symprec:
             raise ValueError(
                 f"structure {index} does not match displacements()[{index}]: cell residual "
@@ -70,6 +74,14 @@ def _weights(disps: tuple[float, ...]) -> np.ndarray:
 
 
 def reconstruct(difference: FiniteDifference, structures: Sequence[Atoms]) -> ForceConstants:
+    started = perf_counter()
+    logger.info(
+        "FC%d reconstruction started: %d configurations, %d displacements, %d observed keys",
+        difference.order,
+        len(structures),
+        len(difference.disps),
+        len(difference._keys),
+    )
     values = _forces(difference, structures)
     order = difference.order
     signs = np.asarray(difference._signs, dtype=np.float64)
@@ -109,7 +121,17 @@ def reconstruct(difference: FiniteDifference, structures: Sequence[Atoms]) -> Fo
         coefficients.append(
             np.linalg.solve(orbit.observation_matrix, np.asarray(observed, dtype=np.float64))
         )
-    return ForceConstants(space, {order: np.concatenate(coefficients)})
+    model = ForceConstants(space, {order: np.concatenate(coefficients)})
+    logger.info(
+        "FC%d reconstruction complete: %d parameters, force_rms=%.10e, "
+        "force_constants_fingerprint=%s, %.2f s",
+        order,
+        len(model.coefficients[order]),
+        float(np.sqrt(np.mean(values**2))),
+        model.fingerprint,
+        perf_counter() - started,
+    )
+    return model
 
 
 __all__ = ["reconstruct"]

@@ -7,6 +7,8 @@ import operator
 import numpy as np
 from ase import Atoms
 
+from mlfcs.core.geometry import PeriodicGeometry
+
 
 def _matrix(values: object) -> np.ndarray:
     """Normalize an exact integer triple or 3 by 3 matrix."""
@@ -73,8 +75,7 @@ def _build_supercell(atoms: Atoms, matrix: np.ndarray, *, symprec: float) -> Ato
     images = len(lattice_points)
     scaled = atoms.get_scaled_positions(wrap=True)
     positions = (
-        np.tile(lattice_points, (len(atoms), 1))
-        + np.repeat(scaled, images, axis=0)
+        np.tile(lattice_points, (len(atoms), 1)) + np.repeat(scaled, images, axis=0)
     ) @ np.linalg.inv(simple_matrix).T
     positions = positions @ np.linalg.inv(trim_frame).T
     positions -= np.floor(positions)
@@ -82,12 +83,11 @@ def _build_supercell(atoms: Atoms, matrix: np.ndarray, *, symprec: float) -> Ato
     masses = np.repeat(atoms.get_masses(), images)
 
     selected: list[int] = []
+    geometry = PeriodicGeometry(target_cell)
     for atom, position in enumerate(positions):
         if selected:
             previous = np.asarray(selected)
-            delta = positions[previous] - position
-            delta -= np.rint(delta)
-            distances = np.linalg.norm(delta @ target_cell, axis=1)
+            _, distances = geometry.minimum_image((positions[previous] - position) @ target_cell)
             same_species = numbers[previous] == numbers[atom]
             if np.any((distances < symprec) & same_species):
                 continue

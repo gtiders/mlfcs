@@ -12,10 +12,12 @@ ROOT = Path(__file__).resolve().parents[2]
 DOCS = ROOT / "docs"
 PAGES = {
     Path("index.md"),
+    Path("core-concepts.md"),
     Path("Q&A.md"),
     Path("finite-difference-api.md"),
     Path("fitting-api.md"),
     Path("zh/index.md"),
+    Path("zh/core-concepts.md"),
     Path("zh/Q&A.md"),
     Path("zh/finite-difference-api.md"),
     Path("zh/fitting-api.md"),
@@ -25,6 +27,7 @@ LINK = re.compile(r"!?\[[^\]]*\]\((<[^>]+>|[^)\s]+)(?:\s+[^)]*)?\)")
 FENCE = re.compile(r"^\s*(?:```|~~~)")
 MIRRORED = (
     Path("index.md"),
+    Path("core-concepts.md"),
     Path("Q&A.md"),
     Path("finite-difference-api.md"),
     Path("fitting-api.md"),

@@ -5,21 +5,17 @@
 ## 构建共享模型和超胞映射
 
 ```python
-import numpy as np
 from ase.build import bulk
-from mlfcs import PrimitiveCell, Supercell, ClusterMap, build_cluster_space
+from mlfcs import ClusterMap, ClusterSpace, Supercell
 
 primitive_atoms = bulk("Al", "fcc", a=4.05)
-primitive = PrimitiveCell.from_atoms(primitive_atoms, symprec=1e-5)
-space = build_cluster_space(
-    primitive,
+space = ClusterSpace(
+    primitive_atoms,
     cutoffs={2: 4.0, 3: 3.0},
     max_body_orders={2: 2, 3: 3},
 )
 supercell_atoms = primitive_atoms.repeat((3, 3, 3))
-supercell = Supercell.from_atoms(
-    primitive, supercell_atoms, matrix=np.diag([3, 3, 3])
-)
+supercell = Supercell.from_atoms(space.primitive, supercell_atoms)
 mapping = ClusterMap.build(space, supercell)
 mapping.rank_info().require_full()
 ```
@@ -53,6 +49,20 @@ system.force_constants(parameters)
 ```
 
 默认求解器是在正规系统上使用列缩放 MINRES。参数 i 的精确缩放为 `1 / sqrt(H[i, i])`，其中 `H` 是正规矩阵。若对角元为零，表示训练设计从未观测该参数；求解会抛出具名的 `UnobservedParameterError`，而不会静默正则化。应增加结构信息，或调整模型。
+
+如果要用其他最小二乘求解器直接处理原始方程，可以显式保留设计矩阵：
+
+```python
+import numpy as np
+from mlfcs import FitData
+
+data = FitData.from_atoms(mapping, training)
+design, forces = data.arrays()
+parameters = np.linalg.lstsq(design, forces, rcond=None)[0]
+force_constants = data.force_constants(parameters)
+```
+
+`data.designs` 与 `data.forces` 还提供逐结构的只读设计矩阵和力向量。这条路径只有在调用 `data.normal_system()` 时才构建正规矩阵。保存全部设计矩阵的内存开销随力方程数增长；默认的 `FitSystem.from_atoms` 则流式累积。
 
 ## 复用、合并和检查
 

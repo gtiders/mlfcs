@@ -9,9 +9,11 @@ import numpy as np
 from scipy import sparse
 from scipy.sparse.linalg import lsmr
 
-from mlfcs.core.errors import ConstraintProjectionError
+from mlfcs.core.log_error import ConstraintProjectionError, get_logger
 from mlfcs.force_constants.acoustic import constraint_matrix, relative_residual
 from mlfcs.force_constants.model import ForceConstants
+
+logger = get_logger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -152,6 +154,17 @@ def enforce_asr(
         )
         coefficients[order] = projected
         reports.append(report)
+        logger.info(
+            "FC%d ASR projection: equations=%d parameters=%d relative_residual %.6e -> "
+            "%.6e, relative_correction=%.6e, iterations=%d",
+            order,
+            report.equations,
+            report.parameters,
+            report.relative_before,
+            report.relative_after,
+            report.relative_correction,
+            report.iterations,
+        )
     return ASRResult(ForceConstants(model.space, coefficients), tuple(reports))
 
 
