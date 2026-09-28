@@ -1,63 +1,61 @@
 # Q&A
 
-## 有限差分重建能否直接传 NumPy 力数组？
+## 有限差分重建能否接收 NumPy 力数组？
 
-不能。`FiniteDifference.reconstruct` 接收带有力结果的有序 ASE `Atoms` 序列。几何、原子顺序和力数据共同构成一条记录；单独的数组无法证明它对应哪个位移。
+不能。`FiniteDifference.reconstruct(structures)` 接收带有已存储力的有序 ASE `Atoms` 序列。几何和原子顺序用于确认每组力对应哪个生成位移。外部计算时，将力附到对应结构的 `SinglePointCalculator`，并保持 `fd.displacements()` 的序列顺序。
 
-## `fd.evaluate(calculator)` 会使用缓存的力吗？
+## `fd.evaluate(calculator)` 会复用结构上已存储的力吗？
 
-不会。它会针对每个生成结构明确请求一次新的力计算，并把结果保存在返回结构上。若 calculator 应计算当前几何，请使用此接口。若力来自外部程序，则将它们附为 ASE 已存储结果后直接调用 `reconstruct`。
+不会。它会对每个生成几何请求新的力。需要 ASE calculator 计算这些结构时使用它。若力来自外部 DFT 或其他程序，将每组结果附到对应 ASE 结构，再调用 `reconstruct`。
 
-## 可以使用 MACE 或其他 ASE calculator 吗？
+## 可以使用 MACE、NEP 或外部 DFT 程序吗？
 
-可以。MLFCS 不拥有 calculator。只要支持输入结构中的元素和条件，任意 ASE 兼容 calculator 都可用于 `fd.evaluate(calculator)`。拟合时则先用所选 calculator 计算力，再将 ASE 结构交给 `FitSystem.from_atoms`。
+只要支持输入体系，任意 ASE 兼容 calculator 都可传给 `fd.evaluate()` 或 `SSCHA.run()`。拟合时先计算力，再把带力的 ASE 结构交给 `FitSystem.from_atoms`。不提供 ASE calculator 的外部程序也能使用：写出生成结构，在外部计算力，再将读回的力附到对应 ASE `Atoms`。
 
-## 为什么有限差分输入必须保持顺序？
+## 为什么有限差分必须保持输入顺序？
 
-位移索引编码了测量的混合导数。外部计算时，应保持 `displacements()` 返回的次序。重建会检查帧几何与原子顺序并拒绝不匹配，不会推断新顺序。
-
-## 可以 pickle 有限差分对象并重新加载吗？
-
-受支持的工作流是：用相同的原胞模型、cluster space、显式参考超胞和映射重新生成确定性序列，然后按原顺序传入带力 ASE 帧。MLFCS 不定义序列化实验计划格式。在不同程序间传递计算时，使用合适格式保存 ASE 结构和力。
+生成序列中的每个位置都对应特定的簇、符号组合和位移长度。重建会逐项检查几何和原子顺序，不会推断新顺序。不要对返回结构排序、去重或单独重排。
 
 ## 一个有限差分对象能计算多个阶次吗？
 
-不能。一个 `FiniteDifference` 对象处理一个阶次。联合拟合多个阶次时，在一个 `ClusterSpace` 中为各阶指定截断和体阶限制，再构建一个 `FitSystem`。
+不能。`FiniteDifference(mapping, order=..., disps=...)` 处理一个阶次；可以指定多个不同位移长度并外推至零位移。若要重建多个阶次，每阶分别创建一个有限差分对象。一个 `ClusterSpace` 和 `FitSystem` 则可以联合拟合多个阶次。
 
-## 拟合过程会计算力吗？
+## 拟合会计算力吗？
 
-不会。`FitSystem.from_atoms` 只读取 ASE `Atoms` 上已经保存的力，不调用附带的 calculator。这样力的产生始终由用户控制，也适用于外部电子结构或机器学习势计算。
+不会。`FitSystem.from_atoms` 读取 ASE 结构上已经存储的力，不调用其 calculator。用户可以自行选择 DFT、ASE 机器学习势或其他力计算流程。
 
-## 参考超胞起什么作用？
+## 超胞映射检查什么？
 
-原胞 cluster space 定义模型中的相互作用和对称约化参数；显式参考超胞把这些原胞相互作用映射到训练原子列表。超胞尺寸与形状决定目标参数能否区分。在昂贵计算前用 `mapping.rank_info(...).require_full()` 检查。
+`ClusterMap` 将 `ClusterSpace` 与明确给定的 `Supercell` 连接起来。`mapping.rank_info(order).require_full()` 检查该超胞在结构层面能否区分模型参数，建议在昂贵计算前运行。映射满秩并不保证某一训练集具有足够多样的结构。
 
-## 为什么拟合要构造正规系统？
+## 为什么默认拟合要构造正规系统？
 
-优化拟合路径在流式读取训练结构时累积充分统计量 `A.T @ A` 和 `A.T @ f`，避免保留可能非常大的设计矩阵，也便于合并或复用兼容系统。默认求解器是列缩放 MINRES，不是批量梯度下降的神经网络优化器。
+`FitSystem` 流式累积各结构的充分统计量 $A^T A$ 和 $A^T f$，从而在不保留全部设计行的情况下求解和合并拟合。默认求解器是列缩放 MINRES。若算法需要原始方程，`FitData.from_atoms(...).arrays()` 可提供设计矩阵和力向量，以供直接最小二乘求解；这种方式需要保留更多内存。详见[拟合](fitting.md)。
 
-## 如果有参数未被观测怎么办？
+## 如果拟合参数未被观测怎么办？
 
-正规矩阵中精确为零的对角元表示该参数在训练设计中缺失。默认求解器会抛出具名错误。应增加能激发该方向的结构或位移，选择更有信息量的参考超胞，或调整模型。正则化不能创造数据中不存在的信息。
+拟合正规矩阵中精确为零的对角元表示相应设计列缺失。默认求解会抛出 `UnobservedParameterError`。应增加有信息量的结构、调整超胞或修改模型。正则化不能补充训练数据中不存在的信息。
 
-## ASR 和旋转条件属于拟合的一部分吗？
+## 如何选择或更改质量？
 
-不属于。先拟合，再按需显式执行力常数后处理投影。这样线性力拟合与物理约束选择彼此分离。请检查投影报告及其对力常数的影响。
+质量取自构造 `ClusterSpace` 时使用的 ASE `Atoms`。若需指定同位素或位点质量，应在创建簇空间前设置到该结构上，例如调用 `atoms.set_masses([...])`。质量随后随模型、映射和倒空间计算传递。目前 `Harmonic`、`SCPH` 和 `SSCHA` 没有独立的质量覆盖参数；声子计算还要求质量分布与倒空间星约化所使用的对称性相容。
 
-## 如何保存或导出结果？
+## 拟合时会自动施加 ASR 和旋转不变性吗？
 
-使用 `ForceConstants.save(path)` 保存原生可信 pickle 格式，并用 `ForceConstants.load(path)` 读取。互操作输出使用 `ForceConstants.write(path, mapping, format=..., order=...)`。原生 pickle 文件必须来自可信来源。
+不会。它们是拟合或有限差分重建后对 `ForceConstants` 显式执行的投影。若要同时施加两者，先做 ASR，再做旋转投影；旋转步骤会保留模型已有的声学残差。参数和报告说明见[力常数指南](force-constants.md)。
 
-## 如何指定同位素或其他逐位点质量？
+## 如何处理偶极长程力？
 
-按原胞位点顺序传入列表，单位为原子质量单位 u：`PrimitiveCell.from_atoms(atoms, symprec=1e-5, masses=[28.0, 29.0])`。也接受 NumPy 数组。`masses=None` 使用 ASE 的元素默认质量；输入 ASE `Atoms` 上的自定义质量不会被隐式采用。`primitive.with_masses([...])` 返回新的不可变原胞。倒空间约化要求对称性关联的位点具有相同质量。
+显式使用 `Ewald`：对每个训练帧先减去其长程力，再拟合短程模型，最后将 `ewald.fc2` 加到拟合得到的 FC2 数组。Ewald 张量按构造满足 ASR。它的 FC2 导出不包含非解析 LO-TO 分裂；下游声子计算仍需单独提供 NAC 数据。详见[长程力](long-range-forces.md)和 [NaCl 示例](../../tutorial/NaCl/README.md)。
 
-原生 `.mlfcs` 文件现为版本 2，会保存这些质量。版本 1 文件会被拒绝；请重新运行产生它的拟合或有限差分任务。改变质量不改变 cluster space 的几何和参数布局，但会改变保存的力常数模型指纹及声子频率。
+## SCPH 和 SSCHA 如何处理虚频？
 
-## 如何运行随机自洽谐波拟合？
+SCPH 报告有符号虚频，并可在静态环图计算中使用负曲率绝对值构造协方差。SSCHA 采样需要正定的高斯试探 FC2；它会报告不稳定试探态，只有设置 `bootstrap_displacement` 后才会启用笛卡尔 bootstrap。因此两种方法对稳定性的要求不同。详见 [SCPH](scph.md) 和 [SSCHA](sscha.md)。
 
-为显式超胞建立仅含 FC2 的 `ClusterMap`，传给 `SSCHA(mapping, mesh, initial=fc2, seed=42)`。网格必须是该超胞的倒空间网格；对角 2×2×2 超胞可使用 `mesh=(2, 2, 2)`。然后以任意合适的 ASE `Calculator` 调用 `solver.run(300, calculator, pairs=128)`。SSCHA 自己生成正负成对位移、重新计算力并拟合 FC2；不接受力数组或预先算好的结构。`run_many([0, 100, 300], calculator)` 从高温算到低温，结果仍按温度升序返回。
+## 温度序列按什么顺序运行？
 
-输入 FC2 的虚频有物理意义，但不能直接定义谐波高斯采样分布。请提供稳定试探 FC2，或设置具有物理长度意义的 `bootstrap_displacement` 做 Cartesian 初始化；程序不会对负模取绝对值或悄悄丢弃。结果的 `status` 区分收敛、样本不足、迭代次数用尽和更新失稳。第一版固定晶胞及原子平均位置，不是完整的结构优化或自由能 Hessian 优化。
+`SCPH.run_many()` 和 `SSCHA.run_many()` 都接收严格递增的温度序列，按高温到低温执行，并按温度升序返回结果。SCPH 将已收敛的 FC2 传给下一个低温。SSCHA 也会以前一结果热启动；若中间温度未收敛，会抛出 `SSCHAContinuationError` 并停止后续温度。
 
-若 Gaussian 位移越过超胞最小镜像边界，程序会在计算力之前停止。应扩大超胞或改善稳定试探态；把该位移折回会悄悄改变 FC2 拟合数据。
+## 如何保存或导出力常数？
+
+使用 `ForceConstants.save(path)` 和 `ForceConstants.load(path)` 保存、读取原生 `.mlfcs`；原生 pickle 文件只应从可信来源加载。模型格式导出使用 `ForceConstants.write(path, mapping, format=..., order=...)`。已有紧凑 FC2 数组可用 `write_phonopy(...)` 导出。支持的格式和阶次见[力常数](force-constants.md)。

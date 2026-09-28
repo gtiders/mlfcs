@@ -1,40 +1,71 @@
 # MLFCS
 
-MLFCS 从 ASE 结构和原子力构造原胞力常数。公共工作流分为三个阶段：
+**MLFCS** 用于从晶体结构与原子受力构造高阶力常数模型。
 
-1. `ClusterSpace` 定义原胞基元、对称性、相互作用截断和参数空间。
-2. `Supercell` 与 `ClusterMap` 将原胞模型映射到一个明确给定的参考超胞。
-3. `FiniteDifference` 重建单个阶次；`FitSystem` 构建并求解多个阶次的仅力拟合。
+从结构模型和用户明确给定的超胞出发，MLFCS 可以通过**有限差分**或**力拟合**构造统一的 `ForceConstants`，并进一步用于约束处理、有限温度重整和晶格动力学计算。
 
-结构长度使用 Å，能量使用 eV，力使用 eV/Å。n 阶力常数的单位是 eV/Åⁿ。
+!!! tip "两条主要工作流"
 
-## 选择工作流
+    **有限差分**：结构 → 位移构型 → 力 → `ForceConstants`
 
-- [核心概念](core-concepts.md)：先理解 CS、超胞与 mapping 的分工，再选择计算路径。
-- [有限差分](finite-difference-api.md)：生成有序位移结构，调用 ASE calculator，并重建一个阶次。
-- [力拟合](fitting-api.md)：将带有已存储原子力的 ASE 结构流式写入可复用拟合系统，并联合求解多个阶次。
-- [Q&A](Q&A.md)：了解力的存储、顺序、可辨识性、求解器和常见选择。
+    **力拟合**：结构 + 采样构型 + 力 → `ForceConstants`
 
-## 最小模型设置
+## 从这里开始
 
-```python
-from ase.build import bulk
-from mlfcs import ClusterMap, ClusterSpace, Supercell
+如果是第一次使用 MLFCS，推荐按照下面的顺序阅读：
 
-primitive_atoms = bulk("Al", "fcc", a=4.05)
-space = ClusterSpace(
-    primitive_atoms,
-    cutoffs={2: 4.0, 3: 3.0},
-    max_body_orders={2: 2, 3: 3},
-)
+1. [核心概念](core-concepts.md)
+   了解 `ClusterSpace`、`Supercell`、`ClusterMap` 以及结构可辨识性。
+2. 选择力常数构造方式：
+   - [有限差分](finite-difference.md)：从位移构型和原子力计算力常数。
+   - [力拟合](fitting.md)：从一组结构与原子力拟合力常数。
+3. [力常数](force-constants.md)
+   查看、约束、变换和导出 `ForceConstants` 模型。
 
-supercell_atoms = primitive_atoms.repeat((3, 3, 3))
-supercell = Supercell.from_atoms(space.primitive, supercell_atoms)
-mapping = ClusterMap.build(space, supercell)
+## 进阶功能
+
+### 有限温度
+
+- [SCPH](scph.md)：自洽声子计算与有限温度重整。
+- [SSCHA](sscha.md)：基于随机采样的有限温度有效谐波模型。
+
+### 极性材料
+
+- [长程力](long-range-forces.md)：处理偶极长程相互作用及长程/短程力常数的分离与组合。
+
+### 常见问题
+
+- [Q&A](Q&A.md)：力的存储方式、原子顺序、结构可辨识性、求解器以及常见参数选择。
+
+## 核心对象
+
+MLFCS 的基本对象关系可以概括为：
+
+```text
+原胞 ASE Atoms ──→ ClusterSpace ──┐
+                                  ├──→ ClusterMap → 有限差分/拟合 → ForceConstants
+超胞 ASE Atoms ──→ Supercell ────┘
 ```
 
-参考超胞是明确的数据输入；MLFCS 不会静默选择或扩展它。在生成昂贵的力之前，应通过 `mapping.rank_info()` 检查它能否辨识所需模型。有限差分和拟合路径分别见对应 API 文档。
+其中：
 
-## 范围
+- `Atoms` 描述晶体结构；
+- `ClusterSpace` 定义需要考虑的力常数空间；
+- `Supercell` 定义实际进行位移或力计算的几何结构；
+- `ClusterMap` 建立对称性约化后的参数与实际超胞之间的映射；
+- `ForceConstants` 保存最终得到的力常数模型。
 
-每个 `FiniteDifference` 对象处理一个阶次；一个 `FitSystem` 可以处理同一 `ClusterSpace` 中的所有阶次。力常数属于原胞模型；超胞 realization 和外部文件格式都是派生操作。
+## 单位与结构约定
+
+MLFCS 统一使用 ASE 的 `Atoms` 对象作为结构表示。
+
+| 物理量 | 单位 |
+| --- | --- |
+| 长度 | Å |
+| 能量 | eV |
+| 力 | eV/Å |
+| $n$ 阶力常数 | eV/Å$^n$ |
+
+!!! important "超胞与原子顺序"
+
+    用户提供的超胞结构以及其中的**原子顺序**，定义了力计算、参数映射和力常数重建所使用的几何约定。在整个工作流中应保持这一顺序一致。

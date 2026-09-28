@@ -1,53 +1,61 @@
-# 核心概念：从原胞模型到超胞数据
+# 核心概念
 
-MLFCS 将**力常数模型**与**提供原子力的结构**分开。先理解三个对象：
+MLFCS 使用 ASE 结构作为晶体和力数据的用户入口。核心模型对象是 `ClusterSpace`（常简称 CS）：它记录后续算法所需的原胞基元和对称性信息，并定义力常数簇及参数。明确给定的 `Supercell` 提供实际计算力的结构，`ClusterMap` 将模型连接到该超胞。
 
-| 对象 | 持有 | 不持有 |
-| --- | --- | --- |
-| `ClusterSpace`（`space`，常简称 CS） | 原胞、对称性、cluster、orbit，以及一个或多个阶次的独立力常数参数 | 超胞、位移结构或训练力 |
-| `Supercell` | 明确给定的 ASE 超胞、它与原胞的整数晶格关系，以及每个原子对应的原胞位点 | cluster 或力常数参数 |
-| `ClusterMap`（`mapping`） | 一个 CS 与一个超胞之间的联系：每个原胞 cluster 像对应哪些超胞原子 | 第二套 orbit 或拟合参数 |
+## `ClusterSpace`：定义原胞模型
 
-构造顺序是 `原胞 ASE Atoms → ClusterSpace`、`明确给定的超胞 ASE Atoms → Supercell`，再由 `(ClusterSpace, Supercell) → ClusterMap`。有限差分和拟合使用 mapping；计算结果是绑定在原胞 CS 上的 `ForceConstants` 模型。
-
-## ClusterSpace：原胞级模型
+`ClusterSpace` 是通常的起点。直接从描述原胞的 ASE `Atoms` 构造；它会创建并保存供后续对称性、晶格坐标、质量及映射使用的原胞表示。
 
 ```python
 from ase.build import bulk
 from mlfcs import ClusterSpace
 
-primitive_atoms = bulk("Si", "diamond", a=5.43)
+si = bulk("Si", "diamond", a=5.43)
 space = ClusterSpace(
-    primitive_atoms,
-    cutoffs={2: 4.0, 3: 3.0},
+    si,
+    cutoffs={2: -7, 3: -6},
     max_body_orders={2: 2, 3: 3},
-    symprec=1e-5,  # Å；也是默认值
+    symprec=1e-5,
 )
-
 print(space.orders, space.n_parameters)
 ```
 
-`ClusterSpace` 自行构造并持有 `space.primitive`。它以 `symprec` 识别原胞对称性，将等价 cluster 归入 orbit；每个 orbit 提供一组独立的笛卡尔张量参数。例子同时定义 FC2 和 FC3，各阶分别有截断和 cluster 中最多不同原子位点数（body order）。
+公开构造函数为：
 
-正截断值表示 Å 单位的半径；负整数（如 `-7`）表示第七近邻壳层，由 CS 换算成半径。截断决定**模型本身**，改变截断就改变参数空间。CS 不持有超胞大小。
+```python
+ClusterSpace(atoms, *, cutoffs, max_body_orders, symprec=1e-5)
+```
 
-## Supercell：明确给定的原子结构
+| 参数 | 含义 |
+| --- | --- |
+| `atoms` | 描述原胞基元的 ASE `Atoms`，位点顺序按用户所需指定。该对象中的质量会传入模型。 |
+| `cutoffs` | 从力常数阶数映射到相互作用截断。正值是 Å 单位的半径；负整数选择近邻壳层，例如 `-7` 表示第七壳层。每个配置阶次都需提供一项。 |
+| `max_body_orders` | 从力常数阶数映射到簇中不同位点数的最大值。每个配置阶次都需提供一项。 |
+| `symprec` | 对称性和结构映射精度，单位 Å，默认 `1e-5`。 |
+
+`ClusterSpace` 提供 `primitive`、`symmetry`、`blocks`、`orbits`、`orders`、`pbc`、`n_parameters`、`parameter_offsets` 和 `fingerprint`；`block(order)` 返回该阶的设置以及参数/orbit 切片。内部的 `space.primitive` 是供后续算法使用的只读原胞信息表示，不是用户需要额外执行的一步构造。质量从输入 ASE 结构继承；若需指定同位素或位点质量，应在创建模型前设置到 ASE `Atoms` 上。
+
+正截断值表示 Å 单位的半径；负整数表示近邻壳层，例如 `-7` 表示第七壳层。各阶分别设置 cutoff 和 body order，因此谐性与非谐阶次可以同时定义。
+
+## `Supercell`：提供力计算结构
+
+`Supercell` 描述实际用于计算力的 ASE 结构。用户提供原子及其顺序；MLFCS 推断整数基变换关系，并确定每个超胞原子对应的原胞位点和平移。
 
 ```python
 from mlfcs import Supercell
 
-supercell_atoms = primitive_atoms.repeat((3, 3, 3))
+supercell_atoms = si.repeat((3, 3, 3))
 supercell = Supercell.from_atoms(space.primitive, supercell_atoms)
-
-print(supercell.matrix)
-print(len(supercell.numbers))
+print(supercell.matrix, supercell.determinant, len(supercell.numbers))
 ```
 
-MLFCS 不会自动选择或扩展超胞。用户提供带有确定原子顺序的 ASE `Atoms`。按 ASE 的行向量约定，`Supercell.from_atoms` 找到整数晶格关系 $C_{\mathrm{s}} = M C_{\mathrm{p}}$，其中 `supercell.matrix` 就是 $M$。它还用 `space.primitive.symprec`（单位 Å）检查晶格，并把每个超胞原子唯一映射到原胞位点和周期平移。不需要另传 $M$。
+构造函数为 `Supercell.from_atoms(primitive, atoms)`：`primitive` 使用 `space.primitive`，`atoms` 是明确给定的 ASE 超胞。不需要另传矩阵。按照 ASE 行向量晶格约定，推断关系为 $C_s = M C_p$，`supercell.matrix` 即 $M$。
 
-可以映射不同顺序的等价超胞，但**训练结构必须保持所传超胞的具体原子顺序**。超胞的周期陪集标签标识落在同一个超胞原子上的原胞平移。
+对象提供 `primitive`、`matrix`、`cell`、`scaled_positions`、`numbers`、`sites`、`translations`、`quotients` 和 `determinant`。这些数组遵循输入超胞的原子顺序。位移结构和力数据都应保持该顺序。原胞的 `symprec` 用于晶格与原子映射。
 
-## ClusterMap：桥梁与秩检查
+## `ClusterMap`：连接模型和数据几何
+
+`ClusterMap` 将原胞簇像折叠到一个明确超胞的原子索引。为选定的 `ClusterSpace` 和 `Supercell` 构造一份 mapping：
 
 ```python
 from mlfcs import ClusterMap
@@ -55,10 +63,16 @@ from mlfcs import ClusterMap
 mapping = ClusterMap.build(space, supercell)
 for order in space.orders:
     info = mapping.rank_info(order)
-    print(order, info.rank, info.parameters, info.nullity)
+    print(order, info.rank, info.parameters, info.nullity, info.aliases)
     info.require_full()
 ```
 
-mapping 将原胞 orbit 的每个像折叠为超胞原子索引，不在超胞内重新定义 orbit。过小或形状不合适的超胞会让不同原胞相互作用落到相同观测上。`rank_info(order)` 在昂贵的力计算前检查这种**结构可辨识性**；若参数无法区分，`require_full()` 抛出 `AliasingError`。结构满秩仍不保证某一批拟合位移足够多样。
+构造入口为 `ClusterMap.build(space, supercell)`。mapping 提供 `space`、`supercell`、`atoms` 和 `fingerprint`；`atoms` 按 orbit 保存各簇像对应的超胞原子索引。`aliases(order)` 报告折叠到相同有序原子组的原胞像。
 
-同一个 CS 可以配不同超胞；为每个超胞分别构建 `Supercell` 和 `ClusterMap`。取得 mapping 后可继续阅读[有限差分](finite-difference-api.md)或[力拟合](fitting-api.md)。
+`rank_info(order=None)` 返回包含 `parameters`、`rank`、`aliases`、`nullity` 和 `full` 的 `RankInfo`。省略 `order` 时汇总所有配置阶次。若所选超胞无法区分该模型块中的全部参数，`require_full()` 会抛出 `AliasingError`。这项结构可辨识性检查适合在力计算前执行；它与某一训练集是否包含足够多样的位移是不同问题。
+
+完整对象流程是 `原胞 ASE Atoms → ClusterSpace`、`超胞 ASE Atoms → Supercell`，再由 `(ClusterSpace, Supercell) → ClusterMap`。有限差分和拟合[共用该映射](finite-difference.md)。非谐后处理见 [SCPH](scph.md)，随机有限温度力匹配见 [SSCHA](sscha.md)。
+
+## Si 示例
+
+[Si 有限差分脚本](../../tutorial/SI/finite-difference-fc2/run.py)用简洁的 FC2 流程展示 `ClusterSpace`、明确给定的 `SPOSCAR` 和 `ClusterMap`。[Si 拟合脚本](../../tutorial/SI/fitting/fit.py)配置了多个阶次，并使用相同的模型到超胞映射方式。

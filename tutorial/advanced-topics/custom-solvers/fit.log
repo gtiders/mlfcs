@@ -1,0 +1,22 @@
+2026-09-27 19:08:07 INFO mlfcs.cluster_space.builder: Primitive symmetry: 2 atoms, 1 operations, symprec 1e-05 Å, fingerprint 2f46d78fbe6aa595
+2026-09-27 19:08:07 INFO mlfcs.cluster_space.builder: Building FC2 cluster space: requested cutoff 0.1 Å, resolved cutoff 0.1 Å, maximum body order 1
+2026-09-27 19:08:07 INFO mlfcs.cluster_space.builder: FC2 complete: 2 orbits, 12 parameters; exact integer bounds translation=0 rotation=1 shift=0 kernel=1
+2026-09-27 19:08:07 INFO mlfcs.cluster_space.builder: Cluster-space components complete: orders (2,), 2 orbits, 12 parameters
+2026-09-27 19:08:07 INFO mlfcs.cluster_space.models: ClusterSpace ready: fingerprint 5775fe2562c30277a31b614fc6b640adeed917c151d0bca98abd80966538a6bc
+2026-09-27 19:08:07 INFO mlfcs.supercell.cell: Supercell mapped: 2 atoms, matrix [[1, 0, 0], [0, 1, 0], [0, 0, 1]], determinant 1, cell residual 0 Å, maximum site residual 8.62658e-17 Å
+2026-09-27 19:08:07 INFO mlfcs.supercell.map: Cluster map ready: 2 supercell atoms, 2 cluster images, fingerprint 3f0d88afafd35caf5876f7d663012ef4a5ec1af2f5718d76a4637e3f8c2b15f9
+2026-09-27 19:08:07 INFO mlfcs.supercell.map: FC2 supercell realization rank: 12/12, nullity 0, folded aliases 0
+2026-09-27 19:08:07 INFO mlfcs.force_constants.model: Saved ForceConstants: file=/home/gwins/codespace/mlfcs-new/tutorial/advanced-topics/custom-solvers/fc-direct.mlfcs orders=(2,) parameters=12 fingerprint=7ae54cb1bf8f6234ae28792a33222b3569aee573b39e9cf999183c278a422741
+2026-09-27 19:08:07 INFO mlfcs.supercell.map: FC2 supercell realization rank: 12/12, nullity 0, folded aliases 0
+2026-09-27 19:08:07 INFO mlfcs.fitting.build: Fit-system construction started: mapping=3f0d88afafd35caf5876f7d663012ef4a5ec1af2f5718d76a4637e3f8c2b15f9 supercell_atoms=2 orders=(2,) parameters=12 equations_per_structure=6 gram_memory=0.00 MiB
+2026-09-27 19:08:07 INFO mlfcs.fitting.build: Fit-system accumulation: 1 structures, 6 cumulative force equations, 0.00 s elapsed, 1555.83 structures/s
+2026-09-27 19:08:07 INFO mlfcs.fitting.build: Fit-system accumulation: 10 structures, 60 cumulative force equations, 0.00 s elapsed, 5772.81 structures/s
+2026-09-27 19:08:07 INFO mlfcs.fitting.build: Fit-system accumulation: 20 structures, 120 cumulative force equations, 0.00 s elapsed, 7162.86 structures/s
+2026-09-27 19:08:07 INFO mlfcs.fitting.build: Fit system ready: 12 parameters, 24 structures, 144 equations, force norm 5.6908579704e-01, fingerprint 32ff2b311c13c95174d86470a50dda231007ad8a62cfe6dc539c26dde3125a89, 0.00 s
+2026-09-27 19:08:07 INFO mlfcs.force_constants.model: Saved ForceConstants: file=/home/gwins/codespace/mlfcs-new/tutorial/advanced-topics/custom-solvers/fc-normal.mlfcs orders=(2,) parameters=12 fingerprint=0659f1548c737a1f3e7170a71bfa397f0ae5e836fc00ad19da53f66b278d620e
+training structures: 24
+design: (144, 12); normal matrix: (12, 12)
+direct least-squares RMSE: 5.670e-16 eV/Å
+Cholesky normal-system RMSE: 5.649e-16 eV/Å
+maximum parameter difference: 4.441e-15
+saved fc-direct.mlfcs and fc-normal.mlfcs

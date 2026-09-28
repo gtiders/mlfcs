@@ -14,13 +14,21 @@ PAGES = {
     Path("index.md"),
     Path("core-concepts.md"),
     Path("Q&A.md"),
-    Path("finite-difference-api.md"),
-    Path("fitting-api.md"),
+    Path("finite-difference.md"),
+    Path("fitting.md"),
+    Path("force-constants.md"),
+    Path("long-range-forces.md"),
+    Path("scph.md"),
+    Path("sscha.md"),
     Path("zh/index.md"),
     Path("zh/core-concepts.md"),
     Path("zh/Q&A.md"),
-    Path("zh/finite-difference-api.md"),
-    Path("zh/fitting-api.md"),
+    Path("zh/finite-difference.md"),
+    Path("zh/fitting.md"),
+    Path("zh/force-constants.md"),
+    Path("zh/long-range-forces.md"),
+    Path("zh/scph.md"),
+    Path("zh/sscha.md"),
 }
 LEGACY_MATH = re.compile(r"(?<!\\)\\(?:\(|\)|\[|\])")
 LINK = re.compile(r"!?\[[^\]]*\]\((<[^>]+>|[^)\s]+)(?:\s+[^)]*)?\)")
@@ -29,8 +37,12 @@ MIRRORED = (
     Path("index.md"),
     Path("core-concepts.md"),
     Path("Q&A.md"),
-    Path("finite-difference-api.md"),
-    Path("fitting-api.md"),
+    Path("finite-difference.md"),
+    Path("fitting.md"),
+    Path("force-constants.md"),
+    Path("long-range-forces.md"),
+    Path("scph.md"),
+    Path("sscha.md"),
 )
 
 

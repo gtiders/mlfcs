@@ -1,40 +1,71 @@
 # MLFCS
 
-MLFCS builds primitive-cell force constants from ASE structures and forces. Its public workflow has three stages:
+**MLFCS** builds higher-order force-constant models from crystal structures and atomic forces.
 
-1. `ClusterSpace` defines the primitive motif, symmetry, interaction cutoffs, and parameter space.
-2. `Supercell` and `ClusterMap` connect that primitive model to one explicit supercell.
-3. `FiniteDifference` reconstructs one force-constant order, while `FitSystem` builds and solves a joint force-only fit.
+Starting from a structural model and a user-supplied supercell, MLFCS can construct a unified `ForceConstants` model through **finite differences** or **force fitting**. The model can then be used for constraint projections, finite-temperature renormalization, and lattice-dynamics calculations.
 
-All structures use ASE. Lengths are in Å, energies in eV, and forces in eV/Å. The resulting order-`n` force constants have units eV/Åⁿ.
+!!! tip "Two main workflows"
 
-## Start with a workflow
+    **Finite differences**: structure → displaced configurations → forces → `ForceConstants`
 
-- [Core concepts](core-concepts.md): understand the roles of CS, supercell, and mapping before choosing a calculation.
-- [Finite differences](finite-difference-api.md): generate ordered displaced structures, evaluate an ASE calculator, and reconstruct one order.
-- [Force fitting](fitting-api.md): stream ASE structures with stored forces into a reusable fit system and solve multiple orders together.
-- [Q&A](Q&A.md): answers about force storage, ordering, identifiability, solvers, and common choices.
+    **Force fitting**: structures + sampled configurations + forces → `ForceConstants`
 
-## Minimal model setup
+## Get started
 
-```python
-from ase.build import bulk
-from mlfcs import ClusterMap, ClusterSpace, Supercell
+For a first use of MLFCS, we recommend reading in this order:
 
-primitive_atoms = bulk("Al", "fcc", a=4.05)
-space = ClusterSpace(
-    primitive_atoms,
-    cutoffs={2: 4.0, 3: 3.0},
-    max_body_orders={2: 2, 3: 3},
-)
+1. [Core concepts](core-concepts.md)
+   Learn about `ClusterSpace`, `Supercell`, `ClusterMap`, and structural identifiability.
+2. Choose how to construct force constants:
+   - [Finite differences](finite-difference.md): derive force constants from displaced configurations and atomic forces.
+   - [Force fitting](fitting.md): fit force constants from a set of structures and forces.
+3. [Force constants](force-constants.md)
+   Inspect, constrain, transform, and export the `ForceConstants` model.
 
-supercell_atoms = primitive_atoms.repeat((3, 3, 3))
-supercell = Supercell.from_atoms(space.primitive, supercell_atoms)
-mapping = ClusterMap.build(space, supercell)
+## Advanced topics
+
+### Finite temperature
+
+- [SCPH](scph.md): self-consistent phonon calculations and finite-temperature renormalization.
+- [SSCHA](sscha.md): stochastic finite-temperature effective harmonic models.
+
+### Polar materials
+
+- [Long-range forces](long-range-forces.md): separate and combine dipole long-range interactions and short-range force constants.
+
+### Common questions
+
+- [Q&A](Q&A.md): force storage, atom ordering, structural identifiability, solvers, and common parameter choices.
+
+## Core objects
+
+The basic relationships between MLFCS objects are:
+
+```text
+Primitive-cell ASE Atoms ──→ ClusterSpace ──┐
+                                            ├──→ ClusterMap → finite differences/fitting → ForceConstants
+Supercell ASE Atoms ───────→ Supercell ─────┘
 ```
 
-The supercell is explicit input data; MLFCS does not silently choose or enlarge it. Check that it identifies the requested model with `mapping.rank_info()` before generating expensive forces. The examples in the API pages show the finite-difference and fitting paths separately.
+In this flow:
 
-## Scope
+- `Atoms` describes the crystal structure;
+- `ClusterSpace` defines the force-constant space to model;
+- `Supercell` defines the geometry used for displacement or force calculations;
+- `ClusterMap` maps symmetry-reduced parameters onto the explicit supercell;
+- `ForceConstants` stores the resulting force-constant model.
 
-Each `FiniteDifference` object handles one order. A `FitSystem` can handle all orders in a single `ClusterSpace`. Force constants are primitive-cell objects; supercell realizations and external file formats are derived operations.
+## Units and structure convention
+
+MLFCS uses ASE `Atoms` objects as its common structure representation.
+
+| Quantity | Unit |
+| --- | --- |
+| Length | Å |
+| Energy | eV |
+| Force | eV/Å |
+| Order-$n$ force constants | eV/Å$^n$ |
+
+!!! important "Supercell and atom order"
+
+    The user-supplied supercell and its **atom order** define the geometry convention used for force calculations, parameter mapping, and force-constant reconstruction. Preserve this order throughout the workflow.

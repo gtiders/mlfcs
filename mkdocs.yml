@@ -16,8 +16,12 @@ exclude_docs: |
 nav:
   - Home: index.md
   - Core concepts: core-concepts.md
-  - Finite difference: finite-difference-api.md
-  - Fitting: fitting-api.md
+  - Finite difference: finite-difference.md
+  - Fitting: fitting.md
+  - Force constants: force-constants.md
+  - Long-range forces: long-range-forces.md
+  - SCPH: scph.md
+  - SSCHA: sscha.md
   - Q&A: Q&A.md
 
 theme:
@@ -67,6 +71,11 @@ plugins:
             Core concepts: 核心概念
             Finite difference: 有限差分
             Fitting: 拟合
+            Force constants: 力常数
+            Long-range forces: 长程力
+            SCPH: SCPH
+            SSCHA: SSCHA
+            Q&A: 常见问题
 
 markdown_extensions:
   - admonition
