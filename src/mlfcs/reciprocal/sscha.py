@@ -146,7 +146,7 @@ class SSCHA:
 
     def _ensemble(self, model: ForceConstants, temperature: float) -> HarmonicEnsemble:
         return HarmonicEnsemble(
-            model, self.mapping.supercell, self.stars, temperature, statistics=self.statistics
+            model, self.mapping, self.stars, temperature, statistics=self.statistics
         )
 
     def _evaluate(
@@ -177,7 +177,7 @@ class SSCHA:
             pair_forces = []
             for sign in (1, -1):
                 atoms = Atoms(
-                    numbers=supercell.numbers,
+                    numbers=supercell.atomic_numbers,
                     positions=positions + sign * positive,
                     cell=supercell.cell,
                     pbc=True,
