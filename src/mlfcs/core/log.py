@@ -11,11 +11,18 @@ _HANDLER_MARK = "_mlfcs_stdout_handler"
 
 
 def configure(*, level: int = logging.INFO, stream: TextIO | None = None) -> logging.Logger:
-    """Configure the package logger once without touching the root logger."""
+    """Configure the package logger without touching the root logger.
+
+    The first call installs one package handler; later calls adjust the level
+    and, when a ``stream`` is given, re-point that handler so tutorial scripts
+    can fold the package log into their own log files.
+    """
     logger = logging.getLogger(_NAME)
     handlers = [handler for handler in logger.handlers if getattr(handler, _HANDLER_MARK, False)]
     if handlers:
         handler = handlers[0]
+        if stream is not None and handler.stream is not stream:
+            handler.setStream(stream)
     else:
         handler = logging.StreamHandler(sys.stdout if stream is None else stream)
         setattr(handler, _HANDLER_MARK, True)
