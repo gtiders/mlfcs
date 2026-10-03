@@ -64,9 +64,9 @@ class Harmonic:
     def __init__(self, model: ForceConstants) -> None:
         if not isinstance(model, ForceConstants) or 2 not in model.coefficients:
             raise ValueError("harmonic frequencies require ForceConstants containing FC2")
-        primitive = model.space.primitive_atoms
-        masses = primitive.masses
-        permutations = model.space.symmetry.site_permutations
+        primitive = model.cluster_space.primitive_atoms
+        masses = primitive.get_masses()
+        permutations = model.cluster_space.symmetry.site_permutations
         if not np.array_equal(masses[permutations], np.broadcast_to(masses, permutations.shape)):
             raise ValueError("primitive symmetry maps atoms with different masses")
         lattice = expand(model, 2)
@@ -75,8 +75,8 @@ class Harmonic:
         images = np.asarray(
             [
                 np.asarray(translations[0])
-                + primitive.scaled_positions[sites[1]]
-                - primitive.scaled_positions[sites[0]]
+                + primitive.get_scaled_positions()[sites[1]]
+                - primitive.get_scaled_positions()[sites[0]]
                 for sites, translations in zip(lattice.sites, lattice.translations, strict=True)
             ],
             dtype=np.float64,
@@ -94,7 +94,7 @@ class Harmonic:
     def matrices(self, qpoints: object) -> np.ndarray:
         """Return dynamical matrices at requested points or only star representatives."""
         if isinstance(qpoints, QStars):
-            symmetry = self.model.space.symmetry
+            symmetry = self.model.cluster_space.symmetry
             other = qpoints.symmetry
             if symmetry.symprec != other.symprec or any(
                 not np.array_equal(getattr(symmetry, field), getattr(other, field))

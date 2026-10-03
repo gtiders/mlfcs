@@ -83,7 +83,7 @@ class HarmonicEnsemble:
             raise ValueError("statistics must be 'quantum' or 'classical'")
         if statistics == "classical" and temperature == 0.0:
             raise ValueError("classical sampling at zero temperature has no identifiable FC2")
-        if model.space.fingerprint != mapping.cluster_space.fingerprint:
+        if model.cluster_space.fingerprint != mapping.cluster_space.fingerprint:
             raise ValueError("trial FC2 and cluster map use different primitive structures")
         if not np.array_equal(
             stars.grid.matrix, np.asarray(mapping.supercell_matrix, dtype=np.int64)
@@ -94,8 +94,8 @@ class HarmonicEnsemble:
         self.stars = stars
         self.temperature = temperature
         self.statistics = statistics
-        self.plan = StarPlan.from_stars(stars, model.space)
-        self.masses = np.asarray(model.space.primitive_atoms.masses)
+        self.plan = StarPlan.from_stars(stars, model.cluster_space)
+        self.masses = np.asarray(model.cluster_space.primitive_atoms.get_masses())
         self._basis = internal_basis(self.masses)
         self._gamma = next(
             index
@@ -156,7 +156,7 @@ class HarmonicEnsemble:
         n_atoms = len(self.mapping.atomic_numbers)
         field = np.zeros((pairs, n_atoms, 3))
         sites = self.mapping.primitive_site_indices
-        positions = self.model.space.scaled_positions[sites]
+        positions = self.model.cluster_space.scaled_positions[sites]
         translations = self.mapping.lattice_translations
         root_mass = np.sqrt(self.masses[sites])
         for member, label in enumerate(labels):

@@ -121,9 +121,9 @@ class SSCHA:
         if initial is not None:
             if not isinstance(initial, ForceConstants) or initial.orders != (2,):
                 raise ValueError("initial must be an FC2-only ForceConstants model")
-            if initial.space.fingerprint != mapping.cluster_space.fingerprint or not np.array_equal(
-                initial.space.primitive_atoms.masses,
-                mapping.cluster_space.primitive_atoms.masses,
+            if initial.cluster_space.fingerprint != mapping.cluster_space.fingerprint or not np.array_equal(
+                initial.cluster_space.primitive_atoms.get_masses(),
+                mapping.cluster_space.primitive_atoms.get_masses(),
             ):
                 raise ValueError("initial FC2 uses a different cluster space or atomic masses")
         if isinstance(mesh, QGrid):
@@ -183,7 +183,7 @@ class SSCHA:
                     pbc=True,
                 )
                 atoms.set_masses(
-                    supercell.cluster_space.primitive_atoms.masses[
+                    supercell.cluster_space.primitive_atoms.get_masses()[
                         supercell.primitive_site_indices
                     ]
                 )
@@ -239,7 +239,7 @@ class SSCHA:
         displacement = self.bootstrap_displacement or 0.01
         rng = _temperature_seed(self.seed, temperature, 0)
         supercell = self.mapping
-        masses = supercell.cluster_space.primitive_atoms.masses[
+        masses = supercell.cluster_space.primitive_atoms.get_masses()[
             supercell.primitive_site_indices
         ]
         values = rng.standard_normal((pairs, len(masses), 3)) * displacement
@@ -316,10 +316,10 @@ class SSCHA:
         if start is not None and (
             not isinstance(start, ForceConstants)
             or start.orders != (2,)
-            or start.space.fingerprint != self.mapping.cluster_space.fingerprint
+            or start.cluster_space.fingerprint != self.mapping.cluster_space.fingerprint
             or not np.array_equal(
-                start.space.primitive_atoms.masses,
-                self.mapping.cluster_space.primitive_atoms.masses,
+                start.cluster_space.primitive_atoms.get_masses(),
+                self.mapping.cluster_space.primitive_atoms.get_masses(),
             )
         ):
             raise ValueError("start must be FC2 on this cluster space and with these masses")
@@ -367,7 +367,7 @@ class SSCHA:
                 pbc=True,
             )
             atoms.set_masses(
-                supercell.cluster_space.primitive_atoms.masses[
+                supercell.cluster_space.primitive_atoms.get_masses()[
                     supercell.primitive_site_indices
                 ]
             )

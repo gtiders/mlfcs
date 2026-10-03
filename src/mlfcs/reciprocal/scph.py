@@ -176,14 +176,14 @@ class SCPH:
         if statistics not in ("quantum", "classical"):
             raise ValueError("statistics must be 'quantum' or 'classical'")
         grid = mesh if isinstance(mesh, QGrid) else QGrid.from_matrix(mesh)
-        stars = QStars.from_symmetry(grid, model.space.symmetry, time_reversal=time_reversal)
+        stars = QStars.from_symmetry(grid, model.cluster_space.symmetry, time_reversal=time_reversal)
         self.model = model
         self.stars = stars
-        self.plan = StarPlan.from_stars(stars, model.space)
+        self.plan = StarPlan.from_stars(stars, model.cluster_space)
         self._points = grid.points
         self.statistics = statistics
         self._bare = np.asarray(model.coefficients[2])
-        self._masses = model.space.primitive_atoms.masses
+        self._masses = model.cluster_space.primitive_atoms.get_masses()
         harmonic = Harmonic(self._fc2(self._bare))
         self._harmonic_first = harmonic._first
         self._harmonic_second = harmonic._second
@@ -195,8 +195,8 @@ class SCPH:
             if not np.any(grid.labels[representative])
         )
         quartic = expand(model, 4)
-        block = model.space.block(2)
-        self._orbits = model.space.orbits[block.orbits]
+        block = model.cluster_space.block(2)
+        self._orbits = model.cluster_space.orbits[block.orbits]
         maximum_dimension = max(orbit.dimension for orbit in self._orbits)
         bases = []
         offsets = []
@@ -204,7 +204,7 @@ class SCPH:
         parameter_offset = 0
         for orbit in self._orbits:
             for operation, permutation in zip(orbit.operations, orbit.permutations, strict=True):
-                rotation = model.space.symmetry.cartesian_rotations[operation].T
+                rotation = model.cluster_space.symmetry.cartesian_rotations[operation].T
                 basis = np.zeros((9, maximum_dimension), dtype=np.float64)
                 basis[:, : orbit.dimension] = rotate_basis(
                     orbit.component_basis, rotation, permutation
@@ -242,8 +242,8 @@ class SCPH:
         self._distances = np.asarray(
             [
                 np.asarray(key[2])
-                + model.space.scaled_positions[key[0]]
-                - model.space.scaled_positions[key[1]]
+                + model.cluster_space.scaled_positions[key[0]]
+                - model.cluster_space.scaled_positions[key[1]]
                 for key in covariance_keys
             ],
             dtype=np.float64,
@@ -282,7 +282,7 @@ class SCPH:
         )
 
     def _fc2(self, parameters: np.ndarray) -> ForceConstants:
-        return ForceConstants(self.model.space, {2: parameters})
+        return ForceConstants(self.model.cluster_space, {2: parameters})
 
     def _matrices(self, parameters: np.ndarray) -> np.ndarray:
         return _dynamical(
@@ -385,8 +385,8 @@ class SCPH:
             if (
                 not isinstance(start, ForceConstants)
                 or 2 not in start.orders
-                or start.space.fingerprint != self.model.space.fingerprint
-                or not np.array_equal(start.space.primitive_atoms.masses, self._masses)
+                or start.cluster_space.fingerprint != self.model.cluster_space.fingerprint
+                or not np.array_equal(start.cluster_space.primitive_atoms.get_masses(), self._masses)
             ):
                 raise ValueError("start must contain FC2 on the same cluster space and masses")
             current = np.asarray(start.coefficients[2]).copy()
