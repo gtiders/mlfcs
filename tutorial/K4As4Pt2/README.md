@@ -26,7 +26,19 @@ uv run python fit.py
 HDF5 格式，不转换为紧凑存储。运行：
 
 ```bash
-uv run --group reference python kappa/run.py
+uv run --group reference --python 3.12 --with phono3py==4.4.0 --with phonopy==4.4.0 --with phonors==0.3.0 python kappa/run.py
 ```
 
-运行日志、输入 FC2/FC3 HDF5、热导率 HDF5 和参数摘要都保存在 `kappa/`。
+运行日志、输入 FC2/FC3 HDF5、热导率 HDF5 和参数摘要都保存在 `kappa/`。重新运行后，phono3py 4.4.0 的对角热导率（W/(m·K)）为：
+
+| 温度 (K) | $\kappa_{xx}$ | $\kappa_{yy}$ | $\kappa_{zz}$ |
+|---:|---:|---:|---:|
+| 300 | 0.293 | 0.393 | 0.426 |
+| 400 | 0.219 | 0.293 | 0.320 |
+| 500 | 0.175 | 0.234 | 0.256 |
+| 600 | 0.146 | 0.195 | 0.213 |
+| 700 | 0.125 | 0.167 | 0.183 |
+| 800 | 0.110 | 0.146 | 0.160 |
+| 900 | 0.097 | 0.130 | 0.142 |
+
+完整张量保存在 `kappa/kappa-m101010.m101010.hdf5`，逐网格记录位于 `kappa/thermal-conductivity.log`。

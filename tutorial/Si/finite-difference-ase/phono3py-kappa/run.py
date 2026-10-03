@@ -6,7 +6,7 @@ import json
 import logging
 import sys
 import traceback
-from contextlib import redirect_stderr, redirect_stdout
+from contextlib import chdir, redirect_stderr, redirect_stdout
 from pathlib import Path
 
 import h5py
@@ -102,13 +102,14 @@ def run() -> None:
     # phono3py 4.x deprecates output_filename but still supports it. Keeping a
     # distinctive stem makes this tutorial's result deterministic and easy to
     # identify next to the source FC files.
-    ph3.run_thermal_conductivity(
-        temperatures=TEMPERATURES,
-        is_isotope=True,
-        write_kappa=True,
-        output_filename=OUTPUT_STEM,
-        log_level=1,
-    )
+    with chdir(ROOT):
+        ph3.run_thermal_conductivity(
+            temperatures=TEMPERATURES,
+            is_isotope=True,
+            write_kappa=True,
+            output_filename=OUTPUT_STEM,
+            log_level=1,
+        )
 
     result_file = _result_file()
     summary = _summarize_hdf5(result_file)

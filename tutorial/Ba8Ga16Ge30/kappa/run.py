@@ -17,7 +17,7 @@ from phono3py import Phono3py
 from phono3py.file_IO import read_fc2_from_hdf5, read_fc3_from_hdf5
 from phonopy.structure.atoms import PhonopyAtoms
 
-from mlfcs import ClusterMap, ForceConstants, Supercell
+from mlfcs import ClusterMap, ForceConstants
 
 ROOT = Path(__file__).resolve().parents[1]
 HERE = Path(__file__).resolve().parent
@@ -38,13 +38,9 @@ def _read_kappa(path: Path) -> tuple[list[float], np.ndarray]:
 
 def run() -> None:
     model = ForceConstants.load(ROOT / "force_constants.mlfcs")
-    primitive = model.space.primitive
-    supercell = Supercell.from_atoms(
-        primitive,
-        read(ROOT / "supercell.vasp"),
-        matrix=SUPERCELL_MATRIX,
+    mapping = ClusterMap(
+        model.cluster_space, read(ROOT / "supercell.vasp"), supercell_matrix=SUPERCELL_MATRIX
     )
-    mapping = ClusterMap.build(model.space, supercell)
 
     fc2_path = HERE / "fc2.hdf5"
     fc3_path = HERE / "fc3.hdf5"
@@ -64,7 +60,7 @@ def run() -> None:
         primitive_matrix="auto",
         log_level=1,
     )
-    ph3.fc2 = read_fc2_from_hdf5(fc2_path, p2s_map=ph3.primitive.p2s_map)
+    ph3.fc2 = read_fc2_from_hdf5(fc2_path, p2s_map=ph3.p2s_map)
     full_fc3 = read_fc3_from_hdf5(fc3_path)
     expected = (len(atoms), len(atoms), len(atoms), 3, 3, 3)
     if not isinstance(full_fc3, np.ndarray):
@@ -95,8 +91,8 @@ def run() -> None:
         "mesh": list(MESH),
         "isotope_scattering": True,
         "primitive_matrix": "auto",
-        "primitive_atoms": primitive.size,
-        "supercell_atoms": len(supercell.numbers),
+        "primitive_atoms": model.cluster_space.n_atoms,
+        "supercell_atoms": len(mapping.atomic_numbers),
         "phono3py_version": phono3py.__version__,
         "force_constants_format": "full dense HDF5",
         "fc2_file": fc2_path.name,

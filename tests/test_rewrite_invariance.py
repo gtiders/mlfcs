@@ -8,8 +8,7 @@ from ase import Atoms
 from ase.build import bulk
 from scipy import sparse
 
-from mlfcs.cluster_space import build_cluster_space
-from mlfcs.core import PrimitiveCell
+from mlfcs.cluster_space import ClusterSpace
 from mlfcs.force_constants import ForceConstants
 from mlfcs.force_constants.asr import _project
 from mlfcs.force_constants.lattice import expand
@@ -28,10 +27,10 @@ def physical_asr_residual(model: ForceConstants, order: int) -> float:
 
 
 def physical_fc2_moments(model: ForceConstants) -> tuple[float, float, float]:
-    primitive = model.space.primitive
-    acoustic = np.zeros((primitive.size, 3, 3))
-    first_moment = np.zeros((primitive.size, 3, 3, 3))
-    second_moment = np.zeros((primitive.size, 3, 3, 3, 3))
+    primitive = model.cluster_space
+    acoustic = np.zeros((primitive.n_atoms, 3, 3))
+    first_moment = np.zeros((primitive.n_atoms, 3, 3, 3))
+    second_moment = np.zeros((primitive.n_atoms, 3, 3, 3, 3))
     values = expand(model, 2)
     for sites, translations, tensor in zip(
         values.sites, values.translations, values.tensors, strict=True
@@ -76,11 +75,12 @@ def test_asr_projection_matches_the_minimum_norm_dense_oracle() -> None:
 
 
 def test_force_constants_project_each_order_without_a_supercell() -> None:
-    primitive = PrimitiveCell.from_atoms(bulk("Ar", "sc", a=1.0), symprec=1e-5)
-    space = build_cluster_space(
+    primitive = bulk("Ar", "sc", a=1.0)
+    space = ClusterSpace(
         primitive,
         cutoffs={2: 1.1, 3: 1.1},
         max_body_orders={2: 2, 3: 3},
+        symprec=1e-05,
     )
     rng = np.random.default_rng(4)
     model = ForceConstants(
@@ -94,7 +94,7 @@ def test_force_constants_project_each_order_without_a_supercell() -> None:
     )
 
     result = model.enforce_asr(rtol=1e-10)
-    assert result.force_constants.space is space
+    assert result.force_constants.cluster_space is space
     assert tuple(report.order for report in result.reports) == (2, 3)
     assert all(report.relative_after <= 1e-10 for report in result.reports)
     assert any(report.correction_norm > 0.0 for report in result.reports)
@@ -114,11 +114,12 @@ def test_force_constants_project_each_order_without_a_supercell() -> None:
 
 
 def test_asr_order_selection_preserves_other_orders_exactly() -> None:
-    primitive = PrimitiveCell.from_atoms(bulk("Ar", "sc", a=1.0), symprec=1e-5)
-    space = build_cluster_space(
+    primitive = bulk("Ar", "sc", a=1.0)
+    space = ClusterSpace(
         primitive,
         cutoffs={2: 1.1, 3: 1.1},
         max_body_orders={2: 2, 3: 3},
+        symprec=1e-05,
     )
     model = ForceConstants(
         space,
@@ -142,11 +143,12 @@ def test_asr_order_selection_preserves_other_orders_exactly() -> None:
 
 
 def test_rotational_projection_preserves_asr_and_higher_orders() -> None:
-    primitive = PrimitiveCell.from_atoms(bulk("Ar", "sc", a=1.0), symprec=1e-5)
-    space = build_cluster_space(
+    primitive = bulk("Ar", "sc", a=1.0)
+    space = ClusterSpace(
         primitive,
         cutoffs={2: 1.1, 3: 1.1},
         max_body_orders={2: 2, 3: 3},
+        symprec=1e-05,
     )
     rng = np.random.default_rng(12)
     model = ForceConstants(
@@ -192,8 +194,8 @@ def test_rotational_projection_preserves_asr_and_higher_orders() -> None:
 
 
 def test_huang_is_explicit_and_partial_strength_is_not_an_api() -> None:
-    primitive = PrimitiveCell.from_atoms(bulk("Ar", "sc", a=1.0), symprec=1e-5)
-    space = build_cluster_space(primitive, cutoffs={2: 1.1}, max_body_orders={2: 2})
+    primitive = bulk("Ar", "sc", a=1.0)
+    space = ClusterSpace(primitive, cutoffs={2: 1.1}, max_body_orders={2: 2}, symprec=1e-05)
     model = ForceConstants(space, {2: np.ones(space.n_parameters)})
 
     born_only = model.enforce_rotation()
@@ -223,11 +225,8 @@ def test_rotational_rank_uses_measured_geometry_not_symprec(
     cell[1, 1] -= cell_error
     positions[0, 1] -= 2 * site_error
     positions[1:, 0] -= site_error
-    primitive = PrimitiveCell.from_atoms(
-        Atoms(numbers=[42, 16, 16], cell=cell, scaled_positions=positions, pbc=True),
-        symprec=symprec,
-    )
-    space = build_cluster_space(primitive, cutoffs={2: 8.0}, max_body_orders={2: 2})
+    primitive = Atoms(numbers=[42, 16, 16], cell=cell, scaled_positions=positions, pbc=True)
+    space = ClusterSpace(primitive, cutoffs={2: 8.0}, max_body_orders={2: 2}, symprec=symprec)
     model = ForceConstants(space, {2: np.random.default_rng(0).normal(size=space.n_parameters)})
     acoustic_model = model.enforce_asr().force_constants
     huang = _fc2_moment_matrices(acoustic_model)[1]

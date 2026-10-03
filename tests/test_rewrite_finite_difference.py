@@ -12,11 +12,10 @@ from ase.calculators.calculator import Calculator, all_changes
 from ase.calculators.singlepoint import SinglePointCalculator
 from ase.io import read, write
 
-from mlfcs.cluster_space import build_cluster_space
-from mlfcs.core import PrimitiveCell
-from mlfcs.core.errors import AliasingError
+from mlfcs.cluster_space import ClusterSpace
+from mlfcs.errors import AliasingError
 from mlfcs.finite_difference import FiniteDifference
-from mlfcs.supercell import ClusterMap, Supercell
+from mlfcs.mapping import ClusterMap
 
 
 class HarmonicCalculator(Calculator):
@@ -42,27 +41,20 @@ class HarmonicCalculator(Calculator):
 
 def ar_mapping(repetitions: int, cutoff: float = 1.1) -> tuple[ClusterMap, Atoms]:
     atoms = bulk("Ar", "sc", a=1.0)
-    primitive = PrimitiveCell.from_atoms(atoms, symprec=1e-5)
-    space = build_cluster_space(
-        primitive,
-        cutoffs={2: cutoff},
-        max_body_orders={2: 2},
-    )
+    primitive = atoms
+    space = ClusterSpace(primitive, cutoffs={2: cutoff}, max_body_orders={2: 2}, symprec=1e-05)
     supercell_atoms = atoms.repeat((repetitions,) * 3)
-    cell = Supercell.from_atoms(
-        primitive,
-        supercell_atoms,
-        matrix=np.diag([repetitions] * 3),
-    )
-    return ClusterMap.build(space, cell), supercell_atoms
+    return ClusterMap(
+        space, supercell_atoms, supercell_matrix=np.diag([repetitions] * 3)
+    ), supercell_atoms
 
 
 def representative_tensors(model, order: int) -> list[np.ndarray]:
-    block = model.space.block(order)
+    block = model.cluster_space.block(order)
     values = model.coefficients[order]
     tensors = []
     offset = 0
-    for orbit in model.space.orbits[block.orbits]:
+    for orbit in model.cluster_space.orbits[block.orbits]:
         stop = offset + orbit.dimension
         tensors.append((orbit.component_basis @ values[offset:stop]).reshape((3,) * order))
         offset = stop
@@ -93,10 +85,11 @@ def test_evaluate_forces_every_calculation_and_freezes_standard_ase_forces(tmp_p
     second = fd.reconstruct(restored)
     np.testing.assert_array_equal(second.coefficients[2], first.coefficients[2])
 
-    block = first.space.block(2)
+    block = first.cluster_space.block(2)
     tensors = representative_tensors(first, 2)
     onsite = [
-        len(set(orbit.representative.sites)) == 1 for orbit in first.space.orbits[block.orbits]
+        len(set(orbit.representative.sites)) == 1
+        for orbit in first.cluster_space.orbits[block.orbits]
     ]
     assert onsite.count(True) == 1
     np.testing.assert_allclose(tensors[onsite.index(True)], np.eye(3), atol=1e-14, rtol=0.0)
@@ -129,7 +122,7 @@ def test_reconstruct_accepts_only_ordered_atoms_with_stored_forces() -> None:
 
     model = fd.reconstruct(evaluated)
     assert model.orders == (2,)
-    assert model.space.fingerprint == mapping.space.fingerprint
+    assert model.cluster_space.fingerprint == mapping.cluster_space.fingerprint
 
     with pytest.raises(TypeError, match="ASE Atoms"):
         fd.reconstruct(np.asarray(forces))
@@ -179,14 +172,13 @@ def test_fc3_reconstruction_uses_atoms_and_the_orbit_basis() -> None:
         cell=[[3.1, 0.2, 0.1], [0.1, 3.7, 0.3], [0.2, 0.1, 4.2]],
         pbc=True,
     )
-    primitive = PrimitiveCell.from_atoms(atoms, symprec=1e-5)
-    space = build_cluster_space(
-        primitive,
-        cutoffs={3: 0.01},
-        max_body_orders={3: 1},
+    primitive = atoms
+    space = ClusterSpace(primitive, cutoffs={3: 0.01}, max_body_orders={3: 1}, symprec=1e-05)
+    fd = FiniteDifference(
+        ClusterMap(space, atoms, supercell_matrix=np.eye(3, dtype=np.int64)),
+        order=3,
+        disps=(0.001,),
     )
-    cell = Supercell.from_atoms(primitive, atoms, matrix=np.eye(3, dtype=np.int64))
-    fd = FiniteDifference(ClusterMap.build(space, cell), order=3, disps=(0.001,))
     diagonal = np.asarray([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
     structures = tuple(fd.displacements())
     forces = []

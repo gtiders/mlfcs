@@ -9,12 +9,12 @@ neighboring phono3py transport workflow.
 Run from this directory:
 
 ```bash
-uv run --project ../../../.. --with calorine python run.py
+uv run --project ../../../.. --python 3.12 --with 'calorine @ git+https://gitlab.com/materials-modeling/calorine.git@2.2' python run.py
 ```
 
 The displacement values are $0.010$, $0.015$, $0.020$, $0.025$, and
 $0.030$ Å. The current API combines these estimates by polynomial
-zero-displacement extrapolation in the squared step length. `run.log` captures
+zero-displacement extrapolation in the squared step length. `fit.log` captures
 stdout, stderr, and any traceback. Outputs include native MLFCS force
 constants, phono3py FC3 HDF5, ShengBTE text, the generated supercell, and
 `metrics.json` with the ASR and extrapolation diagnostics.

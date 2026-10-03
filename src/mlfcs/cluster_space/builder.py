@@ -7,107 +7,31 @@ from itertools import permutations
 
 import numpy as np
 
-from mlfcs.cluster_space._orbit_kernel import transform_cluster
-from mlfcs.cluster_space.candidates import iter_candidates
-from mlfcs.cluster_space.invariants import invariant_basis
-from mlfcs.cluster_space.models import Cluster, ClusterSpace, IntBounds, Orbit, OrderBlock
-from mlfcs.cluster_space.observation import component_parameterization
-from mlfcs.core import PrimitiveCell, PrimitiveSymmetry
+from mlfcs._arrays import require_allocation
+from mlfcs.cluster_space._orbits import ClusterRegistry, _orbit_actions
+from mlfcs.cluster_space.basis import _invariant_basis, component_parameterization
+from mlfcs.cluster_space.candidates import _candidate_labels
+from mlfcs.cluster_space.models import Cluster, Orbit, OrderBlock
 from mlfcs.core.log import get_logger
+from mlfcs.core.symmetry import PrimitiveSymmetry, discover_symmetry
+from mlfcs.core.tensors import tensor_dimension
 
 logger = get_logger(__name__)
 
 
 def _axis_permutations(order: int) -> tuple[tuple[tuple[int, ...], ...], np.ndarray]:
+    require_allocation("axis permutations", (1, order))
+    count = 1
+    for factor in range(2, order + 1):
+        count *= factor
+        require_allocation("axis permutations", (count, order))
     values = tuple(permutations(range(order)))
     return values, np.asarray(values, dtype=np.int64)
 
 
-def _integer_boundary(
-    labels: tuple[tuple[int, int, int, int], ...], symmetry: PrimitiveSymmetry
-) -> tuple[np.ndarray, int, int, int, int]:
-    """Prove that one cluster action fits int64, without a numerical tolerance."""
-    maximum_translation = max((abs(value) for row in labels for value in row[1:]), default=0)
-    maximum_rotation = max((abs(int(value)) for value in symmetry.rotations.flat), default=0)
-    maximum_shift = max((abs(int(value)) for value in symmetry.site_shifts.flat), default=0)
-    unanchored = 3 * maximum_translation * maximum_rotation + maximum_shift
-    bound = 2 * unanchored
-    limit = np.iinfo(np.int64).max
-    if bound > limit:
-        raise OverflowError(
-            "the exact primitive cluster action cannot enter the int64 compiled kernel: "
-            f"its proven bound is {bound}, above {limit}"
-        )
-    array = np.asarray(labels, dtype=object)
-    if any(abs(int(value)) > limit for value in array.flat):
-        raise OverflowError("primitive cluster labels do not fit the int64 compiled kernel")
-    return (
-        np.asarray(array, dtype=np.int64),
-        maximum_translation,
-        maximum_rotation,
-        maximum_shift,
-        bound,
-    )
-
-
-def _cluster_key(values: np.ndarray) -> tuple[int, ...]:
-    return tuple(int(value) for value in values.reshape(-1))
-
-
-def _cluster_from_key(values: tuple[int, ...], order: int) -> Cluster:
-    return Cluster.from_labels(np.asarray(values, dtype=object).reshape(order, 4))
-
-
-def _orbit_actions(
-    cluster: Cluster,
-    symmetry: PrimitiveSymmetry,
-    permutation_values: tuple[tuple[int, ...], ...],
-    permutation_array: np.ndarray,
-) -> tuple[
-    Cluster,
-    tuple[Cluster, ...],
-    np.ndarray,
-    np.ndarray,
-    tuple[tuple[np.ndarray, tuple[int, ...]], ...],
-    tuple[tuple[int, ...], ...],
-]:
-    labels, *_ = _integer_boundary(cluster.labels, symmetry)
-    transformed = transform_cluster(
-        labels,
-        np.asarray(symmetry.rotations, dtype=np.int64),
-        np.asarray(symmetry.site_permutations, dtype=np.int64),
-        np.asarray(symmetry.site_shifts, dtype=np.int64),
-        permutation_array,
-    )
-    representative = cluster
-    representative_key = _cluster_key(labels)
-    images: dict[tuple[int, ...], tuple[Cluster, int, tuple[int, ...]]] = {}
-    stabilizers: list[tuple[np.ndarray, tuple[int, ...]]] = []
-    permutation_count = len(permutation_values)
-    for index, row in enumerate(transformed):
-        operation, permutation_index = divmod(index, permutation_count)
-        key = _cluster_key(row)
-        permutation = permutation_values[permutation_index]
-        images.setdefault(key, (_cluster_from_key(key, cluster.order), operation, permutation))
-        if key == representative_key:
-            stabilizers.append((symmetry.rotations[operation], permutation))
-    if representative_key not in images or not stabilizers:
-        raise RuntimeError("the primitive symmetry group does not contain the identity action")
-    ordered = tuple(images.values())
-    clusters = tuple(value[0] for value in ordered)
-    operations = np.asarray([value[1] for value in ordered], dtype=np.int32)
-    permutations = np.asarray([value[2] for value in ordered], dtype=np.int16)
-    return (
-        representative,
-        clusters,
-        operations,
-        permutations,
-        tuple(stabilizers),
-        tuple(images),
-    )
-
-
 def _tensor_frame(cell: np.ndarray, order: int) -> np.ndarray:
+    dimension = tensor_dimension(order)
+    require_allocation("tensor frame", (dimension, dimension))
     result = np.ones((1, 1), dtype=np.float64)
     for _ in range(order):
         result = np.kron(result, cell.T)
@@ -115,50 +39,47 @@ def _tensor_frame(cell: np.ndarray, order: int) -> np.ndarray:
 
 
 def _build_order(
-    primitive: PrimitiveCell,
+    cell: np.ndarray,
+    scaled_positions: np.ndarray,
     symmetry: PrimitiveSymmetry,
     *,
     order: int,
     cutoff: float,
     max_body_order: int,
-) -> tuple[tuple[Orbit, ...], IntBounds]:
-    """Build one tensor-order block for :func:`build_cluster_space`."""
-    permutation_values, permutation_array = _axis_permutations(order)
-    covered: set[tuple[int, ...]] = set()
-    generated: list[Orbit] = []
-    maximum_translation = 0
-    maximum_rotation = max(abs(int(value)) for value in symmetry.rotations.flat)
-    maximum_shift = max(abs(int(value)) for value in symmetry.site_shifts.flat)
-    maximum_bound = 0
-    maximum_kernel = 0
-    frame = _tensor_frame(primitive.cell, order)
-
-    for candidate in iter_candidates(
-        primitive,
+) -> tuple[Orbit, ...]:
+    """Build one tensor-order block for the ClusterSpace constructor."""
+    candidate_labels = _candidate_labels(
+        cell,
+        scaled_positions,
         order=order,
         cutoff=cutoff,
         max_body_order=max_body_order,
-    ):
-        candidate_key = tuple(value for row in candidate.labels for value in row)
-        if candidate_key in covered:
+    )
+    frame = _tensor_frame(cell, order)
+    permutation_values, permutation_array = _axis_permutations(order)
+    covered = ClusterRegistry(order)
+    generated: list[Orbit] = []
+
+    for candidate_array in candidate_labels:
+        if covered.contains(candidate_array):
             continue
-        labels, translation, _rotation, _shift, bound = _integer_boundary(
-            candidate.labels, symmetry
+        candidate = Cluster.from_labels(candidate_array)
+        representative, clusters, operations, axis_permutations, stabilizers, _orbit_keys = (
+            _orbit_actions(
+                candidate,
+                symmetry,
+                permutation_values,
+                permutation_array,
+                return_keys=False,
+            )
         )
-        del labels
-        maximum_translation = max(maximum_translation, translation)
-        maximum_bound = max(maximum_bound, bound)
-        representative, clusters, operations, axis_permutations, stabilizers, orbit_keys = (
-            _orbit_actions(candidate, symmetry, permutation_values, permutation_array)
-        )
-        covered.update(orbit_keys)
-        exact = invariant_basis(
+        covered.update(np.asarray([cluster.labels for cluster in clusters], dtype=np.int64))
+        exact = _invariant_basis(
             representative.sites,
             tuple((np.asarray(rotation), permutation) for rotation, permutation in stabilizers),
         )
         if exact.shape[1] == 0:
             continue
-        maximum_kernel = max(maximum_kernel, max(abs(int(value)) for value in exact.flat))
         exact_float = np.asarray(exact, dtype=np.float64)
         cartesian = frame @ exact_float
         component_basis, rows, condition = component_parameterization(cartesian)
@@ -176,34 +97,23 @@ def _build_order(
             )
         )
 
-    bounds = IntBounds(
-        translation=maximum_translation,
-        rotation=maximum_rotation,
-        shift=maximum_shift,
-        labels=maximum_bound,
-        headroom=np.iinfo(np.int64).max.bit_length() - max(1, maximum_bound).bit_length(),
-        tensor=(3 * maximum_rotation) ** order + 1,
-        kernel=maximum_kernel,
-    )
-    return tuple(generated), bounds
+    return tuple(generated)
 
 
-def build_cluster_space(
-    primitive: PrimitiveCell,
+def _construct_space(
+    cell,
+    scaled_positions,
+    atomic_numbers,
+    symprec,
     *,
     cutoffs: Mapping[int, float],
     max_body_orders: Mapping[int, int],
-    symmetry: PrimitiveSymmetry | None = None,
-) -> ClusterSpace:
+):
     """Build a multi-order primitive cluster space."""
     orders = tuple(sorted(int(order) for order in cutoffs))
     if not orders or set(orders) != {int(order) for order in max_body_orders}:
         raise ValueError("cutoffs and max_body_orders must define the same nonempty orders")
-    symmetry = PrimitiveSymmetry.from_primitive(primitive) if symmetry is None else symmetry
-    if symmetry.symprec != primitive.symprec:
-        raise ValueError("primitive and symmetry must use the same declared symprec")
-    if symmetry.site_permutations.shape[1] != primitive.size:
-        raise ValueError("primitive symmetry acts on a different motif size")
+    symmetry = discover_symmetry(cell, scaled_positions, atomic_numbers, symprec)
 
     all_orbits: list[Orbit] = []
     blocks: list[OrderBlock] = []
@@ -216,8 +126,9 @@ def build_cluster_space(
             max_body_orders[order],
         )
         orbit_start = len(all_orbits)
-        orbits, bounds = _build_order(
-            primitive,
+        orbits = _build_order(
+            cell,
+            scaled_positions,
             symmetry,
             order=order,
             cutoff=float(cutoffs[order]),
@@ -232,7 +143,6 @@ def build_cluster_space(
                 max_body_order=int(max_body_orders[order]),
                 orbits=slice(orbit_start, len(all_orbits)),
                 parameters=slice(parameter_start, parameter_stop),
-                bounds=bounds,
             )
         )
         logger.info(
@@ -243,12 +153,4 @@ def build_cluster_space(
         )
         parameter_start = parameter_stop
 
-    return ClusterSpace(
-        primitive=primitive,
-        symmetry=symmetry,
-        blocks=tuple(blocks),
-        orbits=tuple(all_orbits),
-    )
-
-
-__all__ = ["build_cluster_space"]
+    return symmetry, tuple(blocks), tuple(all_orbits)

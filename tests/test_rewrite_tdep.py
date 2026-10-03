@@ -8,12 +8,11 @@ import numpy as np
 import pytest
 from ase.build import bulk
 
-from mlfcs.cluster_space import build_cluster_space
-from mlfcs.core import PrimitiveCell
+from mlfcs import ClusterMap
+from mlfcs.cluster_space import ClusterSpace
 from mlfcs.force_constants import ForceConstants
 from mlfcs.force_constants.export import clean
 from mlfcs.force_constants.lattice import expand
-from mlfcs.supercell import ClusterMap, Supercell
 
 
 def _read_tdep(file, *, order: int, size: int):
@@ -55,18 +54,18 @@ def _read_tdep(file, *, order: int, size: int):
 @pytest.mark.parametrize("order,cutoff", [(2, 1.1), (3, 1.1), (4, 0.1)])
 def test_tdep_export_preserves_primitive_clusters_and_tensors(tmp_path, order, cutoff) -> None:
     atoms = bulk("Ar", "sc", a=1.0)
-    primitive = PrimitiveCell.from_atoms(atoms, symprec=1e-5)
-    space = build_cluster_space(
-        primitive,
+    primitive = ClusterSpace(atoms, symprec=1e-05, cutoffs={2: 0.01})
+    space = ClusterSpace(
+        primitive.primitive_atoms,
         cutoffs={order: cutoff},
         max_body_orders={order: order if order != 4 else 1},
+        symprec=1e-05,
     )
     block = space.block(order)
     model = ForceConstants(
         space, {order: np.linspace(0.5e-8, 2e-7, block.parameters.stop - block.parameters.start)}
     )
-    supercell = Supercell.from_atoms(primitive, atoms.repeat((2, 2, 2)), matrix=np.diag([2, 2, 2]))
-    mapping = ClusterMap.build(space, supercell)
+    mapping = ClusterMap(space, atoms.repeat((2, 2, 2)), supercell_matrix=np.diag([2, 2, 2]))
     file = model.write(tmp_path / f"infile.forceconstant{order}", format="tdep", order=order)
     assert (
         file.read_bytes()
@@ -74,7 +73,7 @@ def test_tdep_export_preserves_primitive_clusters_and_tensors(tmp_path, order, c
             tmp_path / f"mapped.forceconstant{order}", mapping, format="tdep", order=order
         ).read_bytes()
     )
-    found = _read_tdep(file, order=order, size=primitive.size)
+    found = _read_tdep(file, order=order, size=primitive.n_atoms)
 
     expanded = expand(model, order)
     expected = {
@@ -93,11 +92,10 @@ def test_tdep_export_preserves_primitive_clusters_and_tensors(tmp_path, order, c
 
 def test_tdep_rejects_binary_storage(tmp_path) -> None:
     atoms = bulk("Ar", "sc", a=1.0)
-    primitive = PrimitiveCell.from_atoms(atoms, symprec=1e-5)
-    space = build_cluster_space(primitive, cutoffs={2: 0.1}, max_body_orders={2: 1})
+    primitive = atoms
+    space = ClusterSpace(primitive, cutoffs={2: 0.1}, max_body_orders={2: 1}, symprec=1e-05)
     block = space.block(2)
     model = ForceConstants(space, {2: np.ones(block.parameters.stop - block.parameters.start)})
-    supercell = Supercell.from_atoms(primitive, atoms, matrix=np.eye(3, dtype=int))
-    mapping = ClusterMap.build(space, supercell)
+    mapping = ClusterMap(space, atoms, supercell_matrix=np.eye(3, dtype=int))
     with pytest.raises(ValueError, match="text storage"):
         model.write(tmp_path / "invalid.hdf5", mapping, format="tdep", order=2, storage="hdf5")

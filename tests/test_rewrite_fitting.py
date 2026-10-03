@@ -11,28 +11,25 @@ from ase import Atoms
 from ase.build import bulk
 from ase.calculators.singlepoint import SinglePointCalculator
 
-from mlfcs.cluster_space import build_cluster_space
-from mlfcs.core import PrimitiveCell
-from mlfcs.core.errors import UnobservedParameterError
+from mlfcs.cluster_space import ClusterSpace
+from mlfcs.errors import UnobservedParameterError
 from mlfcs.fitting import FitSystem
-from mlfcs.supercell import ClusterMap, Supercell
+from mlfcs.mapping import ClusterMap
 
 
 def ar_mapping(orders=(2,)) -> tuple[ClusterMap, Atoms]:
     primitive_atoms = bulk("Ar", "sc", a=1.0)
-    primitive = PrimitiveCell.from_atoms(primitive_atoms, symprec=1e-5)
-    space = build_cluster_space(
+    primitive = primitive_atoms
+    space = ClusterSpace(
         primitive,
         cutoffs={order: 0.1 for order in orders},
         max_body_orders={order: 1 for order in orders},
+        symprec=1e-05,
     )
     supercell_atoms = primitive_atoms.copy()
-    supercell = Supercell.from_atoms(
-        primitive,
-        supercell_atoms,
-        matrix=np.eye(3, dtype=np.int64),
-    )
-    return ClusterMap.build(space, supercell), supercell_atoms
+    return ClusterMap(
+        space, supercell_atoms, supercell_matrix=np.eye(3, dtype=np.int64)
+    ), supercell_atoms
 
 
 def evaluated(supercell_atoms: Atoms, displacements, force) -> tuple[Atoms, ...]:
@@ -46,18 +43,18 @@ def evaluated(supercell_atoms: Atoms, displacements, force) -> tuple[Atoms, ...]
 
 
 def representative_tensor(model, order: int) -> np.ndarray:
-    block = model.space.block(order)
+    block = model.cluster_space.block(order)
     assert block.orbits.stop - block.orbits.start == 1
-    orbit = model.space.orbits[block.orbits.start]
+    orbit = model.cluster_space.orbits[block.orbits.start]
     return (orbit.component_basis @ model.coefficients[order]).reshape((3,) * order)
 
 
 def representative_tensors(model, order: int) -> dict[int, np.ndarray]:
-    block = model.space.block(order)
+    block = model.cluster_space.block(order)
     values = model.coefficients[order]
     tensors = {}
     offset = 0
-    for orbit in model.space.orbits[block.orbits]:
+    for orbit in model.cluster_space.orbits[block.orbits]:
         stop = offset + orbit.dimension
         site = orbit.representative.sites[0].site
         tensors[site] = (orbit.component_basis @ values[offset:stop]).reshape((3,) * order)
@@ -85,7 +82,7 @@ def test_fit_system_uses_the_streamed_optimized_normal_path() -> None:
 
     assert system.n_structures == len(structures)
     assert system.n_equations == 3 * len(structures)
-    assert system.matrix.shape == (mapping.space.n_parameters,) * 2
+    assert system.matrix.shape == (mapping.cluster_space.n_parameters,) * 2
     assert system.unobserved_parameters == ()
     assert not system.matrix.flags.writeable
     assert not system.rhs.flags.writeable
@@ -100,9 +97,9 @@ def test_fit_system_uses_the_streamed_optimized_normal_path() -> None:
 
 def test_zero_columns_can_be_merged_but_the_default_solver_refuses_them() -> None:
     mapping, _ = ar_mapping()
-    count = mapping.space.n_parameters
-    missing = FitSystem(mapping.space, np.zeros((count, count)), np.zeros(count), 0.0, 3, 1)
-    observed = FitSystem(mapping.space, np.eye(count), np.ones(count), float(count), 3, 1)
+    count = mapping.cluster_space.n_parameters
+    missing = FitSystem(mapping.cluster_space, np.zeros((count, count)), np.zeros(count), 0.0, 3, 1)
+    observed = FitSystem(mapping.cluster_space, np.eye(count), np.ones(count), float(count), 3, 1)
 
     assert missing.unobserved_parameters == tuple(range(count))
     with pytest.raises(UnobservedParameterError, match="Regularization cannot recover"):
@@ -115,25 +112,25 @@ def test_zero_columns_can_be_merged_but_the_default_solver_refuses_them() -> Non
 
 def test_residual_rejects_inconsistent_statistics_but_allows_roundoff() -> None:
     mapping, _ = ar_mapping()
-    count = mapping.space.n_parameters
+    count = mapping.cluster_space.n_parameters
     matrix = np.eye(count)
     rhs = np.zeros(count)
     parameters = np.zeros(count)
     rhs[0] = 2.0
     parameters[0] = 2.0
-    inconsistent = FitSystem(mapping.space, matrix, rhs, 1.0, 3, 1)
+    inconsistent = FitSystem(mapping.cluster_space, matrix, rhs, 1.0, 3, 1)
 
     with pytest.raises(ValueError, match="negative beyond roundoff"):
         inconsistent.residual(parameters)
     with pytest.raises(ValueError, match="negative beyond roundoff"):
         inconsistent.rmse(parameters)
-    empty_count = FitSystem(mapping.space, matrix, rhs, 1.0, 0, 0)
+    empty_count = FitSystem(mapping.cluster_space, matrix, rhs, 1.0, 0, 0)
     with pytest.raises(ValueError, match="negative beyond roundoff"):
         empty_count.rmse(parameters)
 
     rhs[0] = 1.0
     parameters[0] = 1.0
-    rounded = FitSystem(mapping.space, matrix, rhs, 1.0 - np.finfo(float).eps, 3, 1)
+    rounded = FitSystem(mapping.cluster_space, matrix, rhs, 1.0 - np.finfo(float).eps, 3, 1)
     assert rounded.residual(parameters) == 0.0
     with pytest.raises(ValueError, match="parameters must be finite"):
         rounded.residual(np.full(count, np.nan))
@@ -157,15 +154,15 @@ def test_joint_orders_and_pickle_preserve_the_complete_system() -> None:
         cell=[[3.1, 0.2, 0.1], [0.1, 3.7, 0.3], [0.2, 0.1, 4.2]],
         pbc=True,
     )
-    primitive = PrimitiveCell.from_atoms(primitive_atoms, symprec=1e-5)
-    space = build_cluster_space(
+    primitive = primitive_atoms
+    space = ClusterSpace(
         primitive,
         cutoffs={2: 0.01, 3: 0.01},
         max_body_orders={2: 1, 3: 1},
+        symprec=1e-05,
     )
     supercell_atoms = primitive_atoms.copy()
-    supercell = Supercell.from_atoms(primitive, supercell_atoms, matrix=np.eye(3, dtype=np.int64))
-    mapping = ClusterMap.build(space, supercell)
+    mapping = ClusterMap(space, supercell_atoms, supercell_matrix=np.eye(3, dtype=np.int64))
     second = np.zeros((2, 3, 3))
     third = np.zeros((2, 3, 3, 3))
     for site in range(2):
@@ -189,7 +186,7 @@ def test_joint_orders_and_pickle_preserve_the_complete_system() -> None:
     system = FitSystem.from_atoms(mapping, structures)
     restored = pickle.loads(pickle.dumps(system))
 
-    assert system.space.orders == (2, 3)
+    assert system.cluster_space.orders == (2, 3)
     assert system.unobserved_parameters == ()
     assert restored.fingerprint == system.fingerprint
     np.testing.assert_array_equal(restored.matrix, system.matrix)
@@ -203,8 +200,10 @@ def test_joint_orders_and_pickle_preserve_the_complete_system() -> None:
 
 def test_fitting_dependency_direction_is_explicit() -> None:
     assert internal_dependencies("fitting") == {
-        "cluster_space",
+        "errors",
         "core",
         "force_constants",
-        "supercell",
+        "mapping",
+        "_arrays",
+        "cluster_space",
     }

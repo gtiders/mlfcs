@@ -13,7 +13,7 @@ from phono3py import Phono3py
 from phono3py.file_IO import read_fc2_from_hdf5, read_fc3_from_hdf5
 from phonopy.structure.atoms import PhonopyAtoms
 
-from mlfcs import ClusterMap, ForceConstants, Supercell
+from mlfcs import ClusterMap, ForceConstants
 
 ROOT = Path(__file__).resolve().parents[1]
 HERE = Path(__file__).resolve().parent
@@ -24,13 +24,9 @@ TEMPERATURES = tuple(range(300, 901, 100))
 
 def run() -> None:
     model = ForceConstants.load(ROOT / "force_constants.mlfcs")
-    primitive = model.space.primitive
-    supercell = Supercell.from_atoms(
-        primitive,
-        read(ROOT / "supercell.vasp"),
-        matrix=SUPERCELL_MATRIX,
+    mapping = ClusterMap(
+        model.cluster_space, read(ROOT / "supercell.vasp"), supercell_matrix=SUPERCELL_MATRIX
     )
-    mapping = ClusterMap.build(model.space, supercell)
 
     fc2_path = HERE / "fc2.hdf5"
     fc3_path = HERE / "fc3.hdf5"
@@ -72,7 +68,7 @@ def run() -> None:
             "format": "full dense HDF5",
             "fc2": fc2_path.name,
             "fc3": fc3_path.name,
-            "supercell_atoms": len(supercell.numbers),
+            "supercell_atoms": len(mapping.atomic_numbers),
         },
         "kappa_file": candidates[-1].name,
     }

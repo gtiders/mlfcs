@@ -1,12 +1,12 @@
 Input supercell: 128 atoms from SPOSCAR; supercell_matrix=identity, primitive_matrix='auto'
-/home/gwins/codespace/mlfcs-new/tutorial/Si/finite-difference-ase/phono3py-kappa/run.py:90: PrimitiveMatrixAutoDefaultWarning: primitive_matrix defaulted to 'auto' and was resolved to a non-identity matrix:
+/home/gwins/Documents/mlfcs/tutorial/Si/finite-difference-ase/phono3py-kappa/run.py:90: PrimitiveMatrixAutoDefaultWarning: primitive_matrix defaulted to 'auto' and was resolved to a non-identity matrix:
   [ 0.25000,  0.00000,  0.00000]
   [ 0.00000,  0.25000,  0.00000]
   [ 0.00000,  0.00000,  0.25000]
 This differs from phonopy v3, whose default was the identity matrix. Pass primitive_matrix='P' (or --pa P on the command line) to restore the v3 behaviour.
   ph3 = Phono3py(
 Identified primitive cell: 2 atoms
-/home/gwins/codespace/mlfcs-new/tutorial/Si/finite-difference-ase/phono3py-kappa/run.py:105: DeprecationWarning: output_filename parameter is deprecated.
+/home/gwins/Documents/mlfcs/tutorial/Si/finite-difference-ase/phono3py-kappa/run.py:106: DeprecationWarning: output_filename parameter is deprecated.
   ph3.run_thermal_conductivity(
 -------------------- Lattice thermal conductivity (RTA) --------------------
 Running heat capacity calculations...
@@ -17,11 +17,11 @@ q-point: ( 0.00  0.00  0.00)
 Mass variance parameters: 2.01e-04 2.01e-04 
 Number of triplets: 47
 Frequency     group velocity (x, y, z)     |gv|
-  -0.000   (   0.000    0.000    0.000)    0.000
    0.000   (   0.000    0.000    0.000)    0.000
    0.000   (   0.000    0.000    0.000)    0.000
-  14.283   (  -0.000   -0.000    0.000)    0.000
-  14.283   (   0.000   -0.000   -0.000)    0.000
+   0.000   (   0.000    0.000    0.000)    0.000
+  14.283   (   0.000    0.000    0.000)    0.000
+  14.283   (   0.000    0.000    0.000)    0.000
   14.283   (   0.000    0.000    0.000)    0.000
 ======================= Grid point 1 (2/47) =======================
 q-point: ( 0.10  0.00  0.00)
@@ -347,11 +347,11 @@ q-point: (-0.50 -0.50  0.00)
 Mass variance parameters: 2.01e-04 2.01e-04 
 Number of triplets: 63
 Frequency     group velocity (x, y, z)     |gv|
-   4.708   (  -0.000    0.000   -0.000)    0.000
    4.708   (   0.000    0.000   -0.000)    0.000
+   4.708   (  -0.000   -0.000    0.000)    0.000
   11.675   (  -0.000    0.000  -40.876)   40.876
   11.675   (   0.000   -0.000   40.876)   40.876
-  13.331   (  -0.000   -0.000    0.000)    0.000
+  13.331   (   0.000    0.000   -0.000)    0.000
   13.331   (   0.000   -0.000    0.000)    0.000
 ======================= Grid point 132 (32/47) =======================
 q-point: ( 0.30  0.20  0.10)
@@ -391,9 +391,9 @@ q-point: (-0.40  0.20  0.10)
 Mass variance parameters: 2.01e-04 2.01e-04 
 Number of triplets: 255
 Frequency     group velocity (x, y, z)     |gv|
-   4.179   (  16.735    0.000   16.735)   23.667
-   5.227   (  33.859   -0.000   33.859)   47.884
-   9.920   (  -6.970   -0.000   -6.970)    9.857
+   4.179   (  16.735   -0.000   16.735)   23.667
+   5.227   (  33.859    0.000   33.859)   47.884
+   9.920   (  -6.970    0.000   -6.970)    9.857
   11.500   (  -6.618   -0.000   -6.618)    9.360
   13.661   (  -3.307    0.000   -3.307)    4.676
   13.870   (   0.333   -0.000    0.333)    0.471
@@ -501,12 +501,12 @@ q-point: ( 0.60  0.40  0.20)
 Mass variance parameters: 2.01e-04 2.01e-04 
 Number of triplets: 282
 Frequency     group velocity (x, y, z)     |gv|
-   5.358   (  -0.000    1.234   24.041)   24.072
-   6.238   (   0.000   29.225    5.084)   29.664
+   5.358   (   0.000    1.234   24.041)   24.072
+   6.238   (  -0.000   29.225    5.084)   29.664
    9.437   (   0.000    2.430   31.685)   31.778
   11.527   (   0.000  -25.047  -25.446)   35.704
-  13.554   (   0.000   -1.209   -1.705)    2.091
-  13.732   (  -0.000    4.758   -4.401)    6.481
+  13.554   (  -0.000   -1.209   -1.705)    2.091
+  13.732   (   0.000    4.758   -4.401)    6.481
 ======================= Grid point 263 (46/47) =======================
 q-point: (-0.30  0.40  0.20)
 Mass variance parameters: 2.01e-04 2.01e-04 
@@ -515,8 +515,8 @@ Frequency     group velocity (x, y, z)     |gv|
    5.571   (  19.554    0.000   19.554)   27.654
    6.618   (  -2.636   -0.000   -2.636)    3.728
    9.913   (  11.060    0.000   11.060)   15.641
-  10.865   ( -11.059    0.000  -11.059)   15.639
-  13.524   (   0.616   -0.000    0.616)    0.871
+  10.865   ( -11.059   -0.000  -11.059)   15.639
+  13.524   (   0.616    0.000    0.616)    0.871
   13.738   (  -3.752    0.000   -3.752)    5.305
 ======================= Grid point 274 (47/47) =======================
 q-point: (-0.30 -0.50  0.20)
@@ -532,13 +532,13 @@ Frequency     group velocity (x, y, z)     |gv|
 =================== End of collection of collisions ===================
 ----------- Thermal conductivity (W/m-k) with tetrahedron method -----------
 #  T(K)        xx         yy         zz         yz         xz         xy
-  300.0      84.338     84.338     84.338     -0.000     -0.000      0.000
-  400.0      61.159     61.159     61.159     -0.000     -0.000      0.000
-  500.0      48.264     48.264     48.264     -0.000     -0.000      0.000
-  600.0      39.966     39.966     39.966     -0.000     -0.000      0.000
-  700.0      34.148     34.148     34.148     -0.000     -0.000      0.000
-  800.0      29.830     29.830     29.830     -0.000     -0.000      0.000
-  900.0      26.493     26.493     26.493     -0.000     -0.000      0.000
+  300.0      84.160     84.160     84.160     -0.000     -0.000      0.000
+  400.0      61.071     61.071     61.071     -0.000     -0.000      0.000
+  500.0      48.214     48.214     48.214     -0.000     -0.000      0.000
+  600.0      39.935     39.935     39.935     -0.000     -0.000      0.000
+  700.0      34.128     34.128     34.128     -0.000     -0.000      0.000
+  800.0      29.817     29.817     29.817     -0.000     -0.000      0.000
+  900.0      26.485     26.485     26.485     -0.000     -0.000      0.000
 
 Thermal conductivity related properties were written into 
 "kappa-m101010.si-m101010.hdf5".

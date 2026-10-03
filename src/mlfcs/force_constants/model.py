@@ -20,10 +20,11 @@ from mlfcs.cluster_space import ClusterSpace
 if TYPE_CHECKING:
     from mlfcs.force_constants.asr import ASRResult
     from mlfcs.force_constants.rotation import RotationResult
-    from mlfcs.supercell import ClusterMap
+    from mlfcs.mapping import ClusterMap
 
 _FORMAT = "mlfcs.force_constants"
-_VERSION = 1
+_VERSION = 3
+_HEADER = b"MLFCS\x00\x03\n"
 
 
 def _digest(space: ClusterSpace, coefficients: Mapping[int, np.ndarray]) -> str:
@@ -47,18 +48,18 @@ class ForceConstants:
     deliberately not stored here.
     """
 
-    space: ClusterSpace
+    cluster_space: ClusterSpace
     coefficients: Mapping[int, np.ndarray]
 
     def __post_init__(self) -> None:
-        if not isinstance(self.space, ClusterSpace):
+        if not isinstance(self.cluster_space, ClusterSpace):
             raise TypeError("space must be a ClusterSpace")
         values: dict[int, np.ndarray] = {}
         for key, source in self.coefficients.items():
             order = int(key)
             if order != key:
                 raise TypeError("force-constant orders must be integers")
-            block = self.space.block(order)
+            block = self.cluster_space.block(order)
             array = np.array(source, dtype=np.float64, copy=True, order="C").reshape(-1)
             expected = block.parameters.stop - block.parameters.start
             if len(array) != expected:
@@ -74,7 +75,7 @@ class ForceConstants:
         object.__setattr__(self, "coefficients", MappingProxyType(values))
 
     def __reduce__(self):
-        return type(self), (self.space, dict(self.coefficients))
+        return type(self), (self.cluster_space, dict(self.coefficients))
 
     @property
     def orders(self) -> tuple[int, ...]:
@@ -82,7 +83,7 @@ class ForceConstants:
 
     @property
     def fingerprint(self) -> str:
-        return _digest(self.space, self.coefficients)
+        return _digest(self.cluster_space, self.coefficients)
 
     def parameters(self, orders: Iterable[int] | None = None) -> np.ndarray:
         """Return a packed copy in ascending-order cluster-space layout."""
@@ -100,10 +101,10 @@ class ForceConstants:
         items = tuple(models)
         if not items:
             raise ValueError("at least one force-constant model is required")
-        space = items[0].space
+        space = items[0].cluster_space
         coefficients: dict[int, np.ndarray] = {}
         for model in items:
-            if model.space.fingerprint != space.fingerprint:
+            if model.cluster_space.fingerprint != space.fingerprint:
                 raise ValueError("force constants use different cluster spaces")
             overlap = coefficients.keys() & model.coefficients.keys()
             if overlap:
@@ -119,13 +120,14 @@ class ForceConstants:
             "format": _FORMAT,
             "version": _VERSION,
             "fingerprint": self.fingerprint,
-            "space": self.space,
+            "cluster_space": self.cluster_space._state(),
             "coefficients": dict(self.coefficients),
         }
         temporary: str | None = None
         try:
             with tempfile.NamedTemporaryFile("wb", dir=path.parent, delete=False) as handle:
                 temporary = handle.name
+                handle.write(_HEADER)
                 pickle.dump(payload, handle, protocol=pickle.HIGHEST_PROTOCOL)
                 handle.flush()
                 os.fsync(handle.fileno())
@@ -140,15 +142,19 @@ class ForceConstants:
         """Read a native force-constant file from a trusted source."""
         path = Path(file).resolve()
         with path.open("rb") as handle:
+            if handle.read(len(_HEADER)) != _HEADER:
+                raise ValueError("unsupported force-constant file version; version 3 is required")
             payload = pickle.load(handle)
         if not isinstance(payload, dict) or payload.get("format") != _FORMAT:
             raise ValueError(f"{path} is not an MLFCS force-constant file")
         if payload.get("version") != _VERSION:
             raise ValueError(
-                f"unsupported force-constant version {payload.get('version')}; "
-                f"this release reads version {_VERSION}"
+                f"unsupported force-constant version {payload.get('version')}; this release reads version {_VERSION}"
             )
-        model = cls(payload.get("space"), payload.get("coefficients"))
+        from mlfcs.cluster_space.models import _restore_cluster_space
+
+        space = _restore_cluster_space(payload["cluster_space"])
+        model = cls(space, payload.get("coefficients"))
         if payload.get("fingerprint") != model.fingerprint:
             raise ValueError("force-constant fingerprint does not match its contents")
         return model
@@ -156,7 +162,7 @@ class ForceConstants:
     def write(
         self,
         file: str | os.PathLike[str],
-        mapping: ClusterMap | None = None,
+        cluster_map: ClusterMap | None = None,
         *,
         format: Literal["phonopy", "phono3py", "shengbte", "tdep"],
         order: int,
@@ -175,7 +181,7 @@ class ForceConstants:
         return write(
             self,
             file,
-            mapping,
+            cluster_map,
             format=format,
             order=order,
             storage=storage,

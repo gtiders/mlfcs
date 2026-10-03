@@ -9,7 +9,7 @@ import numpy as np
 from scipy import sparse
 from scipy.sparse.linalg import lsmr
 
-from mlfcs.core.errors import ConstraintProjectionError
+from mlfcs.errors import ConstraintProjectionError
 from mlfcs.force_constants.acoustic import constraint_matrix, relative_residual
 from mlfcs.force_constants.model import ForceConstants
 
@@ -152,7 +152,7 @@ def enforce_asr(
         )
         coefficients[order] = projected
         reports.append(report)
-    return ASRResult(ForceConstants(model.space, coefficients), tuple(reports))
+    return ASRResult(ForceConstants(model.cluster_space, coefficients), tuple(reports))
 
 
 __all__ = ["ASRReport", "ASRResult", "enforce_asr"]

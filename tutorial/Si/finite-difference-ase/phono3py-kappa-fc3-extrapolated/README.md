@@ -10,7 +10,7 @@ phono3py identifies the primitive cell from that supercell.
 Run from this directory:
 
 ```bash
-uv run --project ../../../.. --with phono3py python run.py
+uv run --project ../../../.. --python 3.12 --with phono3py==4.4.0 --with phonopy==4.4.0 --with phonors==0.3.0 python run.py
 ```
 
 The settings match the regular conductivity case: a $10\times10\times10$
@@ -24,13 +24,13 @@ regular FC3 workflow were:
 
 | Temperature (K) | Regular FC3 ($\kappa_{xx}$) | Extrapolated FC3 ($\kappa_{xx}$) | Change |
 |---:|---:|---:|---:|
-| 300 | 84.338 | 84.389 | +0.0611% |
-| 400 | 61.159 | 61.196 | +0.0605% |
-| 500 | 48.264 | 48.294 | +0.0604% |
-| 600 | 39.966 | 39.990 | +0.0603% |
-| 700 | 34.148 | 34.168 | +0.0603% |
-| 800 | 29.830 | 29.848 | +0.0603% |
-| 900 | 26.493 | 26.509 | +0.0603% |
+| 300 | 84.368 | 84.420 | +0.0614% |
+| 400 | 61.190 | 61.227 | +0.0609% |
+| 500 | 48.292 | 48.321 | +0.0607% |
+| 600 | 39.990 | 40.014 | +0.0606% |
+| 700 | 34.169 | 34.190 | +0.0607% |
+| 800 | 29.849 | 29.867 | +0.0606% |
+| 900 | 26.510 | 26.526 | +0.0606% |
 
 The cubic Si tensor is isotropic here, so the $xx$, $yy$, and $zz$ components
 agree to numerical precision. The small shift reflects only the FC3

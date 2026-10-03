@@ -7,8 +7,8 @@ from dataclasses import dataclass
 import numpy as np
 from scipy import sparse
 
+from mlfcs.core.tensors import rotate_basis
 from mlfcs.force_constants.acoustic import constraint_matrix, relative_residual
-from mlfcs.force_constants.lattice import rotate_basis
 from mlfcs.force_constants.model import ForceConstants
 
 
@@ -58,7 +58,7 @@ def _append(
 def _fc2_moment_matrices(
     model: ForceConstants,
 ) -> tuple[sparse.csr_matrix, sparse.csr_matrix, float]:
-    space = model.space
+    space = model.cluster_space
     block = space.block(2)
     parameter_count = block.parameters.stop - block.parameters.start
     offsets = np.cumsum(
@@ -72,8 +72,8 @@ def _fc2_moment_matrices(
     )
     images = []
     lengths = []
-    positions = space.primitive.cartesian_positions
-    cell = space.primitive.cell
+    positions = space.cartesian_positions
+    cell = space.cell
     for local_orbit, orbit_index in enumerate(range(block.orbits.start, block.orbits.stop)):
         orbit = space.orbits[orbit_index]
         for image, cluster in enumerate(orbit.clusters):
@@ -116,7 +116,7 @@ def _fc2_moment_matrices(
 
     born = sparse.coo_matrix(
         (born_entries[2], (born_entries[0], born_entries[1])),
-        shape=(space.primitive.size * 9, parameter_count),
+        shape=(space.n_atoms * 9, parameter_count),
     ).tocsr()
     huang = sparse.coo_matrix(
         (huang_entries[2], (huang_entries[0], huang_entries[1])),
@@ -136,8 +136,8 @@ def _maximum_residual(matrix: sparse.csr_matrix, values: np.ndarray) -> float:
 
 def _geometry_residuals(model: ForceConstants) -> tuple[float, float]:
     """Measure the symmetry mismatch of the supplied, non-idealized primitive."""
-    primitive = model.space.primitive
-    symmetry = model.space.symmetry
+    primitive = model.cluster_space
+    symmetry = model.cluster_space.symmetry
     positions = primitive.scaled_positions
     cell = primitive.cell
     site_residual = 0.0
@@ -229,7 +229,7 @@ def enforce_rotation(
 
     coefficients = dict(model.coefficients)
     coefficients[2] = projected
-    result = ForceConstants(model.space, coefficients)
+    result = ForceConstants(model.cluster_space, coefficients)
     return RotationResult(
         force_constants=result,
         born_huang=born_huang,

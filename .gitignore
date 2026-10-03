@@ -9,7 +9,6 @@ wheels/
 .omo
 .omp
 uv.lock
-
 # Virtual environments
 .venv
 site/
@@ -58,3 +57,13 @@ site/
 !/tests/**/*.yaml
 !/tests/**/*.yml
 !/tests/**/*.json
+
+# Persist migration oracles and exact differential fixtures.
+!/tests/**/
+!/tests/data/*.npz
+!/tests/data/*.mlfcs
+
+# External reference clone and local build artifacts
+alamode/
+src/mlfcs/_native*.so
+.zcode/

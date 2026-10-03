@@ -1,16 +1,16 @@
 # Si FC2 by finite differences
 
 This directory independently calculates second-order force constants for Si
-using ASE and the bundled NEP3 model. It needs only the files in this directory
+using ASE and the bundled NEP3 model. It uses Calorine 2.2, which supports the bundled NEP3 model. It needs only the files in this directory
 and an installed MLFCS package.
 
 Run from this directory with the repository environment:
 
 ```bash
-uv run --project ../../../.. --with calorine python run.py
+uv run --project ../../../.. --python 3.12 --with 'calorine @ git+https://gitlab.com/materials-modeling/calorine.git@2.2' python run.py
 ```
 
-The script writes its complete stdout, stderr, and traceback to `run.log`,
+The script writes its complete stdout, stderr, and traceback to `fit.log`,
 overwriting that log on each run. It generates a $4\times4\times4$ supercell
 supercell, evaluates the six displacement structures, reconstructs FC2,
 projects the result onto translational invariance, and writes:

@@ -7,7 +7,7 @@ import numpy as np
 from mlfcs.core import LatticeSite
 from mlfcs.force_constants.lattice import expand
 from mlfcs.force_constants.model import ForceConstants
-from mlfcs.supercell import ClusterMap
+from mlfcs.mapping import ClusterMap
 
 DEFAULT_THRESHOLD = 1e-8
 
@@ -29,11 +29,11 @@ def clean(values: object, threshold: float) -> np.ndarray:
     return result
 
 
-def validate(model: ForceConstants, mapping: ClusterMap, order: int) -> None:
+def validate(model: ForceConstants, cluster_map: ClusterMap, order: int) -> None:
     """Validate the model, cluster map and requested tensor order."""
-    if not isinstance(mapping, ClusterMap):
+    if not isinstance(cluster_map, ClusterMap):
         raise TypeError("mapping must be a ClusterMap")
-    if model.space.fingerprint != mapping.space.fingerprint:
+    if model.cluster_space.fingerprint != cluster_map.cluster_space.fingerprint:
         raise ValueError("force constants and cluster map use different cluster spaces")
     if order not in model.coefficients:
         raise ValueError(f"force constants do not contain order {order}")
@@ -41,57 +41,59 @@ def validate(model: ForceConstants, mapping: ClusterMap, order: int) -> None:
 
 def compact(
     model: ForceConstants,
-    mapping: ClusterMap,
+    cluster_map: ClusterMap,
     order: int,
     *,
     threshold: float,
 ) -> np.ndarray:
     """Return primitive-first force constants folded into ``mapping``."""
-    validate(model, mapping, order)
+    validate(model, cluster_map, order)
     expanded = expand(model, order)
-    supercell = mapping.supercell
-    shape = (model.space.primitive.size,) + (len(supercell.numbers),) * (order - 1)
+    supercell = cluster_map
+    shape = (model.cluster_space.n_atoms,) + (len(supercell.atomic_numbers),) * (order - 1)
     result = np.zeros(shape + (3,) * order, dtype=np.float64)
     for sites, translations, tensor in zip(
         expanded.sites, expanded.translations, expanded.tensors, strict=True
     ):
         atoms = tuple(
-            supercell.atom(LatticeSite(site, translation))
+            supercell.atom_index(LatticeSite(site, translation))
             for site, translation in zip(sites[1:], translations, strict=True)
         )
         result[(sites[0], *atoms)] += tensor
     return clean(result, threshold)
 
 
-def translated_atoms(mapping: ClusterMap, first: int) -> np.ndarray:
+def translated_atoms(cluster_map: ClusterMap, first: int) -> np.ndarray:
     """Map the explicit supercell order into coordinates relative to ``first``."""
-    supercell = mapping.supercell
-    origin = supercell.translations[first]
-    result = np.empty(len(supercell.numbers), dtype=np.int64)
+    supercell = cluster_map
+    origin = supercell.lattice_translations[first]
+    result = np.empty(len(supercell.atomic_numbers), dtype=np.int64)
     for atom, (site, translation) in enumerate(
-        zip(supercell.sites, supercell.translations, strict=True)
+        zip(supercell.primitive_site_indices, supercell.lattice_translations, strict=True)
     ):
-        relative = tuple(int(value - zero) for value, zero in zip(translation, origin, strict=True))
-        result[atom] = supercell.atom(LatticeSite(int(site), relative))
+        relative = tuple(
+            int(value) - int(zero) for value, zero in zip(translation, origin, strict=True)
+        )
+        result[atom] = supercell.atom_index(LatticeSite(int(site), relative))
     return result
 
 
-def full_fc2(compact_values: np.ndarray, mapping: ClusterMap) -> np.ndarray:
+def full_fc2(compact_values: np.ndarray, cluster_map: ClusterMap) -> np.ndarray:
     """Expand primitive-first FC2 into the explicit full-supercell order."""
-    supercell = mapping.supercell
-    size = len(supercell.numbers)
+    supercell = cluster_map
+    size = len(supercell.atomic_numbers)
     result = np.empty((size, size, 3, 3), dtype=np.float64)
     for first in range(size):
-        tails = translated_atoms(mapping, first)
-        result[first] = compact_values[int(supercell.sites[first]), tails]
+        tails = translated_atoms(cluster_map, first)
+        result[first] = compact_values[int(supercell.primitive_site_indices[first]), tails]
     return result
 
 
-def primitive_to_supercell(mapping: ClusterMap) -> np.ndarray:
+def primitive_to_supercell(cluster_map: ClusterMap) -> np.ndarray:
     """Return the first explicit supercell atom for every primitive site."""
-    sites = mapping.supercell.sites
+    sites = cluster_map.primitive_site_indices
     return np.asarray(
-        [np.flatnonzero(sites == site)[0] for site in range(mapping.space.primitive.size)]
+        [np.flatnonzero(sites == site)[0] for site in range(cluster_map.cluster_space.n_atoms)]
     )
 
 

@@ -1,40 +1,40 @@
 {
   "asr": {
     "2": {
-      "correction_norm": 0.033271963547127456,
+      "correction_norm": 0.033272284450494294,
       "equations": 90,
       "iterations": 7,
       "order": 2,
       "parameters": 253,
-      "relative_after": 6.9386198448437985e-18,
-      "relative_before": 0.0003779607144294525,
-      "relative_correction": 0.0014421023035335243,
-      "residual_after": 3.0895042865520592e-15,
-      "residual_before": 0.16828431965735202
+      "relative_after": 6.414903054655297e-18,
+      "relative_before": 0.00037796122807364255,
+      "relative_correction": 0.001442116333742651,
+      "residual_after": 2.8563114878832525e-15,
+      "residual_before": 0.16828445504419232
     },
     "3": {
-      "correction_norm": 0.3428122832478224,
+      "correction_norm": 0.3428144901019914,
       "equations": 10422,
       "iterations": 31,
       "order": 3,
       "parameters": 4247,
-      "relative_after": 4.956456022674844e-14,
-      "relative_before": 0.000581136580058862,
-      "relative_correction": 0.00614740376052852,
-      "residual_after": 6.395585970542239e-11,
-      "residual_before": 0.7498189504560661
+      "relative_after": 4.956456383670328e-14,
+      "relative_before": 0.0005811554656788657,
+      "relative_correction": 0.006147445097602493,
+      "residual_after": 6.395600021802395e-11,
+      "residual_before": 0.7498449252007934
     },
     "4": {
-      "correction_norm": 7.11624368229948,
+      "correction_norm": 7.115079283141876,
       "equations": 65934,
       "iterations": 78,
       "order": 4,
       "parameters": 2349,
-      "relative_after": 7.499624109444335e-13,
-      "relative_before": 0.014288701442488947,
-      "relative_correction": 0.05123481976677008,
-      "residual_after": 5.139933085462527e-10,
-      "residual_before": 9.795899810187851
+      "relative_after": 7.49728317565915e-13,
+      "relative_before": 0.014283690674353146,
+      "relative_correction": 0.05123241788842889,
+      "residual_after": 5.138285642188916e-10,
+      "residual_before": 9.79237600559134
     }
   },
   "column_scale": "1 / sqrt(diag(FitSystem.matrix))",
@@ -43,8 +43,8 @@
     "3": 6.350126526766093,
     "4": 4.233417684510729
   },
-  "fit_system_fingerprint": "4a4ee04cd55bfd762f3b940cc9727896771c91dff3a3066e31cef296f1575a23",
-  "force_constants_fingerprint": "384a421bfd7e3fe54de386aa8c5d44dfac97328af3b1212075cdf4ed41aca4c0",
+  "fit_system_fingerprint": "7951d8c117d6770d53f76cc48e519b11e47db570694f72b8d2683f09a58363c8",
+  "force_constants_fingerprint": "9199da2c45f7f657914acb79a68b21f86083c8f61e23deb35f349e2e173bd40a",
   "max_body_orders": {
     "2": 2,
     "3": 3,
@@ -84,9 +84,9 @@
     ]
   ],
   "training_equations": 90000,
-  "training_force_rmse_after_asr_eV_per_angstrom": 0.018910111870396637,
-  "training_force_rmse_before_asr_eV_per_angstrom": 0.015614271171386423,
-  "training_relative_force_error_after_asr": 0.0668514500080311,
-  "training_relative_force_error_before_asr": 0.05519992032727653,
+  "training_force_rmse_after_asr_eV_per_angstrom": 0.018910104062443096,
+  "training_force_rmse_before_asr_eV_per_angstrom": 0.015614295221516507,
+  "training_relative_force_error_after_asr": 0.06685142240517927,
+  "training_relative_force_error_before_asr": 0.05520000534983377,
   "training_structures": 250
 }

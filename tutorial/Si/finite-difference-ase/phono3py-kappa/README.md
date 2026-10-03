@@ -9,7 +9,7 @@ recomputing force constants.
 Run from this directory:
 
 ```bash
-uv run --project ../../../.. --with phono3py python run.py
+uv run --project ../../../.. --python 3.12 --with phono3py==4.4.0 --with phonopy==4.4.0 --with phonors==0.3.0 python run.py
 ```
 
 The input to phono3py is the explicit 128-atom supercell in `../fc3/SPOSCAR`.
@@ -32,13 +32,13 @@ With phono3py 4.4.0, the calculated diagonal conductivity components were:
 
 | Temperature (K) | $\kappa_{xx}$ | $\kappa_{yy}$ | $\kappa_{zz}$ |
 |---:|---:|---:|---:|
-| 300 | 84.338 | 84.338 | 84.338 |
-| 400 | 61.159 | 61.159 | 61.159 |
-| 500 | 48.264 | 48.264 | 48.264 |
-| 600 | 39.966 | 39.966 | 39.966 |
-| 700 | 34.148 | 34.148 | 34.148 |
-| 800 | 29.830 | 29.830 | 29.830 |
-| 900 | 26.493 | 26.493 | 26.493 |
+| 300 | 84.368 | 84.368 | 84.368 |
+| 400 | 61.190 | 61.190 | 61.190 |
+| 500 | 48.292 | 48.292 | 48.292 |
+| 600 | 39.990 | 39.990 | 39.990 |
+| 700 | 34.169 | 34.169 | 34.169 |
+| 800 | 29.849 | 29.849 | 29.849 |
+| 900 | 26.510 | 26.510 | 26.510 |
 
 The tensor components are in W/m-K. The full-precision values are in
 `thermal-conductivity.json` and the phono3py HDF5 file.

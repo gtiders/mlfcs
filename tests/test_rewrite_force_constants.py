@@ -9,18 +9,18 @@ import numpy as np
 import pytest
 from ase.build import bulk
 
-from mlfcs.cluster_space import build_cluster_space
-from mlfcs.core import PrimitiveCell
+from mlfcs.cluster_space import ClusterSpace
 from mlfcs.force_constants import ForceConstants
-from mlfcs.supercell import ClusterMap, Supercell
+from mlfcs.mapping import ClusterMap
 
 
 def space():
-    primitive = PrimitiveCell.from_atoms(bulk("Ar", "sc", a=1.0), symprec=1e-5)
-    return build_cluster_space(
+    primitive = bulk("Ar", "sc", a=1.0)
+    return ClusterSpace(
         primitive,
         cutoffs={2: 1.1, 3: 0.1},
         max_body_orders={2: 2, 3: 1},
+        symprec=1e-05,
     )
 
 
@@ -80,21 +80,23 @@ def test_force_constants_reject_wrong_or_nonfinite_parameters() -> None:
 def test_new_package_dependency_direction_is_explicit() -> None:
     from _architecture_helpers import internal_dependencies
 
-    assert internal_dependencies("force_constants") == {"cluster_space", "core", "supercell"}
-    assert internal_dependencies("finite_difference") == {
+    assert internal_dependencies("force_constants") == {
+        "errors",
         "core",
-        "force_constants",
-        "supercell",
+        "cluster_space",
+        "mapping",
     }
+    assert internal_dependencies("finite_difference") == {"core", "force_constants", "mapping"}
 
 
 def mapped_model(orders: tuple[int, ...], *, repeats: int = 2) -> tuple[ForceConstants, ClusterMap]:
     atoms = bulk("Ar", "sc", a=1.0)
-    primitive = PrimitiveCell.from_atoms(atoms, symprec=1e-5)
-    cluster_space = build_cluster_space(
+    primitive = atoms
+    cluster_space = ClusterSpace(
         primitive,
         cutoffs={order: 1.1 for order in orders},
         max_body_orders={order: order for order in orders},
+        symprec=1e-05,
     )
     coefficients = {
         order: np.linspace(
@@ -105,12 +107,11 @@ def mapped_model(orders: tuple[int, ...], *, repeats: int = 2) -> tuple[ForceCon
         )
         for order in orders
     }
-    cell = Supercell.from_atoms(
-        primitive,
+    return ForceConstants(cluster_space, coefficients), ClusterMap(
+        cluster_space,
         atoms.repeat((repeats, repeats, repeats)),
-        matrix=np.diag([repeats, repeats, repeats]),
+        supercell_matrix=np.diag([repeats, repeats, repeats]),
     )
-    return ForceConstants(cluster_space, coefficients), ClusterMap.build(cluster_space, cell)
 
 
 def test_phonopy_writes_text_and_hdf5_with_one_threshold(tmp_path) -> None:

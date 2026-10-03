@@ -13,13 +13,7 @@ from pathlib import Path
 import numpy as np
 from ase.io import iread, read
 
-from mlfcs import (
-    ClusterMap,
-    FitSystem,
-    PrimitiveCell,
-    Supercell,
-    build_cluster_space,
-)
+from mlfcs import ClusterMap, ClusterSpace, FitSystem
 
 ROOT = Path(__file__).resolve().parent
 TEMPERATURE_K = 300
@@ -50,18 +44,14 @@ class _Tee:
 def _fit() -> None:
     primitive_atoms = read(ROOT / "primitive.vasp")
     supercell_atoms = read(ROOT / "supercell.vasp")
-    primitive = PrimitiveCell.from_atoms(primitive_atoms, symprec=SYMPREC_ANGSTROM)
-    supercell = Supercell.from_atoms(
-        primitive,
-        supercell_atoms,
-        matrix=SUPERCELL_MATRIX,
-    )
-    space = build_cluster_space(
+    primitive = primitive_atoms
+    space = ClusterSpace(
         primitive,
         cutoffs=CUTOFFS_ANGSTROM,
         max_body_orders=MAX_BODY_ORDERS,
+        symprec=SYMPREC_ANGSTROM,
     )
-    mapping = ClusterMap.build(space, supercell)
+    mapping = ClusterMap(space, supercell_atoms, supercell_matrix=SUPERCELL_MATRIX)
     fit_system = FitSystem.from_atoms(mapping, iread(ROOT / "nve.extxyz", index=":"))
     parameters = fit_system.solve(rtol=SOLVER_RTOL, max_steps=SOLVER_MAX_STEPS)
     unconstrained = fit_system.force_constants(parameters)
@@ -86,9 +76,9 @@ def _fit() -> None:
     )
     metrics = {
         "temperature_K": TEMPERATURE_K,
-        "primitive_atoms": primitive.size,
-        "supercell_atoms": len(supercell.numbers),
-        "supercell_matrix": supercell.matrix.tolist(),
+        "primitive_atoms": space.n_atoms,
+        "supercell_atoms": len(mapping.atomic_numbers),
+        "supercell_matrix": mapping.supercell_matrix.tolist(),
         "training_structures": fit_system.n_structures,
         "training_equations": fit_system.n_equations,
         "orders": list(space.orders),

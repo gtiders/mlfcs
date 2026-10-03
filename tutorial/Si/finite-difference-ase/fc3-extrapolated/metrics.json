@@ -1,19 +1,19 @@
 {
   "asr": {
-    "correction_norm": 0.010030285951134052,
+    "correction_norm": 0.010030285949795022,
     "equations": 4698,
     "iterations": 16,
     "order": 3,
     "parameters": 711,
-    "relative_after": 2.8353005107840563e-16,
-    "relative_before": 3.8262497691265594e-05,
-    "relative_correction": 0.0003192905257242616,
-    "residual_after": 7.239471906909937e-13,
-    "residual_before": 0.09769635256485387
+    "relative_after": 2.835146004361894e-16,
+    "relative_before": 3.826249769281364e-05,
+    "relative_correction": 0.00031929052568154394,
+    "residual_after": 7.239077400263608e-13,
+    "residual_before": 0.09769635256883902
   },
-  "configurations_per_displacement": 140,
+  "configurations_per_displacement": 136,
   "cutoff_angstrom": 7.7237404951,
-  "displacement_configurations": 700,
+  "displacement_configurations": 680,
   "displacements_angstrom": [
     0.01,
     0.015,
@@ -21,12 +21,12 @@
     0.025,
     0.03
   ],
-  "force_constants_fingerprint": "9f4167955d633a5bb702c77fca7a06d7883c5fde4fac56ce5d7aa3358dd88dcb",
+  "force_constants_fingerprint": "06ab97e56351becb024ba29883bc8719889a1ee01137c45192b31890da12141f",
   "orbits": 46,
   "order": 3,
   "parameters": 711,
   "primitive_atoms": 2,
-  "relative_l2_correction_from_0.02_angstrom": 0.0006558111852685743,
+  "relative_l2_correction_from_0.02_angstrom": 0.0006557968664017237,
   "supercell_atoms": 128,
   "supercell_matrix": [
     [

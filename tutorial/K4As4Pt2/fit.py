@@ -12,13 +12,7 @@ from pathlib import Path
 from ase.io import iread, read
 from ase.units import Bohr
 
-from mlfcs import (
-    ClusterMap,
-    FitSystem,
-    PrimitiveCell,
-    Supercell,
-    build_cluster_space,
-)
+from mlfcs import ClusterMap, ClusterSpace, FitSystem
 
 ROOT = Path(__file__).resolve().parent
 SUPERCELL_MATRIX = ((2, 0, 0), (0, 2, 0), (0, 0, 3))
@@ -46,18 +40,14 @@ class _Tee:
 
 
 def _fit() -> None:
-    primitive = PrimitiveCell.from_atoms(read(ROOT / "primitive.vasp"), symprec=SYMPREC_ANGSTROM)
-    supercell = Supercell.from_atoms(
-        primitive,
-        read(ROOT / "supercell.vasp"),
-        matrix=SUPERCELL_MATRIX,
-    )
-    space = build_cluster_space(
+    primitive = read(ROOT / "primitive.vasp")
+    space = ClusterSpace(
         primitive,
         cutoffs=CUTOFFS_ANGSTROM,
         max_body_orders=MAX_BODY_ORDERS,
+        symprec=SYMPREC_ANGSTROM,
     )
-    mapping = ClusterMap.build(space, supercell)
+    mapping = ClusterMap(space, read(ROOT / "supercell.vasp"), supercell_matrix=SUPERCELL_MATRIX)
 
     system = FitSystem.from_atoms(mapping, iread(ROOT / "train.extxyz", index=":"))
     parameters = system.solve(rtol=SOLVER_RTOL, max_steps=SOLVER_MAX_STEPS)
@@ -89,8 +79,8 @@ def _fit() -> None:
 
     reports = {str(report.order): asdict(report) for report in projection.reports}
     metrics = {
-        "primitive_atoms": primitive.size,
-        "supercell_atoms": len(supercell.numbers),
+        "primitive_atoms": space.n_atoms,
+        "supercell_atoms": len(mapping.atomic_numbers),
         "supercell_matrix": [list(row) for row in SUPERCELL_MATRIX],
         "training_structures": system.n_structures,
         "training_equations": system.n_equations,

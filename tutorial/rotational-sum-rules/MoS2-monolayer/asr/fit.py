@@ -11,7 +11,7 @@ from pathlib import Path
 
 from ase.io import iread, read
 
-from mlfcs import ClusterMap, FitSystem, PrimitiveCell, Supercell, build_cluster_space
+from mlfcs import ClusterMap, ClusterSpace, FitSystem
 
 ROOT = Path(__file__).resolve().parent
 SUPERCELL_MATRIX = ((8, 0, 0), (0, 8, 0), (0, 0, 1))
@@ -36,12 +36,11 @@ class _Tee:
 
 
 def _fit() -> None:
-    primitive = PrimitiveCell.from_atoms(read(ROOT / "primitive.vasp"), symprec=SYMPREC_ANGSTROM)
-    supercell = Supercell.from_atoms(
-        primitive, read(ROOT / "supercell.vasp"), matrix=SUPERCELL_MATRIX
+    primitive = read(ROOT / "primitive.vasp")
+    space = ClusterSpace(
+        primitive, cutoffs={2: 8.0}, max_body_orders={2: 2}, symprec=SYMPREC_ANGSTROM
     )
-    space = build_cluster_space(primitive, cutoffs={2: 8.0}, max_body_orders={2: 2})
-    mapping = ClusterMap.build(space, supercell)
+    mapping = ClusterMap(space, read(ROOT / "supercell.vasp"), supercell_matrix=SUPERCELL_MATRIX)
     system = FitSystem.from_atoms(mapping, iread(ROOT / "training.extxyz", index=":"))
     parameters = system.solve(rtol=SOLVER_RTOL, max_steps=10000)
     raw = system.force_constants(parameters)
@@ -52,8 +51,8 @@ def _fit() -> None:
     projected_parameters = model.parameters()
     metrics = {
         "projection": "translational invariance (ASR)",
-        "primitive_atoms": primitive.size,
-        "supercell_atoms": len(supercell.numbers),
+        "primitive_atoms": space.n_atoms,
+        "supercell_atoms": len(mapping.atomic_numbers),
         "supercell_matrix": [list(row) for row in SUPERCELL_MATRIX],
         "training_structures": system.n_structures,
         "training_equations": system.n_equations,

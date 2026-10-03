@@ -5,12 +5,12 @@ from __future__ import annotations
 import numpy as np
 from scipy import sparse
 
-from mlfcs.force_constants.lattice import rotate_basis
+from mlfcs.core.tensors import rotate_basis
 from mlfcs.force_constants.model import ForceConstants
 
 
 def constraint_matrix(model: ForceConstants, order: int) -> sparse.csr_matrix:
-    space = model.space
+    space = model.cluster_space
     block = space.block(order)
     orbit_indices = range(block.orbits.start, block.orbits.stop)
     dimensions = [space.orbits[index].dimension for index in orbit_indices]

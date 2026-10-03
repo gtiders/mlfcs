@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import json
 import logging
-import sys
 import traceback
-from contextlib import redirect_stderr, redirect_stdout
+from contextlib import chdir, redirect_stderr, redirect_stdout
 from pathlib import Path
 
 import h5py
@@ -83,13 +82,14 @@ def run() -> None:
     ph3.fc3 = read_fc3_from_hdf5(FC3_FILE)
     ph3.mesh_numbers = MESH
     ph3.init_phph_interaction()
-    ph3.run_thermal_conductivity(
-        temperatures=TEMPERATURES,
-        is_isotope=True,
-        write_kappa=True,
-        output_filename=OUTPUT_STEM,
-        log_level=1,
-    )
+    with chdir(ROOT):
+        ph3.run_thermal_conductivity(
+            temperatures=TEMPERATURES,
+            is_isotope=True,
+            write_kappa=True,
+            output_filename=OUTPUT_STEM,
+            log_level=1,
+        )
     result_file = _result_file()
     report = {
         "material": "Si",

@@ -7,20 +7,14 @@ Fitting is a force-only linear problem. `FitSystem` consumes ASE structures with
 ```python
 import numpy as np
 from ase.build import bulk
-from mlfcs import PrimitiveCell, Supercell, ClusterMap, build_cluster_space
+from mlfcs import ClusterMap, ClusterSpace
 
 primitive_atoms = bulk("Al", "fcc", a=4.05)
-primitive = PrimitiveCell.from_atoms(primitive_atoms, symprec=1e-5)
-space = build_cluster_space(
-    primitive,
-    cutoffs={2: 4.0, 3: 3.0},
-    max_body_orders={2: 2, 3: 3},
+space = ClusterSpace(
+    primitive_atoms, cutoffs={2: 4.0, 3: 3.0}, max_body_orders={2: 2, 3: 3}, symprec=1e-05
 )
 supercell_atoms = primitive_atoms.repeat((3, 3, 3))
-supercell = Supercell.from_atoms(
-    primitive, supercell_atoms, matrix=np.diag([3, 3, 3])
-)
-mapping = ClusterMap.build(space, supercell)
+mapping = ClusterMap(space, supercell_atoms, supercell_matrix=np.diag([3, 3, 3]))
 mapping.rank_info().require_full()
 ```
 

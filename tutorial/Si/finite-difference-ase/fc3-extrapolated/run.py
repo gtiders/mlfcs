@@ -13,14 +13,7 @@ import numpy as np
 from ase.io import read, write
 from calorine.calculators import CPUNEP
 
-from mlfcs import (
-    ClusterMap,
-    FiniteDifference,
-    ForceConstants,
-    PrimitiveCell,
-    Supercell,
-    build_cluster_space,
-)
+from mlfcs import ClusterMap, ClusterSpace, FiniteDifference, ForceConstants
 
 ROOT = Path(__file__).resolve().parent
 INPUT = ROOT.parent / "fc3"
@@ -50,21 +43,19 @@ class _Tee:
 
 def _run() -> None:
     primitive_atoms = read(INPUT / "POSCAR.vasp")
-    primitive = PrimitiveCell.from_atoms(primitive_atoms, symprec=SYMPREC_ANGSTROM)
+    primitive = primitive_atoms
     supercell_atoms = primitive_atoms.repeat((SUPERCELL_REPETITIONS,) * 3)
-    supercell = Supercell.from_atoms(
-        primitive,
-        supercell_atoms,
-        matrix=np.diag([SUPERCELL_REPETITIONS] * 3),
-    )
     write(ROOT / "SPOSCAR", supercell_atoms, format="vasp", direct=True, sort=False, vasp5=True)
 
-    space = build_cluster_space(
+    space = ClusterSpace(
         primitive,
         cutoffs={ORDER: CUTOFF_ANGSTROM},
         max_body_orders={ORDER: ORDER},
+        symprec=SYMPREC_ANGSTROM,
     )
-    mapping = ClusterMap.build(space, supercell)
+    mapping = ClusterMap(
+        space, supercell_atoms, supercell_matrix=np.diag([SUPERCELL_REPETITIONS] * 3)
+    )
     calculation = FiniteDifference(
         mapping,
         order=ORDER,
@@ -87,8 +78,9 @@ def _run() -> None:
         structure
         for key_index in range(keys_count)
         for structure in evaluated[
-            key_index * len(steps) * sign_count
-            + middle_step * sign_count : key_index * len(steps) * sign_count
+            key_index * len(steps) * sign_count + middle_step * sign_count : key_index
+            * len(steps)
+            * sign_count
             + (middle_step + 1) * sign_count
         ]
     )
@@ -114,9 +106,9 @@ def _run() -> None:
     )
     metrics = {
         "order": ORDER,
-        "primitive_atoms": primitive.size,
-        "supercell_matrix": supercell.matrix.tolist(),
-        "supercell_atoms": len(supercell.numbers),
+        "primitive_atoms": space.n_atoms,
+        "supercell_matrix": mapping.supercell_matrix.tolist(),
+        "supercell_atoms": len(mapping.atomic_numbers),
         "cutoff_angstrom": CUTOFF_ANGSTROM,
         "displacements_angstrom": list(DISPLACEMENTS_ANGSTROM),
         "displacement_configurations": calculation.n_configurations,
@@ -140,7 +132,7 @@ def _run() -> None:
 
 
 def main() -> None:
-    with (ROOT / "run.log").open("w", encoding="utf-8") as log_file:
+    with (ROOT / "fit.log").open("w", encoding="utf-8") as log_file:
         stdout, stderr = sys.stdout, sys.stderr
         sys.stdout, sys.stderr = _Tee(stdout, log_file), _Tee(stderr, log_file)
         package_logger = logging.getLogger("mlfcs")

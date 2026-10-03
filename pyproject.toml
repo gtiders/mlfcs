@@ -1,6 +1,6 @@
 [project]
 name = "mlfcs"
-version = "4.5.1"
+version = "6.0.0"
 description = "ASE-first symmetry-reduced force constants from second to arbitrary order"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -30,7 +30,6 @@ dependencies = [
     "numpy>=1.26",
     "scipy>=1.11",
     "spglib>=2.5",
-    "sympy>=1.13",
 ]
 
 [project.urls]
@@ -47,6 +46,7 @@ dev = [
 # packages and no production code imports them, so they live in their own group: the
 # default environment skips those tests, and this group runs the whole suite.
 reference = [
+    "sympy>=1.13",
     "phonopy>=2.20",
     "phono3py>=3.0",
 ]
@@ -65,6 +65,10 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/mlfcs"]
+
+[tool.hatch.build.targets.sdist]
+# A local checkout used for external comparisons is not part of this package.
+exclude = ["/alamode"]
 
 [tool.pytest.ini_options]
 addopts = "-q"

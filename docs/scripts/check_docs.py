@@ -12,6 +12,10 @@ ROOT = Path(__file__).resolve().parents[2]
 DOCS = ROOT / "docs"
 PAGES = {
     Path("index.md"),
+    Path("numba-integer-audit.md"),
+    Path("unified-numba-backend.md"),
+    Path("domain-v6.md"),
+    Path("local-integer-contracts.md"),
     Path("Q&A.md"),
     Path("finite-difference-api.md"),
     Path("fitting-api.md"),
