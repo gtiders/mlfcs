@@ -110,6 +110,31 @@ def mapped_labels(labels, translations, prepared):
     )
 
 
+def infer_supercell_matrix(cluster_space, supercell_atoms):
+    """Infer the integer supercell matrix from the two lattices.
+
+    Row convention: ``supercell_cell = matrix @ primitive_cell``. The real
+    matrix is rounded to the nearest integers and accepted only when the
+    reconstructed lattice reproduces the supercell cell within the declared
+    ``symprec``.
+    """
+    primitive_cell = np.asarray(cluster_space.cell, dtype=np.float64)
+    supercell_cell = np.asarray(supercell_atoms.cell, dtype=np.float64)
+    real = supercell_cell @ np.linalg.inv(primitive_cell)
+    rounded = np.rint(real)
+    if not np.all(np.isfinite(rounded)) or np.any(np.abs(rounded) >= float(1 << 63)):
+        raise OverflowError("inferred supercell matrix cannot enter int64")
+    matrix = rounded.astype(np.int64)
+    residual = float(np.max(np.linalg.norm(matrix @ primitive_cell - supercell_cell, axis=1)))
+    if residual >= cluster_space.symprec:
+        raise ValueError(
+            "the supercell lattice is not an integer transform of the primitive cell; "
+            f"residual {residual:.10g} angstrom is not below symprec "
+            f"{cluster_space.symprec:.10g} angstrom"
+        )
+    return readonly(matrix, np.int64)
+
+
 def supercell_data(cluster_space, atoms, matrix):
     """Map an external supercell using the primitive symprec."""
     if not isinstance(atoms, Atoms):

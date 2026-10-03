@@ -14,14 +14,18 @@ from mlfcs.algebra.integer import prove_integer_product
 from mlfcs.cluster_space import ClusterSpace
 from mlfcs.cluster_space.preparation import PreparedClusterSpace, prepare_cluster_space
 from mlfcs.core import LatticeSite
+from mlfcs.core.log import get_logger
 from mlfcs.core.structure import structure_fingerprint
 from mlfcs.mapping._rank import RankInfo, folded_rank
 from mlfcs.mapping.geometry import (
     _PeriodicIndex,
+    infer_supercell_matrix,
     mapped_labels,
     prepare_periodic_index,
     quotient_kernel,
 )
+
+logger = get_logger(__name__)
 
 
 @dataclass(frozen=True, slots=True, init=False)
@@ -39,11 +43,16 @@ class ClusterMap:
     image_atom_indices: tuple[np.ndarray, ...]
     _periodic: _PeriodicIndex
 
-    def __init__(self, cluster_space: ClusterSpace, supercell_atoms: Atoms, *, supercell_matrix):
+    def __init__(
+        self, cluster_space: ClusterSpace, supercell_atoms: Atoms, *, supercell_matrix=None
+    ):
         from mlfcs.mapping.geometry import supercell_data
 
         if not isinstance(cluster_space, ClusterSpace):
             raise TypeError("cluster_space must be a ClusterSpace")
+        if supercell_matrix is None:
+            supercell_matrix = infer_supercell_matrix(cluster_space, supercell_atoms)
+            logger.info("Supercell matrix inferred: %s", supercell_matrix.tolist())
         data = supercell_data(cluster_space, supercell_atoms, supercell_matrix)
         object.__setattr__(self, "cluster_space", cluster_space)
         for name, value in data.items():
