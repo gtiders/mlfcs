@@ -2,6 +2,27 @@
 
 Fitting is a force-only linear problem. `FitSystem` consumes ASE structures with already stored forces, builds the optimized sufficient normal system, and solves all configured orders together. It does not call calculators or retain the training structures.
 
+## Retain the raw equations: `FitData`
+
+`FitSystem` accumulates normal equations while streaming, which keeps memory
+flat but discards the per-structure residuals. `FitData` keeps the raw
+equations of every structure (`designs[i] @ parameters = forces[i]`) and can
+rebuild the normal system later:
+
+```python
+from mlfcs import FitData
+
+data = FitData.from_atoms(mapping, iread("train.xyz", index=":"))
+design, forces = data.arrays()          # stacked least-squares form
+system = data.normal_system()           # one FitSystem, solved as usual
+parameters = system.solve()
+model = data.force_constants(parameters)
+```
+
+`FitData` grows with the number of structures; use it when the equations
+themselves matter (custom solvers, reweighting, diagnostics) and `FitSystem`
+when only the solution does.
+
 ## Build the shared model and supercell mapping
 
 ```python

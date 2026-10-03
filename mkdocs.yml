@@ -17,6 +17,7 @@ nav:
   - Home: index.md
   - Finite difference: finite-difference-api.md
   - Fitting: fitting-api.md
+  - SCPH: scph.md
   - Q&A: Q&A.md
   - Version 6: domain-v6.md
   - Local integer contracts: local-integer-contracts.md
