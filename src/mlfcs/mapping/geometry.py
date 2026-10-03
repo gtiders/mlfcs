@@ -90,16 +90,19 @@ def mapped_labels(labels, translations, prepared):
     ):
         raise ValueError("mapping labels and translations must have shapes (n,4) and (m,3)")
     require_allocation("mapped atoms", (len(labels), len(translations)))
-    for label in labels:
-        for translation in translations:
-            shift = tuple(int(label[k + 1]) + int(translation[k]) for k in range(3))
-            for value in shift:
-                require_bound("translated labels", abs(value))
-            for j in range(3):
-                require_bound(
-                    "periodic quotient dot product",
-                    sum(abs(shift[k] * int(prepared.adjugate[k, j])) for k in range(3)),
-                )
+    # Admission in aggregate form: every per-pair "translated labels" and
+    # "periodic quotient dot product" bound is implied by these componentwise
+    # maxima, so a handful of proven bounds replaces a Python loop over all
+    # label-translation pairs.
+    maxima = np.maximum(
+        np.abs(labels[:, 1:]).max(axis=0), np.abs(translations).max(axis=0)
+    )
+    require_bound("translated labels", int(maxima.max()))
+    for j in range(3):
+        require_bound(
+            "periodic quotient dot product",
+            sum(int(maxima[k]) * abs(int(prepared.adjugate[k, j])) for k in range(3)),
+        )
     return map_labels(
         labels,
         translations,

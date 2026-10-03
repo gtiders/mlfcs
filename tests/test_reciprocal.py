@@ -26,7 +26,6 @@ def test_nondiagonal_grid_is_the_exact_dual_and_survives_a_supercell_rebasis() -
         "algebra",
         "cluster_space",
         "core",
-        "fitting",
         "force_constants",
         "mapping",
     }
