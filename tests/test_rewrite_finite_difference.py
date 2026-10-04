@@ -108,7 +108,6 @@ def test_finite_difference_has_no_persistence_contract() -> None:
     assert not hasattr(module, "load_fd")
     assert not hasattr(fd, "save")
     assert not hasattr(fd, "file")
-    assert not hasattr(fd, "fingerprint")
     with pytest.raises(TypeError, match="steps"):
         FiniteDifference(mapping, order=2, steps=(0.01,))
 
@@ -122,7 +121,7 @@ def test_reconstruct_accepts_only_ordered_atoms_with_stored_forces() -> None:
 
     model = fd.reconstruct(evaluated)
     assert model.orders == (2,)
-    assert model.cluster_space.fingerprint == mapping.cluster_space.fingerprint
+    assert model.cluster_space is mapping.cluster_space
 
     with pytest.raises(TypeError, match="ASE Atoms"):
         fd.reconstruct(np.asarray(forces))

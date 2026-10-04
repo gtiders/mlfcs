@@ -57,7 +57,6 @@ def test_cluster_map_reports_supercell_aliasing_and_exact_rank() -> None:
         small_map.rank_info(2).require_full()
     large_map.rank_info(2).require_full()
     assert len(small_map.aliases(2)) > len(large_map.aliases(2))
-    assert len(small_map.fingerprint) == 64
 
 
 def test_mapped_labels_bounds_the_sum_before_numba_addition() -> None:

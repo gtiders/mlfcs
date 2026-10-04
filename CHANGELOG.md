@@ -6,6 +6,8 @@ All notable changes are documented here. Releases follow semantic versioning.
 
 ## Unreleased
 
+- **Breaking:** remove object pickle support and all model fingerprints and cross-object identity checks. ForceConstants save/load now use explicit HDF5 native format version 4 and reject older files. Callers own matching parameter layouts and masses. Primitive fractional coordinates use ASE wrapping; saved coordinates are validated without rewrapping.
+
 ## 4.6.0 — 2026-10-04
 
 - **Breaking:** logging configuration now accepts only `level`, with timestamped records flushed to current stdout. Remove `configure(stream=...)` and redirect task output in Bash or the task script. Add computation/progress/solver/quality summaries and DEBUG-only fingerprint diagnostics; teaching fits retain their own complete `fit.log` capture.

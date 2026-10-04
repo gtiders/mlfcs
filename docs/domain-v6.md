@@ -74,9 +74,11 @@ Numerical consumers use immutable domain arrays directly. Force designs own tran
 
 ## Native model storage
 
-Version 6 writes only native format version 3: a versioned header followed by explicit model ndarray state and coefficients. Old headers are rejected before unpickling. Files remain trusted pickle artifacts, not a safe interchange format for untrusted input.
+Native storage uses format version 4 in HDF5. Only ForceConstants exposes save/load. Geometry, masses, symmetry, blocks, orbit bases and coefficients are explicit numeric datasets and attributes; there is no object encoding or content fingerprint. Older native files are rejected.
 
-Loading normalizes arrays, validates the model layout, validates truncation inputs and checks the physical model fingerprint. It does not repeat neighbor or orbit enumeration. JIT caches, workspaces and mapping caches are not serialized. Local teaching models were converted through neutral ndarray snapshots and retained identical fingerprints. The legacy version-1 test artifact remains only for rejection coverage.
+Loading validates array types, shapes, finite values, masses and model layout, without repeating neighbor or orbit enumeration. JIT caches, workspaces, maps and fitting systems are not persisted. Local teaching models and the reference fixture were converted once with all geometry, basis and coefficient entries unchanged. Callers own compatibility between independently supplied models and mappings; merge, export and SCPH do not compare model identities.
+
+Primitive initialization uses ASE get_scaled_positions(wrap=True), preserving the input Atoms object and atom order. Array validation requires fractional coordinates in [0, 1); loading checks the stored coordinates without wrapping them again.
 
 ## Validation
 

@@ -30,11 +30,9 @@ def clean(values: object, threshold: float) -> np.ndarray:
 
 
 def validate(model: ForceConstants, cluster_map: ClusterMap, order: int) -> None:
-    """Validate the model, cluster map and requested tensor order."""
+    """Require a ClusterMap and a present order; callers must pair matching model layouts."""
     if not isinstance(cluster_map, ClusterMap):
         raise TypeError("mapping must be a ClusterMap")
-    if model.cluster_space.fingerprint != cluster_map.cluster_space.fingerprint:
-        raise ValueError("force constants and cluster map use different cluster spaces")
     if order not in model.coefficients:
         raise ValueError(f"force constants do not contain order {order}")
 

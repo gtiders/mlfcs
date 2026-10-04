@@ -16,7 +16,7 @@ Yes. MLFCS does not own the calculator. Any ASE-compatible calculator can be use
 
 The displacement index encodes which mixed derivative is measured. Keep the order returned by `displacements()` through external evaluation. The reconstruction checks frame geometry and atom sequence and refuses mismatches; it does not infer a new ordering.
 
-## Can a finite-difference object be pickled and reloaded?
+## How do I resume an external finite-difference calculation?
 
 The supported workflow is to regenerate the deterministic sequence from the same primitive model, cluster space, explicit supercell, and mapping, then pass the evaluated ASE frames in their original order. MLFCS does not define a serialized experiment-plan format. Persist the ASE structures and forces with a suitable data format when moving calculations between programs.
 
@@ -46,4 +46,4 @@ No. Fit first, then apply the explicit force-constant post-processing projection
 
 ## How do I save or export the result?
 
-Use `ForceConstants.save(path)` for native trusted-pickle storage and `ForceConstants.load(path)` to read it back. For interoperable output, use `ForceConstants.write(path, mapping, format=..., order=...)`. Native pickle files must come from trusted sources.
+Use `ForceConstants.save(path)` for native version-4 HDF5 storage and `ForceConstants.load(path)` to read it back. Geometry, masses, symmetry, orbit bases and coefficients are stored explicitly, without rebuilding the cluster space. Older native files are rejected. For interoperable output, use `ForceConstants.write(path, mapping, format=..., order=...)`. Callers must supply a mapping for the same physical parameter layout; cross-object compatibility is not checked.

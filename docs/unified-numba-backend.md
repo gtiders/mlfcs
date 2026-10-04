@@ -111,9 +111,11 @@ supercell matrix from its ASE atoms when no matrix is supplied. `ClusterMap` is
 exported from `mlfcs.mapping` and the package root. `PrimitiveCell`, `Supercell`,
 Taylor calculators and the old `prepare()` APIs are not part of the current API.
 
-Native force-constant files use envelope version 3. Older supported files are
-normalized into the current immutable/int64 domain. Models preserve their stored
-physical parameterization when loaded. Workspaces and JIT caches are not serialized.
+Native force-constant files use HDF5 format version 4; older native files are
+rejected. Explicit arrays preserve the stored physical parameterization and masses
+without reconstructing orbits. Only ForceConstants offers save/load; workspaces,
+JIT caches and object graphs are not serialized. Callers own compatibility of
+models and mappings; no model identity hashes are computed or compared.
 
 `ForceDesign.allocate_workspace()` returns caller-owned scratch. Streaming fitting
 reuses it across snapshots. Concurrent operations must use separate workspaces.

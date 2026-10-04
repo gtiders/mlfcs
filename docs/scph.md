@@ -38,7 +38,7 @@ print(result.converged, result.iterations, result.minimum_mode_thz)
 | Parameter | Meaning |
 | --- | --- |
 | `temperature` | Nonnegative temperature in K. |
-| `start` | Optional `ForceConstants` containing FC2 on the same cluster space and with the same masses. Omitted means start from the model's bare FC2. |
+| `start` | Optional `ForceConstants` containing FC2. The caller must use the same physical parameter layout and masses; this compatibility is not checked. Omitted means start from the model's bare FC2. |
 | `mixing` | Linear mixing fraction in `(0, 1]` for each FC2 update. |
 | `tolerance` | Convergence threshold for the star-weighted RMS frequency change, in THz. |
 | `max_iterations` | Maximum self-consistency updates. |

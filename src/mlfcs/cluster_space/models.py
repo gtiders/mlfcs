@@ -2,20 +2,17 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
-import logging
 import math
 import operator
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 
 import numpy as np
 from ase import Atoms
 
-from mlfcs._arrays import integer_array, readonly, require_bound
+from mlfcs._arrays import integer_array, require_bound
 from mlfcs.core import LatticeSite, PrimitiveSymmetry
 from mlfcs.core.log import get_logger
-from mlfcs.core.structure import primitive_data, validate_primitive_arrays
+from mlfcs.core.structure import primitive_data
 from mlfcs.core.tensors import tensor_dimension
 
 logger = get_logger(__name__)
@@ -169,19 +166,6 @@ class Orbit:
         """Selected Cartesian basis rows as an advanced-indexed copy, nominally the identity."""
         return self.component_basis[self.observation_rows]
 
-    def __reduce__(self):
-        """Serialize orbit geometry and bases for validated dataclass reconstruction."""
-        return type(self), (
-            self.representative,
-            self.exact_lattice_basis,
-            self.component_basis,
-            self.observation_rows,
-            self.observation_condition,
-            self.clusters,
-            self.operations,
-            self.permutations,
-        )
-
 
 @dataclass(frozen=True, slots=True)
 class OrderBlock:
@@ -296,8 +280,6 @@ class ClusterSpace:
         ):
             object.__setattr__(self, name, value)
         self.__post_init__()
-        if logger.isEnabledFor(logging.DEBUG):
-            logger.debug("Cluster-space identity: fingerprint=%s", self.fingerprint)
 
     @property
     def primitive_atoms(self) -> Atoms:
@@ -321,7 +303,7 @@ class ClusterSpace:
         masses must be finite, strictly positive and have shape (n_atoms,).
         Values are copied; changing the source does not affect either space.
         No symmetry discovery, cluster enumeration or kernel solve is repeated.
-        The parameter-space fingerprint is unchanged. Rebind existing physical
+        The physical parameter layout is unchanged. Rebind existing physical
         coefficients with ForceConstants(new_space, model.coefficients).
         Invalid shape or values raise ValueError.
         """
@@ -354,35 +336,6 @@ class ClusterSpace:
     def cartesian_positions(self) -> np.ndarray:
         """New (n_atoms, 3) Cartesian position array in angstrom, using row lattice vectors."""
         return self.scaled_positions @ self.cell
-
-    def __reduce__(self):
-        """Serialize model state without requiring orbit enumeration during restoration."""
-        return _restore_cluster_space, (self._state(),)
-
-    def _state(self):
-        """Collect geometry, symmetry, truncation and basis data for validated restoration."""
-        return {
-            "cell": self.cell,
-            "scaled_positions": self.scaled_positions,
-            "atomic_numbers": self.atomic_numbers,
-            "symprec": self.symprec,
-            "masses": self._masses,
-            "symmetry": asdict(self.symmetry),
-            "blocks": [asdict(b) for b in self.blocks],
-            "orbits": [
-                {
-                    "representative": o.representative.labels,
-                    "exact_lattice_basis": o.exact_lattice_basis,
-                    "component_basis": o.component_basis,
-                    "observation_rows": o.observation_rows,
-                    "observation_condition": o.observation_condition,
-                    "clusters": [c.labels for c in o.clusters],
-                    "operations": o.operations,
-                    "permutations": o.permutations,
-                }
-                for o in self.orbits
-            ],
-        }
 
     def __post_init__(self) -> None:
         """Check ordered blocks, contiguous slices, valid orbit actions and int64 parameter offsets."""
@@ -442,85 +395,5 @@ class ClusterSpace:
         offsets.setflags(write=False)
         return offsets
 
-    @property
-    def fingerprint(self) -> str:
-        """Stable physical identity independent of exact kernel generator columns."""
-
-        def float_rows(values: np.ndarray) -> list[list[str]]:
-            """Encode floating-point rows exactly as hexadecimal strings for stable hashing."""
-            return [[float(value).hex() for value in row] for row in values]
-
-        payload = {
-            "schema": 1,
-            "cell": float_rows(self.cell),
-            "scaled_positions": float_rows(self.scaled_positions),
-            "numbers": [int(value) for value in self.atomic_numbers],
-            "symprec": self.symprec.hex(),
-            "blocks": [
-                {
-                    "order": block.order,
-                    "cutoff": block.cutoff.hex(),
-                    "max_body_order": block.max_body_order,
-                    "orbit_slice": [block.orbits.start, block.orbits.stop],
-                    "parameter_slice": [block.parameters.start, block.parameters.stop],
-                }
-                for block in self.blocks
-            ],
-            "rotations": self.symmetry.rotations.tolist(),
-            "site_permutations": self.symmetry.site_permutations.tolist(),
-            "site_shifts": self.symmetry.site_shifts.tolist(),
-            "orbits": [
-                {
-                    "representative": orbit.representative.labels,
-                    "dimension": orbit.dimension,
-                    "observation_rows": orbit.observation_rows.tolist(),
-                }
-                for orbit in self.orbits
-            ],
-        }
-        encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
-        return hashlib.sha256(encoded).hexdigest()
-
 
 __all__ = ["Cluster", "ClusterSpace", "Orbit", "OrderBlock"]
-
-
-def _restore_cluster_space(state):
-    """Validate serialized model data without repeating orbit construction."""
-    cell, positions, numbers, symprec = validate_primitive_arrays(
-        state["cell"], state["scaled_positions"], state["atomic_numbers"], state["symprec"]
-    )
-    symmetry = PrimitiveSymmetry(**state["symmetry"])
-    # Spaces serialized by earlier versions may carry a per-order bounds block.
-    blocks = tuple(
-        OrderBlock(**{k: v for k, v in b.items() if k != "bounds"}) for b in state["blocks"]
-    )
-    orbits = tuple(
-        Orbit(
-            **{
-                **o,
-                "representative": Cluster.from_labels(o["representative"]),
-                "clusters": tuple(Cluster.from_labels(c) for c in o["clusters"]),
-            }
-        )
-        for o in state["orbits"]
-    )
-    if symmetry.symprec != symprec or symmetry.site_permutations.shape[1] != len(numbers):
-        raise ValueError("serialized symmetry acts on a different primitive structure")
-    masses = readonly(state.get("masses", Atoms(numbers=numbers).get_masses()), np.float64)
-    if masses.shape != numbers.shape or not np.all(np.isfinite(masses)) or np.any(masses <= 0):
-        raise ValueError("serialized atomic masses must be positive and finite")
-    result = object.__new__(ClusterSpace)
-    for name, value in (
-        ("cell", cell),
-        ("scaled_positions", positions),
-        ("atomic_numbers", numbers),
-        ("symprec", symprec),
-        ("_masses", masses),
-        ("symmetry", symmetry),
-        ("blocks", blocks),
-        ("orbits", orbits),
-    ):
-        object.__setattr__(result, name, value)
-    result.__post_init__()
-    return result

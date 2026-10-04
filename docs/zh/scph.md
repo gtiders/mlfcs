@@ -38,7 +38,7 @@ print(result.converged, result.iterations, result.minimum_mode_thz)
 | 参数 | 含义 |
 | --- | --- |
 | `temperature` | 非负温度，单位 K。 |
-| `start` | 可选的 `ForceConstants`，必须含相同簇空间、相同质量下的 FC2。省略时从模型的裸 FC2 开始。 |
+| `start` | 可选的含 FC2 的 `ForceConstants`。用户负责参数布局和质量配套，程序不检查。省略时从模型的裸 FC2 开始。 |
 | `mixing` | 每次 FC2 更新使用的线性混合比例，范围 `(0, 1]`。 |
 | `tolerance` | 星加权 RMS 频率变化的收敛阈值，单位 THz。 |
 | `max_iterations` | 自洽更新的最大次数。 |

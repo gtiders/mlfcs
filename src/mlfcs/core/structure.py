@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 from dataclasses import dataclass
 
 import numpy as np
@@ -21,7 +19,7 @@ def validate_primitive_arrays(cell, scaled_positions, atomic_numbers, symprec):
     cell : array_like, shape (3, 3)
         Lattice vectors as rows, in angstrom.
     scaled_positions : array_like, shape (n_atoms, 3)
-        Fractional row coordinates; wrapped into [0, 1) before the spglib check.
+        Fractional row coordinates already wrapped into [0, 1); values outside this interval are rejected.
     atomic_numbers : array_like, shape (n_atoms,)
         Declared integer species identifiers representable by spglib's int32 ABI.
     symprec : float
@@ -68,10 +66,10 @@ def validate_primitive_arrays(cell, scaled_positions, atomic_numbers, symprec):
     numbers = integer_array(numbers, name="primitive atomic numbers")
     if int(numbers.min()) < np.iinfo(np.int32).min or int(numbers.max()) > np.iinfo(np.int32).max:
         raise OverflowError("primitive atomic numbers exceed the spglib int32 interface")
-    wrapped = np.mod(positions, 1.0)
-    wrapped[wrapped == 1.0] = 0.0
+    if np.any(positions < 0.0) or np.any(positions >= 1.0):
+        raise ValueError("primitive scaled positions must be wrapped into [0, 1)")
     found = spglib.find_primitive(
-        (cell, wrapped, numbers.astype(np.int32, copy=False)),
+        (cell, positions, numbers.astype(np.int32, copy=False)),
         symprec=symprec,
     )
     if found is None:
@@ -84,25 +82,14 @@ def validate_primitive_arrays(cell, scaled_positions, atomic_numbers, symprec):
             f"{len(found[2])} atoms at symprec {symprec:g} angstrom"
         )
 
-    return cell, readonly(wrapped, np.float64), numbers, symprec
-
-
-def structure_fingerprint(cell, scaled_positions, atomic_numbers, symprec) -> str:
-    """Stable identity of the declared primitive structure and precision."""
-    payload = {
-        "cell": [[float(value).hex() for value in row] for row in cell],
-        "scaled_positions": [[float(value).hex() for value in row] for row in scaled_positions],
-        "numbers": [int(value) for value in atomic_numbers],
-        "symprec": symprec.hex(),
-    }
-    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
-    return hashlib.sha256(encoded).hexdigest()
+    return cell, readonly(positions, np.float64), numbers, symprec
 
 
 def primitive_data(atoms, symprec):
     """Extract validated primitive geometry and positive masses from ASE Atoms.
 
-    Requires full three-dimensional periodicity. Returns readonly geometry arrays
+    Requires full three-dimensional periodicity and uses ASE get_scaled_positions(wrap=True).
+    Returns readonly geometry arrays
     and masses in atomic mass units; it does not retain or mutate ``atoms``.
     """
     if not isinstance(atoms, Atoms):
@@ -110,7 +97,7 @@ def primitive_data(atoms, symprec):
     if not np.all(atoms.pbc):
         raise ValueError("primitive cell must be periodic in all three directions")
     cell, positions, numbers, symprec = validate_primitive_arrays(
-        atoms.cell.array, atoms.get_scaled_positions(wrap=False), atoms.numbers, symprec
+        atoms.cell.array, atoms.get_scaled_positions(wrap=True), atoms.numbers, symprec
     )
     masses = readonly(atoms.get_masses(), np.float64)
     if not np.all(np.isfinite(masses)) or np.any(masses <= 0):

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass
 from time import perf_counter
 from typing import Literal
@@ -448,7 +447,8 @@ class SCPH:
         temperature : float
             Finite nonnegative temperature in kelvin.
         start : ForceConstants, optional
-            Initial FC2 model with matching cluster space and masses; defaults to bare FC2.
+            Initial FC2 model; defaults to bare FC2. The caller must provide matching
+            physical parameter layout and masses; compatibility is not checked.
         mixing : float, default 0.2
             Target fraction in (0, 1] for linear parameter mixing.
         tolerance : float, default 1e-9
@@ -483,14 +483,11 @@ class SCPH:
         if start is None:
             current = self._bare.copy()
         else:
-            if (
-                not isinstance(start, ForceConstants)
-                or 2 not in start.orders
-                or start.cluster_space.fingerprint != self.model.cluster_space.fingerprint
-                or not np.array_equal(start.cluster_space.masses, self._masses)
-            ):
-                raise ValueError("start must contain FC2 on the same cluster space and masses")
+            if not isinstance(start, ForceConstants) or 2 not in start.orders:
+                raise ValueError("start must be a ForceConstants model containing FC2")
             current = np.asarray(start.coefficients[2]).copy()
+            if current.shape != self._bare.shape:
+                raise ValueError(f"start FC2 parameters must have shape {self._bare.shape}")
         run_started = perf_counter()
         logger.info(
             "SCPH run started: temperature=%.6g K statistics=%s mixing=%.6g "
@@ -550,10 +547,6 @@ class SCPH:
             result.minimum_mode_thz if result.minimum_mode_thz is not None else float("nan"),
             perf_counter() - run_started,
         )
-        if logger.isEnabledFor(logging.DEBUG):
-            logger.debug(
-                "SCPH model identity: force_constants_fingerprint=%s", result.fc2.fingerprint
-            )
         return result
 
     def run_many(self, temperatures: object, **kwargs: object) -> list[SCPHResult]:

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import pickle
 
 import numpy as np
 import pytest
@@ -238,7 +237,7 @@ def test_star_plan_rotates_and_streams_only_representative_matrices() -> None:
         list(plan.iter_matrices(matrices[:-1]))
 
 
-def test_unequal_masses_use_their_subgroup_and_reject_incompatible_external_stars() -> None:
+def test_unequal_masses_use_their_subgroup() -> None:
     atoms = bulk("Si", "diamond", a=5.43)
     atoms.set_masses([28.0, 29.0])
     space = ClusterSpace(atoms, symprec=1e-5, cutoffs={2: 3.0}, max_body_orders={2: 2})
@@ -251,9 +250,6 @@ def test_unequal_masses_use_their_subgroup_and_reject_incompatible_external_star
     )
     assert space.symmetry.size > result._stars.symmetry.size
     assert np.all(space.masses[result._stars.symmetry.site_permutations] == space.masses[None, :])
-    unsafe = QStars.from_symmetry(grid, space.symmetry)
-    with pytest.raises(ValueError, match="different masses"):
-        harmonic.frequencies(unsafe)
     for member, matrix in StarPlan.from_stars(result._stars, space).iter_matrices(
         harmonic.dynamical_matrices(result._stars)
     ):
@@ -280,7 +276,6 @@ def test_mass_assignment_shares_structure_without_reconstruction(monkeypatch, tm
     changed = space.with_masses(source)
     source[:] = 1
     np.testing.assert_array_equal(changed.masses, [30.0, 31.0])
-    assert changed.fingerprint == space.fingerprint
     for name in ("cell", "scaled_positions", "atomic_numbers", "symmetry", "blocks", "orbits"):
         assert getattr(changed, name) is getattr(space, name)
     with pytest.raises(ValueError):
@@ -288,9 +283,6 @@ def test_mass_assignment_shares_structure_without_reconstruction(monkeypatch, tm
     for bad in ([1], [[1, 2]], [0, 2], [-1, 2], [np.nan, 2], [np.inf, 2]):
         with pytest.raises(ValueError, match="masses"):
             space.with_masses(bad)
-    restored = pickle.loads(pickle.dumps(changed))
-    np.testing.assert_array_equal(restored.masses, changed.masses)
-    assert not restored.masses.flags.writeable
     model = ForceConstants(changed, {2: np.ones(changed.n_parameters)})
     loaded = ForceConstants.load(model.save(tmp_path / "isotopes.mlfcs"))
     np.testing.assert_array_equal(loaded.cluster_space.masses, changed.masses)
@@ -331,11 +323,7 @@ def test_harmonic_mesh_facade_shapes_readonly_results_and_sampling_options() -> 
             harmonic.mesh(bad)
 
 
-def test_imaginary_frequency_sign_and_foreign_star_rejection() -> None:
+def test_imaginary_frequency_sign() -> None:
     space = ClusterSpace(bulk("Ar", "sc", a=1.0), cutoffs={2: 0.01})
     harmonic = Harmonic(ForceConstants(space, {2: [-2.0]}))
     assert np.all(harmonic.frequencies([0, 0, 0]) < 0)
-    other = ClusterSpace(bulk("Si", "diamond", a=5.43), cutoffs={2: 0.01})
-    stars = QStars.from_symmetry(QGrid.from_matrix((2, 2, 2)), other.symmetry)
-    with pytest.raises(ValueError, match="different primitive symmetry"):
-        harmonic.dynamical_matrices(stars)

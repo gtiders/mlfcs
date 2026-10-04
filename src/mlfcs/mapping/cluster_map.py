@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
-import logging
 from dataclasses import dataclass
 from time import perf_counter
 
@@ -15,7 +12,6 @@ from mlfcs._arrays import integer_array, require_allocation
 from mlfcs.cluster_space import ClusterSpace
 from mlfcs.core import LatticeSite
 from mlfcs.core.log import get_logger
-from mlfcs.core.structure import structure_fingerprint
 from mlfcs.mapping._rank import RankInfo, folded_rank
 from mlfcs.mapping.geometry import (
     _PeriodicIndex,
@@ -119,8 +115,6 @@ class ClusterMap:
             sum(len(values) for values in folded),
             perf_counter() - started,
         )
-        if logger.isEnabledFor(logging.DEBUG):
-            logger.debug("Mapping identity: fingerprint=%s", self.fingerprint)
 
     @property
     def supercell_atoms(self) -> Atoms:
@@ -156,14 +150,6 @@ class ClusterMap:
             perf_counter() - started,
         )
         return result
-
-    def __reduce__(self):
-        """Serialize the primitive model and reference atoms for validated mapping reconstruction."""
-        return _restore_cluster_map, (
-            self.cluster_space,
-            self.supercell_atoms,
-            self.supercell_matrix,
-        )
 
     def quotient(self, translation: tuple[int, int, int]) -> tuple[int, int, int]:
         """Return the exact quotient label of a primitive translation."""
@@ -217,41 +203,3 @@ class ClusterMap:
                     (orbit_index, image)
                 )
         return tuple(tuple(group) for _, group in sorted(groups.items()) if len(group) > 1)
-
-    def _geometry_fingerprint(self) -> str:
-        """Hash primitive identity, declared supercell geometry and atom-address ordering."""
-        payload = {
-            "primitive": structure_fingerprint(
-                self.cluster_space.cell,
-                self.cluster_space.scaled_positions,
-                self.cluster_space.atomic_numbers,
-                self.cluster_space.symprec,
-            ),
-            "matrix": self.supercell_matrix.tolist(),
-            "cell": [[float(value).hex() for value in row] for row in self.cell],
-            "scaled_positions": [
-                [float(value).hex() for value in row] for row in self.scaled_positions
-            ],
-            "numbers": self.atomic_numbers.tolist(),
-            "sites": self.primitive_site_indices.tolist(),
-            "quotients": self.quotient_labels.tolist(),
-        }
-        encoded = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
-        return hashlib.sha256(encoded).hexdigest()
-
-    @property
-    def fingerprint(self):
-        """Stable identity of the cluster space, supercell realization and folded image ordering."""
-        payload = {
-            "space": self.cluster_space.fingerprint,
-            "supercell": self._geometry_fingerprint(),
-            "atoms": [values.tolist() for values in self.image_atom_indices],
-        }
-        return hashlib.sha256(
-            json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
-        ).hexdigest()
-
-
-def _restore_cluster_map(cluster_space, supercell_atoms, supercell_matrix):
-    """Reconstruct and validate serialized mapping inputs through the normal constructor."""
-    return ClusterMap(cluster_space, supercell_atoms, supercell_matrix=supercell_matrix)

@@ -12,12 +12,10 @@ check exact annihilation, recorded rank and all Smith invariant factors of the
 basis equal to one. Random matrices additionally compare full lattice HNFs
 against the original SymPy kernel algorithm.
 
-`force_constants_v1.mlfcs` is a trusted test-only native pickle written by the
-original Python 4.5.1 implementation for a simple cubic Ar FC2 model. It is retained only to verify that version 6 rejects old files before unpickling.
-
-`force_constants_v3.mlfcs` contains the same physical model converted through
-neutral ndarray state, with identical model and cluster-space fingerprints. It
-exercises version-3 loading and immutable/int64 normalization.
+`force_constants_v4.mlfcs` is the original Python simple cubic Ar FC2 reference
+converted to explicit HDF5 datasets. Geometry, masses, symmetry, orbit bases and
+coefficients were compared entry by entry with the version-3 source and preserved
+exactly. It exercises version-4 loading without neighbor or orbit enumeration.
 
 `force_design_reference.npz` records original Python 4.5.1 Si FC2/FC3 design
 matrices, six displaced snapshots, synthetic forces and representative fitted

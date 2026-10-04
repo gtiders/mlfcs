@@ -69,7 +69,6 @@ def test_cluster_space_has_the_characterized_physical_dimension(
     )
     assert len(space.orbits) == expected_orbits
     assert space.n_parameters == expected_parameters
-    assert len(space.fingerprint) == 64
     for orbit in space.orbits:
         np.testing.assert_allclose(
             orbit.observation_matrix,
@@ -148,3 +147,20 @@ def test_compiled_orbit_boundary_rejects_only_a_proven_integer_overflow() -> Non
 
     with pytest.raises(OverflowError, match="proven bound"):
         _integer_boundary(cluster.labels, symmetry)
+
+
+@pytest.mark.parametrize(
+    "fractional", [[-0.2, 1.3, 2.0], [-1e-300, 1.0, 0.5], [1.0 - 1e-15, -2.0, 0.3]]
+)
+def test_primitive_positions_use_ase_wrap_without_mutating_input(fractional):
+    """Match ASE wrapping at periodic boundaries while preserving the caller's atoms."""
+    atoms = bulk("Ar", "sc", a=1.0)
+    atoms.set_scaled_positions([fractional])
+    atoms.set_masses([41.0])
+    original = atoms.positions.copy()
+    expected = atoms.get_scaled_positions(wrap=True)
+    space = ClusterSpace(atoms, cutoffs={2: 0.01})
+    np.testing.assert_array_equal(space.scaled_positions, expected)
+    np.testing.assert_array_equal(atoms.positions, original)
+    np.testing.assert_array_equal(space.masses, [41.0])
+    assert np.all(space.scaled_positions >= 0) and np.all(space.scaled_positions < 1)

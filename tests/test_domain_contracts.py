@@ -1,6 +1,5 @@
 """Admission, ownership, workspace and persistence contracts."""
 
-import pickle
 from pathlib import Path
 
 import numpy as np
@@ -29,11 +28,6 @@ def test_one_immutable_space_maps_to_multiple_supercells_without_prepared_wrappe
     assert not large.image_atom_indices[0].flags.writeable
     assert not hasattr(space, "prepare")
     assert not hasattr(large, "prepare")
-    restored = pickle.loads(pickle.dumps(large))
-    assert restored.fingerprint == large.fingerprint
-    assert not restored.cluster_space.cell.flags.writeable
-    assert not restored.cluster_space.orbits[0].exact_lattice_basis.flags.writeable
-    assert not restored.image_atom_indices[0].flags.writeable
 
 
 def test_normalization_rejects_overflow_before_cast_and_does_not_freeze_callers():
@@ -77,14 +71,14 @@ def test_workspace_thread_admission_and_single_parallel_equivalence():
         set_num_threads(previous)
 
 
-def test_version_three_model_loads_into_the_validated_int64_domain(monkeypatch):
+def test_version_four_model_loads_into_the_validated_int64_domain(monkeypatch):
     from mlfcs import ForceConstants
 
     def no_neighbor_search(*args, **kwargs):
         pytest.fail("loading stored orbit data must not enumerate neighbors")
 
     monkeypatch.setattr("mlfcs.cluster_space.candidates.neighbors", no_neighbor_search)
-    model = ForceConstants.load(Path(__file__).parent / "data" / "force_constants_v3.mlfcs")
+    model = ForceConstants.load(Path(__file__).parent / "data" / "force_constants_v4.mlfcs")
     assert model.cluster_space.orbits[0].exact_lattice_basis.dtype == np.int64
     assert not model.cluster_space.orbits[0].exact_lattice_basis.flags.writeable
     np.testing.assert_array_equal(model.parameters(), 1.0)
@@ -153,7 +147,6 @@ def test_direct_domains_have_explicit_detached_ase_snapshots():
     space = ClusterSpace(atoms, cutoffs={2: 0.1})
     explicit = atoms.repeat((2, 1, 1))
     mapping = ClusterMap(space, explicit, supercell_matrix=np.diag([2, 1, 1]))
-    fingerprint = mapping.fingerprint
     atoms.positions[:] = 4.0
     explicit.positions[:] = 5.0
     primitive_snapshot = space.primitive_atoms
@@ -166,7 +159,6 @@ def test_direct_domains_have_explicit_detached_ase_snapshots():
     supercell_snapshot.set_masses([10.0, 10.0])
     np.testing.assert_array_equal(space.primitive_atoms.get_masses(), [42.0])
     np.testing.assert_array_equal(mapping.supercell_atoms.get_masses(), [42.0, 42.0])
-    assert mapping.fingerprint == fingerprint
     assert not np.allclose(space.primitive_atoms.positions, 7.0)
     assert not np.allclose(mapping.supercell_atoms.positions, 8.0)
     for owner in (space, mapping):
@@ -190,15 +182,17 @@ def test_direct_domains_have_explicit_detached_ase_snapshots():
         assert value.flags.c_contiguous and not value.flags.writeable
 
 
-def test_native_header_rejects_legacy_models_before_unpickling(monkeypatch):
+def test_native_header_rejects_legacy_models_before_decoding(tmp_path, monkeypatch):
     from mlfcs import ForceConstants
 
-    def fail_unpickle(handle):
-        pytest.fail("legacy file must be rejected before decoding deleted class names")
+    def fail_decode(group):
+        pytest.fail("legacy file must be rejected before model decoding")
 
-    monkeypatch.setattr("mlfcs.force_constants.model.pickle.load", fail_unpickle)
-    with pytest.raises(ValueError, match="version 3"):
-        ForceConstants.load(Path(__file__).parent / "data" / "force_constants_v1.mlfcs")
+    monkeypatch.setattr("mlfcs.force_constants._native._read_space", fail_decode)
+    legacy = tmp_path / "legacy.mlfcs"
+    legacy.write_bytes(b"MLFCS\x00\x03\n")
+    with pytest.raises(ValueError, match="version 4"):
+        ForceConstants.load(legacy)
 
 
 def test_native_roundtrip_preserves_masses_and_revalidates_domain(tmp_path):
@@ -210,7 +204,6 @@ def test_native_roundtrip_preserves_masses_and_revalidates_domain(tmp_path):
     model = ForceConstants(space, {2: np.ones(space.n_parameters)})
     path = model.save(tmp_path / "model.mlfcs")
     restored = ForceConstants.load(path)
-    assert restored.fingerprint == model.fingerprint
     np.testing.assert_array_equal(restored.cluster_space.primitive_atoms.get_masses(), [41.0])
     assert not restored.cluster_space.cell.flags.writeable
 
@@ -227,16 +220,21 @@ def test_native_roundtrip_preserves_masses_and_revalidates_domain(tmp_path):
         ("max_body_order", 3),
     ),
 )
-def test_restore_rejects_invalid_truncation_without_neighbor_search(monkeypatch, field, value):
-    from mlfcs.cluster_space.models import _restore_cluster_space
+def test_load_rejects_invalid_truncation_without_neighbor_search(
+    tmp_path, monkeypatch, field, value
+):
+    import h5py
+    from mlfcs import ForceConstants
 
     space = ClusterSpace(bulk("Ar", "sc", a=1), cutoffs={2: 0.1})
-    state = space._state()
-    state["blocks"][0][field] = value
+    model = ForceConstants(space, {2: np.ones(space.n_parameters)})
+    path = model.save(tmp_path / "invalid.mlfcs")
+    with h5py.File(path, "r+") as handle:
+        handle["cluster_space/blocks/0"].attrs[field] = value
 
     def no_neighbor_search(*args, **kwargs):
         pytest.fail("restoration must validate stored inputs without neighbor search")
 
     monkeypatch.setattr("mlfcs.cluster_space.candidates.neighbors", no_neighbor_search)
-    with pytest.raises((ValueError, TypeError)):
-        _restore_cluster_space(state)
+    with pytest.raises(ValueError):
+        ForceConstants.load(path)

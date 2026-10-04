@@ -60,8 +60,7 @@ If roundoff makes that diagnostic unavailable, a warning reports it without
 invalidating a successful solve. INFO quality reporting evaluates one residual;
 WARNING disables that additional work. Logging does not change fitted coefficients.
 
-DEBUG adds fingerprints and workspace details. Expensive fingerprint traversals
-are guarded by the DEBUG level and are not performed for INFO logging.
+DEBUG adds workspace details. Logs do not compute or record model identity hashes.
 
 ## Exceptions
 

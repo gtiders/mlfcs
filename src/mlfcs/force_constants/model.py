@@ -2,11 +2,7 @@
 
 from __future__ import annotations
 
-import hashlib
 import os
-import pickle
-import struct
-import tempfile
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -25,22 +21,6 @@ if TYPE_CHECKING:
     from mlfcs.force_constants.asr import ASRResult
     from mlfcs.force_constants.rotation import RotationResult
     from mlfcs.mapping import ClusterMap
-
-_FORMAT = "mlfcs.force_constants"
-_VERSION = 3
-_HEADER = b"MLFCS\x00\x03\n"
-
-
-def _digest(space: ClusterSpace, coefficients: Mapping[int, np.ndarray]) -> str:
-    """Hash primitive model identity and ordered physical coefficients in fixed byte order."""
-    digest = hashlib.sha256()
-    digest.update(space.fingerprint.encode("ascii"))
-    for order in sorted(coefficients):
-        values = np.ascontiguousarray(coefficients[order], dtype=np.float64)
-        digest.update(struct.pack(">q", order))
-        digest.update(struct.pack(">q", len(values)))
-        digest.update(values.astype(values.dtype.newbyteorder(">"), copy=False).tobytes())
-    return digest.hexdigest()
 
 
 @dataclass(frozen=True, slots=True)
@@ -100,21 +80,10 @@ class ForceConstants:
             raise ValueError("force constants must contain at least one order")
         object.__setattr__(self, "coefficients", MappingProxyType(values))
 
-    def __reduce__(self):
-        """Serialize the shared model schema and physical coefficient vectors for validation on
-        load.
-        """
-        return type(self), (self.cluster_space, dict(self.coefficients))
-
     @property
     def orders(self) -> tuple[int, ...]:
         """Explicitly present tensor orders in ascending order."""
         return tuple(sorted(self.coefficients))
-
-    @property
-    def fingerprint(self) -> str:
-        """Stable hash of the cluster-space identity and physical coefficient contents."""
-        return _digest(self.cluster_space, self.coefficients)
 
     def parameters(self, orders: Iterable[int] | None = None) -> np.ndarray:
         """Return a writable packed coefficient copy in ascending-order parameter layout.
@@ -132,15 +101,18 @@ class ForceConstants:
 
     @classmethod
     def combine(cls, models: Iterable[ForceConstants]) -> ForceConstants:
-        """Combine disjoint orders defined on the same cluster space."""
+        """Combine disjoint orders using the first model's cluster space.
+
+        Callers must ensure all coefficient vectors use that parameter layout.
+        Empty input, duplicate orders and invalid coefficient lengths are rejected;
+        cross-model geometry and basis compatibility are not checked.
+        """
         items = tuple(models)
         if not items:
             raise ValueError("at least one force-constant model is required")
         space = items[0].cluster_space
         coefficients: dict[int, np.ndarray] = {}
         for model in items:
-            if model.cluster_space.fingerprint != space.fingerprint:
-                raise ValueError("force constants use different cluster spaces")
             overlap = coefficients.keys() & model.coefficients.keys()
             if overlap:
                 raise ValueError(f"force-constant orders are duplicated: {tuple(sorted(overlap))}")
@@ -148,55 +120,37 @@ class ForceConstants:
         return cls(space, coefficients)
 
     def save(self, file: str | os.PathLike[str]) -> Path:
-        """Atomically write the native trusted-pickle representation."""
+        """Atomically save primitive geometry, bases, masses and coefficients as HDF5.
+
+        file is a path-like target with any extension, conventionally .mlfcs.
+        Return its absolute Path. Native format version 4 stores int64 and
+        float64 arrays without executable object encoding. I/O errors propagate;
+        a failed write leaves an existing target unchanged.
+        """
+        from mlfcs.force_constants import _native
+
         path = Path(file).resolve()
         started = perf_counter()
         logger.info("Native save started: path=%s orders=%s", path, self.orders)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        payload = {
-            "format": _FORMAT,
-            "version": _VERSION,
-            "fingerprint": self.fingerprint,
-            "cluster_space": self.cluster_space._state(),
-            "coefficients": dict(self.coefficients),
-        }
-        temporary: str | None = None
-        try:
-            with tempfile.NamedTemporaryFile("wb", dir=path.parent, delete=False) as handle:
-                temporary = handle.name
-                handle.write(_HEADER)
-                pickle.dump(payload, handle, protocol=pickle.HIGHEST_PROTOCOL)
-                handle.flush()
-                os.fsync(handle.fileno())
-            os.replace(temporary, path)
-        finally:
-            if temporary is not None and os.path.exists(temporary):
-                os.unlink(temporary)
+        result = _native.save(self, path)
         logger.info("Native save complete: path=%s elapsed_s=%.2f", path, perf_counter() - started)
-        return path
+        return result
 
     @classmethod
     def load(cls, file: str | os.PathLike[str]) -> ForceConstants:
-        """Read a native force-constant file from a trusted source."""
+        """Load a validated native version-four HDF5 force-constant model.
+
+        file is a path-like input. Restore physical coefficients and readonly
+        primitive geometry, masses and bases without repeating orbit construction.
+        Raise ValueError for unsupported formats or invalid stored arrays/layout;
+        file-access errors propagate. Legacy pickle files are not supported.
+        """
+        from mlfcs.force_constants import _native
+
         path = Path(file).resolve()
         started = perf_counter()
         logger.info("Native load started: path=%s", path)
-        with path.open("rb") as handle:
-            if handle.read(len(_HEADER)) != _HEADER:
-                raise ValueError("unsupported force-constant file version; version 3 is required")
-            payload = pickle.load(handle)
-        if not isinstance(payload, dict) or payload.get("format") != _FORMAT:
-            raise ValueError(f"{path} is not an MLFCS force-constant file")
-        if payload.get("version") != _VERSION:
-            raise ValueError(
-                f"unsupported force-constant version {payload.get('version')}; this release reads version {_VERSION}"
-            )
-        from mlfcs.cluster_space.models import _restore_cluster_space
-
-        space = _restore_cluster_space(payload["cluster_space"])
-        model = cls(space, payload.get("coefficients"))
-        if payload.get("fingerprint") != model.fingerprint:
-            raise ValueError("force-constant fingerprint does not match its contents")
+        model = _native.load(path)
         logger.info(
             "Native load complete: path=%s orders=%s elapsed_s=%.2f",
             path,
@@ -223,7 +177,7 @@ class ForceConstants:
             Target file; parent directories are created.
         cluster_map : ClusterMap, optional
             Matching supercell relation required for phonopy, phono3py and ShengBTE.
-            TDEP uses primitive lattice data; an optional map is identity-checked.
+            TDEP uses primitive lattice data. Callers own map/model compatibility.
         format : {'phonopy', 'phono3py', 'shengbte', 'tdep'}
             phonopy supports FC2; phono3py FC3; ShengBTE FC3/FC4; TDEP FC2/FC3/FC4.
         order : int

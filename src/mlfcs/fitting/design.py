@@ -193,10 +193,6 @@ class ForceDesign:
         )
         return workspace
 
-    def __reduce__(self):
-        """Serialize the map and rebuild derived design buffers on restoration."""
-        return type(self), (self.cluster_map,)
-
     def matrix(self, displacement: np.ndarray, *, workspace=None) -> np.ndarray:
         """Return the physical force-design matrix for one displacement snapshot.
 

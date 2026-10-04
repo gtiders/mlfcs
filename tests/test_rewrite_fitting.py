@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import pickle
 
 import numpy as np
 import pytest
@@ -153,7 +152,7 @@ def test_fit_system_accepts_only_atoms_with_stored_standard_forces() -> None:
         FitSystem(mapping, np.zeros((1, 1, 3)))
 
 
-def test_joint_orders_and_pickle_preserve_the_complete_system() -> None:
+def test_joint_orders_preserve_the_complete_system() -> None:
     primitive_atoms = Atoms(
         numbers=[1, 2],
         scaled_positions=[[0.0, 0.0, 0.0], [0.17, 0.31, 0.23]],
@@ -190,13 +189,9 @@ def test_joint_orders_and_pickle_preserve_the_complete_system() -> None:
     structures = evaluated(supercell_atoms, displacements, force)
 
     system = FitSystem(mapping, structures)
-    restored = pickle.loads(pickle.dumps(system))
 
     assert system.cluster_space.orders == (2, 3)
     assert system.unobserved_parameters == ()
-    assert restored.fingerprint == system.fingerprint
-    np.testing.assert_array_equal(restored.normal_matrix, system.normal_matrix)
-    np.testing.assert_array_equal(restored.normal_rhs, system.normal_rhs)
     model = system.solve(rtol=1e-11, maxiter=5000)
     for site, tensor in representative_tensors(model, 2).items():
         np.testing.assert_allclose(tensor, second[site], atol=1e-9, rtol=0.0)
@@ -271,7 +266,7 @@ def test_lsmr_normalizes_disparate_columns_and_restores_physical_parameters():
     assert raw.relative_error(physical) < 1e-11
 
 
-def test_raw_merge_pickle_zero_columns_and_iteration_failure():
+def test_raw_merge_zero_columns_and_iteration_failure():
     mapping, atoms = ar_mapping((2, 4))
     from mlfcs.fitting.design import ForceDesign
 
@@ -287,12 +282,9 @@ def test_raw_merge_pickle_zero_columns_and_iteration_failure():
     merged = FitSystem(mapping, structures[:6], representation="raw") + FitSystem(
         mapping, structures[6:], representation="raw"
     )
-    restored = pickle.loads(pickle.dumps(raw))
     np.testing.assert_array_equal(merged.design_matrix, raw.design_matrix)
-    np.testing.assert_array_equal(restored.forces, raw.forces)
-    assert restored.fingerprint == raw.fingerprint
-    assert not restored.design_matrix.flags.writeable
-    assert not restored.forces.flags.writeable
+    assert not raw.design_matrix.flags.writeable
+    assert not raw.forces.flags.writeable
     with pytest.raises(RuntimeError, match="LSMR did not converge"):
         raw.solve(atol=0, btol=0, conlim=0, maxiter=1)
     zero = FitSystem(

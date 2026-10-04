@@ -16,7 +16,7 @@
 
 位移索引编码了测量的混合导数。外部计算时，应保持 `displacements()` 返回的次序。重建会检查帧几何与原子顺序并拒绝不匹配，不会推断新顺序。
 
-## 可以 pickle 有限差分对象并重新加载吗？
+## 如何继续外部有限差分计算？
 
 受支持的工作流是：用相同的原胞模型、cluster space、显式参考超胞和映射重新生成确定性序列，然后按原顺序传入带力 ASE 帧。MLFCS 不定义序列化实验计划格式。在不同程序间传递计算时，使用合适格式保存 ASE 结构和力。
 
@@ -46,4 +46,4 @@
 
 ## 如何保存或导出结果？
 
-使用 `ForceConstants.save(path)` 保存原生可信 pickle 格式，并用 `ForceConstants.load(path)` 读取。互操作输出使用 `ForceConstants.write(path, mapping, format=..., order=...)`。原生 pickle 文件必须来自可信来源。
+使用 `ForceConstants.save(path)` 保存原生版本 4 的 HDF5 文件，用 `ForceConstants.load(path)` 读取。文件显式保存几何、质量、对称操作、轨道基和系数，加载不重建 cluster space。旧原生文件被拒绝。互操作输出使用 `ForceConstants.write(path, mapping, format=..., order=...)`；用户必须提供对应物理参数布局的 mapping，程序不检查跨对象兼容性。

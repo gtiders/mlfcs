@@ -58,20 +58,6 @@ class HarmonicMeshResult:
         return self._stars.expand(self.frequencies_thz)
 
 
-def _operation_key(symmetry, operation):
-    """Encode one complete affine operation for exact structural-subgroup membership."""
-    return tuple(
-        getattr(symmetry, field)[operation].tobytes()
-        for field in (
-            "rotations",
-            "translations",
-            "cartesian_rotations",
-            "site_permutations",
-            "site_shifts",
-        )
-    )
-
-
 def internal_basis(masses: np.ndarray) -> np.ndarray:
     """Return a (3*N, 3*(N-1)) orthonormal complement of mass-weighted translations.
 
@@ -203,19 +189,10 @@ class Harmonic:
         of this model's primitive symmetry. Empty point batches are refused.
         Return (3*N, 3*N) for one point, otherwise (nq, 3*N, 3*N), with QStars
         using only representatives. Entries have units eV/(angstrom**2*atomic_mass).
-        Invalid coordinates or inconsistent symmetry raise ValueError. Inputs and
+        Invalid coordinates raise ValueError. Callers own star/model compatibility. Inputs and
         model coefficients remain unchanged.
         """
         if isinstance(qpoints, QStars):
-            symmetry = self.model.cluster_space.symmetry
-            other = qpoints.symmetry
-            keys = {_operation_key(symmetry, i) for i in range(symmetry.size)}
-            if symmetry.symprec != other.symprec or any(
-                _operation_key(other, i) not in keys for i in range(other.size)
-            ):
-                raise ValueError("q stars use a different primitive symmetry from FC2")
-            if not np.all(self.masses[other.site_permutations] == self.masses[None, :]):
-                raise ValueError("q stars contain operations exchanging different masses")
             points = qpoints.points
             single = False
         else:

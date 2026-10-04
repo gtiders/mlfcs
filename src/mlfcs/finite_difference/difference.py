@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 from collections.abc import Iterator, Sequence
 from itertools import product
 from time import perf_counter
@@ -177,11 +176,6 @@ class FiniteDifference:
             len(model.coefficients[self.order]),
             perf_counter() - started,
         )
-        if logger.isEnabledFor(logging.DEBUG):
-            logger.debug(
-                "Finite-difference model identity: force_constants_fingerprint=%s",
-                model.fingerprint,
-            )
         return model
 
 

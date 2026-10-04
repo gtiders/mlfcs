@@ -102,9 +102,9 @@ For a normal system, give `system.normal_matrix` and `system.normal_rhs` to your
 ## Conversion, merging and diagnostics
 
 - `raw.to_normal()` returns another `FitSystem` with compressed physical equations. A normal system's `to_normal()` returns itself. There is no reverse conversion.
-- `a + b` adds compatible normal statistics or stacks compatible raw equations. Cluster-space fingerprints and representations must match. Explicitly convert raw systems before merging with normal systems.
+- `a + b` adds compatible normal statistics or stacks compatible raw equations. Representations must match; callers must ensure that physical parameter layouts match. Model geometry and basis identity are not checked. Explicitly convert raw systems before merging with normal systems.
 - `residual(model_or_parameters)`, `rmse(model_or_parameters)` and `relative_error(model_or_parameters)` evaluate physical force errors. Raw residuals are evaluated directly; normal residuals use $\theta^TH\theta-2\theta^Tg+c$ and are subject to cancellation near a perfect fit.
-- Pickle preserves the representation, physical arrays and metadata. No source snapshots or solver workspace are retained.
+- FitSystem has no supported persistence API. Save the fitted ForceConstants with save(); callers may store the exposed equation arrays themselves when needed.
 - ASR and rotation projection remain explicit operations on the resulting `ForceConstants`.
 
 `FitData`, `FitSystem.from_atoms()`, `matrix`, `rhs`, `force_norm`, `column_scale` and `max_steps` are removed. Use direct construction, explicit data properties and `maxiter`. `solve()` now returns a model; obtain its physical vector with `model.parameters()`.

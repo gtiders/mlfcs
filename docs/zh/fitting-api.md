@@ -102,9 +102,9 @@ normal 路线把 `normal_matrix`、`normal_rhs` 交给自己的对称方程求�
 ## 转换、合并与误差
 
 - `raw.to_normal()` 返回同类型的正规系统；normal 的 `to_normal()` 返回自身。没有反向转换。
-- `a + b` 累加 normal 统计量，或拼接 raw 方程。要求 cluster-space 指纹和表示一致。混合合并前显式调用 `to_normal()`。
+- `a + b` 累加 normal 统计量，或拼接 raw 方程。要求表示一致；用户负责保证物理参数布局一致，不检查模型几何或基的身份。混合合并前显式调用 `to_normal()`。
 - `residual(model_or_parameters)`、`rmse(model_or_parameters)`、`relative_error(model_or_parameters)` 评估物理力误差。raw 直接算残差；normal 使用 $\theta^TH\theta-2\theta^Tg+c$，接近完美拟合时存在相消精度限制。
-- pickle 保存方程表示、物理数组和元数据，不保存训练结构或求解工作区。
+- FitSystem 不提供持久化 API。拟合结果用 ForceConstants.save() 保存；需要保存方程时，用户可自行存储公开数组。
 - ASR 与旋转约束投影继续显式作用于求解得到的 `ForceConstants`。
 
 删除 `FitData`、`FitSystem.from_atoms()`、`matrix`、`rhs`、`force_norm`、`column_scale` 和 `max_steps`。使用直接初始化、明确的数据属性及 `maxiter`。`solve()` 返回模型，`model.parameters()` 提取物理参数向量。

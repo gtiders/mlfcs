@@ -6,6 +6,8 @@
 
 ## 未发布
 
+- **破坏性：** 删除对象 pickle 支持、所有模型 fingerprint 和跨对象身份检查。ForceConstants save/load 改用显式 HDF5 原生版本 4，拒绝旧文件；用户负责参数布局及质量配套。原胞 fractional 坐标使用 ASE wrap，保存的坐标在加载时只校验，不重新 wrap。
+
 ## 4.6.0 — 2026-10-04
 
 - **破坏性：** 日志配置只接受 `level`，带时间戳的日志刷新到当前 stdout；删除 `configure(stream=...)`，由 Bash 或任务脚本重定向输出。补齐计算、进度、求解和质量摘要，fingerprint 诊断仅在 DEBUG 执行；教学拟合继续自行完整捕获 `fit.log`。

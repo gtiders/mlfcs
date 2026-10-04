@@ -141,18 +141,6 @@ class PrimitiveSymmetry:
             tuple(int(value) for value in transformed),
         )
 
-    def __reduce__(self):
-        """Serialize declared symmetry buffers for reconstruction with validation."""
-        return type(self), (
-            self.rotations,
-            self.translations,
-            self.cartesian_rotations,
-            self.site_permutations,
-            self.site_shifts,
-            self.symbol,
-            self.symprec,
-        )
-
 
 def discover_symmetry(cell, scaled_positions, atomic_numbers, symprec) -> PrimitiveSymmetry:
     """Discover affine primitive symmetry and uniquely match every mapped site.

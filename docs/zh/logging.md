@@ -51,8 +51,7 @@ ForceDesign 编译、拟合、有限差分、谐波网格、SCPH、和规则投�
 不会恢复已丢弃的逐帧力。若浮点消去导致诊断不可用，只记录警告，不使成功求解失败。
 INFO 的质量摘要额外计算一次残差；WARNING 级别关闭这项工作。日志不修改拟合系数。
 
-DEBUG 增加 fingerprint 和 workspace 细节。昂贵的 fingerprint 遍历受 DEBUG
-级别保护，INFO 不执行这些日志专用遍历。
+DEBUG 增加 workspace 细节。日志不计算或记录模型身份哈希。
 
 ## 异常
 

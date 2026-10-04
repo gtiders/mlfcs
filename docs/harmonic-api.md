@@ -15,7 +15,7 @@ heavy_harmonic = Harmonic(heavy_model)
 
 `with_masses(masses)` requires finite, strictly positive values of shape `(n_atoms,)`. It copies only the mass assignment and shares the existing readonly geometry, symmetry, orbits and parameterization. It does not repeat spglib preprocessing, cluster enumeration or exact algebra. The original space and model remain unchanged.
 
-Masses do not change the force-constant parameter-space fingerprint. Physical energy derivatives can therefore be rebound to the new space without refitting. Native force-constant files and pickle retain the mass assignment. `Harmonic.masses` exposes a readonly snapshot without a setter: modifying masses means constructing a new space and harmonic model, not mutating cached mass weights.
+Masses do not change the physical parameter layout. Physical energy derivatives can therefore be rebound to the new space without refitting. Native HDF5 force-constant files retain the mass assignment. `Harmonic.masses` exposes a readonly snapshot without a setter: modifying masses means constructing a new space and harmonic model, not mutating cached mass weights.
 
 ## Frequencies at explicit q points
 
@@ -49,6 +49,6 @@ full = result.full_frequencies()
 
 Explicit points permit different masses on structurally equivalent sites. Mesh reduction uses only structural operations that preserve the actual per-site masses, plus time reversal when requested. It does not change the cluster-space symmetry or FC basis. The same rule applies to SCPH.
 
-Advanced callers may still pass `QStars` to `frequencies()` or `dynamical_matrices()`. Its operations must belong to the model's primitive symmetry and preserve masses. Incompatible stars raise `ValueError`; no invalid symmetry reduction is silently accepted.
+Advanced callers may still pass `QStars` to `frequencies()` or `dynamical_matrices()`. Callers must ensure its operations belong to the model's primitive symmetry and preserve masses. External star/model compatibility is not checked; Harmonic.mesh() constructs the appropriate subgroup automatically.
 
 All calculations continue to use three-dimensional, fully periodic cells. This API change does not introduce partial-PBC or vacuum validation.

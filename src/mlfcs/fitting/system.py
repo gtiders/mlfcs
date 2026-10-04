@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import hashlib
 import logging
-import struct
 from collections.abc import Iterable
 from dataclasses import dataclass
 from time import perf_counter
@@ -35,11 +33,6 @@ def _readonly(values: object, shape: tuple[int, ...]) -> np.ndarray:
     return result
 
 
-def _bytes(values: np.ndarray) -> bytes:
-    """Encode equation entries in a fixed big-endian byte order for stable hashing."""
-    return values.astype(values.dtype.newbyteorder(">"), copy=False).tobytes()
-
-
 @dataclass(frozen=True, slots=True, init=False)
 class FitSystem:
     """Immutable physical force-fitting equations in one of two representations.
@@ -65,6 +58,8 @@ class FitSystem:
     Construction does not evaluate calculators, subtract mean forces, weight
     samples or normalize columns. Public arrays are readonly and unscaled.
     Solving normalizes temporary data and returns physical coefficients.
+    Callers must use matching parameter layouts when merging systems or
+    evaluating a ForceConstants model; model identity is not checked.
 
     Raises
     ------
@@ -114,8 +109,6 @@ class FitSystem:
             self._matrix.nbytes + self._rhs.nbytes,
             perf_counter() - started,
         )
-        if logger.isEnabledFor(logging.DEBUG):
-            logger.debug("Fit-system identity: fit_system_fingerprint=%s", self.fingerprint)
 
     def _initialize(
         self,
@@ -185,18 +178,6 @@ class FitSystem:
         )
         return result
 
-    def __reduce__(self):
-        """Serialize equations and primitive model for validated restoration."""
-        return _restore_fit_system, (
-            self.cluster_space,
-            self.representation,
-            self._matrix,
-            self._rhs,
-            self.force_squared_norm,
-            self.n_equations,
-            self.n_structures,
-        )
-
     def _require_representation(self, representation):
         """Raise ValueError if data is requested from the wrong equation representation."""
         if self.representation != representation:
@@ -243,19 +224,6 @@ class FitSystem:
         else:
             missing = ~np.any(self._matrix != 0.0, axis=0)
         return tuple(int(index) for index in np.flatnonzero(missing))
-
-    @property
-    def fingerprint(self):
-        """Hash model identity, representation, counts and physical equation contents."""
-        digest = hashlib.sha256()
-        digest.update(self.cluster_space.fingerprint.encode("ascii"))
-        digest.update(self.representation.encode("ascii"))
-        digest.update(
-            struct.pack(">qqd", self.n_equations, self.n_structures, self.force_squared_norm)
-        )
-        digest.update(_bytes(self._matrix))
-        digest.update(_bytes(self._rhs))
-        return digest.hexdigest()
 
     def parameter_name(self, parameter: int) -> str:
         """Return the physical layout address of one packed parameter."""
@@ -337,19 +305,15 @@ class FitSystem:
                     error,
                     perf_counter() - started,
                 )
-        if logger.isEnabledFor(logging.DEBUG):
-            logger.debug(
-                "Fit identity: fit_system_fingerprint=%s force_constants_fingerprint=%s",
-                self.fingerprint,
-                model.fingerprint,
-            )
         return model
 
     def _parameters(self, values):
-        """Validate a physical parameter vector or a complete model with matching space identity."""
+        """Extract a finite physical vector of the fitted length and order set.
+
+        The caller must supply coefficients in this system's parameter layout;
+        cross-model geometry and basis compatibility are not checked.
+        """
         if isinstance(values, ForceConstants):
-            if values.cluster_space.fingerprint != self.cluster_space.fingerprint:
-                raise ValueError("force constants use a different cluster space")
             if values.orders != self.cluster_space.orders:
                 raise ValueError("force constants must contain every fitted order")
             values = values.parameters()
@@ -448,16 +412,15 @@ class FitSystem:
         )
 
     def __add__(self, other):
-        """Merge same-space, same-representation systems without modifying either input.
+        """Merge same-representation systems without modifying either input.
 
         Normal statistics add; raw equations concatenate rows left then right.
         Mixed representations raise ValueError and require explicit to_normal().
         Other operand types return NotImplemented.
+        The caller is responsible for matching physical parameter layouts.
         """
         if not isinstance(other, FitSystem):
             return NotImplemented
-        if self.cluster_space.fingerprint != other.cluster_space.fingerprint:
-            raise ValueError("fit systems use different cluster spaces")
         if self.representation != other.representation:
             raise ValueError(
                 "fit systems use different representations; convert raw with to_normal() explicitly"
@@ -479,11 +442,6 @@ class FitSystem:
             self.n_equations + other.n_equations,
             self.n_structures + other.n_structures,
         )
-
-
-def _restore_fit_system(*state):
-    """Restore serialized physical equations through the validated internal constructor."""
-    return FitSystem._from_equations(*state)
 
 
 def _sample(

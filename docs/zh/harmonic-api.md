@@ -15,7 +15,7 @@ heavy_harmonic = Harmonic(heavy_model)
 
 `with_masses(masses)` 要求形状为 `(n_atoms,)`，质量有限且严格为正。新 cs 只复制质量，共享原有的只读几何、对称性、orbit 和参数化数据，不重复运行 spglib、cluster enumeration 或 exact algebra。原 cs 和模型保持不变。
 
-质量不改变力常数参数空间的 fingerprint，因此能量导数参数可以直接绑定到新 cs，无须重新拟合。原生力常数文件和 pickle 会保存质量。`Harmonic.masses` 是无 setter 的只读质量快照；换质量应创建新 cs 和新谐波对象，不能原地修改缓存中的质量权重。
+质量不改变力常数物理参数布局，因此能量导数参数可以直接绑定到新 cs，无须重新拟合。原生 HDF5 力常数文件会保存质量。`Harmonic.masses` 是无 setter 的只读质量快照；换质量应创建新 cs 和新谐波对象，不能原地修改缓存中的质量权重。
 
 ## 指定 q 点计算
 
@@ -49,6 +49,6 @@ full = result.full_frequencies()
 
 显式 q 点允许结构等价站点使用不同质量。网格只采用保持当前逐站点质量的结构对称操作，并按请求加入时间反演；不会改变 cs 的结构对称性或 FC basis。SCPH 使用相同规则。
 
-高级调用仍可向 `frequencies()` 或 `dynamical_matrices()` 传入 `QStars`，但其操作必须属于模型原胞对称性并保持质量。不兼容的 stars 抛出 `ValueError`，不会静默使用不成立的约化。
+高级调用仍可向 `frequencies()` 或 `dynamical_matrices()` 传入 `QStars`；用户负责保证其操作属于模型原胞对称性并保持质量，程序不检查外部 stars 与模型的配套性。`Harmonic.mesh()` 自动构造适当的质量保持子群。
 
 计算继续保持三维全周期；本次 API 修改不涉及部分 PBC 或真空检查。

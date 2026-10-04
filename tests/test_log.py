@@ -171,8 +171,6 @@ def test_fit_logs_progress_quality_and_preserves_results(package_log, representa
         "stop_code=",
         "training_force_rmse=",
         "training_relative_force_error=",
-        "fit_system_fingerprint=",
-        "force_constants_fingerprint=",
     ):
         assert required in text
 
