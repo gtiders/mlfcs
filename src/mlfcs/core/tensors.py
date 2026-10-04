@@ -21,12 +21,25 @@ def tensor_action_bound(rotation, order, coefficient=1):
 
 
 def prove_tensor_action(rotation, order, coefficient=1, subtraction=0):
+    """Admit tensor-action products, partial sums and an optional subtraction in int64.
+
+    ``rotation`` is the actual integer 3x3 action, ``order`` the tensor rank,
+    and ``coefficient`` bounds absolute seed entries. The returned bound includes
+    ``subtraction``; OverflowError is raised before unchecked tensor operations.
+    """
     bound = tensor_action_bound(rotation, order, coefficient) + subtraction
     return require_bound("tensor action intermediate", bound)
 
 
 @njit(cache=True)
 def _tensor_action(values, rotation, permutation):
+    """Apply axis-wise rotations then permute flattened tensor rows.
+
+    ``values`` has shape (3**p, n_columns), ``rotation`` (3, 3), and
+    ``permutation`` (p,). Rows encode Cartesian directions in C order, with the
+    last axis varying fastest. Inputs are preserved; output has the seed dtype.
+    Integer callers must admit tensor extent and prove_tensor_action first.
+    """
     order = len(permutation)
     dimension, columns = values.shape
     transformed = values.copy()
@@ -59,7 +72,13 @@ def rotate_tensor(
     rotation: np.ndarray,
     permutation: np.ndarray,
 ) -> np.ndarray:
-    """Apply one Cartesian rotation and tensor-axis permutation."""
+    """Return a Cartesian tensor after rotation on every axis and axis permutation.
+
+    ``tensor`` has shape (3,) repeated p times; ``rotation`` is a 3x3 Cartesian
+    matrix and ``permutation`` contains p axis indices. Inputs are not modified.
+    The transformation contracts rotation's second index with each tensor axis,
+    then applies NumPy's transpose convention.
+    """
     result = tensor
     for axis in range(tensor.ndim):
         result = np.tensordot(rotation, result, axes=((1,), (axis,)))
@@ -72,7 +91,11 @@ def rotate_basis(
     rotation: np.ndarray,
     permutation: np.ndarray,
 ) -> np.ndarray:
-    """Apply one tensor action to every column of a Cartesian basis."""
+    """Transform every Cartesian basis column and return a float64 matrix.
+
+    ``basis`` has shape (3**p, dimension), flattened in C order. Rotation and
+    permutation follow rotate_tensor; the input basis remains unchanged.
+    """
     order = len(permutation)
     result = np.empty_like(basis, dtype=np.float64)
     for column in range(basis.shape[1]):

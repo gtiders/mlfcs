@@ -1,81 +1,110 @@
 # Force-fitting API
 
-Fitting is a force-only linear problem. `FitSystem` consumes ASE structures with already stored forces, builds the optimized sufficient normal system, and solves all configured orders together. It does not call calculators or retain the training structures.
+`FitSystem` owns one force-only least-squares problem. Initialize it directly with a `ClusterMap` and evaluated ASE structures. `representation="normal"` is the default and uses MINRES; `representation="raw"` retains the original equations and uses LSMR. These are the only built-in algorithms. `solve()` returns `ForceConstants`.
 
-## Retain the raw equations: `FitData`
-
-`FitSystem` accumulates normal equations while streaming, which keeps memory
-flat but discards the per-structure residuals. `FitData` keeps the raw
-equations of every structure (`designs[i] @ parameters = forces[i]`) and can
-rebuild the normal system later:
+## Initialize and solve
 
 ```python
-from mlfcs import FitData
+from ase.io import iread, read
+from mlfcs import ClusterMap, ClusterSpace, FitSystem
 
-data = FitData.from_atoms(mapping, iread("train.xyz", index=":"))
-design, forces = data.arrays()          # stacked least-squares form
-system = data.normal_system()           # one FitSystem, solved as usual
-parameters = system.solve()
-model = data.force_constants(parameters)
-```
-
-`FitData` grows with the number of structures; use it when the equations
-themselves matter (custom solvers, reweighting, diagnostics) and `FitSystem`
-when only the solution does.
-
-## Build the shared model and supercell mapping
-
-```python
-import numpy as np
-from ase.build import bulk
-from mlfcs import ClusterMap, ClusterSpace
-
-primitive_atoms = bulk("Al", "fcc", a=4.05)
 space = ClusterSpace(
-    primitive_atoms, cutoffs={2: 4.0, 3: 3.0}, max_body_orders={2: 2, 3: 3}, symprec=1e-05
+    read("POSCAR"),
+    cutoffs={2: 4.0, 3: 3.0},
+    max_body_orders={2: 2, 3: 3},
 )
-supercell_atoms = primitive_atoms.repeat((3, 3, 3))
-mapping = ClusterMap(space, supercell_atoms, supercell_matrix=np.diag([3, 3, 3]))
-mapping.rank_info().require_full()
+mapping = ClusterMap(space, read("SPOSCAR"))
+system = FitSystem(mapping, iread("train.extxyz", index=":"))
+model = system.solve(rtol=1e-8, maxiter=1000)
+print(system.rmse(model), "eV/Å")
+model.save("fit.mlfcs")
 ```
 
-Each order gets its own cutoff and maximum body order. The explicit supercell is the data geometry, not a property of the primitive `ClusterSpace`.
+The integer supercell matrix may be supplied to `ClusterMap`; otherwise it is inferred. `FitSystem` checks structural identifiability when preparing its internal force design. Each training frame must have the reference atom sequence, periodicity and cell, and already stored finite ASE forces. Construction never invokes a calculator. A frame generator is consumed once; create another iterator when constructing a second system.
 
-## Build and solve a fit system
+## What happens to the data
+
+For each frame, positions are compared with the reference supercell using Cartesian minimum periodic images. The resulting displacement $u_i$ enters the symmetry-reduced Taylor force design $A_i$. The force array is flattened in atom order, with Cartesian x/y/z components consecutive. Columns follow `cluster_space.parameter_offsets` and the cluster space's order/orbit/component layout. The Taylor signs, factorials, tensor bases and image sums are already incorporated into $A_i$.
+
+No mean-force subtraction, per-frame weighting or data normalization is applied during construction. Both representations describe physical parameters $\theta$ and the same problem:
+
+$$
+\min_\theta \|A\theta-f\|_2^2.
+$$
+
+| Representation | Public data | Algorithm | Storage |
+|---|---|---|---|
+| `raw` | `design_matrix` ($A$), `forces` ($f$) | LSMR | $O(mn)$ |
+| `normal` | `normal_matrix` ($H$), `normal_rhs` ($g$) | MINRES | $O(n^2)$ |
+
+Here $m$ is the total number of Cartesian force equations and $n$ is the number of parameters. Raw frames are stacked in iteration order. The normal route accumulates, frame by frame,
+
+$$
+H=\sum_i A_i^T A_i,\qquad g=\sum_i A_i^T f_i,\qquad c=\sum_i f_i^T f_i.
+$$
+
+`force_squared_norm` stores $c$ in either representation. `n_structures`, `n_equations`, `n_parameters`, `representation` and `cluster_space` describe the system. Public arrays are readonly, retain physical scale, and remain unchanged by solving. Accessing an array belonging to the other representation raises `ValueError`. Normal systems discard the raw rows and cannot recover individual-frame residuals.
+
+Raw construction temporarily retains frame blocks while stacking them, and raw solving allocates a normalized working matrix. Plan for temporary storage in addition to the final $mn$ matrix. A normal system streams frames without retaining their design matrices, but its matrix can still be large. For full-rank $A$, $\kappa_2(A^TA)=\kappa_2(A)^2$; accumulating normal equations can lose information in poorly conditioned problems.
+
+## Normalization belongs to solving
+
+`fitting/solve.py` implements the internal `FitSolver` class used by `system.solve()`. It always normalizes parameter columns; the representation fixes the algorithm.
+
+For raw equations, let
+
+$$
+s_j=\frac{1}{\|A_{:j}\|_2},\qquad S=\operatorname{diag}(s_j).
+$$
+
+LSMR solves $ASz\approx f$, and the returned physical parameters are $\theta=Sz$. The force vector is not rescaled. Column maxima are used before computing norms to avoid squaring very large or very small physical coefficients. The normalized matrix is temporary, so user-accessible $A$ and $f$ keep their original values.
+
+For normal equations, $s_j=1/\sqrt{H_{jj}}$. MINRES solves
+
+$$
+SHSz=Sg,\qquad \theta=Sz.
+$$
+
+This is the existing column-scaled iteration. Scaling balances parameter columns from different FC orders; it cannot resolve missing observations or linear dependence. Exact geometric folded rank and the numerical rank of the training equations are distinct. A zero column raises `UnobservedParameterError`. In a rank-deficient problem the solver operates in scaled coordinates, so a selected solution need not minimize the norm of physical $\theta$.
+
+| Route | Defaults | Meaning |
+|---|---|---|
+| normal / MINRES | `rtol=1e-8`, `maxiter=1000` | MINRES relative stopping tolerance and iteration limit |
+| raw / LSMR | `atol=1e-8`, `btol=1e-8`, `conlim=1e8`, `maxiter=1000` | Matrix/least-squares tolerance, force-vector tolerance, scaled condition limit, iteration limit |
+
+LSMR's compatible-system stopping test uses approximately $\|r\|\le\texttt{atol}\|AS\|\|z\|+\texttt{btol}\|f\|$; its least-squares test controls $\|(AS)^Tr\|$. `conlim=0` disables the condition-limit test. Tolerances are dimensionless and apply to the normalized problem. A convergence failure, iteration-limit stop or condition-limit stop raises an error. Options for the other algorithm, `solver=` and additional algorithms are not supported. See [SciPy MINRES](https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.linalg.minres.html) and [SciPy LSMR](https://docs.scipy.org/doc/scipy/reference/generated/scipy.sparse.linalg.lsmr.html) for the stopping rules.
 
 ```python
-from ase.io import read
-from mlfcs import FitSystem
-
-training = read("training.extxyz", index=":")
-system = FitSystem.from_atoms(mapping, training)
-parameters = system.solve()
-force_constants = system.force_constants(parameters)
-
-print(system.n_structures, system.n_parameters)
-print("force RMSE:", system.rmse(parameters), "eV/Å")
-force_constants.save("fit.mlfcs")
+raw = FitSystem(mapping, iread("train.extxyz", index=":"), representation="raw")
+model = raw.solve(atol=1e-10, btol=1e-10, conlim=1e8, maxiter=2000)
 ```
 
-Every training frame must have the same atom sequence, periodic supercell, and an ASE calculator result that already contains forces. For example, extxyz files written with forces can be read by ASE and passed directly. `FitSystem.from_atoms` reads stored results without triggering a new calculation; plain NumPy force arrays and structures with no stored force property are rejected.
+## External solvers
 
-The compact API is:
+External solvers receive physical equations and control their own normalization. For example, call SciPy LSMR directly on the public raw arrays:
 
 ```python
-FitSystem.from_atoms(mapping, structures)
-system.solve(*, rtol=1e-8, max_steps=1000)
-system.force_constants(parameters)
+from scipy.sparse.linalg import lsmr
+
+A, f = raw.design_matrix, raw.forces
+result = lsmr(A, f, atol=1e-10, btol=1e-10, maxiter=2000)
+if result[1] not in (0, 1, 2, 4, 5):
+    raise RuntimeError(f"external LSMR stopped with code {result[1]}")
+parameters = result[0]
+model = raw.force_constants(parameters)
+print(raw.rmse(model))
 ```
 
-The default solve uses column-scaled MINRES on the normal system. The exact scale for parameter `i` is `1 / sqrt(H[i, i])`, where `H` is the normal matrix. A zero diagonal means that the training design never observes that parameter; the solve raises `UnobservedParameterError` rather than silently regularizing it. Add structurally informative training data or revise the model.
+Unlike `raw.solve()`, this direct call does not apply MLFCS column normalization. Inspect the external solver's stop status before accepting its solution. If you normalize externally, solve with $AS$ and pass $Sz$ to `force_constants()`, never the scaled coordinates $z$. The parameter vector must be finite and have length `n_parameters` in the original canonical layout. Force parameters of order $p$ have units eV/Å$^p$; displacement input is in Å and forces are in eV/Å.
 
-## Reuse, merge, and inspect
+For a normal system, give `system.normal_matrix` and `system.normal_rhs` to your symmetric-system solver, then bind its physical result with `system.force_constants(parameters)`. The saved matrix is $H$, not $A$. Applying least-squares to $(H,g)$ changes the residual objective and must not be described as using the original force equations.
 
-`FitSystem` stores the symmetric matrix `H = A.T @ A`, right-hand side `g = A.T @ f`, force norm, and counts. This is sufficient to solve and evaluate the least-squares problem without keeping all design rows or source structures.
+## Conversion, merging and diagnostics
 
-- Add compatible systems with `combined = system_a + system_b`. Their cluster-space fingerprints must match.
-- Pickle a system for trusted local reuse. Only unpickle files from trusted sources; pickle is executable serialization.
-- Inspect `system.matrix`, `system.rhs`, `system.force_norm`, `system.n_equations`, `system.n_structures`, and `system.unobserved_parameters`.
-- Assess the solution with `system.residual(parameters)`, `system.rmse(parameters)`, and `system.relative_error(parameters)`.
+- `raw.to_normal()` returns another `FitSystem` with compressed physical equations. A normal system's `to_normal()` returns itself. There is no reverse conversion.
+- `a + b` adds compatible normal statistics or stacks compatible raw equations. Cluster-space fingerprints and representations must match. Explicitly convert raw systems before merging with normal systems.
+- `residual(model_or_parameters)`, `rmse(model_or_parameters)` and `relative_error(model_or_parameters)` evaluate physical force errors. Raw residuals are evaluated directly; normal residuals use $\theta^TH\theta-2\theta^Tg+c$ and are subject to cancellation near a perfect fit.
+- Pickle preserves the representation, physical arrays and metadata. No source snapshots or solver workspace are retained.
+- ASR and rotation projection remain explicit operations on the resulting `ForceConstants`.
 
-The RMSE is in eV/Å. Force constants of order `n` have units eV/Åⁿ. Translational or rotational post-processing is separate from the fit; for example, `force_constants.enforce_asr()` returns a projected force-constant model and a report.
+`FitData`, `FitSystem.from_atoms()`, `matrix`, `rhs`, `force_norm`, `column_scale` and `max_steps` are removed. Use direct construction, explicit data properties and `maxiter`. `solve()` now returns a model; obtain its physical vector with `model.parameters()`.

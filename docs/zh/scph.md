@@ -13,11 +13,13 @@ scph = SCPH(model, mesh, statistics="quantum", time_reversal=True)
 | 参数 | 含义 |
 | --- | --- |
 | `model` | 同一簇空间上的 `ForceConstants`，必须包含二阶和四阶。FC4 块提供环修正，FC2 块提供裸谐性模型。 |
-| `mesh` | `QGrid`、长度为 3 的对角网格（如 `(4, 4, 6)`），或非奇异的 3×3 整数超胞矩阵。网格按模型原胞对称性约化。 |
+| `mesh` | `QGrid`、正整数对角网格（如 `(4, 4, 6)`），或非奇异的 3×3 整数超胞矩阵。按原胞对称性的质量保持子群约化。 |
 | `statistics` | 模态协方差统计方式：`"quantum"`（默认）或 `"classical"`。 |
 | `time_reversal` | 倒空间星是否包含时间反演配对；默认 `True`。 |
 
 对象提供 `model`、`stars` 和 `statistics`。倒空间网格基于精确整数数据；频率和协方差计算在星代表点上执行。
+
+质量直接来自只读的 `model.cluster_space.masses`。结构等价站点可以使用不同质量，只有保持质量的对称操作参与倒空间约化。如何无须重建 cluster space 就替换质量，见[谐波频率与原子质量](harmonic-api.md)。
 
 ## 运行一个温度
 

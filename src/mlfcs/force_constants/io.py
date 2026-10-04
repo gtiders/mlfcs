@@ -7,10 +7,12 @@ from collections import defaultdict
 from importlib.metadata import PackageNotFoundError, version
 from itertools import product
 from pathlib import Path
+from time import perf_counter
 
 import h5py
 import numpy as np
 
+from mlfcs.core.log import get_logger
 from mlfcs.force_constants.export import (
     DEFAULT_THRESHOLD,
     clean,
@@ -24,6 +26,8 @@ from mlfcs.force_constants.export import (
 from mlfcs.force_constants.lattice import expand
 from mlfcs.force_constants.model import ForceConstants
 from mlfcs.mapping import ClusterMap
+
+logger = get_logger(__name__)
 
 
 def write(
@@ -40,6 +44,15 @@ def write(
     path = Path(file).resolve()
     path.parent.mkdir(parents=True, exist_ok=True)
     threshold = threshold_value(threshold)
+    started = perf_counter()
+    logger.info(
+        "Export started: path=%s format=%s order=%d storage=%s threshold=%.6g",
+        path,
+        format,
+        order,
+        storage if storage is not None else "default",
+        threshold,
+    )
     if format == "phonopy":
         if order != 2:
             raise ValueError("phonopy output supports only order 2")
@@ -77,6 +90,13 @@ def write(
             f"unsupported force-constant format {format!r}; supported formats are "
             "phonopy, phono3py, shengbte, and tdep"
         )
+    logger.info(
+        "Export complete: path=%s format=%s order=%d elapsed_s=%.2f",
+        path,
+        format,
+        order,
+        perf_counter() - started,
+    )
     return path
 
 
@@ -154,6 +174,7 @@ def _write_phono3py(
 
 
 def _vector_line(vector: np.ndarray) -> str:
+    """Format one Cartesian lattice vector as a ShengBTE text line in scientific notation."""
     return " ".join(f"{value:>15.10e}" for value in vector)
 
 

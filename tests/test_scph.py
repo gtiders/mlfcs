@@ -44,6 +44,29 @@ def test_quartic_loop_contraction_contains_the_one_half_factor() -> None:
     assert actual[0, 0, 0] == pytest.approx(3.0)
 
 
+def test_scph_uses_mass_preserving_stars_and_checks_warm_start_masses() -> None:
+    space = ClusterSpace(bulk("Si", "diamond", a=5.43), cutoffs={2: 0.01, 4: 0.01})
+    space = space.with_masses([28.0, 29.0])
+    model = ForceConstants(
+        space,
+        {
+            2: np.ones(space.block(2).parameters.stop - space.block(2).parameters.start),
+            4: np.zeros(space.block(4).parameters.stop - space.block(4).parameters.start),
+        },
+    )
+    scph = SCPH(model, (2, 2, 2))
+    assert scph._masses is space.masses
+    assert scph.stars.symmetry.size < space.symmetry.size
+    result = scph.run(100, max_iterations=2)
+    assert result.converged
+    np.testing.assert_allclose(
+        result.frequencies, Harmonic(result.fc2).frequencies(scph.stars), atol=1e-12
+    )
+    other = ForceConstants(space.with_masses([30.0, 31.0]), {2: model.coefficients[2]})
+    with pytest.raises(ValueError, match="same cluster space and masses"):
+        scph.run(100, start=other)
+
+
 def test_run_many_solves_from_high_temperature_and_returns_an_ascending_list(monkeypatch) -> None:
     space = ClusterSpace(
         bulk("Ar", "sc", a=1.0),
@@ -65,7 +88,7 @@ def test_run_many_solves_from_high_temperature_and_returns_an_ascending_list(mon
             4: np.zeros(space.block(4).parameters.stop - space.block(4).parameters.start),
         },
     )
-    scph = SCPH(model, np.diag([2, 2, 2]))
+    scph = SCPH(model, (2, 2, 2))
     np.testing.assert_allclose(
         _fc2_tensors(
             model.coefficients[2], scph._fc2_bases, scph._fc2_offsets, scph._fc2_dimensions

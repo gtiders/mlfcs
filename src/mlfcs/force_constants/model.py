@@ -10,12 +10,16 @@ import tempfile
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from time import perf_counter
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Literal
 
 import numpy as np
 
 from mlfcs.cluster_space import ClusterSpace
+from mlfcs.core.log import get_logger
+
+logger = get_logger(__name__)
 
 if TYPE_CHECKING:
     from mlfcs.force_constants.asr import ASRResult
@@ -28,6 +32,7 @@ _HEADER = b"MLFCS\x00\x03\n"
 
 
 def _digest(space: ClusterSpace, coefficients: Mapping[int, np.ndarray]) -> str:
+    """Hash primitive model identity and ordered physical coefficients in fixed byte order."""
     digest = hashlib.sha256()
     digest.update(space.fingerprint.encode("ascii"))
     for order in sorted(coefficients):
@@ -40,18 +45,39 @@ def _digest(space: ClusterSpace, coefficients: Mapping[int, np.ndarray]) -> str:
 
 @dataclass(frozen=True, slots=True)
 class ForceConstants:
-    """One primitive-cell force-constant model.
+    """Immutable primitive force-constant coefficients in physical component coordinates.
 
-    Coefficients use the canonical parameter layout of ``space``. Only the
-    explicitly present orders belong to the model; an absent order is never
-    interpreted as zero. Supercell expansion is a derived operation and is
-    deliberately not stored here.
+    Parameters
+    ----------
+    cluster_space : ClusterSpace
+        Primitive geometry and canonical parameter schema, retained by reference.
+    coefficients : mapping of int to array_like
+        Present tensor orders and finite physical parameter vectors. Each order
+        must match its block dimension. Values are copied into readonly float64
+        storage, with units eV/angstrom**order under the ASE energy convention.
+
+    Notes
+    -----
+    Only declared orders belong to the model; absence does not mean zero.
+    The mapping is readonly. Supercell expansion is derived from a ClusterMap
+    and is not stored. Parameters name representative Cartesian components,
+    not arbitrary exact lattice-kernel generator coefficients.
+
+    Raises
+    ------
+    ValueError
+        Coefficients are empty, nonfinite or have an incompatible length.
+    KeyError
+        An order is not defined by the cluster space.
     """
 
     cluster_space: ClusterSpace
     coefficients: Mapping[int, np.ndarray]
 
     def __post_init__(self) -> None:
+        """Validate per-order vectors and capture readonly coefficient copies in an immutable
+        mapping.
+        """
         if not isinstance(self.cluster_space, ClusterSpace):
             raise TypeError("space must be a ClusterSpace")
         values: dict[int, np.ndarray] = {}
@@ -75,18 +101,27 @@ class ForceConstants:
         object.__setattr__(self, "coefficients", MappingProxyType(values))
 
     def __reduce__(self):
+        """Serialize the shared model schema and physical coefficient vectors for validation on
+        load.
+        """
         return type(self), (self.cluster_space, dict(self.coefficients))
 
     @property
     def orders(self) -> tuple[int, ...]:
+        """Explicitly present tensor orders in ascending order."""
         return tuple(sorted(self.coefficients))
 
     @property
     def fingerprint(self) -> str:
+        """Stable hash of the cluster-space identity and physical coefficient contents."""
         return _digest(self.cluster_space, self.coefficients)
 
     def parameters(self, orders: Iterable[int] | None = None) -> np.ndarray:
-        """Return a packed copy in ascending-order cluster-space layout."""
+        """Return a writable packed coefficient copy in ascending-order parameter layout.
+
+        orders defaults to all present orders; an explicit selection must be unique
+        and ascending. Missing orders raise KeyError. No normalization is applied.
+        """
         selected = self.orders if orders is None else tuple(int(order) for order in orders)
         if tuple(sorted(set(selected))) != selected:
             raise ValueError("orders must be unique and ascending")
@@ -115,6 +150,8 @@ class ForceConstants:
     def save(self, file: str | os.PathLike[str]) -> Path:
         """Atomically write the native trusted-pickle representation."""
         path = Path(file).resolve()
+        started = perf_counter()
+        logger.info("Native save started: path=%s orders=%s", path, self.orders)
         path.parent.mkdir(parents=True, exist_ok=True)
         payload = {
             "format": _FORMAT,
@@ -135,12 +172,15 @@ class ForceConstants:
         finally:
             if temporary is not None and os.path.exists(temporary):
                 os.unlink(temporary)
+        logger.info("Native save complete: path=%s elapsed_s=%.2f", path, perf_counter() - started)
         return path
 
     @classmethod
     def load(cls, file: str | os.PathLike[str]) -> ForceConstants:
         """Read a native force-constant file from a trusted source."""
         path = Path(file).resolve()
+        started = perf_counter()
+        logger.info("Native load started: path=%s", path)
         with path.open("rb") as handle:
             if handle.read(len(_HEADER)) != _HEADER:
                 raise ValueError("unsupported force-constant file version; version 3 is required")
@@ -157,6 +197,12 @@ class ForceConstants:
         model = cls(space, payload.get("coefficients"))
         if payload.get("fingerprint") != model.fingerprint:
             raise ValueError("force-constant fingerprint does not match its contents")
+        logger.info(
+            "Native load complete: path=%s orders=%s elapsed_s=%.2f",
+            path,
+            model.orders,
+            perf_counter() - started,
+        )
         return model
 
     def write(
@@ -169,12 +215,29 @@ class ForceConstants:
         storage: Literal["text", "hdf5"] | None = None,
         threshold: float = 1e-8,
     ) -> Path:
-        """Write one order in a supported external force-constant format.
+        """Overwrite one order in an external force-constant format and return its path.
 
-        ``mapping`` selects the target supercell for phonopy, phono3py and
-        ShengBTE. TDEP instead uses primitive-lattice clusters and needs no
-        mapping; one supplied for TDEP is checked for model identity. Small
-        components are set to zero after primitive-lattice expansion.
+        Parameters
+        ----------
+        file : path-like
+            Target file; parent directories are created.
+        cluster_map : ClusterMap, optional
+            Matching supercell relation required for phonopy, phono3py and ShengBTE.
+            TDEP uses primitive lattice data; an optional map is identity-checked.
+        format : {'phonopy', 'phono3py', 'shengbte', 'tdep'}
+            phonopy supports FC2; phono3py FC3; ShengBTE FC3/FC4; TDEP FC2/FC3/FC4.
+        order : int
+            Explicitly present order to export.
+        storage : {'text', 'hdf5'}, optional
+            phonopy defaults to text and permits HDF5; phono3py requires HDF5;
+            ShengBTE and TDEP require text.
+        threshold : float, default 1e-8
+            Nonnegative physical component cutoff; smaller absolute entries become zero.
+
+        Notes
+        -----
+        The model is unchanged. Native save/load is separate from external formats.
+        Invalid format/order/storage or mismatched model relation raises ValueError.
         """
         from mlfcs.force_constants.io import write
 

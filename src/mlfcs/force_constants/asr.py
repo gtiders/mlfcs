@@ -4,19 +4,30 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass
+from time import perf_counter
 
 import numpy as np
 from scipy import sparse
 from scipy.sparse.linalg import lsmr
 
+from mlfcs.core.log import get_logger
 from mlfcs.errors import ConstraintProjectionError
 from mlfcs.force_constants.acoustic import constraint_matrix, relative_residual
 from mlfcs.force_constants.model import ForceConstants
 
+logger = get_logger(__name__)
+
 
 @dataclass(frozen=True, slots=True)
 class ASRReport:
-    """Diagnostics for one tensor order projected onto the acoustic sum rule."""
+    """Diagnostics for one order's acoustic projection in physical parameter coordinates.
+
+    residual_before/after are maximum absolute equation residuals, and
+    relative_before/after divide by the row-norm/parameter-magnitude scale.
+    correction_norm is the Euclidean parameter change; relative_correction
+    divides it by the initial parameter norm. iterations counts accumulated
+    LSMR steps, not the number of refinement passes.
+    """
 
     order: int
     equations: int
@@ -53,6 +64,13 @@ def _project(
     rtol: float,
     name: str = "ASR",
 ) -> tuple[np.ndarray, ASRReport]:
+    """Subtract minimum-norm LSMR corrections until ASR residual meets rtol.
+
+    matrix is CSR (equations, parameters), values a finite physical vector.
+    Up to three corrections address roundoff; return a new vector and ASRReport.
+    No force-fitting algorithm is selected here. Failure to reach relative
+    constraint tolerance raises ConstraintProjectionError; inputs are unchanged.
+    """
     values = np.asarray(parameters, dtype=np.float64)
     if values.shape != (matrix.shape[1],):
         raise ValueError(
@@ -130,7 +148,14 @@ def enforce_asr(
     orders: Iterable[int] | None = None,
     rtol: float = 1e-10,
 ) -> ASRResult:
-    """Project selected primitive force-constant orders onto translational invariance."""
+    """Return a new model projected onto translational invariance with per-order reports.
+
+    orders defaults to all present orders and must otherwise be ascending and
+    unique. rtol is a positive dimensionless relative equation tolerance.
+    Unselected coefficients retain their values. Missing orders raise KeyError;
+    invalid inputs raise ValueError and unsuccessful projection raises
+    ConstraintProjectionError. The source model is never modified.
+    """
     if not np.isfinite(rtol) or rtol <= 0.0:
         raise ValueError("rtol must be finite and positive")
     selected = model.orders if orders is None else tuple(int(order) for order in orders)
@@ -141,6 +166,8 @@ def enforce_asr(
         raise KeyError(f"force constants do not contain orders {missing}")
 
     coefficients = dict(model.coefficients)
+    started = perf_counter()
+    logger.info("ASR projection started: orders=%s rtol=%.3g", selected, rtol)
     reports = []
     for order in selected:
         matrix = constraint_matrix(model, order)
@@ -152,7 +179,21 @@ def enforce_asr(
         )
         coefficients[order] = projected
         reports.append(report)
-    return ASRResult(ForceConstants(model.cluster_space, coefficients), tuple(reports))
+        logger.info(
+            "ASR order complete: order=%d equations=%d iterations=%d "
+            "relative_before=%.6g relative_after=%.6g correction_norm=%.6g",
+            order,
+            report.equations,
+            report.iterations,
+            report.relative_before,
+            report.relative_after,
+            report.correction_norm,
+        )
+    result = ASRResult(ForceConstants(model.cluster_space, coefficients), tuple(reports))
+    logger.info(
+        "ASR projection complete: orders=%s elapsed_s=%.2f", selected, perf_counter() - started
+    )
+    return result
 
 
 __all__ = ["ASRReport", "ASRResult", "enforce_asr"]

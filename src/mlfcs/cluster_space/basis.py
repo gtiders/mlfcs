@@ -60,6 +60,12 @@ __all__: list[str] = []
 
 @njit(cache=True)
 def label_basis(equal):
+    """Build a 0/1 basis identifying tensor components at repeated lattice sites.
+
+    ``equal`` is the (p, p) site-equality table. Output has 3**p rows in C-order
+    component layout and one column per equality class; each row has one unit
+    entry. The caller must validate tensor extent and allocation capacity.
+    """
     order = equal.shape[0]
     dimension = 3**order
     classes = np.full(dimension, -1, dtype=np.int64)
@@ -88,6 +94,13 @@ def label_basis(equal):
 
 @njit(cache=True)
 def invariant_constraints(seed, rotations, permutations):
+    """Stack (T_g - I) @ seed for all stabilizer tensor actions.
+
+    Seed has shape (3**p, dimension), rotations (s, 3, 3) in lattice coordinates,
+    and permutations (s, p). Output is int64 with shape (s*3**p, dimension).
+    The wrapper admits allocation and each rotation's intermediate bound first.
+    Inputs are preserved; zero and duplicate rows are removed by the wrapper.
+    """
     rows, columns = seed.shape
     result = np.empty((len(rotations) * rows, columns), dtype=np.int64)
     for operation in range(len(rotations)):

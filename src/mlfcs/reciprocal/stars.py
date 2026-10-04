@@ -24,7 +24,13 @@ def _transform(
     phase: np.ndarray,
     antiunitary: bool,
 ) -> np.ndarray:
-    """Rotate and scatter 3-by-3 site blocks without a dense representation."""
+    """Return the rotated/permuted positional-gauge matrix for one star member.
+
+    source is complex128 (3*N, 3*N), permutation (N,), Cartesian row rotation
+    (3, 3), and phase (N,). Conjugate source first if antiunitary; rotate site
+    blocks, scatter by permutation, and apply phase_i*conj(phase_j).
+    No dense action matrix is built and inputs are preserved.
+    """
     count = len(permutation)
     result = np.empty_like(source)
     for first in range(count):
@@ -47,11 +53,12 @@ def _transform(
 
 @dataclass(frozen=True, slots=True)
 class StarPlan:
-    """Expand matrices from star representatives in the positional gauge.
+    """Stream positional-gauge matrices from irreducible representatives.
 
-    ``matrix`` builds one requested member at a time. ``iter_matrices`` streams
-    members in grid order, so a consumer can accumulate Fourier blocks without
-    retaining a second full-grid stack of matrices.
+    stars and space are referenced domain objects. phases is complex128
+    (grid.size, n_atoms), readonly when constructed through from_stars.
+    Use that factory to prepare valid site phases. matrix creates one member;
+    iter_matrices streams grid order without retaining another full-grid stack.
     """
 
     stars: QStars
@@ -60,6 +67,13 @@ class StarPlan:
 
     @classmethod
     def from_stars(cls, stars: QStars, space: ClusterSpace) -> StarPlan:
+        """Prepare readonly site phases for expanding star matrices in positional gauge.
+
+        Reference QStars and ClusterSpace are retained, not copied. phases has
+        shape (grid.size, n_atoms), using exp(2*pi*i*G.dot(fractional_position))
+        from each exact member_shift. Wrong types or motif sizes raise an error;
+        full-grid Fourier matrices are not constructed.
+        """
         if not isinstance(stars, QStars) or not isinstance(space, ClusterSpace):
             raise TypeError("stars and space must be QStars and a ClusterSpace")
         if stars.symmetry.site_permutations.shape[1] != len(space.atomic_numbers):

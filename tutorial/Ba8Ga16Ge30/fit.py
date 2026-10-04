@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import json
-import logging
 import sys
 import traceback
 from dataclasses import asdict
@@ -52,9 +51,9 @@ def _fit() -> None:
         symprec=SYMPREC_ANGSTROM,
     )
     mapping = ClusterMap(space, supercell_atoms, supercell_matrix=SUPERCELL_MATRIX)
-    fit_system = FitSystem.from_atoms(mapping, iread(ROOT / "nve.extxyz", index=":"))
-    parameters = fit_system.solve(rtol=SOLVER_RTOL, max_steps=SOLVER_MAX_STEPS)
-    unconstrained = fit_system.force_constants(parameters)
+    fit_system = FitSystem(mapping, iread(ROOT / "nve.extxyz", index=":"))
+    unconstrained = fit_system.solve(rtol=SOLVER_RTOL, maxiter=SOLVER_MAX_STEPS)
+    parameters = unconstrained.parameters()
     projection = unconstrained.enforce_asr(rtol=ASR_RTOL)
     force_constants = projection.force_constants
     reports = {report.order: report for report in projection.reports}
@@ -89,7 +88,7 @@ def _fit() -> None:
         },
         "parameters": fit_system.n_parameters,
         "solver": "column-scaled MINRES",
-        "column_scale": "1 / sqrt(diag(FitSystem.matrix))",
+        "column_scale": "1 / sqrt(diag(FitSystem.normal_matrix))",
         "solver_rtol": SOLVER_RTOL,
         "solver_max_steps": SOLVER_MAX_STEPS,
         "fit_system_fingerprint": fit_system.fingerprint,
@@ -115,18 +114,12 @@ def main() -> None:
     with (ROOT / "fit.log").open("w", encoding="utf-8") as log_file:
         stdout, stderr = sys.stdout, sys.stderr
         sys.stdout, sys.stderr = _Tee(stdout, log_file), _Tee(stderr, log_file)
-        package_logger = logging.getLogger("mlfcs")
-        handler = logging.StreamHandler(log_file)
-        handler.setFormatter(logging.Formatter("%(levelname)s %(name)s: %(message)s"))
-        package_logger.addHandler(handler)
         try:
             _fit()
         except BaseException:
             traceback.print_exc()
             raise
         finally:
-            package_logger.removeHandler(handler)
-            handler.close()
             sys.stdout, sys.stderr = stdout, stderr
 
 

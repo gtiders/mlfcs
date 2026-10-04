@@ -8,16 +8,19 @@ import numpy as np
 import spglib
 
 from mlfcs._arrays import integer_array, require_bound
+from mlfcs.core.geometry import PeriodicGeometry
 from mlfcs.core.structure import LatticeSite
 
 
 def _readonly(values: object, *, dtype: object) -> np.ndarray:
+    """Copy symmetry values into owned, readonly C-contiguous storage of the requested dtype."""
     result = np.array(values, dtype=dtype, copy=True, order="C")
     result.setflags(write=False)
     return result
 
 
 def _readonly_int64(values: object, *, name: str) -> np.ndarray:
+    """Normalize exact symmetry integers, reporting undeclared integer input as TypeError."""
     try:
         return integer_array(values, name=name)
     except ValueError as error:
@@ -25,6 +28,14 @@ def _readonly_int64(values: object, *, name: str) -> np.ndarray:
 
 
 def prove_site_actions(translations, rotations, shifts, *, reanchor=False):
+    """Validate affine site-action intermediates for the supplied translations.
+
+    Translations have shape (n, 3), rotations (s, 3, 3), and shifts carry a final
+    coordinate axis of length three. Absolute dot-product sums include site
+    shifts; ``reanchor`` doubles the bound to cover subtracting an anchor.
+    Python integer arithmetic computes the bound before require_bound admits
+    unchecked int64 action loops. Return the admitted bound or raise OverflowError.
+    """
     maxima = [max((abs(int(v)) for v in translations[:, k]), default=0) for k in range(3)]
     bound = 0
     for rotation, operation_shifts in zip(rotations, shifts, strict=True):
@@ -38,11 +49,31 @@ def prove_site_actions(translations, rotations, shifts, *, reanchor=False):
 
 @dataclass(frozen=True, slots=True)
 class PrimitiveSymmetry:
-    """The affine space group acting on one primitive motif.
+    """Immutable affine space-group actions on one primitive motif.
 
-    No atom permutation for a supercell is stored here.  ``site_permutations``
-    acts only on the primitive motif, while ``site_shifts`` records the exact
-    integer lattice translation needed after that primitive-site mapping.
+    Attributes
+    ----------
+    rotations : ndarray of int64, shape (s, 3, 3)
+        Spglib fractional lattice actions: x' = x @ rotation.T + translation.
+    translations : ndarray of float64, shape (s, 3)
+        Fractional affine offsets.
+    cartesian_rotations : ndarray of float64, shape (s, 3, 3)
+        Cartesian row actions inv(cell) @ rotation.T @ cell. Tensor contractions
+        use their transpose; these are not generally integer signed permutations.
+    site_permutations : ndarray of int64, shape (s, n_atoms)
+        Primitive motif indices reached by each operation.
+    site_shifts : ndarray of int64, shape (s, n_atoms, 3)
+        Integer shifts satisfying transformed motif position = mapped position
+        + shift. Translated lattice addresses additionally receive t @ R.T.
+    symbol : str
+        Space-group symbol supplied by spglib.
+    symprec : float
+        Positive Cartesian matching tolerance in angstrom.
+
+    Notes
+    -----
+    Construction validates buffer shapes and permutations and makes them readonly.
+    No supercell atom permutation, cell matrix or mutable cache is stored here.
     """
 
     rotations: np.ndarray
@@ -54,6 +85,7 @@ class PrimitiveSymmetry:
     symprec: float
 
     def __post_init__(self) -> None:
+        """Normalize readonly buffers and validate operation shapes and motif permutations."""
         rotations = _readonly_int64(self.rotations, name="primitive rotations")
         translations = _readonly(self.translations, dtype=np.float64)
         cartesian = _readonly(self.cartesian_rotations, dtype=np.float64)
@@ -87,6 +119,7 @@ class PrimitiveSymmetry:
 
     @property
     def size(self) -> int:
+        """Number of affine operations acting on the primitive motif."""
         return len(self.rotations)
 
     def transform_site(self, operation: int, label: LatticeSite) -> LatticeSite:
@@ -109,6 +142,7 @@ class PrimitiveSymmetry:
         )
 
     def __reduce__(self):
+        """Serialize declared symmetry buffers for reconstruction with validation."""
         return type(self), (
             self.rotations,
             self.translations,
@@ -121,7 +155,17 @@ class PrimitiveSymmetry:
 
 
 def discover_symmetry(cell, scaled_positions, atomic_numbers, symprec) -> PrimitiveSymmetry:
-    """Discover symmetry using the primitive cell's single length tolerance."""
+    """Discover affine primitive symmetry and uniquely match every mapped site.
+
+    ``cell`` has lattice vectors as rows in angstrom; ``scaled_positions`` are
+    fractional rows and ``atomic_numbers`` preserves motif order. ``symprec`` is
+    a Cartesian tolerance in angstrom. Return readonly PrimitiveSymmetry data.
+    Raise ValueError if spglib fails or any same-species image is not unique.
+
+    Spglib uses x' = x @ R.T + t in fractional coordinates. The Cartesian row
+    rotation is inv(cell) @ R.T @ cell; stored site shifts satisfy
+    x_i @ R.T + t = x_permutation[i] + shift[i]. No supercell state is created.
+    """
     dataset = spglib.get_symmetry_dataset(
         (cell, scaled_positions, atomic_numbers),
         symprec=symprec,
@@ -135,34 +179,29 @@ def discover_symmetry(cell, scaled_positions, atomic_numbers, symprec) -> Primit
     rotations = np.asarray(dataset.rotations, dtype=np.int64)
     translations = np.asarray(dataset.translations, dtype=np.float64)
     inverse_cell = np.linalg.inv(cell)
+    # Convert the fractional row action before any Cartesian tensor contraction.
     cartesian = np.asarray([inverse_cell @ rotation.T @ cell for rotation in rotations])
     permutations = np.empty((len(rotations), len(atomic_numbers)), dtype=np.int64)
     shifts = np.empty((len(rotations), len(atomic_numbers), 3), dtype=np.int64)
+    geometry = PeriodicGeometry(cell)
 
     for operation, (rotation, translation) in enumerate(zip(rotations, translations, strict=True)):
         transformed = scaled_positions @ rotation.T + translation
         for site, position in enumerate(transformed):
             candidates = np.flatnonzero(atomic_numbers == atomic_numbers[site])
-            differences = position - scaled_positions[candidates]
-            rounded = np.rint(differences)
-            if not np.all(np.isfinite(rounded)) or np.any(np.abs(rounded) >= float(1 << 63)):
-                raise OverflowError("primitive site shifts cannot enter int64")
-            lattice_shifts = rounded.astype(np.int64)
-            residuals = np.linalg.norm(
-                (differences - lattice_shifts) @ cell,
-                axis=1,
+            cartesian_differences = (position - scaled_positions[candidates]) @ cell
+            matches, image_shifts = geometry.matching_images(
+                cartesian_differences, tolerance=symprec
             )
-            matches = np.flatnonzero(residuals < symprec)
             if len(matches) != 1:
-                nearest = float(np.min(residuals)) if residuals.size else float("inf")
                 raise ValueError(
                     f"operation {operation} maps primitive site {site} to "
-                    f"{len(matches)} sites within symprec {symprec:g} angstrom; "
-                    f"nearest residual is {nearest:.10g} angstrom"
+                    f"{len(matches)} sites within symprec {symprec:g} angstrom"
                 )
-            match = int(matches[0])
-            permutations[operation, site] = int(candidates[match])
-            shifts[operation, site] = lattice_shifts[match]
+            permutations[operation, site] = int(candidates[matches[0]])
+            # matching_images returns a shift added to the difference; the affine
+            # site address needs the opposite shift on the mapped motif position.
+            shifts[operation, site] = -image_shifts[0]
 
     return PrimitiveSymmetry(
         rotations=_readonly_int64(rotations, name="primitive rotations"),

@@ -1,21 +1,21 @@
 {
   "asr": [
     {
-      "correction_norm": 0.03307013120657685,
+      "correction_norm": 0.03307013120657751,
       "equations": 27,
       "iterations": 4,
       "order": 2,
       "parameters": 84,
-      "relative_after": 3.462926184402674e-18,
-      "relative_before": 0.00017632960244851994,
-      "relative_correction": 0.0007573041489890623,
-      "residual_after": 7.105427357601002e-15,
-      "residual_before": 0.36182028372367014
+      "relative_after": 2.5971946383020053e-18,
+      "relative_before": 0.00017632960244852165,
+      "relative_correction": 0.0007573041489890774,
+      "residual_after": 5.329070518200751e-15,
+      "residual_before": 0.3618202837236737
     }
   ],
   "cutoff_angstrom": 8.0,
-  "fit_system_fingerprint": "2964bab155984ae09e93133fc662300ee4f8494b9d65dc8e5da7ff192b5697ba",
-  "force_constants_fingerprint": "ceeb602b4838a8f94666846dadeaa45a808e00be0e74b9729f5732554fb1fa12",
+  "fit_system_fingerprint": "13ea9b9ecc61fb04836790a8f63f9cd991fe0e5db6ab4cd0a34f8ad42b7c3334",
+  "force_constants_fingerprint": "19a58964e4c909d92bc72f4ba8f88a3f3a7f6c3391e0e18220afaa13f71555ae",
   "max_body_order": 2,
   "orbits": 17,
   "orders": [
@@ -45,9 +45,9 @@
     ]
   ],
   "training_equations": 2880,
-  "training_force_rmse_after_projection_eV_per_angstrom": 0.06532013346709499,
-  "training_force_rmse_before_projection_eV_per_angstrom": 0.065309254572222,
-  "training_relative_force_error_after_projection": 0.10054122053608079,
-  "training_relative_force_error_before_projection": 0.10052447566263126,
+  "training_force_rmse_after_projection_eV_per_angstrom": 0.0653201334670956,
+  "training_force_rmse_before_projection_eV_per_angstrom": 0.06530925457222321,
+  "training_relative_force_error_after_projection": 0.10054122053608174,
+  "training_relative_force_error_before_projection": 0.10052447566263312,
   "training_structures": 5
 }

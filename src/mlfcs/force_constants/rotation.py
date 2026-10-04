@@ -3,18 +3,31 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from time import perf_counter
 
 import numpy as np
 from scipy import sparse
 
+from mlfcs.core.log import get_logger
 from mlfcs.core.tensors import rotate_basis
 from mlfcs.force_constants.acoustic import constraint_matrix, relative_residual
 from mlfcs.force_constants.model import ForceConstants
 
+logger = get_logger(__name__)
+
 
 @dataclass(frozen=True, slots=True)
 class RotationResult:
-    """An FC2 model projected onto resolvable rotational conditions."""
+    """FC2 rotational projection and diagnostics; other model orders are retained.
+
+    force_constants is the new model. length_scale and geometry_residual are
+    in angstrom; orthogonality_residual and relative fields are dimensionless.
+    Born-Huang residuals have units of FC2 times length, Huang residuals FC2
+    times length squared; disabled conditions report None. Singular-value/rank
+    fields describe resolvable scaled constraints, not exact integer rank.
+    The correction preserves the source acoustic residual rather than applying
+    ASR. Input model coefficients are unchanged.
+    """
 
     force_constants: ForceConstants
     born_huang: bool
@@ -47,6 +60,7 @@ def _append(
     column_start: int,
     values: np.ndarray,
 ) -> None:
+    """Append nonzero row coefficients to mutable COO row/column/data lists."""
     rows, columns, data = entries
     for column, value in enumerate(values):
         if value != 0.0:
@@ -58,6 +72,13 @@ def _append(
 def _fc2_moment_matrices(
     model: ForceConstants,
 ) -> tuple[sparse.csr_matrix, sparse.csr_matrix, float]:
+    """Return Born-Huang and Huang CSR constraints plus a median pair length in angstrom.
+
+    Columns follow the FC2 parameter block. First/second moments use relative
+    lattice-site Cartesian vectors divided by the median non-onsite distance,
+    so numerical constraint scales are independent of the length unit.
+    A missing positive non-onsite scale raises ValueError; model is preserved.
+    """
     space = model.cluster_space
     block = space.block(2)
     parameter_count = block.parameters.stop - block.parameters.start
@@ -129,6 +150,7 @@ def _fc2_moment_matrices(
 
 
 def _maximum_residual(matrix: sparse.csr_matrix, values: np.ndarray) -> float:
+    """Return the largest absolute constraint residual, or zero for an empty row set."""
     if matrix.shape[0] == 0:
         return 0.0
     return float(np.max(np.abs(matrix @ values), initial=0.0))
@@ -182,6 +204,13 @@ def enforce_rotation(
         raise ValueError("rank_rtol must be finite and between zero and one")
     if 2 not in model.coefficients:
         raise ValueError("rotational invariance requires FC2")
+    started = perf_counter()
+    logger.info(
+        "Rotation projection started: born_huang=%s huang=%s rank_rtol=%s",
+        born_huang,
+        huang,
+        rank_rtol if rank_rtol is not None else "automatic",
+    )
     acoustic = constraint_matrix(model, 2)
     born, second_moment, length_scale = _fc2_moment_matrices(model)
     selected = []
@@ -230,7 +259,7 @@ def enforce_rotation(
     coefficients = dict(model.coefficients)
     coefficients[2] = projected
     result = ForceConstants(model.cluster_space, coefficients)
-    return RotationResult(
+    report = RotationResult(
         force_constants=result,
         born_huang=born_huang,
         huang=huang,
@@ -261,6 +290,20 @@ def enforce_rotation(
         geometry_residual=geometry_residual,
         orthogonality_residual=orthogonality_residual,
     )
+    logger.info(
+        "Rotation projection complete: retained_rank=%d rank_cutoff=%.6g "
+        "relative_before=%.6g relative_after=%.6g correction_norm=%.6g "
+        "acoustic_before=%.6g acoustic_after=%.6g elapsed_s=%.2f",
+        report.retained_rank,
+        report.rank_cutoff,
+        report.relative_before,
+        report.relative_after,
+        report.correction_norm,
+        report.acoustic_before,
+        report.acoustic_after,
+        perf_counter() - started,
+    )
+    return report
 
 
 __all__ = ["RotationResult", "enforce_rotation"]

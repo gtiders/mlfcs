@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from time import perf_counter
 from typing import Literal
@@ -11,12 +12,12 @@ from numba import njit
 from scipy.constants import Boltzmann, angstrom, atomic_mass, electron_volt, hbar
 
 from mlfcs.core.log import get_logger
-from mlfcs.force_constants import ForceConstants
 from mlfcs.core.tensors import rotate_basis
+from mlfcs.force_constants import ForceConstants
 from mlfcs.force_constants.lattice import expand
-from mlfcs.reciprocal.ensemble import internal_basis as _internal_basis
-from mlfcs.reciprocal.grid import QGrid, QStars
+from mlfcs.reciprocal.grid import QStars, _grid, _mass_symmetry
 from mlfcs.reciprocal.harmonic import _THZ, Harmonic, _dynamical
+from mlfcs.reciprocal.harmonic import internal_basis as _internal_basis
 from mlfcs.reciprocal.stars import StarPlan
 
 _OMEGA = np.sqrt(electron_volt / (angstrom**2 * atomic_mass))
@@ -35,6 +36,14 @@ def _add_covariance(
     mass_weights: np.ndarray,
     n_qpoints: int,
 ) -> None:
+    """Accumulate one q member's Fourier covariance into selected pair blocks in place.
+
+    result is complex128 (pairs, 3, 3), matrix (3*N, 3*N) in the mass-weighted
+    modal basis, and qpoint a fractional reciprocal triple. first/second index
+    sites; distances stores the corresponding fractional Fourier separation.
+    Divide by n_qpoints and undo pair mass weighting. Caller supplies compatible
+    indices; the resulting physical displacement covariance is in angstrom**2.
+    """
     for key in range(len(first)):
         angle = 0.0
         for axis in range(3):
@@ -56,6 +65,13 @@ def _contract(
     orbit_index: np.ndarray,
     n_orbits: int,
 ) -> np.ndarray:
+    """Contract quartic tensors with pair covariance into representative FC2 corrections.
+
+    Inputs are tensors (terms, 3, 3, 3, 3), covariance (pairs, 3, 3), and
+    per-term covariance/orbit indices. Negative orbit indices skip terms absent
+    from the FC2 truncation. Sum half the real contraction over the last two
+    axes; return float64 (n_orbits, 3, 3), in eV/angstrom**2.
+    """
     correction = np.zeros((n_orbits, 3, 3), dtype=np.float64)
     for term in range(len(tensors)):
         orbit = orbit_index[term]
@@ -100,6 +116,15 @@ def _modal_covariance(
     gamma: bool,
     statistics: Literal["quantum", "classical"],
 ) -> np.ndarray:
+    """Return mass-weighted modal displacement covariance at temperature in kelvin.
+
+    matrix is a Hermitian (3*N, 3*N) dynamical matrix; masses are positive atomic
+    mass units. Gamma translations are removed by an internal orthonormal
+    basis. Quantum statistics include zero-point motion; classical statistics
+    use the thermal limit. Negative curvature uses its magnitude as a trial
+    covariance, without claiming physical stability. Nontranslational zero
+    modes or nonfinite variance raise ValueError.
+    """
     if gamma:
         internal = _internal_basis(masses)
         if internal.shape[1] == 0:
@@ -128,6 +153,12 @@ def _modal_covariance(
 
 @dataclass(frozen=True, slots=True)
 class SCPHStep:
+    """One iteration's index, RMS frequency change and minimum signed frequency.
+
+    Both frequency fields are in THz. minimum_frequency_thz includes the
+    Gamma translations; the final result has a separate internal-mode diagnostic.
+    """
+
     index: int
     frequency_change_thz: float
     minimum_frequency_thz: float
@@ -135,6 +166,15 @@ class SCPHStep:
 
 @dataclass(frozen=True, slots=True)
 class SCPHResult:
+    """SCPH outcome at a temperature in kelvin, including convergence diagnostics.
+
+    fc2 is the final effective FC2-only model. frequencies has shape
+    (n_stars, 3*n_atoms) in signed THz; stars provides full-grid expansion.
+    history records iterations. converged tests frequency change only;
+    minimum_mode_thz excludes Gamma translations and may be None if no internal
+    mode exists. A converged result may still have imaginary physical modes.
+    """
+
     temperature: float
     fc2: ForceConstants
     frequencies: np.ndarray
@@ -145,6 +185,7 @@ class SCPHResult:
 
     @property
     def iterations(self) -> int:
+        """Number of recorded self-consistency iterations."""
         return len(self.history)
 
     @property
@@ -157,10 +198,27 @@ class SCPHResult:
 
 
 class SCPH:
-    """Static FC4 loop correction with one exact reciprocal mesh.
+    """Static quartic-loop self-consistent phonons on one exact reciprocal mesh.
 
-    The input model contains FC2 and FC4 on the same primitive cluster space.
-    FC3, if present, does not contribute to this static loop approximation.
+    Parameters
+    ----------
+    model : ForceConstants
+        Primitive model containing FC2 and FC4 on the same cluster space.
+        Retained by reference; optional FC3 does not enter this approximation.
+    mesh : QGrid or array_like of integers, shape (3,) or (3, 3)
+        Positive diagonal mesh sizes or exact row-cell supercell matrix/grid.
+    statistics : {'quantum', 'classical'}, default 'quantum'
+        Modal covariance includes quantum zero-point motion or the classical limit.
+    time_reversal : bool, default True
+        Include time reversal when building irreducible reciprocal stars.
+
+    Notes
+    -----
+    Initialization expands quartic terms and caches FC2 basis/Fourier metadata.
+    Each iteration evaluates representatives and streams symmetry-related
+    covariances through StarPlan, without storing a second full-grid stack.
+    No fitted coefficients or reference geometry are modified.
+    Invalid input model or statistics raises ValueError.
     """
 
     def __init__(
@@ -171,19 +229,24 @@ class SCPH:
         statistics: Literal["quantum", "classical"] = "quantum",
         time_reversal: bool = True,
     ) -> None:
+        """Build the exact mesh/stars and cache harmonic, quartic and covariance-index metadata."""
         if not isinstance(model, ForceConstants) or not {2, 4} <= set(model.orders):
             raise ValueError("SCPH requires one ForceConstants model containing FC2 and FC4")
         if statistics not in ("quantum", "classical"):
             raise ValueError("statistics must be 'quantum' or 'classical'")
-        grid = mesh if isinstance(mesh, QGrid) else QGrid.from_matrix(mesh)
-        stars = QStars.from_symmetry(grid, model.cluster_space.symmetry, time_reversal=time_reversal)
+        grid = _grid(mesh)
+        stars = QStars.from_symmetry(
+            grid,
+            _mass_symmetry(model.cluster_space.symmetry, model.cluster_space.masses),
+            time_reversal=time_reversal,
+        )
         self.model = model
         self.stars = stars
         self.plan = StarPlan.from_stars(stars, model.cluster_space)
         self._points = grid.points
         self.statistics = statistics
         self._bare = np.asarray(model.coefficients[2])
-        self._masses = model.cluster_space.primitive_atoms.get_masses()
+        self._masses = model.cluster_space.masses
         harmonic = Harmonic(self._fc2(self._bare))
         self._harmonic_first = harmonic._first
         self._harmonic_second = harmonic._second
@@ -282,9 +345,11 @@ class SCPH:
         )
 
     def _fc2(self, parameters: np.ndarray) -> ForceConstants:
+        """Bind a physical FC2 parameter vector to the original schema, omitting other orders."""
         return ForceConstants(self.model.cluster_space, {2: parameters})
 
     def _matrices(self, parameters: np.ndarray) -> np.ndarray:
+        """Evaluate effective FC2 dynamical matrices only at irreducible star representatives."""
         return _dynamical(
             np.ascontiguousarray(self.stars.points),
             self._harmonic_first,
@@ -296,6 +361,7 @@ class SCPH:
         )
 
     def _frequencies(self, parameters: np.ndarray) -> np.ndarray:
+        """Return signed THz frequencies of the current representative dynamical matrices."""
         eigenvalues = np.linalg.eigvalsh(self._matrices(parameters))
         return np.sign(eigenvalues) * np.sqrt(np.abs(eigenvalues)) * _THZ
 
@@ -315,6 +381,13 @@ class SCPH:
         return float(np.sign(minimum) * np.sqrt(abs(minimum)) * _THZ)
 
     def _correction(self, parameters: np.ndarray, temperature: float) -> np.ndarray:
+        """Build the physical quartic-loop FC2 parameter correction for one temperature.
+
+        Compute representative covariances, stream full-grid member actions, then
+        contract FC4 into representative FC2 tensors. Observation rows recover
+        physical component parameters. Nonfinite correction raises ValueError;
+        input parameters and bare model are unchanged.
+        """
         matrices = self._matrices(parameters)
         covariance = np.asarray(
             [
@@ -329,6 +402,8 @@ class SCPH:
             ]
         )
         values = np.zeros((len(self._first), 3, 3), dtype=np.complex128)
+        # Covariances are matrices in positional gauge, so scalar star weights
+        # cannot replace rotating/phasing each member before Fourier accumulation.
         for member, matrix in self.plan.iter_matrices(covariance):
             _add_covariance(
                 values,
@@ -366,7 +441,33 @@ class SCPH:
         tolerance: float = 1e-9,
         max_iterations: int = 200,
     ) -> SCPHResult:
-        """Converge one temperature by a star-weighted RMS change in THz."""
+        """Iterate one temperature and return an SCPHResult, even if iteration limits are reached.
+
+        Parameters
+        ----------
+        temperature : float
+            Finite nonnegative temperature in kelvin.
+        start : ForceConstants, optional
+            Initial FC2 model with matching cluster space and masses; defaults to bare FC2.
+        mixing : float, default 0.2
+            Target fraction in (0, 1] for linear parameter mixing.
+        tolerance : float, default 1e-9
+            Positive star-weighted RMS frequency-change tolerance in THz.
+        max_iterations : int, default 200
+            Positive maximum iteration count.
+
+        Returns
+        -------
+        result : SCPHResult
+            Final FC2, representative frequencies, iteration history and stability
+            diagnostic. Check converged explicitly; exhaustion does not raise.
+
+        Notes
+        -----
+        Update toward bare FC2 plus the current quartic-loop correction. Convergence
+        is numerical and independent of imaginary-mode diagnostics. Invalid options
+        or nonfinite/zero-mode covariances raise ValueError.
+        """
         if not np.isfinite(temperature) or temperature < 0.0:
             raise ValueError("temperature must be finite and non-negative in kelvin")
         if not np.isfinite(mixing) or not 0.0 < mixing <= 1.0:
@@ -386,10 +487,11 @@ class SCPH:
                 not isinstance(start, ForceConstants)
                 or 2 not in start.orders
                 or start.cluster_space.fingerprint != self.model.cluster_space.fingerprint
-                or not np.array_equal(start.cluster_space.primitive_atoms.get_masses(), self._masses)
+                or not np.array_equal(start.cluster_space.masses, self._masses)
             ):
                 raise ValueError("start must contain FC2 on the same cluster space and masses")
             current = np.asarray(start.coefficients[2]).copy()
+        run_started = perf_counter()
         logger.info(
             "SCPH run started: temperature=%.6g K statistics=%s mixing=%.6g "
             "tolerance=%.6g THz max_iterations=%d warm_start=%s",
@@ -441,13 +543,17 @@ class SCPH:
         )
         logger.info(
             "SCPH run complete: temperature=%.6g K iterations=%d converged=%s "
-            "minimum_internal_mode=%.10g THz force_constants_fingerprint=%s",
+            "minimum_internal_mode=%.10g THz elapsed_s=%.2f",
             result.temperature,
             result.iterations,
             result.converged,
             result.minimum_mode_thz if result.minimum_mode_thz is not None else float("nan"),
-            result.fc2.fingerprint,
+            perf_counter() - run_started,
         )
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(
+                "SCPH model identity: force_constants_fingerprint=%s", result.fc2.fingerprint
+            )
         return result
 
     def run_many(self, temperatures: object, **kwargs: object) -> list[SCPHResult]:

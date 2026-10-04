@@ -17,7 +17,9 @@ nav:
   - Home: index.md
   - Finite difference: finite-difference-api.md
   - Fitting: fitting-api.md
+  - Harmonic: harmonic-api.md
   - SCPH: scph.md
+  - Logging: logging.md
   - Q&A: Q&A.md
   - Version 6: domain-v6.md
   - Local integer contracts: local-integer-contracts.md
@@ -68,6 +70,8 @@ plugins:
             Home: 概览
             Finite difference: 有限差分
             Fitting: 拟合
+            Harmonic: 谐波声子
+            Logging: 日志
 
 markdown_extensions:
   - admonition

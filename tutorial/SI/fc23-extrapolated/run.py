@@ -1,14 +1,15 @@
-"""Extrapolate Si FC2 and FC3 from several finite-difference steps."""
+"""Extrapolate Si FC2 and FC3 with the Erhart-Albe Si-II potential."""
 
 from pathlib import Path
 
+from ase.calculators.tersoff import Tersoff
 from ase.io import read
-from calorine.calculators import CPUNEP
 
 from mlfcs import ClusterMap, ClusterSpace, FiniteDifference
 
 ROOT = Path(__file__).resolve().parent
 DISPS = (0.005, 0.01, 0.015)
+POTENTIAL_FILE = ROOT / "Erhart-Albe-Si-II.tersoff"
 # 正的绝对截断(Å),对应远程负壳语义 {2: -7, 3: -6} 的解析值
 CUTOFFS = {2: 7.418817376, 3: 6.900754996}
 MAX_BODY_ORDERS = {2: 2, 3: 3}
@@ -19,7 +20,7 @@ space = ClusterSpace(
     max_body_orders=MAX_BODY_ORDERS,
 )
 mapping = ClusterMap(space, read(ROOT / "SPOSCAR"))
-calculator = CPUNEP(str(ROOT / "Si_2022_NEP3_5body.txt"))
+calculator = Tersoff.from_lammps(POTENTIAL_FILE)
 
 for order in (2, 3):
     calculation = FiniteDifference(mapping, order=order, disps=DISPS)

@@ -10,6 +10,12 @@ from mlfcs.force_constants.model import ForceConstants
 
 
 def constraint_matrix(model: ForceConstants, order: int) -> sparse.csr_matrix:
+    """Build Cartesian ASR equations as CSR rows for one order's parameter block.
+
+    Rows group equal first p-1 lattice labels and all Cartesian directions,
+    summing over the final site/image. Columns follow the order-local orbit
+    parameter layout. Duplicate sparse contributions are summed; model unchanged.
+    """
     space = model.cluster_space
     block = space.block(order)
     orbit_indices = range(block.orbits.start, block.orbits.stop)
@@ -43,6 +49,11 @@ def constraint_matrix(model: ForceConstants, order: int) -> sparse.csr_matrix:
 
 
 def relative_residual(matrix: sparse.csr_matrix, values: np.ndarray) -> tuple[float, float]:
+    """Return maximum absolute equation residual and its dimensionless scaled value.
+
+    Scale is max row absolute-sum norm times max absolute parameter. Empty
+    systems return (0, 0); a zero scale gives relative residual zero.
+    """
     if matrix.shape[0] == 0 or values.size == 0:
         return 0.0, 0.0
     residual = np.asarray(matrix @ values)

@@ -11,6 +11,7 @@ from mlfcs.core.symmetry import PrimitiveSymmetry
 @njit(cache=True)
 def cluster_hash(labels):
     # Bounded modular hashing; collisions are resolved by exact label equality.
+    """Hash integer labels with bounded modular arithmetic; equality resolves collisions."""
     result = 0
     for value in labels.flat:
         result = (result * 65521 + value % 2147483647) % 2147483647
@@ -19,6 +20,7 @@ def cluster_hash(labels):
 
 @njit(cache=True)
 def registry_contains(labels, keys, used):
+    """Probe exact labels in an open-addressed table with at least one unused slot."""
     index = cluster_hash(labels) % len(used)
     while used[index]:
         if np.all(keys[index] == labels):
@@ -29,6 +31,7 @@ def registry_contains(labels, keys, used):
 
 @njit(cache=True)
 def registry_insert(values, keys, used):
+    """Insert a batch into keys/used in place and return the number of newly occupied slots."""
     added = 0
     for labels in values:
         index = cluster_hash(labels) % len(used)
@@ -43,6 +46,7 @@ def registry_insert(values, keys, used):
 
 @njit(cache=True)
 def distinct_actions(values, representative):
+    """Return first distinct action indices and all actions equal to the representative labels."""
     capacity = max(2, 2 * len(values))
     keys = np.empty((capacity, values.shape[1], 4), dtype=np.int64)
     used = np.zeros(capacity, dtype=np.uint8)
@@ -68,7 +72,13 @@ def transform_cluster(
     site_shifts: np.ndarray,
     axis_permutations: np.ndarray,
 ) -> np.ndarray:
-    """Apply every space/axis operation and re-anchor each result."""
+    """Apply every affine site action and axis permutation, then re-anchor each image.
+
+    Labels have shape (p, 4), rotations (s, 3, 3), site permutations (s, N),
+    shifts (s, N, 3), and axis permutations (q, p). Return int64 (s*q, p, 4)
+    with operation-major ordering. Each image subtracts its first translation.
+    _integer_boundary must admit affine products and re-anchoring before entry.
+    """
     operation_count = rotations.shape[0]
     permutation_count = axis_permutations.shape[0]
     order = labels.shape[0]
@@ -98,6 +108,7 @@ class ClusterRegistry:
     """Ephemeral per-order deduplication buffers, grown outside compiled loops."""
 
     def __init__(self, order):
+        """Allocate an empty per-order hash table with sixteen slots."""
         self.order = order
         self.count = 0
         require_allocation("orbit registry", (16, order, 4))
@@ -106,10 +117,12 @@ class ClusterRegistry:
 
     def contains(self, labels):
 
+        """Test exact membership without modifying the registry."""
         return registry_contains(labels, self.keys, self.used)
 
     def update(self, labels):
 
+        """Grow and rehash outside Numba as needed, then insert labels and update the count."""
         capacity = len(self.used)
         while 2 * (self.count + len(labels)) >= capacity:
             capacity *= 2
@@ -140,6 +153,7 @@ def _integer_boundary(
 
 
 def _cluster_key(values: np.ndarray) -> tuple[int, ...]:
+    """Flatten one cluster into a Python-integer tuple for reference/introspection output."""
     return tuple(int(value) for value in values.reshape(-1))
 
 
@@ -158,6 +172,14 @@ def _orbit_actions(
     tuple[tuple[np.ndarray, tuple[int, ...]], ...],
     tuple[tuple[int, ...], ...],
 ]:
+    """Return unique images, their tensor actions and representative stabilizers.
+
+    The input cluster remains the representative. Enumerate space operations
+    then axis permutations, retaining the first action for each exact image.
+    Return (representative, clusters, operations, permutations, stabilizers, keys).
+    Keys are optional introspection data; production deduplication uses buffers.
+    Local integer and allocation checks precede the compiled transformations.
+    """
     labels = _integer_boundary(cluster.labels, symmetry)
     require_allocation("orbit actions", (symmetry.size * len(permutation_values), cluster.order, 4))
     transformed = transform_cluster(

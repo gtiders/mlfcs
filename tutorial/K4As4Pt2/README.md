@@ -21,7 +21,7 @@ uv run python fit.py
 
 ## 热导率
 
-`kappa/` 从 `force_constants.mlfcs` 导出完整稠密 FC2/FC3 HDF5，并使用 phono3py 的 RTA
+`kappa/` 从 `fc-fit.mlfcs` 导出完整稠密 FC2/FC3 HDF5，并使用 phono3py 的 RTA
 计算 10×10×10 网格、300–900 K（间隔 100 K）的晶格热导率。导出文件保留 MLFCS 当前的完整
 HDF5 格式，不转换为紧凑存储。运行：
 

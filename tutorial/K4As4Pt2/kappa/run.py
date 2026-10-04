@@ -23,7 +23,7 @@ TEMPERATURES = tuple(range(300, 901, 100))
 
 
 def run() -> None:
-    model = ForceConstants.load(ROOT / "force_constants.mlfcs")
+    model = ForceConstants.load(ROOT / "fc-fit.mlfcs")
     mapping = ClusterMap(
         model.cluster_space, read(ROOT / "supercell.vasp"), supercell_matrix=SUPERCELL_MATRIX
     )

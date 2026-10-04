@@ -26,7 +26,9 @@ def test_tools_modules_have_no_phonopy_runtime_or_reverse_dependency() -> None:
             for alias in node.names
         }
         imports.update(
-            node.module for node in ast.walk(tree) if isinstance(node, ast.ImportFrom) and node.module
+            node.module
+            for node in ast.walk(tree)
+            if isinstance(node, ast.ImportFrom) and node.module
         )
 
         assert not any(name == "phonopy" or name.startswith("phonopy.") for name in imports), (
@@ -36,11 +38,12 @@ def test_tools_modules_have_no_phonopy_runtime_or_reverse_dependency() -> None:
             f"{source.name} must not import mlfcs packages"
         )
     assert internal_dependencies("tools") == set()
-    for package in (
-        "cluster_space",
-        "supercell",
-        "fitting",
-        "finite_difference",
-        "force_constants",
-    ):
-        assert "tools" not in internal_dependencies(package)
+    packages = sorted(
+        path.name
+        for path in (root / "src/mlfcs").iterdir()
+        if path.is_dir() and (path / "__init__.py").is_file() and path.name != "tools"
+    )
+    for package in packages:
+        assert "tools" not in internal_dependencies(package), (
+            f"production package {package} must not import tools"
+        )

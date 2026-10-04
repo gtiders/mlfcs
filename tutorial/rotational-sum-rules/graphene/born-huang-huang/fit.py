@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import logging
 import sys
 import traceback
 from pathlib import Path
@@ -50,9 +49,10 @@ def _fit() -> None:
         primitive, cutoffs={2: 8.0}, max_body_orders={2: 2}, symprec=SYMPREC_ANGSTROM
     )
     mapping = ClusterMap(space, supercell_atoms, supercell_matrix=SUPERCELL_MATRIX)
-    system = FitSystem.from_atoms(mapping, _training_structures(supercell_atoms))
-    parameters = system.solve(rtol=SOLVER_RTOL, max_steps=10000)
-    raw = system.force_constants(parameters)
+    system = FitSystem(mapping, _training_structures(supercell_atoms))
+    model = system.solve(rtol=SOLVER_RTOL, maxiter=10000)
+    raw = model
+    parameters = raw.parameters()
     projection = raw.enforce_asr().force_constants.enforce_rotation(born_huang=True, huang=True)
     model = projection.force_constants
     model.save(ROOT / "force_constants.mlfcs")
@@ -122,18 +122,12 @@ def main() -> None:
     with (ROOT / "fit.log").open("w", encoding="utf-8") as log_file:
         stdout, stderr = sys.stdout, sys.stderr
         sys.stdout, sys.stderr = _Tee(stdout, log_file), _Tee(stderr, log_file)
-        package_logger = logging.getLogger("mlfcs")
-        handler = logging.StreamHandler(log_file)
-        handler.setFormatter(logging.Formatter("%(levelname)s %(name)s: %(message)s"))
-        package_logger.addHandler(handler)
         try:
             _fit()
         except BaseException:
             traceback.print_exc()
             raise
         finally:
-            package_logger.removeHandler(handler)
-            handler.close()
             sys.stdout, sys.stderr = stdout, stderr
 
 

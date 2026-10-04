@@ -10,7 +10,7 @@ It deliberately requests a fresh force calculation for every generated structure
 
 ## Can I use MACE or another ASE calculator?
 
-Yes. MLFCS does not own the calculator. Any ASE-compatible calculator can be used with `fd.evaluate(calculator)` if it supports the species and conditions in the input structures. For a force-fitting workflow, calculate forces with your chosen calculator first and provide the resulting ASE structures to `FitSystem.from_atoms`.
+Yes. MLFCS does not own the calculator. Any ASE-compatible calculator can be used with `fd.evaluate(calculator)` if it supports the species and conditions in the input structures. For a force-fitting workflow, calculate forces with your chosen calculator first and provide the resulting ASE structures to `FitSystem`.
 
 ## Why is finite-difference input order strict?
 
@@ -26,7 +26,7 @@ No. One `FiniteDifference` object handles one order. For joint multi-order fitti
 
 ## Does fitting calculate forces?
 
-No. `FitSystem.from_atoms` only reads forces already stored on each ASE `Atoms`; it does not call the attached calculator. This keeps force generation under the user's control and works with external electronic-structure or machine-learning calculations.
+No. `FitSystem` only reads forces already stored on each ASE `Atoms`; it does not call the attached calculator. This keeps force generation under the user's control and works with external electronic-structure or machine-learning calculations.
 
 ## What is the role of the supercell?
 

@@ -1,28 +1,28 @@
-"""One primitive cluster model realized in a supercell, with prepared buffers."""
+"""One primitive cluster model realized in a supercell."""
 
 from __future__ import annotations
 
 import hashlib
 import json
+import logging
 from dataclasses import dataclass
+from time import perf_counter
 
 import numpy as np
 from ase import Atoms
 
 from mlfcs._arrays import integer_array, require_allocation
-from mlfcs.algebra.integer import prove_integer_product
 from mlfcs.cluster_space import ClusterSpace
-from mlfcs.cluster_space.preparation import PreparedClusterSpace, prepare_cluster_space
 from mlfcs.core import LatticeSite
 from mlfcs.core.log import get_logger
 from mlfcs.core.structure import structure_fingerprint
 from mlfcs.mapping._rank import RankInfo, folded_rank
 from mlfcs.mapping.geometry import (
     _PeriodicIndex,
+    _quotient_kernel,
     infer_supercell_matrix,
     mapped_labels,
     prepare_periodic_index,
-    quotient_kernel,
 )
 
 logger = get_logger(__name__)
@@ -30,6 +30,35 @@ logger = get_logger(__name__)
 
 @dataclass(frozen=True, slots=True, init=False)
 class ClusterMap:
+    """Immutable realization of one ClusterSpace in one external supercell.
+
+    Parameters
+    ----------
+    cluster_space : ClusterSpace
+        Primitive model referenced by this mapping; it is not copied.
+    supercell_atoms : ase.Atoms
+        Fully periodic reference supercell. Atom order is retained and geometry
+        and masses are captured independently of this ASE object.
+    supercell_matrix : array_like of integers, shape (3, 3), optional
+        Row-cell convention: supercell_cell = matrix @ primitive_cell. If omitted,
+        infer each row by unique periodic matching at cluster_space.symprec.
+
+    Notes
+    -----
+    Initialization validates the primitive-to-supercell relation and folds orbit
+    images into atom indices. Arrays are readonly. A ClusterSpace may have many
+    independent ClusterMap instances; this object owns one supercell realization.
+    image_atom_indices[i] has shape (n_images_i, order_i). It records tensor-slot
+    atom order, not a sorted set. supercell_atoms returns a detached ASE copy.
+
+    Raises
+    ------
+    ValueError
+        Geometry, species, atom count or periodic matching is inconsistent.
+    OverflowError
+        Exact quotient operations or array sizes exceed the admitted domain.
+    """
+
     cluster_space: ClusterSpace
     supercell_matrix: np.ndarray
     cell: np.ndarray
@@ -46,14 +75,26 @@ class ClusterMap:
     def __init__(
         self, cluster_space: ClusterSpace, supercell_atoms: Atoms, *, supercell_matrix=None
     ):
+        """Infer or validate the supercell relation and prepare quotient/image lookup buffers."""
         from mlfcs.mapping.geometry import supercell_data
 
         if not isinstance(cluster_space, ClusterSpace):
             raise TypeError("cluster_space must be a ClusterSpace")
+        started = perf_counter()
+        logger.info(
+            "Mapping started: primitive_atoms=%d matrix_source=%s",
+            cluster_space.n_atoms,
+            "inferred" if supercell_matrix is None else "explicit",
+        )
         if supercell_matrix is None:
             supercell_matrix = infer_supercell_matrix(cluster_space, supercell_atoms)
             logger.info("Supercell matrix inferred: %s", supercell_matrix.tolist())
         data = supercell_data(cluster_space, supercell_atoms, supercell_matrix)
+        logger.info(
+            "Supercell validated: supercell_atoms=%d matrix=%s",
+            len(data["atomic_numbers"]),
+            data["supercell_matrix"].tolist(),
+        )
         object.__setattr__(self, "cluster_space", cluster_space)
         for name, value in data.items():
             object.__setattr__(self, "_masses" if name == "masses" else name, value)
@@ -72,6 +113,14 @@ class ClusterMap:
             values.setflags(write=False)
             folded.append(values)
         object.__setattr__(self, "image_atom_indices", tuple(folded))
+        logger.info(
+            "Mapping complete: orbits=%d images=%d elapsed_s=%.2f",
+            len(folded),
+            sum(len(values) for values in folded),
+            perf_counter() - started,
+        )
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug("Mapping identity: fingerprint=%s", self.fingerprint)
 
     @property
     def supercell_atoms(self) -> Atoms:
@@ -86,16 +135,30 @@ class ClusterMap:
 
     @property
     def n_atoms(self):
+        """Number of atoms in this reference supercell, not in the primitive motif."""
         return len(self.atomic_numbers)
 
-    def prepare(self, *, prepared_space=None):
-
-        return prepare_cluster_map(self, prepared_space)
-
     def rank_info(self, order=None) -> RankInfo:
-        return folded_rank(self.cluster_space, self.image_atom_indices, order)
+        """Return exact structural rank and alias counts for one order or all orders.
+
+        This evaluates folded orbit bases independently of training displacements;
+        it is recomputed on each call. Missing orders raise KeyError.
+        """
+        started = perf_counter()
+        logger.info("Folded rank started: order=%s", order if order is not None else "all")
+        result = folded_rank(self.cluster_space, self.image_atom_indices, order)
+        logger.info(
+            "Folded rank complete: parameters=%d rank=%d nullity=%d aliases=%d elapsed_s=%.2f",
+            result.parameters,
+            result.rank,
+            result.nullity,
+            result.aliases,
+            perf_counter() - started,
+        )
+        return result
 
     def __reduce__(self):
+        """Serialize the primitive model and reference atoms for validated mapping reconstruction."""
         return _restore_cluster_map, (
             self.cluster_space,
             self.supercell_atoms,
@@ -107,9 +170,9 @@ class ClusterMap:
         values = integer_array(translation, name="lattice translation")
         if values.shape != (3,):
             raise ValueError("lattice translation must have shape (3,)")
-        prove_integer_product(values.reshape(1, 3), self._periodic.adjugate)
         return tuple(
-            int(v) for v in quotient_kernel(values, self._periodic.adjugate, self._periodic.modulus)
+            int(v)
+            for v in _quotient_kernel(values, self._periodic.adjugate, self._periodic.modulus)
         )
 
     @property
@@ -156,6 +219,7 @@ class ClusterMap:
         return tuple(tuple(group) for _, group in sorted(groups.items()) if len(group) > 1)
 
     def _geometry_fingerprint(self) -> str:
+        """Hash primitive identity, declared supercell geometry and atom-address ordering."""
         payload = {
             "primitive": structure_fingerprint(
                 self.cluster_space.cell,
@@ -177,6 +241,7 @@ class ClusterMap:
 
     @property
     def fingerprint(self):
+        """Stable identity of the cluster space, supercell realization and folded image ordering."""
         payload = {
             "space": self.cluster_space.fingerprint,
             "supercell": self._geometry_fingerprint(),
@@ -188,28 +253,5 @@ class ClusterMap:
 
 
 def _restore_cluster_map(cluster_space, supercell_atoms, supercell_matrix):
+    """Reconstruct and validate serialized mapping inputs through the normal constructor."""
     return ClusterMap(cluster_space, supercell_atoms, supercell_matrix=supercell_matrix)
-
-
-@dataclass(frozen=True, slots=True)
-class PreparedClusterMap:
-    fingerprint: str
-    cluster_space: PreparedClusterSpace
-    periodic: _PeriodicIndex
-    image_atom_indices: tuple[np.ndarray, ...]
-
-
-def prepare_cluster_map(cluster_map, prepared_space=None):
-    space = (
-        prepare_cluster_space(cluster_map.cluster_space)
-        if prepared_space is None
-        else prepared_space
-    )
-    if space.fingerprint != cluster_map.cluster_space.fingerprint:
-        raise ValueError("prepared cluster space belongs to a different model")
-    return PreparedClusterMap(
-        cluster_map.fingerprint,
-        space,
-        cluster_map._periodic,
-        tuple(integer_array(a) for a in cluster_map.image_atom_indices),
-    )

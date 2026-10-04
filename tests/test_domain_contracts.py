@@ -13,7 +13,7 @@ from mlfcs._arrays import integer_array
 from mlfcs.fitting.design import ForceDesign
 
 
-def test_one_immutable_space_maps_to_multiple_supercells_and_shares_prepared_arrays():
+def test_one_immutable_space_maps_to_multiple_supercells_without_prepared_wrappers():
     atoms = bulk("Ar", "sc", a=1)
     space = ClusterSpace(atoms, symprec=1e-05, cutoffs={2: 1.1}, max_body_orders={2: 2})
     small = ClusterMap(space, atoms, supercell_matrix=np.eye(3, dtype=np.int64))
@@ -24,12 +24,11 @@ def test_one_immutable_space_maps_to_multiple_supercells_and_shares_prepared_arr
     assert not hasattr(space, "supercell")
     assert small.rank_info().nullity > 0
     assert large.rank_info().full
-    prepared_space = space.prepare()
-    prepared_map = large.prepare(prepared_space=prepared_space)
-    assert prepared_map.cluster_space is prepared_space
-    assert np.shares_memory(prepared_space.positions, space.scaled_positions)
-    assert np.shares_memory(prepared_space.rotations, space.symmetry.rotations)
-    assert np.shares_memory(prepared_map.image_atom_indices[0], large.image_atom_indices[0])
+    assert not space.scaled_positions.flags.writeable
+    assert not space.symmetry.rotations.flags.writeable
+    assert not large.image_atom_indices[0].flags.writeable
+    assert not hasattr(space, "prepare")
+    assert not hasattr(large, "prepare")
     restored = pickle.loads(pickle.dumps(large))
     assert restored.fingerprint == large.fingerprint
     assert not restored.cluster_space.cell.flags.writeable
@@ -137,8 +136,8 @@ def test_design_and_fitted_force_constants_match_original_python_snapshots():
             sample.positions += displacement
             sample.calc = SinglePointCalculator(sample, forces=forces)
             structures.append(sample)
-        system = FitSystem.from_atoms(mapping, structures)
-        model = system.force_constants(system.solve(rtol=1e-11, max_steps=5000))
+        system = FitSystem(mapping, structures)
+        model = system.solve(rtol=1e-11, maxiter=5000)
         parameters = model.parameters()
         for index, orbit in enumerate(space.orbits):
             start, stop = space.parameter_offsets[index : index + 2]

@@ -94,7 +94,7 @@ def test_symprec_is_the_only_geometric_mapping_threshold(
             == 1
         )
     else:
-        with pytest.raises(ValueError, match="nearest residual"):
+        with pytest.raises(ValueError, match="0 sites within symprec"):
             discover_symmetry(
                 primitive.cell,
                 primitive.scaled_positions,

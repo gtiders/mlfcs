@@ -14,6 +14,37 @@ from mlfcs._arrays import integer_array, readonly
 
 
 def validate_primitive_arrays(cell, scaled_positions, atomic_numbers, symprec):
+    """Validate a periodic primitive motif and return normalized readonly arrays.
+
+    Parameters
+    ----------
+    cell : array_like, shape (3, 3)
+        Lattice vectors as rows, in angstrom.
+    scaled_positions : array_like, shape (n_atoms, 3)
+        Fractional row coordinates; wrapped into [0, 1) before the spglib check.
+    atomic_numbers : array_like, shape (n_atoms,)
+        Declared integer species identifiers representable by spglib's int32 ABI.
+    symprec : float
+        Positive Cartesian matching tolerance in angstrom.
+
+    Returns
+    -------
+    cell, positions, numbers, symprec : tuple
+        Readonly float64 geometry, int64 species and normalized scalar tolerance.
+
+    Raises
+    ------
+    ValueError
+        Geometry is invalid or spglib cannot certify the declared atom count as primitive.
+    TypeError
+        Species are not declared integers.
+    OverflowError
+        Species or array sizes cannot enter the required integer interfaces.
+
+    Notes
+    -----
+    The input basis and atom order are retained; no standardized cell is substituted.
+    """
     cell = readonly(cell, np.float64)
     positions = np.asarray(scaled_positions, dtype=np.float64)
     numbers = np.asarray(atomic_numbers)
@@ -69,6 +100,11 @@ def structure_fingerprint(cell, scaled_positions, atomic_numbers, symprec) -> st
 
 
 def primitive_data(atoms, symprec):
+    """Extract validated primitive geometry and positive masses from ASE Atoms.
+
+    Requires full three-dimensional periodicity. Returns readonly geometry arrays
+    and masses in atomic mass units; it does not retain or mutate ``atoms``.
+    """
     if not isinstance(atoms, Atoms):
         raise TypeError("primitive_atoms must be an ASE Atoms object")
     if not np.all(atoms.pbc):
@@ -90,12 +126,27 @@ def primitive_data(atoms, symprec):
 
 @dataclass(frozen=True, order=True, slots=True)
 class LatticeSite:
-    """One primitive motif site translated by an exact integer lattice vector."""
+    """One primitive motif site translated by an exact integer lattice vector.
+
+    Parameters
+    ----------
+    site : int
+        Nonnegative zero-based motif index; motif size is checked by consumers.
+    translation : tuple of int, default (0, 0, 0)
+        Three coefficients of the primitive row lattice vectors. Values become
+        Python ints; fixed-width admission occurs at array/backend boundaries.
+
+    Notes
+    -----
+    The value is immutable, orderable and hashable. Translation is not a
+    Cartesian displacement and different periodic images remain distinct.
+    """
 
     site: int
     translation: tuple[int, int, int] = (0, 0, 0)
 
     def __post_init__(self) -> None:
+        """Validate the site index and normalize the three translation entries to Python ints."""
         if self.site < 0:
             raise ValueError("primitive site must be non-negative")
         if len(self.translation) != 3 or any(

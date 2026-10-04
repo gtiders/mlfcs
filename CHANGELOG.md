@@ -6,6 +6,20 @@ All notable changes are documented here. Releases follow semantic versioning.
 
 ## Unreleased
 
+## 4.6.0 — 2026-10-04
+
+- **Breaking:** logging configuration now accepts only `level`, with timestamped records flushed to current stdout. Remove `configure(stream=...)` and redirect task output in Bash or the task script. Add computation/progress/solver/quality summaries and DEBUG-only fingerprint diagnostics; teaching fits retain their own complete `fit.log` capture.
+
+- Add readonly `ClusterSpace.masses` and `with_masses()` sharing structural buffers without rebuilding. Harmonic/SCPH use the actual mass-preserving subgroup. Add `Harmonic.mesh()` with readonly sampling results; accept diagonal mesh triples consistently in QGrid/SCPH. **Breaking:** rename harmonic `matrices()` to `dynamical_matrices()` and make harmonic masses readonly.
+
+- **Breaking:** unify raw and normal fitting in `FitSystem(mapping, structures, representation=...)`; remove `FitData` and `from_atoms()`. `solve()` returns `ForceConstants`. Normal equations use scaled MINRES and raw equations use scaled LSMR, implemented by `FitSolver` in `fitting/solve.py`. Public equations retain physical scale; solver normalization is temporary. Rename fitting data properties and use `maxiter`.
+
+- **Breaking:** remove the redundant `ClusterSpace.prepare()` and `ClusterMap.prepare()` wrappers;
+  Numba consumers now use the domain objects' immutable arrays directly. Periodic supercell,
+  primitive-site matching and fitting displacements now share Cartesian periodic geometry.
+- Unify periodic quotient addressing in one checked Numba kernel, removing aggregate screening
+  and its local fallback. Geometry matching uses one tolerance-radius search instead of a
+  nearest-image prefilter followed by a second enumeration.
 - **Breaking:** the documentation site no longer serves the `/mlfcs/en/` prefix.
   `https://gtiders.github.io/mlfcs/` serves the English pages and
   `https://gtiders.github.io/mlfcs/zh/` the Chinese ones, so links and bookmarks carrying the old

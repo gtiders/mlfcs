@@ -6,6 +6,18 @@
 
 ## 未发布
 
+## 4.6.0 — 2026-10-04
+
+- **破坏性：** 日志配置只接受 `level`，带时间戳的日志刷新到当前 stdout；删除 `configure(stream=...)`，由 Bash 或任务脚本重定向输出。补齐计算、进度、求解和质量摘要，fingerprint 诊断仅在 DEBUG 执行；教学拟合继续自行完整捕获 `fit.log`。
+
+- 新增只读 `ClusterSpace.masses` 和共享结构数据、无须重建的 `with_masses()`。Harmonic/SCPH 使用实际质量保持子群。新增 `Harmonic.mesh()` 与只读采样结果，QGrid/SCPH 统一支持对角网格三元组。**破坏性：** 谐波 `matrices()` 更名为 `dynamical_matrices()`，谐波质量改为只读。
+
+- **破坏性：** 拟合统一为 `FitSystem(mapping, structures, representation=...)`，删除 `FitData` 与 `from_atoms()`；`solve()` 返回 `ForceConstants`。normal 使用列缩放 MINRES，raw 使用列缩放 LSMR，由 `fitting/solve.py` 的 `FitSolver` 类实现。公开方程保持物理尺度，归一化仅用于求解。数据属性明确命名，迭代上限统一为 `maxiter`。
+
+- **破坏性：** 删除冗余的 `ClusterSpace.prepare()` 和 `ClusterMap.prepare()` 包装层；Numba 消费者直接
+  使用领域对象的只读数组。超胞、原胞站点和拟合位移共享笛卡尔周期几何。
+- 周期商映射统一使用一套 Numba 实际运算检查，删除批量界快筛及局部兜底；几何匹配改为一次
+  固定容差内的周期像搜索，删除最近像初筛和二次枚举。
 - **破坏性：** 文档站点不再提供 `/mlfcs/en/` 前缀：`https://gtiders.github.io/mlfcs/` 提供英文
   页面，`https://gtiders.github.io/mlfcs/zh/` 提供中文页面；带旧前缀的链接与书签需要去掉该段路径。
 - 文档源文件改为扁平结构：`docs/*.md` 为英文，`docs/zh/*.md` 为其中文镜像。逐页语言 alternate、

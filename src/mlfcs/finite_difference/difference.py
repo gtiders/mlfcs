@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Iterator, Sequence
 from itertools import product
+from time import perf_counter
 from typing import Any
 
 import numpy as np
@@ -19,6 +21,9 @@ logger = get_logger(__name__)
 
 
 def _keys(cluster_map: ClusterMap, order: int) -> tuple[tuple[tuple[int, int], ...], ...]:
+    """Return sorted unique displacement-coordinate tuples needed by representative observation
+    rows.
+    """
     block = cluster_map.cluster_space.block(order)
     keys: set[tuple[tuple[int, int], ...]] = set()
     for orbit_index in range(block.orbits.start, block.orbits.stop):
@@ -32,7 +37,32 @@ def _keys(cluster_map: ClusterMap, order: int) -> tuple[tuple[tuple[int, int], .
 
 
 class FiniteDifference:
-    """One finite-difference experiment whose ASE structures define its data."""
+    """Central finite-difference experiment on one structurally full-rank ClusterMap.
+
+    Parameters
+    ----------
+    cluster_map : ClusterMap
+        Reference supercell relation, retained by reference.
+    order : int
+        Included force-constant tensor order, at least two.
+    disps : float or sequence of float, default 0.01
+        Distinct positive step lengths in angstrom. Sorted steps are combined
+        by extrapolating the even central-difference error to zero step.
+
+    Notes
+    -----
+    Samples are ordered by displacement key, then ascending step, then sign.
+    Repeated atom/axis entries add displacements. Construction requires full
+    folded rank but does not calculate forces. evaluate explicitly calculates;
+    reconstruct reads only stored forces from the canonical sequence.
+
+    Raises
+    ------
+    ValueError
+        Steps or order are invalid.
+    AliasingError
+        Supercell folding loses required parameters.
+    """
 
     __slots__ = ("_keys", "_signs", "cluster_map", "disps", "order")
 
@@ -43,6 +73,7 @@ class FiniteDifference:
         order: int,
         disps: float | Sequence[float] = 0.01,
     ):
+        """Validate steps and folded rank, then prepare canonical displacement keys and signs."""
         order = int(order)
         if order < 2:
             raise ValueError("force-constant order must be at least 2")
@@ -71,6 +102,7 @@ class FiniteDifference:
 
     @property
     def n_configurations(self) -> int:
+        """Number of required structures: keys times step lengths times 2**(order-1)."""
         return len(self._keys) * len(self.disps) * len(self._signs)
 
     def displacements(self) -> Sequence[Atoms]:
@@ -78,7 +110,20 @@ class FiniteDifference:
         return Displacements(self)
 
     def evaluate(self, calculator: Any) -> tuple[Atoms, ...]:
-        """Force a fresh calculation for every displacement and freeze its forces."""
+        """Evaluate every canonical displacement and freeze its forces in ASE snapshots.
+
+        calculator is an ASE-compatible calculator reused for fresh calculate calls.
+        Return a tuple of independent Atoms with SinglePointCalculator forces in
+        eV/angstrom. Invalid/missing force results raise ValueError; reference
+        geometry is unchanged. This method intentionally performs calculations.
+        """
+        started = perf_counter()
+        logger.info(
+            "Finite-difference evaluation started: order=%d configurations=%d steps_angstrom=%s",
+            self.order,
+            self.n_configurations,
+            self.disps,
+        )
         evaluated = []
         for atoms in self.displacements():
             atoms.calc = calculator
@@ -95,11 +140,49 @@ class FiniteDifference:
                 raise ValueError("calculator returned invalid forces")
             atoms.calc = SinglePointCalculator(atoms, forces=values)
             evaluated.append(atoms)
+            count = len(evaluated)
+            if count == 1 or count % 10 == 0:
+                logger.info(
+                    "Finite-difference evaluation progress: configurations=%d total=%d elapsed_s=%.2f",
+                    count,
+                    self.n_configurations,
+                    perf_counter() - started,
+                )
+        logger.info(
+            "Finite-difference evaluation complete: configurations=%d elapsed_s=%.2f",
+            len(evaluated),
+            perf_counter() - started,
+        )
         return tuple(evaluated)
 
     def reconstruct(self, structures: Sequence[Atoms]) -> ForceConstants:
-        """Reconstruct from the canonical sequence of evaluated ASE structures."""
-        return _reconstruct(self, structures)
+        """Return the selected-order ForceConstants from canonical evaluated snapshots.
+
+        structures must be an ordered Sequence matching displacements(), with stored
+        (n_atoms, 3) forces. Missing data or geometry/order mismatches raise
+        ValueError; calculators are never evaluated. Central mixed derivatives and
+        even-error extrapolation recover representative component parameters.
+        """
+        started = perf_counter()
+        logger.info(
+            "Finite-difference reconstruction started: order=%d configurations=%d steps_angstrom=%s",
+            self.order,
+            self.n_configurations,
+            self.disps,
+        )
+        model = _reconstruct(self, structures)
+        logger.info(
+            "Finite-difference reconstruction complete: order=%d parameters=%d elapsed_s=%.2f",
+            self.order,
+            len(model.coefficients[self.order]),
+            perf_counter() - started,
+        )
+        if logger.isEnabledFor(logging.DEBUG):
+            logger.debug(
+                "Finite-difference model identity: force_constants_fingerprint=%s",
+                model.fingerprint,
+            )
+        return model
 
 
 class Displacements(Sequence[Atoms]):
@@ -108,12 +191,20 @@ class Displacements(Sequence[Atoms]):
     __slots__ = ("_difference",)
 
     def __init__(self, difference: FiniteDifference):
+        """Reference an experiment without materializing its displaced structures."""
         self._difference = difference
 
     def __len__(self) -> int:
+        """Return the experiment configuration count."""
         return self._difference.n_configurations
 
     def __getitem__(self, index: int | slice) -> Atoms | tuple[Atoms, ...]:
+        """Generate a fresh displaced ASE structure, or a tuple for a slice.
+
+        Supports negative indices. Adds mlfcs_id, mlfcs_disp and the Cartesian
+        mlfcs_displacement array; generated atoms have no evaluated forces.
+        Out-of-range indices raise IndexError.
+        """
         if isinstance(index, slice):
             return tuple(self[position] for position in range(*index.indices(len(self))))
         position = int(index)
@@ -139,11 +230,13 @@ class Displacements(Sequence[Atoms]):
         return atoms
 
     def __iter__(self) -> Iterator[Atoms]:
+        """Generate fresh structures in canonical key-step-sign order."""
         for index in range(len(self)):
             yield self[index]
 
 
 def _forces(difference: FiniteDifference, structures: Sequence[Atoms]) -> np.ndarray:
+    """Validate the canonical snapshot sequence and gather finite stored forces without calculation."""
     if isinstance(structures, (Atoms, np.ndarray)) or not isinstance(structures, Sequence):
         raise TypeError("reconstruct() accepts only an ordered sequence of ASE Atoms")
     if len(structures) != difference.n_configurations:
@@ -199,9 +292,17 @@ def _weights(disps: tuple[float, ...]) -> np.ndarray:
 
 
 def _reconstruct(difference: FiniteDifference, structures: Sequence[Atoms]) -> ForceConstants:
+    """Combine signed central-force differences, extrapolate steps and bind observed components.
+
+    The leading minus sign converts force derivatives to energy derivatives.
+    Repeated displacement directions are already encoded in each stencil key.
+    Return only the experiment's order; input structures are not modified.
+    """
     values = _forces(difference, structures)
     order = difference.order
     signs = np.asarray(difference._signs, dtype=np.float64)
+    # The mixed central stencil weights each force by the product of its
+    # displacement signs; the later minus converts force to energy derivatives.
     sign_weights = np.prod(signs, axis=1)
     disp_weights = _weights(difference.disps)
     sign_count = len(signs)

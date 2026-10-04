@@ -6,7 +6,14 @@ from numba import njit
 
 @njit(cache=True)
 def signed_components(a):
-    """Signed incidence constraints have a saturated component basis."""
+    """Identify signed equality components and components forced to zero.
+
+    Rows with one nonzero entry kill a component; rows with two equal-magnitude
+    entries express x_i = +/-x_j. A contradictory sign cycle also kills its
+    component. Return parent, relative signs, dead flags, root-column mapping
+    and dimension. Dimension -1 reports an unsupported row; partial buffers
+    must then be ignored. All sign arithmetic stays in {-1, 1}.
+    """
     n = a.shape[1]
     parent = np.arange(n, dtype=np.int64)
     signs = np.ones(n, dtype=np.int64)
@@ -59,6 +66,12 @@ def signed_components(a):
 
 @njit(cache=True)
 def component_basis(parent, signs, dead, columns, dimension):
+    """Build the (n, dimension) saturated 0/+1/-1 basis from signed-component buffers.
+
+    Live roots select distinct columns; dead components contribute only zero.
+    The caller allocates/admit-checks output capacity and supplies a successful
+    signed_components result. Inputs are not modified.
+    """
     n = len(parent)
     result = np.zeros((n, dimension), dtype=np.int64)
     for j in range(n):

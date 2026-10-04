@@ -8,6 +8,13 @@ from mlfcs.algebra.integer import bezout
 
 @njit(cache=True)
 def reduce_column(h, column, delta):
+    """Reduce one upper-triangular column in place to column-HNF pivot ranges.
+
+    The h columns generate a lattice containing delta*Z**d, so subtracting
+    multiples of delta from entries preserves that lattice. Pivots are positive
+    and at most delta; earlier columns are already reduced. With delta below
+    2**31, quotient-times-entry updates fit the admitted machine-word bounds.
+    """
     for i in range(column - 1, -1, -1):
         q = h[i, column] // h[i, i]
         h[i, column] %= h[i, i]
@@ -17,11 +24,14 @@ def reduce_column(h, column, delta):
 
 @njit(cache=True)
 def row_preimage(w, delta):
-    """Column HNF of {z: w*z == 0 mod delta}, including nonunit pivots.
+    """Return a column-HNF basis of {z in Z**d: w @ z == 0 mod delta}.
 
-    Prefix gcd g_j gives pivot g_{j-1}/g_j. The coefficient vector b
-    represents g_{j-1} modulo delta; all coordinates are reduced immediately.
-    Reduction modulo delta is valid because delta*Z**d lies in the preimage.
+    w has d entries reduced to [0, delta), with 1 <= delta < 2**31. Columns
+    of the upper-triangular output generate the full congruence preimage.
+    Prefix gcds give positive pivots dividing delta; entries above pivot i lie
+    in [0, h[i,i]). Thus every stored entry is at most delta.
+    Bezout coefficient vectors and off-diagonal products are reduced modulo
+    delta. Neither input is modified; no full unimodular transform is tracked.
     """
     d = len(w)
     h = np.zeros((d, d), dtype=np.int64)
@@ -45,12 +55,15 @@ def row_preimage(w, delta):
 
 @njit(cache=True)
 def congruence_preimage(f, delta):
-    """Specialized Howell-style lift, with no characteristic-zero transform.
+    """Return a column-HNF basis H of {z in Z**d: F @ z == 0 mod delta}.
 
-    Each row intersects H*Z**d with a single congruence. If T is its
-    preimage HNF, H*T has diagonal <= delta because the intersection still
-    contains delta*Z**d. Off-diagonals are multiplied modulo delta, then
-    reduced by preceding columns. Every product is bounded by delta**2.
+    F is an int64 (rank, d) matrix and 1 <= delta < 2**31. Intersect the current
+    lattice with each row congruence using row_preimage. Columns generate the
+    integer preimage, not a vector-space kernel over a possibly composite ring.
+    H is upper triangular with positive pivots <= delta and 0 <= H[i,j] <
+    H[i,i] above the diagonal. Each intersection still contains delta*Z**d;
+    this bounds pivots. Residue products and their one-step accumulations fit
+    int64. The caller admits d*d storage; F is preserved.
     """
     d = f.shape[1]
     h = np.eye(d, dtype=np.int64)
@@ -77,11 +90,22 @@ def congruence_preimage(f, delta):
 
 @njit(cache=True)
 def lift_kernel(f, delta, h):
+    """Lift free-coordinate column basis H to (-F @ H / delta, H) exactly.
+
+    F has shape (rank, d), H (d, d), with F @ H divisible by positive delta.
+    H entries must be nonnegative and <= delta, delta < 2**31, and the caller
+    must admit d*(max(abs(F)) + 2*delta + 1) <= INT64_MAX. Split F into quotient
+    and remainder before multiplying to avoid forming a large F @ H temporary.
+    Return an int64 (rank+d, d) basis in pivot-then-free coordinate order.
+    Raise ValueError if an output entry is not integral; inputs are preserved.
+    """
     rank, d = f.shape
     result = np.zeros((rank + d, d), dtype=np.int64)
     result[rank:, :] = h
     for i in range(rank):
         for j in range(d):
+            # Track carries from reduced products so F @ H is never formed
+            # as a potentially oversized characteristic-zero intermediate.
             quotient, remainder = 0, 0
             for k in range(d):
                 q, r = f[i, k] // delta, f[i, k] % delta

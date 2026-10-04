@@ -13,11 +13,13 @@ scph = SCPH(model, mesh, statistics="quantum", time_reversal=True)
 | Parameter | Meaning |
 | --- | --- |
 | `model` | `ForceConstants` on one cluster space, containing both orders 2 and 4. The FC4 block supplies the loop correction; FC2 supplies the bare harmonic model. |
-| `mesh` | `QGrid`, a length-three diagonal mesh such as `(4, 4, 6)`, or a nonsingular 3×3 integer supercell matrix. The mesh is reduced by the model's primitive symmetry. |
+| `mesh` | `QGrid`, a positive integer diagonal mesh such as `(4, 4, 6)`, or a nonsingular 3×3 integer supercell matrix. Reduction uses the mass-preserving subgroup of the primitive symmetry. |
 | `statistics` | Modal covariance statistics: `"quantum"` (default) or `"classical"`. |
 | `time_reversal` | Whether reciprocal stars include time-reversal pairing; default `True`. |
 
 The constructor exposes `model`, `stars`, and `statistics`. Its reciprocal grid is exact integer data; the star representatives are the points at which the frequency and covariance kernels are evaluated.
+
+Masses come directly from the readonly `model.cluster_space.masses` assignment. Different masses on structurally equivalent sites are supported: only mass-preserving operations enter the reciprocal stars. See [harmonic frequencies and masses](harmonic-api.md) for changing masses without rebuilding the cluster space.
 
 ## Run one temperature
 

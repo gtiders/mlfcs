@@ -112,6 +112,11 @@ __all__ = [
 
 @njit(cache=True)
 def integer_product(a, b):
+    """Multiply compatible int64 matrices after allocation and absolute-dot-product proof.
+
+    Only exact_product should supply admitted operands. Return a new int64
+    matrix; unchecked multiply/add loops rely on prove_integer_product.
+    """
     result = np.zeros((a.shape[0], b.shape[1]), dtype=np.int64)
     for i in range(a.shape[0]):
         for j in range(b.shape[1]):
@@ -122,6 +127,11 @@ def integer_product(a, b):
 
 @njit(cache=True)
 def modular_product(a, b, modulus):
+    """Multiply compatible integer matrices modulo 1 <= modulus < 2**31.
+
+    Each operand is reduced before multiplication and each partial sum reduced
+    immediately. Return a new int64 matrix with canonical nonnegative residues.
+    """
     result = np.zeros((a.shape[0], b.shape[1]), dtype=np.int64)
     for i in range(a.shape[0]):
         for j in range(b.shape[1]):
@@ -132,6 +142,7 @@ def modular_product(a, b, modulus):
 
 @njit(cache=True)
 def gcd(a, b):
+    """Return the Euclidean gcd of nonnegative machine-word integers."""
     while b:
         a, b = b, a % b
     return a
@@ -139,6 +150,12 @@ def gcd(a, b):
 
 @njit(cache=True)
 def bezout(a, b):
+    """Return (g, s, t) satisfying s*a + t*b = g = gcd(a, b).
+
+    Congruence callers supply 0 < a < 2**31 and 0 <= b < 2**31. Euclidean
+    convergent coefficients alternate signs and are bounded by the inputs;
+    these small operands admit all coefficient updates in int64.
+    """
     r0, r1, s0, s1, t0, t1 = a, b, 1, 0, 0, 1
     while r1:
         q = r0 // r1

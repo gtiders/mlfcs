@@ -4,20 +4,30 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from math import factorial
+from time import perf_counter
 
 import numpy as np
 from numba import get_num_threads, get_thread_id, njit, prange
 
 from mlfcs._arrays import integer_array, readonly, require_allocation
+from mlfcs.core.log import get_logger
 from mlfcs.core.tensors import rotate_basis
 from mlfcs.mapping import ClusterMap
-from mlfcs.mapping.cluster_map import prepare_cluster_map
 from mlfcs.mapping.geometry import mapped_labels
+
+logger = get_logger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
 class OrderDesign:
-    """Ragged compiled arrays for one force-constant order."""
+    """Readonly ragged Cartesian design buffers for one tensor order.
+
+    components is (3**p, p) in C-order direction enumeration. Orbit offsets
+    index image ranges; parameter starts refer to the global ClusterSpace.
+    image_atoms is (images, translations, p); flattened image_basis stores
+    (3**p, orbit_dimension) blocks delimited by image_basis_offsets.
+    factor is 1/p!, with differentiation over every tensor slot in the kernel.
+    """
 
     factor: float
     components: np.ndarray
@@ -29,6 +39,7 @@ class OrderDesign:
     image_basis_offsets: np.ndarray
 
     def __post_init__(self):
+        """Normalize integer metadata and float64 basis storage to readonly contiguous arrays."""
         for name in (
             "components",
             "orbit_image_offsets",
@@ -45,12 +56,19 @@ class OrderDesign:
 
     @property
     def max_dimension(self) -> int:
+        """Largest orbit parameter dimension, or zero for an empty order."""
         return int(self.orbit_dimensions.max()) if len(self.orbit_dimensions) else 0
 
 
 def _compile_order(
-    cluster_map: ClusterMap, order: int, translations: tuple[tuple[int, int, int], ...], prepared
+    cluster_map: ClusterMap, order: int, translations: tuple[tuple[int, int, int], ...]
 ) -> OrderDesign:
+    """Map translated orbit images and flatten rotated Cartesian bases for force evaluation.
+
+    Translations are primitive integer triples. Preserve orbit/image order and
+    global parameter offsets; return readonly OrderDesign buffers. Cartesian
+    row-action matrices are transposed for the tensor contraction convention.
+    """
     space = cluster_map.cluster_space
     block = space.block(order)
     parameter_offsets = space.parameter_offsets
@@ -78,7 +96,7 @@ def _compile_order(
         dimensions.append(dimension)
         for image, cluster in enumerate(orbit.clusters):
             labels = np.asarray(cluster.labels, dtype=np.int64)
-            atoms = mapped_labels(labels, translations, prepared.periodic).T.copy()
+            atoms = mapped_labels(labels, translations, cluster_map._periodic).T.copy()
             image_atoms.append(atoms)
             rotation = space.symmetry.cartesian_rotations[orbit.operations[image]].T
             basis = rotate_basis(orbit.component_basis, rotation, orbit.permutations[image])
@@ -105,35 +123,102 @@ def _compile_order(
 
 
 class ForceDesign:
-    """Reusable compiled design for every order in one cluster map."""
+    """Reusable force-design metadata for every order in one ClusterMap.
 
-    __slots__ = ("cluster_map", "orders", "prepared", "rows")
+    Parameters
+    ----------
+    cluster_map : ClusterMap
+        Supercell relation retained by reference. Its exact folded rank must
+        preserve all primitive parameters, otherwise AliasingError is raised.
+
+    Notes
+    -----
+    Construction compiles translated atom indices and rotated float64 bases.
+    Rows are atom-major x/y/z forces; columns follow ClusterSpace parameters.
+    Workspace is caller-owned and mutable, separate from readonly design data.
+    """
+
+    __slots__ = ("cluster_map", "orders", "rows")
 
     def __init__(self, cluster_map: ClusterMap):
+        """Require full structural rank and compile readonly per-order force-design buffers."""
+        started = perf_counter()
+        logger.info(
+            "Force-design compilation started: supercell_atoms=%d orders=%s parameters=%d",
+            cluster_map.n_atoms,
+            cluster_map.cluster_space.orders,
+            cluster_map.cluster_space.n_parameters,
+        )
         cluster_map.rank_info().require_full()
         self.cluster_map = cluster_map
-        self.prepared = prepare_cluster_map(cluster_map)
         self.rows = 3 * len(cluster_map.atomic_numbers)
         require_allocation("force design", (self.rows, self.n_parameters))
         translations = cluster_map.translation_representatives
         self.orders = tuple(
-            _compile_order(cluster_map, order, translations, self.prepared)
+            _compile_order(cluster_map, order, translations)
             for order in cluster_map.cluster_space.orders
+        )
+        for order, compiled in zip(cluster_map.cluster_space.orders, self.orders, strict=True):
+            logger.info(
+                "Force-design order ready: order=%d images=%d basis_bytes=%d",
+                order,
+                len(compiled.image_atoms),
+                compiled.image_basis.nbytes,
+            )
+        logger.info(
+            "Force-design compilation complete: rows=%d columns=%d elapsed_s=%.2f",
+            self.rows,
+            self.n_parameters,
+            perf_counter() - started,
         )
 
     @property
     def n_parameters(self) -> int:
+        """Total primitive parameter count, including every order in the cluster space."""
         return self.cluster_map.cluster_space.n_parameters
 
     def allocate_workspace(self):
-        return allocate_design_workspace(
+        """Allocate per-order, per-thread float64 scratch for repeated matrix calls.
+
+        Do not share the returned workspace between concurrent calls. Its thread
+        capacity is captured from the current Numba thread count.
+        """
+        workspace = allocate_design_workspace(
             self.rows, tuple(order.max_dimension for order in self.orders)
         )
+        logger.debug(
+            "Design workspace allocated: threads=%d scratch_bytes=%d",
+            workspace.threads,
+            sum(array.nbytes for array in workspace.scratch),
+        )
+        return workspace
 
     def __reduce__(self):
+        """Serialize the map and rebuild derived design buffers on restoration."""
         return type(self), (self.cluster_map,)
 
     def matrix(self, displacement: np.ndarray, *, workspace=None) -> np.ndarray:
+        """Return the physical force-design matrix for one displacement snapshot.
+
+        Parameters
+        ----------
+        displacement : array_like
+            n_atoms*3 finite Cartesian components in atom-major x/y/z order, in
+            angstrom; an (n_atoms, 3) array is accepted by flattening.
+        workspace : DesignWorkspace, optional
+            Matching mutable scratch, reused in place. Omission allocates scratch.
+
+        Returns
+        -------
+        matrix : ndarray of float64, shape (3*n_atoms, n_parameters)
+            New unnormalized matrix A such that predicted forces are A @ parameters.
+
+        Notes
+        -----
+        The force sign, Taylor factorial and every translated orbit image are
+        included. Displacements are not mutated; workspace must not be shared
+        between concurrent calls. Invalid shape, values or scratch raise ValueError.
+        """
         values = np.ascontiguousarray(displacement, dtype=np.float64).reshape(-1)
         if values.shape != (self.rows,):
             raise ValueError(f"displacement must contain {self.rows} Cartesian components")
@@ -174,12 +259,22 @@ def accumulate_design(
     factor,
     scratch,
 ):
-    """Accumulate one tensor order into a snapshot design matrix."""
+    """Accumulate one order into a physical force-design matrix in place.
+
+    Displacement is atom-major Cartesian float64; out has shape (rows, total
+    parameters). Compiled ragged offsets delimit images and flattened bases.
+    Each tensor slot contributes -1/p! times the product of all other slot
+    displacements. scratch has one (rows, max_orbit_dimension) block per thread.
+    Orbits write disjoint parameter columns, so prange needs no atomics; each
+    thread clears its scratch before use. Validated metadata admits all indices.
+    """
     orbit_count = orbit_dimensions.size
     translation_count = image_atoms.shape[1]
     order = image_atoms.shape[2]
     component_count = components.shape[0]
     rows = displacement.size
+    # Orbit columns are disjoint even when their images share force rows.
+    # Each thread therefore accumulates privately, then writes its own columns.
     for orbit in prange(orbit_count):
         local = scratch[get_thread_id()]
         dimension_count = orbit_dimensions[orbit]
@@ -202,6 +297,8 @@ def accumulate_design(
                                     3 * image_atoms[image, translation, other]
                                     + components[component, other]
                                 ]
+                        # Differentiate every slot of the energy term: repeated
+                        # coordinates contribute once per slot, with the force sign.
                         value = -factor * monomial
                         basis_row = basis_start + component * dimension_count
                         for dimension in range(dimension_count):
@@ -213,12 +310,21 @@ def accumulate_design(
 
 @dataclass(slots=True)
 class DesignWorkspace:
+    """Mutable per-order/thread scratch owned by one force-design caller.
+
+    scratch[i] has shape (threads, rows, dimensions[i]). Reuse serially;
+    sharing an instance across concurrent calls is unsafe.
+    """
+
     rows: int
     dimensions: tuple[int, ...]
     threads: int
     scratch: tuple[np.ndarray, ...]
 
     def validate(self, rows, dimensions):
+        """Require matching dimensions, writable contiguous float64 buffers and sufficient thread
+        slots.
+        """
         if (rows, dimensions) != (self.rows, self.dimensions):
             raise ValueError("design workspace belongs to different dimensions")
         if len(self.scratch) != len(dimensions):
@@ -236,6 +342,7 @@ class DesignWorkspace:
 
 
 def allocate_design_workspace(rows, dimensions):
+    """Allocate zeroed scratch buffers after checking each per-thread array size."""
     threads = get_num_threads()
     for dimension in dimensions:
         require_allocation("design scratch", (threads, rows, dimension))

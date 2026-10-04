@@ -4,7 +4,7 @@ This document describes the current implementation. The existing mathematical au
 
 ## Policy
 
-A local proof replaces its whole-problem admission bound completely: remove the old calculation, certificate fields, branches and dedicated tests. Do not retain a global quick-pass check, fallback gate or diagnostic estimate.
+A local proof replaces a whole-problem admission bound when it checks the same operation at the point where its actual operands are known. Remove the redundant whole-problem calculation, carried certificate fields, branches and tests. Use one checking algorithm for each operation; do not retain an aggregate screen and a separate local fallback for the same arithmetic.
 
 A local bound still bounds intermediates conservatively; failure means the operation cannot be certified under that contract, not that its final mathematical answer necessarily exceeds int64.
 
@@ -20,7 +20,7 @@ Separate these obligations:
 
 An arithmetic proof does not replace the other obligations.
 
-Admission checks belong to the operation that needs them. `ClusterSpace`, `Orbit` and prepared buffers do not carry proof records. Exact kernel returns only the readonly saturated basis; rank and annihilation certification still execute within the operation. Mapping `RankInfo` remains a business result rather than an admission token.
+Admission checks belong to the operation that needs them. Domain objects do not carry proof records. Exact kernel returns only the readonly saturated basis; rank and annihilation certification still execute within the operation. Mapping `RankInfo` remains a business result rather than an admission token.
 
 ## Arithmetic and allocation conventions
 
@@ -36,7 +36,7 @@ This is a representation bound, not an available-RAM guarantee. A representable 
 
 ## Geometry sizing
 
-`cluster_space/candidates.py` validates the actual geometry and truncation inputs, computes traversal bounds and counts neighbors immediately before allocation and fill. Bounds and offsets are local algorithm data; no admission record is returned or stored on the model. `cluster_space/preparation.py` only assembles readonly array references for numerical consumers.
+`cluster_space/candidates.py` validates the actual geometry and truncation inputs, computes traversal bounds and counts neighbors immediately before allocation and fill. Bounds and offsets are local algorithm data; no admission record is returned or stored on the model.
 
 Each neighbor traversal checks $2b_j+1\le J$, covering `range(-b_j,b_j+1)` endpoints and length. The sizing kernel stops before its counter exceeds the representable capacity of the actual neighbor-label array. A negative status rejects the sizing result before allocation or prefix conversion.
 
@@ -108,9 +108,13 @@ $$
 
 Every multiplication and partial sum then fits, even when the final result involves cancellation. There is no separate maximum-coefficient product gate.
 
-Supercell geometry applies this proof to actual translations and the adjugate. Label mapping first proves each actual label-plus-translation coordinate, then its absolute quotient dot products. Binary search uses `left + (right-left)//2`.
+Periodic quotient queries and label mapping share one Numba quotient implementation. Label additions, quotient products and each partial sum are checked immediately before evaluation, using the actual operands in the symmetric int64 domain. There is no aggregate screening bound, fallback or second preflight traversal. Binary search uses `left + (right-left)//2`.
 
-ClusterMap owns one immutable periodic index reused by preparation and queries. A new arbitrary translation query receives its own local proof. Export translation differences are computed as Python integers before normalization, avoiding an implicit dependence on an unrelated old quotient bound.
+ClusterMap owns one immutable periodic index reused by mapping and queries. Arbitrary translation queries use the same checked quotient kernel. Export translation differences are computed as Python integers before normalization, avoiding an implicit dependence on an unrelated old quotient bound.
+
+## Periodic geometry
+
+Primitive-site matching, supercell atom matching and supercell matrix inference all use one fixed-radius search. In the reduced cell $B$, every accepted image satisfies $|h_j+(vB^{-1})_j|<\epsilon\|(B^{-1})_{:j}\|$. Enumerate this integer box once and accept only Cartesian lengths below `symprec`; count every match to enforce uniqueness. There is no nearest-image prefilter or repeated search. Fitting displacements require the nearest image rather than all images below a tolerance and therefore retain their distinct minimum-image query.
 
 ## Folded rank
 
@@ -122,22 +126,40 @@ $$
 
 This bounds all transformations contributing to that block and every prefix of its accumulation. Other orbits and unrelated atom tuples do not enlarge the bound. Actual alias-component matrix shapes are checked before allocation. The existing exclusive-image full-rank shortcut runs without preparing unnecessary folding matrices or bounds.
 
+## Remaining algorithm selection
+
+Removing redundant checking routes does not require deleting structural solutions:
+
+- Signed constraints have a direct saturated component basis. This path also accepts
+  scaled signed rows whose coefficients vanish at a reconstruction prime. For example,
+  $[p,-p]$ has basis $(1,1)^T$, while the current general chart rejects that pivot at
+  prime $p$. Removing this path without a replacement changes the admitted domain.
+- An exclusive folded image proves injectivity of its orbit parameter block directly.
+  Keep this proof instead of allocating and ranking redundant transformed matrices.
+- Rational reconstruction tries denominator windows within the same algorithm.
+  A single largest window imposes a smaller numerator limit and can reject charts
+  accepted by a smaller window. These iterations and their exact verification remain.
+- Neighbor counting and filling are two passes of the same enumeration, needed to
+  allocate variable-size outputs. They are not alternate enumeration algorithms.
+
+The mapping operation has one arithmetic route, and tolerance matching has one
+search route. Empty-input handling, validation failures and exact certificates
+remain part of those algorithms.
+
 ## Design and fitting lifecycle
 
 ForceDesign validates actual image/basis buffers and fixed output shape during initialization. Snapshot calls retain displacement validation and mutable-workspace validation, but do not repeat fixed output-size admission.
 
 Workspace allocation checks actual thread capacity and scratch shape. Every use checks dimensions, scratch count, dtype, layout, writability and active thread capacity. Workspaces are caller-owned and cannot be shared concurrently.
 
-FitSystem ingestion checks the actual normal matrix and RHS allocation. Periodic indexes, prepared buffers and workspaces are not serialized. Loading validates stored arrays, truncation inputs and model layout without neighbor enumeration. Preparation assembles the buffers required by their actual consumers.
+FitSystem ingestion checks actual normal or raw matrix and force-vector allocation. Solver column normalization is temporary; stored fitting data retains physical scale. Periodic indexes and workspaces are not serialized. Loading validates stored arrays, truncation inputs and model layout without neighbor enumeration. Numerical consumers use the domain object's existing read-only arrays directly.
 
 ## Consolidation and cleanup
 
 - Neighbor/candidate admission and sizing: `cluster_space/candidates.py`.
-- Prepared primitive array references: `cluster_space/preparation.py`.
 - Invariant basis and Cartesian parameterization: `cluster_space/basis.py`.
 - Structure validation and lattice addresses: `core/structure.py`.
 - Supercell validation and quotient mapping: `mapping/geometry.py`.
-- Mapping preparation: `mapping/cluster_map.py`.
 - Design and scratch: `fitting/design.py`.
 - Training ingestion and sufficient systems: `fitting/system.py`.
 - Displacements and reconstruction: `finite_difference/difference.py`.

@@ -13,13 +13,8 @@
     10
   ],
   "method": "phono3py RTA",
+  "potential": "Erhart-Albe Si-II Tersoff; parameter file: Erhart-Albe-Si-II.tersoff",
   "temperatures_K": [
-    300,
-    400,
-    500,
-    600,
-    700,
-    800,
-    900
+    300
   ]
 }

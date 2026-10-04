@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Neighbour-shell cutoff advisory for one periodic structure.
 
 Fuses the shell spectrum of the rewritten core (all site pairs over every
@@ -22,17 +21,30 @@ from ase.units import Bohr
 
 
 class EstimateCutoff:
-    """Midpoint cutoff advisory between the neighbour shells of one structure.
+    """Neighbor-shell midpoint advisory for one periodic reference structure.
 
-    The spectrum counts every site pair over every periodic translation of the
-    input cell, so it is a property of the crystal, not of the cell size; the
-    Wigner-Seitz inradius is a property of the given cell and bounds where a
-    neighbour list on this exact cell stops seeing duplicate images.
+    Parameters
+    ----------
+    atoms : ase.Atoms
+        Fully periodic structure with finite nonsingular row cell vectors in angstrom.
+    symprec : float, default 1e-5
+        Positive absolute distance separation for merging shells, in angstrom.
+
+    Notes
+    -----
+    Owns a detached ASE copy. Shells count all site pairs over periodic images;
+    get/report grow and cache a distance spectrum lazily. Caller mutation of
+    the original atoms has no effect. Modifying this object's atoms directly
+    would invalidate that cache and is unsupported. The Wigner-Seitz inradius
+    is a property of this cell and advises when periodic images can duplicate.
+    No forces are evaluated.
     """
 
     __slots__ = ("_probe", "_shells", "atoms", "symprec")
 
     def __init__(self, atoms: Atoms, *, symprec: float = 1e-5):
+        """Validate periodic geometry, capture a detached copy and initialize an empty shell cache.
+        """
         if not isinstance(atoms, Atoms):
             raise TypeError("atoms must be an ASE Atoms object")
         if not bool(np.all(atoms.pbc)):
@@ -112,6 +124,12 @@ class EstimateCutoff:
         return _in_unit(0.5 * (shells[-2] + shells[-1]), units)
 
     def _spectrum(self, need: int) -> tuple[float, ...]:
+        """Return at least need cached shell radii, increasing the periodic probe if necessary.
+
+        Each accepted radius fixes a prefix of globally smallest shells. Search
+        is capped at 64 radius increases; insufficient shells raise RuntimeError.
+        Mutates only this instance's spectrum and probe cache.
+        """
         if len(self._shells) >= need:
             return self._shells
         probe = max(self._probe, 2.0 * self.symprec)

@@ -15,7 +15,7 @@ from phonopy.structure.atoms import PhonopyAtoms
 
 ROOT = Path(__file__).resolve().parent
 MESH = (10, 10, 10)
-TEMPERATURES = tuple(range(300, 901, 100))
+TEMPERATURES = (300,)
 FC2_FILE = ROOT / "fc2-extrapolated.hdf5"
 OUTPUT_NAME = "Si101010-fc2-fc3-extrapolated"
 
@@ -50,6 +50,7 @@ def run() -> None:
     result = {
         "material": "Si",
         "method": "phono3py RTA",
+        "potential": "Erhart-Albe Si-II Tersoff; parameter file: Erhart-Albe-Si-II.tersoff",
         "mesh": list(MESH),
         "temperatures_K": list(TEMPERATURES),
         "isotope_scattering": True,

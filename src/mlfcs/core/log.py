@@ -4,30 +4,38 @@ from __future__ import annotations
 
 import logging
 import sys
-from typing import TextIO
 
 _NAME = "mlfcs"
 _HANDLER_MARK = "_mlfcs_stdout_handler"
+_FORMAT = "%(asctime)s %(levelname)s %(name)s: %(message)s"
 
 
-def configure(*, level: int = logging.INFO, stream: TextIO | None = None) -> logging.Logger:
+class _StdoutHandler(logging.Handler):
+    """Write to the current stdout without owning or retaining an external stream."""
+
+    def emit(self, record: logging.LogRecord) -> None:
+        """Format and flush a record through the task's current stdout redirection."""
+        try:
+            sys.stdout.write(self.format(record) + "\n")
+            sys.stdout.flush()
+        except Exception:
+            self.handleError(record)
+
+
+def configure(*, level: int = logging.INFO) -> logging.Logger:
     """Configure the package logger without touching the root logger.
 
-    The first call installs one package handler; later calls adjust the level
-    and, when a ``stream`` is given, re-point that handler so tutorial scripts
-    can fold the package log into their own log files.
+    Install one package-owned stdout handler with fixed timestamps; repeated
+    calls only change the level. Bash or the task script owns redirection and
+    files. Existing user handlers are untouched; the root logger is unchanged.
     """
     logger = logging.getLogger(_NAME)
     handlers = [handler for handler in logger.handlers if getattr(handler, _HANDLER_MARK, False)]
-    if handlers:
-        handler = handlers[0]
-        if stream is not None and handler.stream is not stream:
-            handler.setStream(stream)
-    else:
-        handler = logging.StreamHandler(sys.stdout if stream is None else stream)
+    if not handlers:
+        handler = _StdoutHandler()
         setattr(handler, _HANDLER_MARK, True)
         handler.setLevel(logging.NOTSET)
-        handler.setFormatter(logging.Formatter("%(levelname)s %(name)s: %(message)s"))
+        handler.setFormatter(logging.Formatter(_FORMAT, datefmt="%Y-%m-%d %H:%M:%S"))
         logger.addHandler(handler)
     logger.setLevel(level)
     logger.propagate = False

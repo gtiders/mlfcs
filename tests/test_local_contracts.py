@@ -48,12 +48,13 @@ def test_site_action_rejects_unrepresentable_translation_before_cast():
         space.symmetry.transform_site(0, LatticeSite(0, (2**70, 0, 0)))
 
 
-def test_periodic_index_is_reused_and_query_shape_is_checked():
+def test_periodic_index_is_retained_and_query_shape_is_checked():
     atoms = bulk("Ar", "sc", a=1)
     mapping = ClusterMap(
         ClusterSpace(atoms, cutoffs={2: 0.1}), atoms, supercell_matrix=np.eye(3, dtype=np.int64)
     )
-    assert mapping.prepare().periodic is mapping.prepare().periodic
+    assert not mapping._periodic.keys.flags.writeable
+    assert not mapping._periodic.atom_indices.flags.writeable
     with pytest.raises(ValueError):
         mapping.quotient((0, 0))
     with pytest.raises(OverflowError):

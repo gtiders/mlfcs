@@ -1,37 +1,37 @@
 {
   "asr": {
     "2": {
-      "correction_norm": 0.052084759128957527,
+      "correction_norm": 0.05208441766158465,
       "equations": 486,
       "iterations": 17,
       "order": 2,
       "parameters": 1809,
-      "relative_after": 3.3924282525623998e-15,
-      "relative_before": 0.00027495499366213743,
-      "relative_correction": 0.0008494530509473946,
-      "residual_after": 7.850942118529723e-13,
-      "residual_before": 0.06363741098432096
+      "relative_after": 3.387930796435997e-15,
+      "relative_before": 0.0002749519555202563,
+      "relative_correction": 0.0008494475405653368,
+      "residual_after": 7.840533777673848e-13,
+      "residual_before": 0.06363670617655649
     },
     "3": {
-      "correction_norm": 2.2072687098085098,
+      "correction_norm": 2.2072645701134297,
       "equations": 29970,
       "iterations": 79,
       "order": 3,
       "parameters": 6520,
-      "relative_after": 2.4528036509321394e-13,
-      "relative_before": 0.000790465232607843,
-      "relative_correction": 0.014044300684160817,
-      "residual_after": 1.1272179023524842e-10,
-      "residual_before": 0.3638543225587389
+      "relative_after": 2.4529625279372323e-13,
+      "relative_before": 0.0007904146647520274,
+      "relative_correction": 0.014044265468605724,
+      "residual_after": 1.1272890260149993e-10,
+      "residual_before": 0.36383045566227823
     }
   },
-  "column_scale": "1 / sqrt(diag(FitSystem.matrix))",
+  "column_scale": "1 / sqrt(diag(FitSystem.normal_matrix))",
   "cutoffs_angstrom": {
     "2": 5.4,
     "3": 4.35
   },
-  "fit_system_fingerprint": "25f24ce4e352f15570f24d7e9e391147ab0aa37ee4162f8c507135e474c99f29",
-  "force_constants_fingerprint": "6eaea63ac2af195ef9aa2e426d5281fb131ef7921150a503587f3d96c59edd24",
+  "fit_system_fingerprint": "110856f79bb74e4aae16471f24b31fc3e299d8132d60c66ac7bd914134daf673",
+  "force_constants_fingerprint": "dda0bd4c2ffbfcfd4db69f41f600125f8aaba39bad07bf5f77e85988cb4b8fb8",
   "max_body_orders": {
     "2": 2,
     "3": 2
@@ -69,9 +69,9 @@
   ],
   "temperature_K": 300,
   "training_equations": 130896,
-  "training_force_rmse_after_asr_eV_per_angstrom": 0.02244511807444634,
-  "training_force_rmse_before_asr_eV_per_angstrom": 0.0209356808436122,
-  "training_relative_force_error_after_asr": 0.052956411605171866,
-  "training_relative_force_error_before_asr": 0.049395085751456326,
+  "training_force_rmse_after_asr_eV_per_angstrom": 0.02244511520668581,
+  "training_force_rmse_before_asr_eV_per_angstrom": 0.020935679749035842,
+  "training_relative_force_error_after_asr": 0.052956404839054325,
+  "training_relative_force_error_before_asr": 0.04939508316894213,
   "training_structures": 101
 }

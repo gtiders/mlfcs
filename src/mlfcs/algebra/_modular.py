@@ -14,6 +14,11 @@ INT64_LIMIT = (1 << 63) - 1
 
 @njit(cache=True)
 def modular_power(base, exponent, modulus):
+    """Return base**exponent modulo a positive machine-word modulus by repeated squaring.
+
+    Callers supply a reduced nonnegative base, a nonnegative exponent and
+    modulus <= MODULAR_LIMIT. Every reduced product stays below 2**62.
+    """
     result = 1
     while exponent:
         if exponent & 1:
@@ -25,6 +30,12 @@ def modular_power(base, exponent, modulus):
 
 @njit(cache=True)
 def echelon(matrix, prime):
+    """Compute a modular row echelon copy and its original pivot-column/row indices.
+
+    Input is an int64 (m, n) matrix; prime is a prime <= MODULAR_LIMIT.
+    Output entries are in [0, prime). Forward elimination reduces every product
+    immediately; a[i,j] - factor*pivot stays within int64. Input is preserved.
+    """
     a = matrix % prime
     height, width = a.shape
     order = np.arange(height, dtype=np.int64)
@@ -58,6 +69,13 @@ def echelon(matrix, prime):
 
 @njit(cache=True)
 def chart(matrix, rank, prime):
+    """Return the free-column block of modular RREF for a prescribed pivot chart.
+
+    The caller puts rank pivot columns first. A nonsingular leading pivot block
+    returns (C, True), with C shape (rank, n-rank), representing [I, C].
+    Rank/pivot disagreement returns an empty block and False; the prime obeys
+    the same bounded arithmetic contract as echelon.
+    """
     a, pivots, _ = echelon(matrix, prime)
     if len(pivots) != rank:
         return a[:0, rank:], False
@@ -74,6 +92,16 @@ def chart(matrix, rank, prime):
 
 @njit(cache=True)
 def reconstruct(first, second, denominator_bound):
+    """Reconstruct reduced rational chart entries from the two fixed prime residues.
+
+    Both residue matrices have identical shape and entries reduced at their
+    respective primes. denominator_bound is positive and at most 2**30 in the
+    caller. Numerator bound is floor((M-1)/(2*denominator_bound)), where M is
+    the fixed CRT modulus; the strict uniqueness product is below M.
+    Return (numerators, denominators, ok). On False, arrays may be incomplete.
+    CRT and Euclidean convergent updates stay within M < INT64_MAX; each
+    candidate must have coprime numerator/denominator and invertible denominator.
+    """
     p1, p2 = RANK_PRIMES
     modulus = CRT_MODULUS
     inverse = CRT_INVERSE
@@ -103,8 +131,18 @@ def reconstruct(first, second, denominator_bound):
 
 @njit(cache=True)
 def common_denominator(numerators, denominators):
+    """Form bounded delta and F such that each reconstructed entry equals F/delta.
+
+    Inputs are int64 numerator/positive-denominator arrays of equal shape.
+    Before each LCM multiplication, divide by gcd and test against MODULAR_LIMIT;
+    before numerator scaling, test against INT64_LIMIT. Return (F, delta, ok).
+    On False, F may be incomplete or the original numerators; callers must not
+    use it. This admission step never multiplies first and checks afterward.
+    """
     delta = 1
     for value in denominators.flat:
+        # Divide before multiplying and compare by division: admission must
+        # not overflow while constructing the quantity it intends to check.
         u = delta // gcd(delta, value)
         if u > MODULAR_LIMIT // value:
             return numerators, 0, False
@@ -121,6 +159,12 @@ def common_denominator(numerators, denominators):
 
 @njit(cache=True)
 def product_is_zero_mod(a, b, prime):
+    """Test a @ b modulo a prime <= MODULAR_LIMIT using reduced scalar accumulation.
+
+    Shapes must be compatible and inputs int64. Each accumulation contains at
+    most one residue product plus one residue, avoiding an unbounded dot product.
+    Returns False at the first nonzero entry; does not modify either operand.
+    """
     for i in range(a.shape[0]):
         for j in range(b.shape[1]):
             total = 0

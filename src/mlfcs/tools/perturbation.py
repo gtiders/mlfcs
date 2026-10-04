@@ -19,17 +19,29 @@ _ATTEMPTS = 32
 
 
 class GaussianPerturbation:
-    """Reproducible Gaussian position perturbations of one periodic structure.
+    """Reproducible Gaussian Cartesian perturbations of one periodic structure.
 
-    ``rattle`` returns a perturbed *copy* and never touches the input; the
-    ``min_distance`` check rejects structures where any pair sits closer than
-    half the sum of its covalent radii (or a caller-declared absolute floor)
-    by resampling from the same random stream.
+    Parameters
+    ----------
+    atoms : ase.Atoms
+        Fully periodic reference with a finite nonsingular cell.
+    seed : int, optional
+        Seed for one owned NumPy random stream; omission uses fresh entropy.
+
+    Notes
+    -----
+    Owns a detached structure copy. rattle/ensemble advance the stream, return
+    fresh structures and never evaluate forces. Distance rejection resamples
+    from the same stream. Fixed atoms are selected by indices in later calls.
+    Invalid reference type/geometry raises TypeError or ValueError.
     """
 
-    __slots__ = ("atoms", "_rng")
+    __slots__ = ("_rng", "atoms")
 
     def __init__(self, atoms: Atoms, *, seed: int | None = None):
+        """Validate periodic geometry, capture a detached reference and initialize the random
+        stream.
+        """
         if not isinstance(atoms, Atoms):
             raise TypeError("atoms must be an ASE Atoms object")
         if not bool(np.all(atoms.pbc)):
@@ -83,6 +95,7 @@ class GaussianPerturbation:
 
 
 def _validate_stdev(stdev: float) -> float:
+    """Return a positive finite Cartesian noise standard deviation in angstrom."""
     value = float(stdev)
     if not np.isfinite(value) or value <= 0.0:
         raise ValueError("stdev must be a positive finite length in angstrom")
@@ -90,6 +103,7 @@ def _validate_stdev(stdev: float) -> float:
 
 
 def _fixed_mask(count: int, indices) -> np.ndarray | None:
+    """Return a mask of pinned atom indices, or None; reject indices outside [0, count)."""
     if indices is None:
         return None
     mask = np.zeros(count, dtype=bool)

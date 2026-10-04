@@ -12,7 +12,13 @@ from mlfcs.force_constants.model import ForceConstants
 
 @dataclass(frozen=True, slots=True)
 class LatticeForceConstants:
-    """One order expanded onto exact primitive-lattice cluster labels."""
+    """Cartesian tensors expanded onto exact anchored primitive-lattice labels.
+
+    For order p, sites contains p primitive indices per image, translations
+    contains only the last p-1 integer shifts (the first is zero), and tensors
+    contains newly evaluated arrays of shape (3,) repeated p times. These arrays
+    are not marked readonly; dataclass freezing only freezes field assignment.
+    """
 
     sites: tuple[tuple[int, ...], ...]
     translations: tuple[tuple[tuple[int, int, int], ...], ...]
@@ -20,7 +26,13 @@ class LatticeForceConstants:
 
 
 def expand(model: ForceConstants, order: int) -> LatticeForceConstants:
-    """Expand orbit coefficients without choosing or folding into a supercell."""
+    """Return all selected-order lattice-image tensors without supercell folding.
+
+    Evaluate representative physical parameters and rotate/permutate each
+    orbit image in stored order. Tensor entries have units eV/angstrom**order.
+    Returns new arrays without mutating the model. Missing order raises
+    ValueError; inconsistent coefficient traversal raises RuntimeError.
+    """
     if order not in model.coefficients:
         raise ValueError(f"force constants do not contain order {order}")
     block = model.cluster_space.block(order)

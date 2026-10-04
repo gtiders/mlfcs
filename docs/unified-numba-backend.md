@@ -5,28 +5,26 @@ report is preserved. This document describes the implementation contract.
 
 ## Domain and dependency boundaries
 
-`ClusterSpace` is the aggregate for a primitive interaction model. `PrimitiveCell`
-and `PrimitiveSymmetry` retain their validation and read-only arrays. `Supercell`
-owns explicit atoms and a periodic quotient. `ClusterMap`, in `mlfcs.mapping`, is
-the derived relationship between one space and one supercell. One space can have
-multiple maps; no map or training state is stored in the space.
+`ClusterSpace` owns the immutable primitive interaction model and
+`PrimitiveSymmetry`. `ClusterMap` owns one explicit supercell realization and
+the derived quotient, atom and folded-cluster mappings. A space can have many
+maps; neither the space nor its maps retain training structures.
 
 ```text
-ASE/spglib → core domain objects → ClusterSpace
-                                      │
-                     Supercell ────────┤
-                                      ▼
-                                  ClusterMap
-                         ┌────────────┼─────────────┐
-                         ▼            ▼             ▼
-                    ForceDesign  FiniteDifference  TaylorCalculator
-                         ▼            ▼
-                     FitSystem → ForceConstants
+ASE/spglib → ClusterSpace ← ASE supercell atoms
+                    │                │
+                    └──────→ ClusterMap
+                               ├── ForceDesign → FitSystem → ForceConstants
+                               ├── FiniteDifference
+                               └── reciprocal calculations
 ```
 
-Python orchestrates these objects and NumPy/SciPy linear algebra. `backend` prepares
-arrays and admission proofs. `_numba.cluster`, `_numba.exact`, `_numba.mapping` and
-`_numba.design` implement reusable kernels. They import no domain objects.
+Python owns validation, spglib calls, orchestration and NumPy/SciPy linear algebra.
+Numba kernels live beside the domain operation that owns their inputs; they take
+contiguous arrays and scalar metadata, not ASE objects or Python containers. Shared
+periodic geometry lives in `core/geometry.py` and is evaluated in Cartesian coordinates
+after Minkowski reduction. Site matching enumerates images within the declared tolerance
+once; fitting displacements use the separate nearest-image query.
 
 ## Array and safety contract
 
@@ -39,23 +37,23 @@ are read-only; writable caller arrays are copied during normalization.
 The geometry entry first bounds counters by the cutoff/inverse-cell translation
 box. Its neighbor counts give the actual maximum $M$, which tightens the candidate
 bound $N\binom{M+p-2}{p-1}$. Subsequent label, tensor, orbit image, parameter and
-allocation bounds are evaluated with Python integers. These integers describe
-proofs and certificates; they do not perform characteristic-zero elimination.
-`BackendCertificate` carries the result into construction. Exact chart and mapping
-stages have their own admission proofs as their data becomes known.
+allocation bounds are evaluated with Python integers at the stage where those
+values are known. These integers describe local bounds; they do not perform
+characteristic-zero elimination or travel with domain objects.
 
-Compiled arithmetic has no per-operation overflow helpers. Staged denominator
-and numerator checks precede their multiplications. Rank/reconstruction/residual
-certificates remain part of the algorithm.
+Hot loops use int64 arithmetic. Periodic quotient mapping checks each actual
+addition, product and partial sum in its single Numba mapping pass. Staged
+denominator and numerator checks precede their multiplications. Rank,
+reconstruction and residual certificates remain part of the exact algorithm.
 
-`space.prepare()` returns `PreparedClusterSpace`; `mapping.prepare()` returns
-`PreparedClusterMap`. A prepared map can share a caller-provided prepared space.
-Compatible immutable arrays share storage. Quotient lookups are sorted arrays
-with compiled binary search. There is no implicit global mapping cache.
+There are no `PreparedClusterSpace` or `PreparedClusterMap` wrappers. Immutable
+domain arrays are passed directly to numerical consumers. Quotient lookups are
+owned by `ClusterMap` as sorted arrays with compiled binary search. There is no
+implicit global mapping cache.
 
 ## Exact kernel implementation
 
-`exact_kernel(A)` returns an `int64` saturated basis and a `KernelCertificate`.
+`exact_kernel(A)` returns an `int64` saturated basis.
 Signed incidence constraints take the signed union-find path. General matrices
 take a fixed two-prime pivot chart, rational reconstruction, and a composite
 congruence preimage. Independent modular annihilation certificates, with residual
@@ -99,26 +97,23 @@ admission domain, not support for every arbitrary-precision integer matrix.
 ## Public API and persistence
 
 ```python
-space = ClusterSpace.from_atoms(
+space = ClusterSpace(
     primitive_atoms, symprec=1e-5,
     cutoffs={2: 4.0, 3: 3.0}, max_body_orders={2: 2, 3: 3},
 )
-supercell = Supercell.from_atoms(space.primitive, supercell_atoms, matrix=matrix)
-mapping = space.map_to(supercell)
-system = FitSystem.from_atoms(mapping, structures)
-model = system.force_constants(system.solve())
+mapping = ClusterMap(space, supercell_atoms)
+system = FitSystem(mapping, structures)
+model = system.solve()
 ```
 
-`ClusterSpace.build(primitive, ...)` reuses validated domain objects and optionally
-symmetry. These class methods replace the public free function in version 5.
-`ClusterMap` is exported from `mlfcs.mapping` and the package root; `mlfcs.supercell`
-exports `Supercell`. Domain types remain separate. No `MappedClusterSpace` or
-`ClusterModel` wrapper is needed because a map already references both inputs.
+`ClusterSpace` accepts ASE primitive atoms directly. `ClusterMap` infers the
+supercell matrix from its ASE atoms when no matrix is supplied. `ClusterMap` is
+exported from `mlfcs.mapping` and the package root. `PrimitiveCell`, `Supercell`,
+Taylor calculators and the old `prepare()` APIs are not part of the current API.
 
-Native force-constant files use envelope version 2. Version 1 loads are normalized
-into the current immutable/int64 domain. Models preserve their stored physical
-parameterization when loaded. Prepared buffers, workspaces and construction
-certificates are rebuilt rather than saved in the model format.
+Native force-constant files use envelope version 3. Older supported files are
+normalized into the current immutable/int64 domain. Models preserve their stored
+physical parameterization when loaded. Workspaces and JIT caches are not serialized.
 
 `ForceDesign.allocate_workspace()` returns caller-owned scratch. Streaming fitting
 reuses it across snapshots. Concurrent operations must use separate workspaces.
@@ -129,24 +124,14 @@ blocks currently use `prange`, with disjoint parameter columns.
 
 ## Validation and measurement
 
-Tests compare original Python candidate labels/order, tensor contractions, and
-SymPy saturated lattices; optional Rust tests compare representatives, images,
-actions, integer lattices, Cartesian subspaces and folded rank. The 165 recorded
-constraint fixtures cover FC2–FC6, seven crystal systems, Si/Mg, tutorial materials
-and sheared cells. Exact residual, rank and Smith saturation checks cover every
-fixture. Production code imports neither SymPy nor Rust; SymPy is in the reference
-dependency group, and native binaries are excluded from wheels.
+Tests compare original Python candidate labels/order, tensor contractions and
+SymPy saturated lattices. Frozen symmetry and force-design fixtures cover multiple
+orders, structures and sheared cells. Exact residual, rank and saturation checks
+guard the exact algebra path. Production code imports neither SymPy nor Rust;
+SymPy is in the reference dependency group, and native binaries are excluded from
+wheels.
 
-`benchmarks/numba_backend.py` launches isolated processes with empty Numba cache
-directories and records cold/warm build and design timings, one/four threads,
-workspace bytes and process peak RSS (which includes the compiler). It can compare
-an original Python checkout with `--reference-source`. Results are in
-`benchmarks/numba_backend_results.json`; they are workload-specific, not general
-performance guarantees.
-
-On the recorded Si FC2/FC3 workload, the warm single-thread build changed from
-about 130 ms to 34 ms (3.8 times faster). Empty-cache construction changed from
-2.66 s to 14.13 s; compiler-inclusive peak RSS changed from about 271 MiB to
-365 MiB. Warm single-thread force-design time stayed near 7 ms. These measurements
-separate compilation cost from repeated execution; they do not establish a memory
-or speed improvement for every material.
+Performance measurements are workload-specific. Always report cold JIT separately
+from warmed execution, record thread count and peak memory, and compare complete
+construction/design paths as well as individual kernels. A microbenchmark does not
+establish performance for every material.

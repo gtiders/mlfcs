@@ -10,26 +10,59 @@ from numba import njit
 
 from mlfcs._arrays import integer_array, readonly, require_allocation, require_bound
 from mlfcs.algebra.exact import to_python_rows
-from mlfcs.algebra.integer import adjugate_3x3, determinant_3x3, prove_integer_product
+from mlfcs.algebra.integer import adjugate_3x3, determinant_3x3
+from mlfcs.core.geometry import PeriodicGeometry
+
+INT64_MAX = (1 << 63) - 1
 
 
-@njit(cache=True)
-def quotient_kernel(translation, adjugate, modulus):
+@njit(cache=True, inline="always")
+def _quotient_kernel(translation, adjugate, modulus):
+    """Return translation @ adjugate modulo the positive supercell determinant magnitude.
+
+    Translation has shape (3,), adjugate (3, 3), both in the symmetric int64
+    domain. Check every multiplication and running addition before executing
+    it; raise OverflowError even if later cancellation would make the final
+    residue small. Return a new canonical nonnegative int64 quotient label.
+    """
     result = np.zeros(3, dtype=np.int64)
     for j in range(3):
         for k in range(3):
-            result[j] += translation[k] * adjugate[k, j]
+            value, factor = translation[k], adjugate[k, j]
+            if factor != 0 and abs(value) > INT64_MAX // abs(factor):
+                raise OverflowError("periodic quotient intermediate exceeds int64")
+            term = value * factor
+            if term > 0 and result[j] > INT64_MAX - term:
+                raise OverflowError("periodic quotient intermediate exceeds int64")
+            if term < 0 and result[j] < -INT64_MAX - term:
+                raise OverflowError("periodic quotient intermediate exceeds int64")
+            result[j] += term
         result[j] %= modulus
     return result
 
 
 @njit(cache=True)
-def map_labels(labels, translations, adjugate, modulus, keys, atoms):
+def _map_labels_kernel(labels, translations, adjugate, modulus, keys, atoms):
+    """Map every lattice label plus translation to its original supercell atom index.
+
+    Labels are (n, 4), translations (m, 3). Sorted keys are (n_atoms, 4)
+    (site, quotient), and atoms maps sorted rows back to input atom order.
+    Return (n, m) int64 indices. Translation addition and quotient arithmetic
+    are checked in this single compiled path. Missing keys raise ValueError;
+    nonrepresentable intermediates raise OverflowError. Inputs are preserved.
+    """
     result = np.empty((len(labels), len(translations)), dtype=np.int64)
     for i in range(len(labels)):
         for t in range(len(translations)):
-            shift = labels[i, 1:] + translations[t]
-            q = quotient_kernel(shift, adjugate, modulus)
+            shift = np.empty(3, dtype=np.int64)
+            for k in range(3):
+                value, offset = labels[i, k + 1], translations[t, k]
+                if offset > 0 and value > INT64_MAX - offset:
+                    raise OverflowError("translated labels exceed int64")
+                if offset < 0 and value < -INT64_MAX - offset:
+                    raise OverflowError("translated labels exceed int64")
+                shift[k] = value + offset
+            q = _quotient_kernel(shift, adjugate, modulus)
             key = np.empty(4, dtype=np.int64)
             key[0], key[1:] = labels[i, 0], q
             left, right = 0, len(keys)
@@ -55,6 +88,11 @@ def map_labels(labels, translations, adjugate, modulus, keys, atoms):
 
 @dataclass(frozen=True, slots=True)
 class _PeriodicIndex:
+    """Readonly exact quotient lookup for a validated supercell realization.
+
+    Keys are lexicographically sorted (site, qx, qy, qz) rows; atom_indices
+    recovers the external atom ordering. Modulus is abs(det(supercell_matrix)).
+    """
     adjugate: np.ndarray
     modulus: int
     keys: np.ndarray
@@ -64,6 +102,7 @@ class _PeriodicIndex:
 def prepare_periodic_index(supercell):
     # The 3x3 preprocessing uses Python integers before conversion, never an
     # unchecked determinant/adjugate multiplication in a fixed-width array.
+    """Build sorted readonly quotient keys and exact adjugate data from a validated ClusterMap."""
     adjugate = adjugate_3x3(supercell.supercell_matrix)
     modulus = require_bound("supercell quotient modulus", abs(supercell.determinant))
     require_allocation("periodic index keys", (supercell.n_atoms, 4))
@@ -80,7 +119,13 @@ def prepare_periodic_index(supercell):
 
 
 def mapped_labels(labels, translations, prepared):
+    """Normalize label buffers and map their Cartesian product of translations.
 
+    Return int64 atom indices with shape (n_labels, n_translations). Input
+    labels are (site, tx, ty, tz) rows; translations are integer triples.
+    Allocation validation precedes the compiled path, which checks actual
+    addition, product and accumulation operations instead of a global bound.
+    """
     labels, translations = integer_array(labels), integer_array(translations)
     if (
         labels.ndim != 2
@@ -90,20 +135,7 @@ def mapped_labels(labels, translations, prepared):
     ):
         raise ValueError("mapping labels and translations must have shapes (n,4) and (m,3)")
     require_allocation("mapped atoms", (len(labels), len(translations)))
-    # Admission in aggregate form: every per-pair "translated labels" and
-    # "periodic quotient dot product" bound is implied by these componentwise
-    # maxima, so a handful of proven bounds replaces a Python loop over all
-    # label-translation pairs.
-    maxima = np.maximum(
-        np.abs(labels[:, 1:]).max(axis=0), np.abs(translations).max(axis=0)
-    )
-    require_bound("translated labels", int(maxima.max()))
-    for j in range(3):
-        require_bound(
-            "periodic quotient dot product",
-            sum(int(maxima[k]) * abs(int(prepared.adjugate[k, j])) for k in range(3)),
-        )
-    return map_labels(
+    return _map_labels_kernel(
         labels,
         translations,
         prepared.adjugate,
@@ -116,30 +148,41 @@ def mapped_labels(labels, translations, prepared):
 def infer_supercell_matrix(cluster_space, supercell_atoms):
     """Infer the integer supercell matrix from the two lattices.
 
-    Row convention: ``supercell_cell = matrix @ primitive_cell``. The real
-    matrix is rounded to the nearest integers and accepted only when the
-    reconstructed lattice reproduces the supercell cell within the declared
-    ``symprec``.
+    Row convention: ``supercell_cell = matrix @ primitive_cell``. Each
+    supercell lattice vector must match exactly one primitive lattice image
+    within the declared ``symprec``.
     """
+    if not isinstance(supercell_atoms, Atoms):
+        raise TypeError("supercell_atoms must be an ASE Atoms object")
     primitive_cell = np.asarray(cluster_space.cell, dtype=np.float64)
     supercell_cell = np.asarray(supercell_atoms.cell, dtype=np.float64)
-    real = supercell_cell @ np.linalg.inv(primitive_cell)
-    rounded = np.rint(real)
-    if not np.all(np.isfinite(rounded)) or np.any(np.abs(rounded) >= float(1 << 63)):
-        raise OverflowError("inferred supercell matrix cannot enter int64")
-    matrix = rounded.astype(np.int64)
-    residual = float(np.max(np.linalg.norm(matrix @ primitive_cell - supercell_cell, axis=1)))
-    if residual >= cluster_space.symprec:
-        raise ValueError(
-            "the supercell lattice is not an integer transform of the primitive cell; "
-            f"residual {residual:.10g} angstrom is not below symprec "
-            f"{cluster_space.symprec:.10g} angstrom"
-        )
+    if not np.all(np.isfinite(supercell_cell)):
+        raise ValueError("supercell cell must be finite")
+
+    geometry = PeriodicGeometry(primitive_cell)
+    rows = []
+    for vector in supercell_cell:
+        matches, shifts = geometry.matching_images(vector[None, :], tolerance=cluster_space.symprec)
+        if len(matches) != 1:
+            raise ValueError(
+                "the supercell lattice vector must match exactly one primitive lattice "
+                f"image within symprec (found {len(matches)} matches)"
+            )
+        rows.append(tuple(-int(value) for value in shifts[0]))
+    matrix = integer_array(rows, name="inferred supercell matrix")
     return readonly(matrix, np.int64)
 
 
 def supercell_data(cluster_space, atoms, matrix):
-    """Map an external supercell using the primitive symprec."""
+    """Validate a declared supercell and return readonly geometry and lattice addresses.
+
+    matrix uses cell_super = matrix @ cell_primitive, with integer entries and
+    nonzero determinant. Require full PBC, matching atom count and positive
+    masses. Same-species primitive matching uses Cartesian cluster-space
+    symprec; every atom must have exactly one match and a unique periodic key.
+    Preserve external atom order. Invalid geometry/matching raises ValueError;
+    nonrepresentable quotient arithmetic raises OverflowError.
+    """
     if not isinstance(atoms, Atoms):
         raise TypeError("supercell_atoms must be an ASE Atoms object")
     require_allocation("supercell labels", (len(atoms), 3))
@@ -174,34 +217,28 @@ def supercell_data(cluster_space, atoms, matrix):
 
     cartesian = atoms.get_positions()
     primitive_scaled = cartesian @ np.linalg.inv(cluster_space.cell)
+    geometry = PeriodicGeometry(cluster_space.cell)
     sites = np.empty(len(atoms), dtype=np.int64)
     translations = np.empty((len(atoms), 3), dtype=np.int64)
     numbers = integer_array(atoms.numbers, name="supercell atomic numbers")
     for atom, (number, position) in enumerate(zip(numbers, primitive_scaled, strict=True)):
         candidates = np.flatnonzero(cluster_space.atomic_numbers == number)
-        differences = position - cluster_space.scaled_positions[candidates]
-        rounded = np.rint(differences)
-        if not np.all(np.isfinite(rounded)) or np.any(np.abs(rounded) >= float(1 << 63)):
-            raise OverflowError("supercell translations cannot enter int64")
-        shifts = rounded.astype(np.int64)
-        distances = np.linalg.norm((differences - shifts) @ cluster_space.cell, axis=1)
-        matches = np.flatnonzero(distances < cluster_space.symprec)
+        differences = (position - cluster_space.scaled_positions[candidates]) @ cluster_space.cell
+        matches, matched_shifts = geometry.matching_images(
+            differences, tolerance=cluster_space.symprec
+        )
         if len(matches) != 1:
-            nearest = float(np.min(distances)) if distances.size else float("inf")
             raise ValueError(
-                f"supercell atom {atom} has {len(matches)} primitive matches below "
-                f"symprec; nearest residual is {nearest:.10g} angstrom"
+                f"supercell atom {atom} has {len(matches)} primitive matches below symprec"
             )
-        match = int(matches[0])
-        sites[atom] = int(candidates[match])
-        translations[atom] = shifts[match]
+        sites[atom] = int(candidates[matches[0]])
+        translations[atom] = -matched_shifts[0]
 
     adjugate = adjugate_3x3(rows)
     modulus = abs(determinant)
     quotients = np.empty((len(atoms), 3), dtype=np.int64)
-    prove_integer_product(translations, adjugate)
     for atom, translation in enumerate(translations):
-        quotients[atom] = quotient_kernel(translation, adjugate, modulus)
+        quotients[atom] = _quotient_kernel(translation, adjugate, modulus)
     keys = [
         (int(site), *(int(value) for value in quotient))
         for site, quotient in zip(sites, quotients, strict=True)

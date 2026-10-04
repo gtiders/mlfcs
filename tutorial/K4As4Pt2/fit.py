@@ -8,7 +8,6 @@ from ase.io import iread, read
 from ase.units import Bohr
 
 from mlfcs import ClusterMap, ClusterSpace, FitSystem
-from mlfcs.core.log import configure
 
 ROOT = Path(__file__).resolve().parent
 CUTOFFS = {2: 6.5, 3: 12 * Bohr, 4: 8 * Bohr}
@@ -22,8 +21,8 @@ def fit():
         max_body_orders=MAX_BODY_ORDERS,
     )
     mapping = ClusterMap(space, read(ROOT / "supercell.vasp"))
-    system = FitSystem.from_atoms(mapping, iread(ROOT / "train.extxyz", index=":"))
-    model = system.force_constants(system.solve(rtol=1e-8, max_steps=10_000))
+    system = FitSystem(mapping, iread(ROOT / "train.extxyz", index=":"))
+    model = system.solve(rtol=1e-8, maxiter=10_000)
     model = model.enforce_asr().force_constants
     model.save(ROOT / "fc-fit.mlfcs")
     model.write(
@@ -39,7 +38,6 @@ def fit():
 
 def main():
     with (ROOT / "fit.log").open("w", encoding="utf-8") as log:
-        configure(stream=log)
         try:
             with redirect_stdout(log), redirect_stderr(log):
                 fit()

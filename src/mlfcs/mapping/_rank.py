@@ -13,7 +13,13 @@ from mlfcs.errors import AliasingError
 
 @dataclass(frozen=True, slots=True)
 class RankInfo:
-    """Exact structural rank of a cluster map."""
+    """Exact folded structural rank, independent of training snapshots.
+
+    parameters counts primitive parameter columns; rank is their rational rank
+    under supercell folding. aliases counts excess images sharing atom tuples,
+    which is not necessarily equal to nullity. No numerical rank tolerance or
+    training-data conditioning estimate is represented.
+    """
 
     parameters: int
     rank: int
@@ -21,10 +27,12 @@ class RankInfo:
 
     @property
     def nullity(self) -> int:
+        """Number of primitive parameters lost by supercell folding."""
         return self.parameters - self.rank
 
     @property
     def full(self) -> bool:
+        """Whether folding preserves every primitive parameter direction."""
         return self.rank == self.parameters
 
     def require_full(self) -> None:
@@ -67,6 +75,7 @@ def folded_rank(cluster_space, image_atom_indices, order=None):
     parents = {index: index for index in orbit_indices}
 
     def root(index):
+        """Find the current orbit-component representative without path compression."""
         while parents[index] != index:
             index = parents[index]
         return index
@@ -127,6 +136,12 @@ def folded_rank(cluster_space, image_atom_indices, order=None):
 
 @njit(cache=True)
 def accumulate_folded(out, basis, row_start, column_start):
+    """Add a tensor basis into an int64 folded matrix block in place.
+
+    basis has shape (3**p, orbit_dimension), with admitted row/column offsets.
+    folded_rank validates the sum of per-image action bounds for each shared
+    atom tuple/orbit before entry. No integer kernel or transform is constructed.
+    """
     for i in range(basis.shape[0]):
         for j in range(basis.shape[1]):
             out[row_start + i, column_start + j] += basis[i, j]

@@ -57,6 +57,8 @@ def _exact_int(value, position: tuple[int, int]) -> int:
 
 
 def _matrix(matrix):
+    """Normalize a two-dimensional exact matrix to readonly int64; an empty sequence becomes (0, 0).
+    """
     array = np.asarray(matrix)
     if array.ndim == 1 and array.size == 0:
         array = np.empty((0, 0), dtype=np.int64)
@@ -66,6 +68,9 @@ def _matrix(matrix):
 
 
 def _is_prime(n):
+    """Test candidates from the bounded rank-prime stream by small-prime division and Miller-Rabin
+    bases.
+    """
     if n < 2:
         return False
     for p in (2, 3, 5, 7, 11):
@@ -89,6 +94,7 @@ def _is_prime(n):
 
 
 def prime_stream():
+    """Yield fixed reconstruction primes, then descending smaller primes for exact certificates."""
     yield from RANK_PRIMES
     candidate = RANK_PRIMES[-1] - 2
     while candidate >= 3:
@@ -99,6 +105,12 @@ def prime_stream():
 
 
 def hadamard_bound(matrix, size):
+    """Return a conservative Python-integer bound for minors of the requested size.
+
+    Uses the product of the largest ceil-like row Euclidean norms; size <= 0
+    returns one. Arbitrary precision is confined to this admission/certificate
+    calculation, not production elimination.
+    """
     if size <= 0:
         return 1
     rows = to_python_rows(matrix)
@@ -107,6 +119,32 @@ def hadamard_bound(matrix, size):
 
 
 def certified_pivots(matrix):
+    """Return exact rank and independent original row/column indices.
+
+    Parameters
+    ----------
+    matrix : array_like, shape (m, n)
+        Declared integers in the symmetric int64 domain.
+
+    Returns
+    -------
+    rank : int
+        Rank over the rationals, certified without a floating-point tolerance.
+    rows, columns : ndarray of int64, shape (rank,)
+        Original indices defining a nonsingular pivot minor at a tested prime.
+
+    Raises
+    ------
+    RankCertificateError
+        Available primes do not certify the rank.
+
+    Notes
+    -----
+    Modular rank gives a lower bound. Full rank certifies itself; otherwise
+    accumulated distinct primes exceeding a Hadamard minor bound certify that
+    all larger minors vanish. Primes do not exceed the modular word limit.
+    Returned index buffers are not explicitly marked readonly.
+    """
     a = _matrix(matrix)
     target = min(a.shape)
     if target == 0:
@@ -121,16 +159,27 @@ def certified_pivots(matrix):
         if len(picked_columns) > best:
             best, rows, columns = len(picked_columns), picked_rows, picked_columns
         product *= prime
+        # Full rank has a nonzero modular witness. Otherwise every larger
+        # minor vanishes at all tested primes, whose product exceeds its bound.
         if best == target or product > bound:
             return best, rows, columns
     raise RankCertificateError("prime stream exhausted before exact rank certification")
 
 
 def exact_rank(matrix):
+    """Return the rational rank certified by modular pivots and exact minor bounds."""
     return certified_pivots(matrix)[0]
 
 
 def verify_kernel(matrix, basis):
+    """Certify A @ B == 0 by modular products without characteristic-zero multiplication.
+
+    A has shape (m, n), B (n, d), with exact int64 entries. Reduce products at
+    each step; a nonzero residue raises ValueError. Once the product of tested
+    primes exceeds n*max(abs(A))*max(abs(B)), zero residues prove exact zero.
+    This verifies annihilation only, not independence or lattice saturation.
+    Prime exhaustion raises RankCertificateError; inputs are not modified.
+    """
     a, b = _matrix(matrix), _matrix(basis)
     if a.shape[1] != b.shape[0]:
         raise ValueError("kernel basis has incompatible row count")
@@ -148,7 +197,40 @@ def verify_kernel(matrix, basis):
 
 
 def exact_kernel(matrix, *, expected_nullity=None):
-    """Return a readonly saturated int64 kernel basis after local validation."""
+    """Return a readonly saturated integer kernel basis in the admitted int64 domain.
+
+    Parameters
+    ----------
+    matrix : array_like, shape (m, n)
+        Declared exact integers, excluding INT64_MIN.
+    expected_nullity : int, optional
+        Required kernel dimension; mismatches reject the selected chart.
+
+    Returns
+    -------
+    basis : ndarray of int64, shape (n, nullity)
+        Columns generate all integer solutions of matrix @ x == 0, not merely
+        a finite-index sublattice. Generator orientation is not canonical.
+
+    Raises
+    ------
+    ValueError
+        Input or expected signed-kernel dimension is invalid.
+    RankCertificateError
+        The chosen modular chart fails its pivot/rank conditions.
+    OverflowError
+        Allocation or bounded chart reconstruction cannot be certified.
+
+    Notes
+    -----
+    Signed incidence rows use a component basis. Other matrices use two-prime
+    pivot charts and bounded rational reconstruction. Free coordinates z must
+    satisfy F @ z == 0 modulo delta; a column-HNF preimage basis H yields
+    (-F @ H / delta, H), with coordinates restored to original column order.
+    Exact modular checks certify annihilation. Local checks admit denominator,
+    scaled chart entries and quotient accumulators before compiled saturation.
+    There is no arbitrary-precision elimination fallback.
+    """
     a = _matrix(matrix)
     n = a.shape[1]
     require_allocation("signed component workspace", (n,))
@@ -168,6 +250,8 @@ def exact_kernel(matrix, *, expected_nullity=None):
     pivot_set = {int(j) for j in pivots}
     free = np.asarray([j for j in range(n) if j not in pivot_set], dtype=np.int64)
     order = np.concatenate((pivots, free))
+    # A single pivot chart must work at both reconstruction primes; choosing
+    # separate pivot coordinates would make the residues incomparable.
     selected = np.ascontiguousarray(a[rows][:, order])
     charts = [_modular.chart(selected, rank, p) for p in RANK_PRIMES]
     if not all(ok for _, ok in charts):
@@ -199,6 +283,8 @@ def exact_kernel(matrix, *, expected_nullity=None):
             verify_kernel(a, rational)
         except ValueError:
             continue
+        # Clearing denominators alone gives a possibly proper sublattice.
+        # The congruence preimage recovers every admissible integer free vector.
         h = _congruence.congruence_preimage(f, delta)
         lifted = _congruence.lift_kernel(f, delta, h)
         result = np.empty((n, d), dtype=np.int64)

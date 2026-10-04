@@ -10,7 +10,7 @@
 
 ## 可以使用 MACE 或其他 ASE calculator 吗？
 
-可以。MLFCS 不拥有 calculator。只要支持输入结构中的元素和条件，任意 ASE 兼容 calculator 都可用于 `fd.evaluate(calculator)`。拟合时则先用所选 calculator 计算力，再将 ASE 结构交给 `FitSystem.from_atoms`。
+可以。MLFCS 不拥有 calculator。只要支持输入结构中的元素和条件，任意 ASE 兼容 calculator 都可用于 `fd.evaluate(calculator)`。拟合时则先用所选 calculator 计算力，再将 ASE 结构交给 `FitSystem`。
 
 ## 为什么有限差分输入必须保持顺序？
 
@@ -26,7 +26,7 @@
 
 ## 拟合过程会计算力吗？
 
-不会。`FitSystem.from_atoms` 只读取 ASE `Atoms` 上已经保存的力，不调用附带的 calculator。这样力的产生始终由用户控制，也适用于外部电子结构或机器学习势计算。
+不会。`FitSystem` 只读取 ASE `Atoms` 上已经保存的力，不调用附带的 calculator。这样力的产生始终由用户控制，也适用于外部电子结构或机器学习势计算。
 
 ## 参考超胞起什么作用？
 

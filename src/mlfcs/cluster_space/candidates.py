@@ -10,6 +10,12 @@ from mlfcs._arrays import INTP_MAX, readonly, require_allocation, require_bound
 
 
 def neighbor_translation_bounds(cell, cutoff):
+    """Return integer traversal half-widths from cutoff and inverse row-cell geometry.
+
+    Wrapped fractional site differences are less than one per axis, so each
+    width is ceil(cutoff * norm(inv(cell)[:, j]) + 1). Reject nonfinite widths
+    or int64 traversal sizes before constructing neighbor loops.
+    """
     radii = cutoff * np.linalg.norm(np.linalg.inv(cell), axis=0) + 1.0
     if not np.all(np.isfinite(radii)):
         raise OverflowError("neighbor translation bounds are not finite")
@@ -83,6 +89,13 @@ def _candidate_labels(cell, scaled_positions, *, order, cutoff, max_body_order):
 
 @njit(cache=True, inline="always")
 def _neighbors(positions, cell, bounds, cutoff, offsets, labels, points, fill, limit=0):
+    """Count or fill anchor-grouped periodic neighbors strictly inside the cutoff.
+
+    Inputs use wrapped fractional positions (N, 3), row cell vectors (3, 3),
+    and admitted int64 half-widths (3,). Mutates offsets (N+1,). Fill mode also
+    writes labels (total, 4) and Cartesian points (total, 3). Count mode returns
+    -1 at the allocation limit; fill mode relies on that preceding exact count.
+    """
     total = 0
     for anchor in range(len(positions)):
         offsets[anchor] = total
@@ -114,6 +127,13 @@ def _neighbors(positions, cell, bounds, cutoff, offsets, labels, points, fill, l
 
 @njit(cache=True, inline="always")
 def _candidates(labels, offsets, points, order, body_order, cutoff, counts, output, fill, limit=0):
+    """Enumerate nondecreasing neighbor combinations with repetition for each anchor.
+
+    Every selected pair must lie strictly inside cutoff; body_order counts
+    unique (site, translation) labels including the anchor. Mutates per-anchor
+    counts. Fill mode writes (total, order, 4) labels; count mode returns -1
+    before exceeding limit. Output allocation must match the preceding count.
+    """
     total = 0
     for anchor in range(len(offsets) - 1):
         selected = np.zeros(order - 1, dtype=np.int64)
@@ -172,11 +192,13 @@ def _candidates(labels, offsets, points, order, body_order, cutoff, counts, outp
 
 @njit(cache=True)
 def _count_neighbors(positions, cell, bounds, cutoff, offsets, labels, points, limit):
+    """Run the neighbor traversal in sizing mode, updating offsets and respecting limit."""
     return _neighbors(positions, cell, bounds, cutoff, offsets, labels, points, False, limit)
 
 
 @njit(cache=True)
 def _fill_neighbors(positions, cell, bounds, cutoff, offsets, labels, points):
+    """Fill pre-sized neighbor labels and Cartesian points, updating anchor offsets."""
     return _neighbors(positions, cell, bounds, cutoff, offsets, labels, points, True, 0)
 
 
@@ -189,6 +211,8 @@ def neighbors(positions, cell, bounds, cutoff, offsets, labels, points, fill, li
 
 @njit(cache=True)
 def _count_candidates(labels, offsets, points, order, body_order, cutoff, counts, output, limit):
+    """Size actual retained candidates and per-anchor counts, returning -1 on capacity exhaustion.
+    """
     return _candidates(
         labels, offsets, points, order, body_order, cutoff, counts, output, False, limit
     )
@@ -196,6 +220,7 @@ def _count_candidates(labels, offsets, points, order, body_order, cutoff, counts
 
 @njit(cache=True)
 def _fill_candidates(labels, offsets, points, order, body_order, cutoff, counts, output):
+    """Fill the admitted candidate buffer with the same traversal used for sizing."""
     return _candidates(labels, offsets, points, order, body_order, cutoff, counts, output, True, 0)
 
 

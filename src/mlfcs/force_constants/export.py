@@ -46,7 +46,13 @@ def compact(
     *,
     threshold: float,
 ) -> np.ndarray:
-    """Return primitive-first force constants folded into ``mapping``."""
+    """Return primitive-first Cartesian tensors folded into the target supercell.
+
+    Output shape is (N_primitive, N_super, ..., N_super, 3, ..., 3), with order
+    atom and Cartesian axes. Image aliases accumulate before components below
+    threshold are zeroed. Output is a new writable float64 array in physical
+    units; the primitive model and mapping remain unchanged.
+    """
     validate(model, cluster_map, order)
     expanded = expand(model, order)
     supercell = cluster_map

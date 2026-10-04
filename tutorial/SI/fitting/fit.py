@@ -9,7 +9,6 @@ from pathlib import Path
 from ase.io import iread, read
 
 from mlfcs import ClusterMap, ClusterSpace, FitSystem, ForceConstants
-from mlfcs.core.log import configure
 
 ROOT = Path(__file__).resolve().parent
 # 正的绝对截断(Å),对应远程负壳语义 {2: -7, 3: -6, 4: -3, 5: -2} 的解析值;
@@ -32,9 +31,9 @@ def fit() -> None:
         rank = mapping.rank_info(order)
         rank.require_full()
 
-    system = FitSystem.from_atoms(mapping, iread(ROOT / "train.xyz", index=":"))
-    parameters = system.solve(rtol=SOLVER_RTOL, max_steps=SOLVER_MAX_STEPS)
-    system.force_constants(parameters).save(MODEL_FILE)
+    system = FitSystem(mapping, iread(ROOT / "train.xyz", index=":"))
+    model = system.solve(rtol=SOLVER_RTOL, maxiter=SOLVER_MAX_STEPS)
+    model.save(MODEL_FILE)
     model = ForceConstants.load(MODEL_FILE)
     projection = model.enforce_asr()
     model = projection.force_constants
@@ -63,7 +62,6 @@ def fit() -> None:
 
 def main() -> None:
     with (ROOT / "fit.log").open("w", encoding="utf-8") as log:
-        configure(stream=log)
         try:
             with redirect_stdout(log), redirect_stderr(log):
                 fit()

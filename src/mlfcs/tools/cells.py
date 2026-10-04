@@ -41,6 +41,9 @@ def _matrix(values: object) -> np.ndarray:
 
 
 def _determinant(matrix: np.ndarray) -> int:
+    """Compute a 3x3 determinant with Python-integer intermediates, without fixed-width
+    cancellation.
+    """
     a, b, c = (int(value) for value in matrix[0])
     d, e, f = (int(value) for value in matrix[1])
     g, h, i = (int(value) for value in matrix[2])
