@@ -1,4 +1,4 @@
-"""Two-pass enumeration with bounded sizing and unchecked fill loops."""
+"""Periodic neighbors and candidate clusters constructed in count and fill passes."""
 
 import math
 import operator
@@ -25,7 +25,7 @@ def neighbor_translation_bounds(cell, cutoff):
     return bounds
 
 
-def _candidate_labels(cell, scaled_positions, *, order, cutoff, max_body_order):
+def enumerate_candidate_labels(cell, scaled_positions, *, order, cutoff, max_body_order):
     """Validate and size actual outputs immediately before their fill passes."""
     order, max_body_order = operator.index(order), operator.index(max_body_order)
     cutoff = float(cutoff)
@@ -47,7 +47,7 @@ def _candidate_labels(cell, scaled_positions, *, order, cutoff, max_body_order):
     bounds = np.asarray(neighbor_translation_bounds(cell, cutoff), dtype=np.int64)
     require_allocation("neighbor offsets", (len(scaled_positions) + 1,))
     offsets = np.zeros(len(scaled_positions) + 1, dtype=np.int64)
-    count = neighbors(
+    count = _count_neighbors(
         scaled_positions,
         cell,
         bounds,
@@ -55,7 +55,6 @@ def _candidate_labels(cell, scaled_positions, *, order, cutoff, max_body_order):
         offsets,
         np.empty((0, 4), dtype=np.int64),
         np.empty((0, 3)),
-        False,
         INTP_MAX // 32,
     )
     if count < 0:
@@ -64,10 +63,10 @@ def _candidate_labels(cell, scaled_positions, *, order, cutoff, max_body_order):
     require_allocation("neighbor points", (count, 3))
     labels = np.empty((count, 4), dtype=np.int64)
     points = np.empty((count, 3), dtype=np.float64)
-    neighbors(scaled_positions, cell, bounds, cutoff, offsets, labels, points, True)
+    _fill_neighbors(scaled_positions, cell, bounds, cutoff, offsets, labels, points)
     counts = np.zeros(len(scaled_positions), dtype=np.int64)
     output = np.empty((0, order, 4), dtype=np.int64)
-    count = candidates(
+    count = _count_candidates(
         labels,
         offsets,
         points,
@@ -76,14 +75,13 @@ def _candidate_labels(cell, scaled_positions, *, order, cutoff, max_body_order):
         cutoff,
         counts,
         output,
-        False,
         INTP_MAX // (order * 4 * 8),
     )
     if count < 0:
         raise OverflowError("actual candidate labels exceed representable allocation capacity")
     require_allocation("candidate labels", (count, order, 4))
     output = np.empty((count, order, 4), dtype=np.int64)
-    candidates(labels, offsets, points, order, max_body_order, cutoff, counts, output, True)
+    _fill_candidates(labels, offsets, points, order, max_body_order, cutoff, counts, output)
     return output
 
 
@@ -94,7 +92,7 @@ def _neighbors(positions, cell, bounds, cutoff, offsets, labels, points, fill, l
     Inputs use wrapped fractional positions (N, 3), row cell vectors (3, 3),
     and admitted int64 half-widths (3,). Mutates offsets (N+1,). Fill mode also
     writes labels (total, 4) and Cartesian points (total, 3). Count mode returns
-    -1 at the allocation limit; fill mode relies on that preceding exact count.
+    -1 at the allocation limit; fill mode relies on that preceding count.
     """
     total = 0
     for anchor in range(len(positions)):
@@ -202,17 +200,8 @@ def _fill_neighbors(positions, cell, bounds, cutoff, offsets, labels, points):
     return _neighbors(positions, cell, bounds, cutoff, offsets, labels, points, True, 0)
 
 
-def neighbors(positions, cell, bounds, cutoff, offsets, labels, points, fill, limit=0):
-    """Select the sizing/fill entry once, outside the compiled traversal."""
-    if fill:
-        return _fill_neighbors(positions, cell, bounds, cutoff, offsets, labels, points)
-    return _count_neighbors(positions, cell, bounds, cutoff, offsets, labels, points, limit)
-
-
-@njit(cache=True)
 def _count_candidates(labels, offsets, points, order, body_order, cutoff, counts, output, limit):
-    """Size actual retained candidates and per-anchor counts, returning -1 on capacity exhaustion.
-    """
+    """Size actual retained candidates and per-anchor counts, returning -1 on capacity exhaustion."""
     return _candidates(
         labels, offsets, points, order, body_order, cutoff, counts, output, False, limit
     )
@@ -222,12 +211,3 @@ def _count_candidates(labels, offsets, points, order, body_order, cutoff, counts
 def _fill_candidates(labels, offsets, points, order, body_order, cutoff, counts, output):
     """Fill the admitted candidate buffer with the same traversal used for sizing."""
     return _candidates(labels, offsets, points, order, body_order, cutoff, counts, output, True, 0)
-
-
-def candidates(labels, offsets, points, order, body_order, cutoff, counts, output, fill, limit=0):
-    """One shared algorithm, compiled with a constant mode at each entry."""
-    if fill:
-        return _fill_candidates(labels, offsets, points, order, body_order, cutoff, counts, output)
-    return _count_candidates(
-        labels, offsets, points, order, body_order, cutoff, counts, output, limit
-    )

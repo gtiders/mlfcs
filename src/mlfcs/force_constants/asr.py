@@ -10,10 +10,10 @@ import numpy as np
 from scipy import sparse
 from scipy.sparse.linalg import lsmr
 
-from mlfcs.core.log import get_logger
 from mlfcs.errors import ConstraintProjectionError
-from mlfcs.force_constants.acoustic import constraint_matrix, relative_residual
+from mlfcs.force_constants.acoustic import acoustic_constraint_matrix, relative_residual
 from mlfcs.force_constants.model import ForceConstants
+from mlfcs.log import get_logger
 
 logger = get_logger(__name__)
 
@@ -170,7 +170,7 @@ def enforce_asr(
     logger.info("ASR projection started: orders=%s rtol=%.3g", selected, rtol)
     reports = []
     for order in selected:
-        matrix = constraint_matrix(model, order)
+        matrix = acoustic_constraint_matrix(model.cluster_space, order)
         projected, report = _project(
             order,
             matrix,

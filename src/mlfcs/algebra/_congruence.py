@@ -3,7 +3,7 @@
 import numpy as np
 from numba import njit
 
-from mlfcs.algebra.integer import bezout
+from mlfcs.algebra.matrix import bezout
 
 
 @njit(cache=True)

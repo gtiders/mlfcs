@@ -91,8 +91,6 @@ def _fit() -> None:
         "column_scale": "1 / sqrt(diag(FitSystem.normal_matrix))",
         "solver_rtol": SOLVER_RTOL,
         "solver_max_steps": SOLVER_MAX_STEPS,
-        "fit_system_fingerprint": fit_system.fingerprint,
-        "force_constants_fingerprint": force_constants.fingerprint,
         "training_force_rmse_before_asr_eV_per_angstrom": fit_system.rmse(parameters),
         "training_relative_force_error_before_asr": fit_system.relative_error(parameters),
         "training_force_rmse_after_asr_eV_per_angstrom": fit_system.rmse(projected_parameters),

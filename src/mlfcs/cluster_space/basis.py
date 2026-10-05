@@ -1,4 +1,4 @@
-"""Exact invariant bases and Cartesian component parameterization."""
+"""Stabilizer invariant bases and Cartesian component parameterization."""
 
 from __future__ import annotations
 
@@ -8,9 +8,9 @@ import numpy as np
 from numba import njit
 from scipy.linalg import qr
 
-from mlfcs._arrays import integer_array, require_allocation
-from mlfcs.algebra.exact import exact_kernel
-from mlfcs.core.tensors import _tensor_action, prove_tensor_action, tensor_dimension
+from mlfcs._arrays import as_int64_array, require_allocation
+from mlfcs.algebra.linear import kernel_basis
+from mlfcs.tensors import apply_tensor_action, tensor_dimension, validate_tensor_action
 
 
 def _label_symmetric_basis(labels: Sequence[object]) -> np.ndarray:
@@ -23,15 +23,15 @@ def _label_symmetric_basis(labels: Sequence[object]) -> np.ndarray:
     return label_basis(equal)
 
 
-def _invariant_basis(
+def compute_invariant_basis(
     labels: Sequence[object],
     stabilizers: Sequence[tuple[np.ndarray, tuple[int, ...]]],
 ) -> np.ndarray:
     """Return a saturated int64 basis of the stabilizer invariant space."""
     label_basis = _label_symmetric_basis(labels)
     if stabilizers:
-        rotations = integer_array([rotation for rotation, _ in stabilizers])
-        permutations = integer_array([permutation for _, permutation in stabilizers])
+        rotations = as_int64_array([rotation for rotation, _ in stabilizers])
+        permutations = as_int64_array([permutation for _, permutation in stabilizers])
         if rotations.shape != (len(stabilizers), 3, 3) or permutations.shape != (
             len(stabilizers),
             len(labels),
@@ -40,7 +40,7 @@ def _invariant_basis(
         if not np.all(np.sort(permutations, axis=1) == np.arange(len(labels))):
             raise ValueError("stabilizer axes must be permutations")
         for rotation in rotations:
-            prove_tensor_action(rotation, len(labels), subtraction=1)
+            validate_tensor_action(rotation, len(labels), subtraction=1)
         require_allocation(
             "invariant constraints", (len(stabilizers) * label_basis.shape[0], label_basis.shape[1])
         )
@@ -48,7 +48,7 @@ def _invariant_basis(
     else:
         constraints = np.empty((0, label_basis.shape[1]), dtype=np.int64)
     constraints = np.unique(constraints, axis=0)
-    kernel = exact_kernel(constraints)
+    kernel = kernel_basis(constraints)
     # Each label-basis row selects exactly one column; this avoids an
     # unnecessary integer dot product and its coefficient-growth bound.
     result = kernel[np.argmax(label_basis, axis=1)]
@@ -104,7 +104,7 @@ def invariant_constraints(seed, rotations, permutations):
     rows, columns = seed.shape
     result = np.empty((len(rotations) * rows, columns), dtype=np.int64)
     for operation in range(len(rotations)):
-        transformed = _tensor_action(seed, rotations[operation], permutations[operation])
+        transformed = apply_tensor_action(seed, rotations[operation], permutations[operation])
         for i in range(rows):
             for j in range(columns):
                 result[operation * rows + i, j] = transformed[i, j] - seed[i, j]
@@ -156,7 +156,7 @@ def select_observation_rows(orthonormal: np.ndarray) -> np.ndarray:
                 best_score = score
                 best_row = row
         if best_row < 0 or not best_score > 0.0:
-            raise ValueError("Cartesian invariant subspace lost its certified dimension")
+            raise ValueError("Cartesian invariant subspace lost its expected dimension")
         selected[column] = best_row
         available[best_row] = 0
         inverse_norm = 1.0 / np.sqrt(best_score)

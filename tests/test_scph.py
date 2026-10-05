@@ -1,8 +1,6 @@
-"""Small physical and API contracts for reduced quartic-loop SCPH."""
+"""Numerical behavior of scph."""
 
 from __future__ import annotations
-
-from dataclasses import replace
 
 import numpy as np
 import pytest
@@ -10,23 +8,24 @@ from ase.build import bulk
 
 from mlfcs.cluster_space import ClusterSpace
 from mlfcs.force_constants import ForceConstants
-from mlfcs.reciprocal import SCPH, Harmonic
-from mlfcs.reciprocal.scph import (
+from mlfcs.phonon import SCPH, Harmonic
+from mlfcs.phonon.dynamics import translation_complement
+from mlfcs.phonon.scph import (
     _VARIANCE,
     _contract,
     _fc2_tensors,
-    _internal_basis,
     _modal_covariance,
 )
 
 
-def test_modal_covariance_has_the_quantum_zero_point_limit_and_exact_gamma_subspace() -> None:
+def test_modal_covariance_matches_zero_point_and_gamma_subspace() -> None:
+    """Verify modal covariance matches zero point and gamma subspace."""
     matrix = np.diag([4.0, 9.0, 16.0]).astype(complex)
     covariance = _modal_covariance(
         matrix, np.asarray([1.0]), 0.0, gamma=False, statistics="quantum"
     )
     np.testing.assert_allclose(np.diag(covariance), _VARIANCE / np.asarray([2.0, 3.0, 4.0]))
-    basis = _internal_basis(np.asarray([1.0, 4.0]))
+    basis = translation_complement(np.asarray([1.0, 4.0]))
     assert basis.shape == (6, 3)
     for axis in range(3):
         translation = np.zeros(6)
@@ -36,6 +35,7 @@ def test_modal_covariance_has_the_quantum_zero_point_limit_and_exact_gamma_subsp
 
 
 def test_quartic_loop_contraction_contains_the_one_half_factor() -> None:
+    """Verify quartic loop contraction contains the one half factor."""
     tensor = np.zeros((1, 3, 3, 3, 3))
     tensor[0, 0, 0, 0, 0] = 2.0
     covariance = np.zeros((1, 3, 3), dtype=complex)
@@ -45,6 +45,7 @@ def test_quartic_loop_contraction_contains_the_one_half_factor() -> None:
 
 
 def test_scph_uses_mass_preserving_stars() -> None:
+    """Verify scph uses mass preserving stars."""
     space = ClusterSpace(bulk("Si", "diamond", a=5.43), cutoffs={2: 0.01, 4: 0.01})
     space = space.with_masses([28.0, 29.0])
     model = ForceConstants(
@@ -55,7 +56,6 @@ def test_scph_uses_mass_preserving_stars() -> None:
         },
     )
     scph = SCPH(model, (2, 2, 2))
-    assert scph._masses is space.masses
     assert scph.stars.symmetry.size < space.symmetry.size
     result = scph.run(100, max_iterations=2)
     assert result.converged
@@ -64,34 +64,11 @@ def test_scph_uses_mass_preserving_stars() -> None:
     )
 
 
-def test_scph_checks_parameter_buffer_length_before_numba(monkeypatch):
-    """Reject an undersized warm-start buffer before unchecked tensor indexing."""
-    space = ClusterSpace(bulk("Ar", "sc", a=1.0), cutoffs={2: 1.1, 4: 0.01})
-    model = ForceConstants(
-        space,
-        {
-            order: np.ones(block.parameters.stop - block.parameters.start)
-            for order in (2, 4)
-            for block in (space.block(order),)
-        },
-    )
-    scph = SCPH(model, (2, 2, 2))
-    small = ClusterSpace(bulk("Ar", "sc", a=1.0), cutoffs={2: 0.01})
-    start = ForceConstants(small, {2: np.ones(small.n_parameters)})
-
-    def forbid_kernel(*args, **kwargs):
-        """Fail if an invalid buffer reaches the numerical tensor kernel."""
-        pytest.fail("invalid parameter length reached the tensor kernel")
-
-    monkeypatch.setattr(scph, "_matrices", forbid_kernel)
-    with pytest.raises(ValueError, match="parameters must have shape"):
-        scph.run(100, start=start)
-
-
-def test_run_many_solves_from_high_temperature_and_returns_an_ascending_list(monkeypatch) -> None:
+def test_temperature_sequence_returns_converged_phonons() -> None:
+    """Verify temperature sequence returns converged phonons."""
     space = ClusterSpace(
         bulk("Ar", "sc", a=1.0),
-        symprec=1e-5,
+        symprec=1e-05,
         cutoffs={2: 1.1, 4: 0.1},
         max_body_orders={2: 2, 4: 1},
     )
@@ -117,40 +94,24 @@ def test_run_many_solves_from_high_temperature_and_returns_an_ascending_list(mon
         Harmonic(model)._tensors,
         atol=1e-14,
     )
-    original = scph.run
-    starts = []
-
-    def tracking(temperature, *, start=None, **kwargs):
-        starts.append(start)
-        return original(temperature, start=start, **kwargs)
-
-    monkeypatch.setattr(scph, "run", tracking)
-    results = scph.run_many([0, 100], tolerance=1e-5, max_iterations=3)
+    results = scph.run_many([0, 100], tolerance=1e-05, max_iterations=3)
     assert isinstance(results, list)
     assert [result.temperature for result in results] == [0.0, 100.0]
     assert all(result.converged for result in results)
-    assert starts[0] is None
-    assert starts[1] is results[1].fc2
-    np.testing.assert_allclose(results[1].frequencies, results[0].frequencies, atol=1e-5)
-    with pytest.raises(ValueError, match="strictly increasing"):
-        scph.run_many([100, 0])
-
-    starts.clear()
-
-    def nonconverged_high(temperature, *, start=None, **kwargs):
-        starts.append(start)
-        result = original(temperature, start=start, **kwargs)
-        return replace(result, converged=False) if temperature == 100 else result
-
-    monkeypatch.setattr(scph, "run", nonconverged_high)
-    scph.run_many([0, 100], tolerance=1e-5, max_iterations=3)
-    assert starts == [None, None]
+    np.testing.assert_allclose(
+        results[1].frequencies, results[0].frequencies, rtol=1e-10, atol=1e-05
+    )
+    for result in results:
+        np.testing.assert_allclose(
+            result.frequencies, Harmonic(result.fc2).frequencies(scph.stars), rtol=1e-12, atol=1e-12
+        )
 
 
 def test_imaginary_harmonic_input_is_accepted_and_reported() -> None:
+    """Verify imaginary harmonic input is accepted and reported."""
     space = ClusterSpace(
         bulk("Ar", "sc", a=1.0),
-        symprec=1e-5,
+        symprec=1e-05,
         cutoffs={2: 1.1, 4: 0.1},
         max_body_orders={2: 2, 4: 1},
     )

@@ -16,7 +16,7 @@ from ase.data import chemical_symbols
 
 
 def _matrix(values: object) -> np.ndarray:
-    """Normalize an exact integer triple or 3 by 3 matrix."""
+    """Normalize supercell dimensions or a 3 by 3 matrix."""
     array = np.asarray(values, dtype=object)
     if array.shape == (3,):
         array = np.diag(array)
@@ -149,7 +149,7 @@ def build_supercell(
     matrix : sequence of int
         Three integer repetitions along the primitive axes, or a 3 by 3
         integer supercell matrix in row convention
-        (``target_cell = matrix @ primitive.cell``). Entries must be exact
+        (``target_cell = matrix @ primitive.cell``). Entries must be
         integers and the determinant must be positive.
     symprec : float, keyword-only, default 1e-5
         Cartesian length in angstrom used to identify duplicate images where

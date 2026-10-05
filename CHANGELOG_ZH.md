@@ -6,6 +6,16 @@
 
 ## 未发布
 
+- **破坏性：** 按领域职责重组几何、ClusterSpace 记录与构造、映射几何/周期寻址/折叠、力常数展开/格式/原生存储及声子模块，并删除旧内部模块路径。`QGrid`、`QStars` 和 `StarPlan` 在类型初始化时准备数据，删除对应的 `from_*` 工厂方法。批量原胞标签映射改由 `ClusterMap` 提供。
+- 谐波和 SCPH 共用 FC2 Fourier 项准备，并显式携带 orbit/image 来源索引，使张量 basis 使用相同的项顺序。保留原数值公式和求和顺序。
+- 文档页检查器改为检查所有 Markdown 页面；整数审查页面加入站点导航并修复教学链接。教学拟合脚本删除已废弃的 fingerprint 字段。
+
+- **破坏性：** 声子包由 `mlfcs.reciprocal` 更名为 `mlfcs.phonon`，同步更新源码、测试、文档与教学脚本的导入；删除旧包路径。
+
+- 测试按当前功能归并，科学参考案例逐组参数化，可选 oracle 依赖只在对应 reference 测试内加载。删除架构门禁、旧接口禁用断言及故意构造非法输入或失败的测试，保留正常数值计算与历史参考数据；tools 不再保留常驻测试或依赖门禁。
+
+- **破坏性：** 代数接口按数学职责命名为 `kernel_basis`、`rank`、`rank_pivots`、`matmul`、`unimodular_inverse`，模块改为 `algebra.linear` 与 `algebra.matrix`。`Orbit.exact_lattice_basis` 改为 `lattice_basis`，数组转换改为 `as_int64_array`，代数异常改为 `ArithmeticRangeError` 与 `RankError`。原生 HDF5 格式升级为 v5，使用 `lattice_basis` dataset 并拒绝旧文件；已有本机模型仅迁移格式、数值保持不变。输入范围及格基语义集中写入定义，清理名称和文档中的重复强调。
+
 - **破坏性：** 删除对象 pickle 支持、所有模型 fingerprint 和跨对象身份检查。ForceConstants save/load 改用显式 HDF5 原生版本 4，拒绝旧文件；用户负责参数布局及质量配套。原胞 fractional 坐标使用 ASE wrap，保存的坐标在加载时只校验，不重新 wrap。
 
 ## 4.6.0 — 2026-10-04

@@ -5,7 +5,7 @@
 ## Construct `SCPH`
 
 ```python
-from mlfcs.reciprocal import SCPH
+from mlfcs.phonon import SCPH
 
 scph = SCPH(model, mesh, statistics="quantum", time_reversal=True)
 ```
@@ -60,4 +60,4 @@ results = scph.run_many(
 
 `run_many(temperatures, **kwargs)` requires a nonempty, strictly increasing sequence of nonnegative temperatures. Execution proceeds from highest to lowest temperature, while the returned `SCPHResult` list follows the input's ascending order. A converged higher-temperature FC2 initializes the next lower temperature; a nonconverged result does not seed the next run. Imaginary modes remain diagnostics, separate from numerical convergence.
 
-The repository's [K4As4Pt2 SCPH script](../tutorial/K4As4Pt2/scph/run.py) shows a temperature series, high-to-low warm starts, and band plotting from the returned FC2 models.
+The repository's [K4As4Pt2 SCPH script](https://github.com/gtiders/mlfcs/blob/dev/tutorial/K4As4Pt2/scph/run.py) shows a temperature series, high-to-low warm starts, and band plotting from the returned FC2 models.

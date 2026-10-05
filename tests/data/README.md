@@ -12,10 +12,12 @@ check exact annihilation, recorded rank and all Smith invariant factors of the
 basis equal to one. Random matrices additionally compare full lattice HNFs
 against the original SymPy kernel algorithm.
 
-`force_constants_v4.mlfcs` is the original Python simple cubic Ar FC2 reference
+`force_constants_v5.mlfcs` is the original Python simple cubic Ar FC2 reference
 converted to explicit HDF5 datasets. Geometry, masses, symmetry, orbit bases and
 coefficients were compared entry by entry with the version-3 source and preserved
-exactly. It exercises version-4 loading without neighbor or orbit enumeration.
+exactly. The v5 migration renamed the orbit dataset to `lattice_basis` and
+updated the format marker; all dataset shapes, dtypes and bytes were preserved.
+It exercises version-5 loading without neighbor or orbit enumeration.
 
 `force_design_reference.npz` records original Python 4.5.1 Si FC2/FC3 design
 matrices, six displaced snapshots, synthetic forces and representative fitted

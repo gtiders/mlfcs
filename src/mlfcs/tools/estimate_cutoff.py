@@ -43,8 +43,7 @@ class EstimateCutoff:
     __slots__ = ("_probe", "_shells", "atoms", "symprec")
 
     def __init__(self, atoms: Atoms, *, symprec: float = 1e-5):
-        """Validate periodic geometry, capture a detached copy and initialize an empty shell cache.
-        """
+        """Validate periodic geometry, capture a detached copy and initialize an empty shell cache."""
         if not isinstance(atoms, Atoms):
             raise TypeError("atoms must be an ASE Atoms object")
         if not bool(np.all(atoms.pbc)):

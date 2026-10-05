@@ -18,20 +18,26 @@ Run the fit from this directory:
 uv run python fit.py
 ```
 
-Then calculate 300 K lattice thermal conductivity using phono3py, isotope
-scattering, and a $7\times7\times7$ mesh. All transport inputs and outputs are
-kept in the `kappa/` subdirectory:
+The Ba cell has 54 primitive atoms, so a full kALDo transport calculation can
+have a high memory peak. This example validates IFC loading and records the 162
+harmonic frequencies at the Gamma point; it does not calculate thermal
+conductivity. kALDo runs on the CPU; this check does not require GPU support.
+Install it in an independent environment (the project environment is not
+modified):
 
 ```bash
-uv run --with phono3py python kappa/run.py
+uv venv /tmp/kaldo-env --python 3.12
+uv pip install --python /tmp/kaldo-env/bin/python kaldo
+PYTHONPATH=src /tmp/kaldo-env/bin/python tutorial/Ba8Ga16Ge30/kappa/run.py
 ```
 
-The transport script exports complete FC2/FC3 HDF5 from the saved MLFCS model
-and passes the full-supercell FC3 array, $(432,432,432,3,3,3)$, directly to
-phono3py. No compact FC3 file is generated. phono3py identifies the primitive
-cell automatically from the supplied supercell. The transport log, JSON
-summary, complete IFC files, and conductivity HDF5 are all written under
-`kappa/`.
+The transport script uses the MLFCS export API to write VASP/phonopy FC2 text
+as `FORCE_CONSTANTS_2ND` and ShengBTE FC3 text as `FORCE_CONSTANTS_3RD`. kALDo
+loads these with its `vasp-sheng` reader and uses `primitive.vasp` as the
+primitive-cell structure. The IFC inputs are staged in a temporary directory;
+the Gamma-point log and JSON summary are written under `kappa/`. A bulk
+conductivity requires a converged Brillouin-zone mesh and a memory-bounded
+transport run.
 
 The 300 K training snapshots and structures come from the hiPhive
 Ba8Ga16Ge30 clathrate thermal-conductivity example. The upstream case uses a

@@ -1,10 +1,6 @@
-"""Primitive-only cluster spaces for the rewritten architecture."""
+"""Primitive-only cluster spaces and their immutable records."""
 
-from mlfcs.cluster_space.models import Cluster, ClusterSpace, Orbit, OrderBlock
+from mlfcs.cluster_space.model import ClusterSpace
+from mlfcs.cluster_space.records import Cluster, Orbit, OrderBlock
 
-__all__ = [
-    "Cluster",
-    "ClusterSpace",
-    "Orbit",
-    "OrderBlock",
-]
+__all__ = ["Cluster", "ClusterSpace", "Orbit", "OrderBlock"]

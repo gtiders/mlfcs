@@ -1,4 +1,4 @@
-"""Shared failures raised by the rewritten scientific core."""
+"""Failures raised by the scientific model and algebra operations."""
 
 
 class MLFCSError(Exception):
@@ -17,19 +17,19 @@ class ConstraintProjectionError(MLFCSError):
     """A physical invariance projection did not reach its requested accuracy."""
 
 
-class IntegerRangeError(MLFCSError, ArithmeticError):
-    """An exact integer result cannot be represented by the requested dtype."""
+class ArithmeticRangeError(MLFCSError, ArithmeticError):
+    """An arithmetic value cannot be represented by the requested dtype."""
 
 
-class RankCertificateError(MLFCSError, ArithmeticError):
-    """Exact modular arithmetic could not certify a matrix rank."""
+class RankError(MLFCSError, ArithmeticError):
+    """Available modular computations cannot establish the required rank or kernel identity."""
 
 
 __all__ = [
     "AliasingError",
+    "ArithmeticRangeError",
     "ConstraintProjectionError",
-    "IntegerRangeError",
     "MLFCSError",
-    "RankCertificateError",
+    "RankError",
     "UnobservedParameterError",
 ]

@@ -9,11 +9,10 @@ from time import perf_counter
 import numpy as np
 from numba import get_num_threads, get_thread_id, njit, prange
 
-from mlfcs._arrays import integer_array, readonly, require_allocation
-from mlfcs.core.log import get_logger
-from mlfcs.core.tensors import rotate_basis
+from mlfcs._arrays import as_int64_array, readonly, require_allocation
+from mlfcs.log import get_logger
 from mlfcs.mapping import ClusterMap
-from mlfcs.mapping.geometry import mapped_labels
+from mlfcs.tensors import rotate_basis
 
 logger = get_logger(__name__)
 
@@ -50,7 +49,7 @@ class OrderDesign:
         ):
             array = getattr(self, name)
             require_allocation(name, array.shape)
-            object.__setattr__(self, name, integer_array(array, name=name))
+            object.__setattr__(self, name, as_int64_array(array, name=name))
         require_allocation("image basis", self.image_basis.shape)
         object.__setattr__(self, "image_basis", readonly(self.image_basis, np.float64))
 
@@ -82,7 +81,7 @@ def _compile_order(
     require_allocation("image basis offsets", (image_count + 1,))
     require_allocation("orbit offsets", (len(orbit_indices) + 1,))
     require_allocation("tensor components", (3**order, order))
-    translations = integer_array(translations, name="mapping translations")
+    translations = as_int64_array(translations, name="mapping translations")
     orbit_image_offsets = [0]
     parameter_starts = []
     dimensions = []
@@ -96,7 +95,7 @@ def _compile_order(
         dimensions.append(dimension)
         for image, cluster in enumerate(orbit.clusters):
             labels = np.asarray(cluster.labels, dtype=np.int64)
-            atoms = mapped_labels(labels, translations, cluster_map._periodic).T.copy()
+            atoms = cluster_map.map_labels(labels, translations).T.copy()
             image_atoms.append(atoms)
             rotation = space.symmetry.cartesian_rotations[orbit.operations[image]].T
             basis = rotate_basis(orbit.component_basis, rotation, orbit.permutations[image])
@@ -128,7 +127,7 @@ class ForceDesign:
     Parameters
     ----------
     cluster_map : ClusterMap
-        Supercell relation retained by reference. Its exact folded rank must
+        Supercell relation retained by reference. Its folded rank must
         preserve all primitive parameters, otherwise AliasingError is raised.
 
     Notes

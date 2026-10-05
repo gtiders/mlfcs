@@ -46,4 +46,6 @@
 
 ## 如何保存或导出结果？
 
-使用 `ForceConstants.save(path)` 保存原生版本 4 的 HDF5 文件，用 `ForceConstants.load(path)` 读取。文件显式保存几何、质量、对称操作、轨道基和系数，加载不重建 cluster space。旧原生文件被拒绝。互操作输出使用 `ForceConstants.write(path, mapping, format=..., order=...)`；用户必须提供对应物理参数布局的 mapping，程序不检查跨对象兼容性。
+使用 `ForceConstants.save(path)` 保存原生版本 5 的 HDF5 文件，用 `ForceConstants.load(path)` 读取。文件显式保存几何、质量、对称操作、轨道基和系数，其中晶格基 dataset 名为 `lattice_basis`，加载不重建 cluster space。旧原生文件被拒绝。互操作输出使用 `ForceConstants.write(path, mapping, format=..., order=...)`；用户必须提供对应物理参数布局的 mapping，程序不检查跨对象兼容性。
+
+代数接口位于 `mlfcs.algebra.linear` 和 `mlfcs.algebra.matrix`。`rank(A)` 表示有理数域上的秩，`kernel_basis(A)` 返回生成全部整数解的列基，`Orbit.lattice_basis` 表示 stabilizer 不变晶格基；这些定义写入 docstring，名称按数学对象和操作命名。

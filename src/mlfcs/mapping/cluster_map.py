@@ -8,18 +8,18 @@ from time import perf_counter
 import numpy as np
 from ase import Atoms
 
-from mlfcs._arrays import integer_array, require_allocation
+from mlfcs._arrays import as_int64_array, require_allocation
 from mlfcs.cluster_space import ClusterSpace
-from mlfcs.core import LatticeSite
-from mlfcs.core.log import get_logger
-from mlfcs.mapping._rank import RankInfo, folded_rank
-from mlfcs.mapping.geometry import (
-    _PeriodicIndex,
-    _quotient_kernel,
-    infer_supercell_matrix,
-    mapped_labels,
+from mlfcs.geometry.primitive import LatticeSite
+from mlfcs.log import get_logger
+from mlfcs.mapping.folding import RankInfo, folded_rank, group_folded_images
+from mlfcs.mapping.periodic import (
+    PeriodicIndex,
+    map_labels,
     prepare_periodic_index,
+    quotient_kernel,
 )
+from mlfcs.mapping.supercell import infer_supercell_matrix, prepare_supercell_data
 
 logger = get_logger(__name__)
 
@@ -66,14 +66,12 @@ class ClusterMap:
     determinant: int
     _masses: np.ndarray
     image_atom_indices: tuple[np.ndarray, ...]
-    _periodic: _PeriodicIndex
+    _periodic: PeriodicIndex
 
     def __init__(
         self, cluster_space: ClusterSpace, supercell_atoms: Atoms, *, supercell_matrix=None
     ):
         """Infer or validate the supercell relation and prepare quotient/image lookup buffers."""
-        from mlfcs.mapping.geometry import supercell_data
-
         if not isinstance(cluster_space, ClusterSpace):
             raise TypeError("cluster_space must be a ClusterSpace")
         started = perf_counter()
@@ -85,7 +83,7 @@ class ClusterMap:
         if supercell_matrix is None:
             supercell_matrix = infer_supercell_matrix(cluster_space, supercell_atoms)
             logger.info("Supercell matrix inferred: %s", supercell_matrix.tolist())
-        data = supercell_data(cluster_space, supercell_atoms, supercell_matrix)
+        data = prepare_supercell_data(cluster_space, supercell_atoms, supercell_matrix)
         logger.info(
             "Supercell validated: supercell_atoms=%d matrix=%s",
             len(data["atomic_numbers"]),
@@ -94,7 +92,12 @@ class ClusterMap:
         object.__setattr__(self, "cluster_space", cluster_space)
         for name, value in data.items():
             object.__setattr__(self, "_masses" if name == "masses" else name, value)
-        prepared = prepare_periodic_index(self)
+        prepared = prepare_periodic_index(
+            data["supercell_matrix"],
+            data["determinant"],
+            data["primitive_site_indices"],
+            data["quotient_labels"],
+        )
         object.__setattr__(self, "_periodic", prepared)
         folded = []
         for orbit in cluster_space.orbits:
@@ -104,7 +107,7 @@ class ClusterMap:
             labels = np.asarray(
                 [label for cluster in orbit.clusters for label in cluster.labels], dtype=np.int64
             )
-            values = mapped_labels(labels, np.zeros((1, 3), dtype=np.int64), prepared)
+            values = map_labels(labels, np.zeros((1, 3), dtype=np.int64), prepared)
             values = values.reshape(len(orbit.clusters), orbit.representative.order)
             values.setflags(write=False)
             folded.append(values)
@@ -133,7 +136,7 @@ class ClusterMap:
         return len(self.atomic_numbers)
 
     def rank_info(self, order=None) -> RankInfo:
-        """Return exact structural rank and alias counts for one order or all orders.
+        """Return structural rank and alias counts for one order or all orders.
 
         This evaluates folded orbit bases independently of training displacements;
         it is recomputed on each call. Missing orders raise KeyError.
@@ -152,13 +155,12 @@ class ClusterMap:
         return result
 
     def quotient(self, translation: tuple[int, int, int]) -> tuple[int, int, int]:
-        """Return the exact quotient label of a primitive translation."""
-        values = integer_array(translation, name="lattice translation")
+        """Return the quotient label of a primitive translation."""
+        values = as_int64_array(translation, name="lattice translation")
         if values.shape != (3,):
             raise ValueError("lattice translation must have shape (3,)")
         return tuple(
-            int(v)
-            for v in _quotient_kernel(values, self._periodic.adjugate, self._periodic.modulus)
+            int(v) for v in quotient_kernel(values, self._periodic.adjugate, self._periodic.modulus)
         )
 
     @property
@@ -184,22 +186,27 @@ class ClusterMap:
 
     def atom_index(self, site: LatticeSite) -> int:
         """Return the supercell atom addressed by one primitive lattice site."""
-        quotient = self.quotient(site.translation)
-        matches = np.flatnonzero(
-            (self.primitive_site_indices == site.site)
-            & np.all(self.quotient_labels == quotient, axis=1)
-        )
-        if len(matches) != 1:
-            raise RuntimeError(f"primitive site {site} has {len(matches)} supercell atoms")
-        return int(matches[0])
+        label = np.asarray([[site.site, *site.translation]], dtype=np.int64)
+        try:
+            return int(self.map_labels(label, np.zeros((1, 3), dtype=np.int64))[0, 0])
+        except ValueError as error:
+            raise RuntimeError(f"primitive site {site} is absent from the supercell") from error
+
+    def map_labels(self, labels: object, translations: object) -> np.ndarray:
+        """Map primitive lattice labels and translation offsets to atom indices.
+
+        Labels have shape (n, 4) with columns (site, tx, ty, tz); translations
+        have shape (m, 3). Return int64 shape (n, m), preserving both input
+        orders. Actual integer additions and quotient operations are checked in
+        the compiled kernel; malformed shapes raise ValueError and unsafe
+        intermediates raise OverflowError.
+        """
+        return map_labels(labels, translations, self._periodic)
 
     def aliases(self, order: int) -> tuple[tuple[tuple[int, int], ...], ...]:
         """Return folded atom tuples reached by more than one primitive image."""
         block = self.cluster_space.block(order)
-        groups: dict[tuple[int, ...], list[tuple[int, int]]] = {}
-        for orbit_index in range(block.orbits.start, block.orbits.stop):
-            for image, atoms in enumerate(self.image_atom_indices[orbit_index]):
-                groups.setdefault(tuple(int(value) for value in atoms), []).append(
-                    (orbit_index, image)
-                )
+        groups = group_folded_images(
+            self.image_atom_indices, range(block.orbits.start, block.orbits.stop)
+        )
         return tuple(tuple(group) for _, group in sorted(groups.items()) if len(group) > 1)

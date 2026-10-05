@@ -38,3 +38,20 @@ jobs:
           test -f site/zh/fitting-api/index.html
           test -f 'site/Q&A/index.html'
           test -f 'site/zh/Q&A/index.html'
+
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+          python-version: "3.12"
+          version: "0.11.26"
+      - name: Install test and reference dependencies
+        run: uv sync --group dev --group reference
+      - name: Run numerical tests
+        run: uv run pytest -m "not reference"
+      - name: Run independent reference comparisons
+        run: uv run pytest -m reference

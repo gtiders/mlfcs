@@ -61,8 +61,6 @@ def _fit() -> None:
         "parameters": system.n_parameters,
         "solver": "column-scaled MINRES",
         "solver_rtol": SOLVER_RTOL,
-        "fit_system_fingerprint": system.fingerprint,
-        "force_constants_fingerprint": model.fingerprint,
         "training_force_rmse_before_projection_eV_per_angstrom": system.rmse(parameters),
         "training_relative_force_error_before_projection": system.relative_error(parameters),
         "training_force_rmse_after_projection_eV_per_angstrom": system.rmse(projected_parameters),

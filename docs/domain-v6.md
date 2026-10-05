@@ -50,8 +50,8 @@ One `ClusterSpace` can support multiple independently initialized `ClusterMap` o
 | Module | Responsibility | Execution |
 |---|---|---|
 | `_arrays`, `errors` | Admission, contiguous immutable arrays, error types | Python boundary |
-| `algebra/integer` | Small exact products, lattice inverses, admitted arithmetic | Python admission + Numba loops |
-| `algebra/exact` | Certified exact rank and saturated kernel facade | Python orchestration |
+| `algebra/matrix` | Matrix products, unimodular inverses and Euclidean arithmetic | Python validation + Numba loops |
+| `algebra/linear` | Rational rank, pivot indices and lattice kernel bases | Python orchestration |
 | `algebra/_modular` | Word-bounded modular elimination and rational charts | Numba |
 | `algebra/_signed` | Signed union-find kernel shortcut | Numba |
 | `algebra/_congruence` | Congruence preimage and saturation | Numba |
@@ -62,7 +62,9 @@ One `ClusterSpace` can support multiple independently initialized `ClusterMap` o
 | `fitting/design`, `system`, `solve` | Reusable force design and per-thread temporary arrays | Python preparation + parallel Numba accumulation |
 | `force_constants`, `finite_difference` | Coefficients, constraints, exports and force sampling | Python orchestration |
 
-There is no technology-named `_numba` package or dispatch proxy. Shared exact algebra remains shared because invariant construction and folding both consume it. Folded rank calls `exact_rank`; it does not construct an integer kernel. The modular chart/congruence algorithm is unchanged by this object refactor.
+Shared algebra serves both invariant construction and folding. Folded rank calls `rank`; invariant construction calls `kernel_basis`. Modular charts and congruence preimages determine lattice bases. Operation names describe these mathematical objects; their definitions specify the coefficient domain, input ranges and failure conditions.
+
+`Orbit.lattice_basis` generates the stabilizer-invariant lattice in lattice coordinates. `component_basis` maps physical parameters to Cartesian tensor components. `rank(A)` is the rank over the rationals; `rank_pivots(A)` also returns independent original row and column indices. `kernel_basis(A)` returns columns generating every integer solution of `A @ x == 0`. `matmul(A, B)` validates absolute dot-product ranges before multiplication, and `unimodular_inverse(R)` requires a 3 by 3 matrix with determinant +1 or -1. These definitions replace the previous `exact_*` and `certified_*` interface qualifiers; old import paths and names are removed.
 
 ## Admission, array ABI and workspace
 
@@ -74,7 +76,7 @@ Numerical consumers use immutable domain arrays directly. Force designs own tran
 
 ## Native model storage
 
-Native storage uses format version 4 in HDF5. Only ForceConstants exposes save/load. Geometry, masses, symmetry, blocks, orbit bases and coefficients are explicit numeric datasets and attributes; there is no object encoding or content fingerprint. Older native files are rejected.
+Native storage uses format version 5 in HDF5, with orbit lattice generators stored as `lattice_basis`. Only ForceConstants exposes save/load. Geometry, masses, symmetry, blocks, orbit bases and coefficients are explicit numeric datasets and attributes; there is no object encoding or content fingerprint. Older native files are rejected.
 
 Loading validates array types, shapes, finite values, masses and model layout, without repeating neighbor or orbit enumeration. JIT caches, workspaces, maps and fitting systems are not persisted. Local teaching models and the reference fixture were converted once with all geometry, basis and coefficient entries unchanged. Callers own compatibility between independently supplied models and mappings; merge, export and SCPH do not compare model identities.
 
@@ -82,6 +84,12 @@ Primitive initialization uses ASE get_scaled_positions(wrap=True), preserving th
 
 ## Validation
 
-Frozen constraint matrices, lattice oracles, orbit/action records, original Python force-design snapshots, multi-supercell folding tests and teaching workflows remain the numerical references. New tests enforce snapshot isolation, mass preservation, explicit geometry names, read-only restoration and removal of the old public types and constructors. Teaching fits keep their own complete `fit.log` in their task directory.
+Frozen constraint matrices, lattice oracles, orbit/action records, original Python force-design snapshots, multi-supercell folding tests and teaching workflows remain the numerical references. Tests cover normal computations, snapshot isolation, mass preservation, read-only restoration and physical numerical results. Architecture gates, removed-interface assertions and deliberately invalid-input tests are excluded. Optional scientific oracle comparisons use the `reference` marker. Teaching fits keep their own complete `fit.log` in their task directory.
 
 See [Local integer contracts](local-integer-contracts.md) for proofs, ownership and cleanup rules.
+
+## Deferred implementation: streamed ASR projection
+
+**TODO:** Replace explicit COO/CSR construction for acoustic sum-rule projection with a matrix-free operator or bounded row-block implementation. The operator must provide both $v\mapsto Av$ and $u\mapsto A^Tu$ to LSMR while accumulating repeated contributions to the same equation row correctly. Preserve the current minimum-norm correction semantics and report fields; do not relax ASR tolerances to work around memory use.
+
+Validate the streamed implementation against the current sparse formulation for FC2–FC5, comparing projected coefficients within numerical tolerance, equation residuals, convergence behavior, and final fitted/exported force constants. Include the Si FC5 workload and record peak resident memory and runtime. Keep the sparse builder available as a temporary numerical oracle until those comparisons pass, then remove the duplicate production path.

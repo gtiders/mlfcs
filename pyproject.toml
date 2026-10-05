@@ -42,13 +42,15 @@ dev = [
     "pytest>=8",
     "ruff>=0.9",
 ]
-# Oracles for the cross-checks against phonopy/phono3py. They are heavy C-extension
-# packages and no production code imports them, so they live in their own group: the
-# default environment skips those tests, and this group runs the whole suite.
+# Independent exact-algebra reference dependency; tutorial integrations are separate.
 reference = [
     "sympy>=1.13",
+]
+tutorial = [
     "phonopy>=2.20",
     "phono3py>=3.0",
+    "matplotlib",
+    "seekpath",
 ]
 docs = [
     "mkdocs-material>=9.5",
@@ -73,6 +75,9 @@ exclude = ["/alamode"]
 [tool.pytest.ini_options]
 addopts = "-q"
 testpaths = ["tests"]
+markers = [
+    "reference: numerical comparisons requiring optional scientific reference packages",
+]
 
 [tool.ruff]
 line-length = 100

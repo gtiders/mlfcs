@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import numpy as np
 
-from mlfcs.core import LatticeSite
-from mlfcs.force_constants.lattice import expand
+from mlfcs.force_constants.expansion import expand_lattice_tensors
 from mlfcs.force_constants.model import ForceConstants
+from mlfcs.geometry.primitive import LatticeSite
 from mlfcs.mapping import ClusterMap
 
 DEFAULT_THRESHOLD = 1e-8
@@ -20,7 +20,7 @@ def threshold_value(value: object) -> float:
     return result
 
 
-def clean(values: object, threshold: float) -> np.ndarray:
+def threshold_components(values: object, threshold: float) -> np.ndarray:
     """Return finite float64 values with components below ``threshold`` zeroed."""
     result = np.array(values, dtype=np.float64, copy=True, order="C")
     if not np.all(np.isfinite(result)):
@@ -29,7 +29,7 @@ def clean(values: object, threshold: float) -> np.ndarray:
     return result
 
 
-def validate(model: ForceConstants, cluster_map: ClusterMap, order: int) -> None:
+def validate_export_request(model: ForceConstants, cluster_map: ClusterMap, order: int) -> None:
     """Require a ClusterMap and a present order; callers must pair matching model layouts."""
     if not isinstance(cluster_map, ClusterMap):
         raise TypeError("mapping must be a ClusterMap")
@@ -37,7 +37,7 @@ def validate(model: ForceConstants, cluster_map: ClusterMap, order: int) -> None
         raise ValueError(f"force constants do not contain order {order}")
 
 
-def compact(
+def fold_compact_tensors(
     model: ForceConstants,
     cluster_map: ClusterMap,
     order: int,
@@ -51,8 +51,8 @@ def compact(
     threshold are zeroed. Output is a new writable float64 array in physical
     units; the primitive model and mapping remain unchanged.
     """
-    validate(model, cluster_map, order)
-    expanded = expand(model, order)
+    validate_export_request(model, cluster_map, order)
+    expanded = expand_lattice_tensors(model, order)
     supercell = cluster_map
     shape = (model.cluster_space.n_atoms,) + (len(supercell.atomic_numbers),) * (order - 1)
     result = np.zeros(shape + (3,) * order, dtype=np.float64)
@@ -64,10 +64,10 @@ def compact(
             for site, translation in zip(sites[1:], translations, strict=True)
         )
         result[(sites[0], *atoms)] += tensor
-    return clean(result, threshold)
+    return threshold_components(result, threshold)
 
 
-def translated_atoms(cluster_map: ClusterMap, first: int) -> np.ndarray:
+def translated_atom_indices(cluster_map: ClusterMap, first: int) -> np.ndarray:
     """Map the explicit supercell order into coordinates relative to ``first``."""
     supercell = cluster_map
     origin = supercell.lattice_translations[first]
@@ -82,18 +82,20 @@ def translated_atoms(cluster_map: ClusterMap, first: int) -> np.ndarray:
     return result
 
 
-def full_fc2(compact_values: np.ndarray, cluster_map: ClusterMap) -> np.ndarray:
+def expand_fc2_to_supercell_order(
+    compact_values: np.ndarray, cluster_map: ClusterMap
+) -> np.ndarray:
     """Expand primitive-first FC2 into the explicit full-supercell order."""
     supercell = cluster_map
     size = len(supercell.atomic_numbers)
     result = np.empty((size, size, 3, 3), dtype=np.float64)
     for first in range(size):
-        tails = translated_atoms(cluster_map, first)
+        tails = translated_atom_indices(cluster_map, first)
         result[first] = compact_values[int(supercell.primitive_site_indices[first]), tails]
     return result
 
 
-def primitive_to_supercell(cluster_map: ClusterMap) -> np.ndarray:
+def primitive_atom_indices(cluster_map: ClusterMap) -> np.ndarray:
     """Return the first explicit supercell atom for every primitive site."""
     sites = cluster_map.primitive_site_indices
     return np.asarray(
@@ -103,11 +105,11 @@ def primitive_to_supercell(cluster_map: ClusterMap) -> np.ndarray:
 
 __all__ = [
     "DEFAULT_THRESHOLD",
-    "clean",
-    "compact",
-    "full_fc2",
-    "primitive_to_supercell",
+    "expand_fc2_to_supercell_order",
+    "fold_compact_tensors",
+    "primitive_atom_indices",
+    "threshold_components",
     "threshold_value",
-    "translated_atoms",
-    "validate",
+    "translated_atom_indices",
+    "validate_export_request",
 ]

@@ -6,60 +6,53 @@ Bug reports, reference datasets, documentation fixes, and focused pull requests 
 
 ## Before opening an issue
 
-Search existing issues and reduce the problem to a reproducible example. Include:
-
-- MLFCS, Python, ASE, NumPy, and JAX versions;
-- operating system and CPU/GPU backend;
-- primitive structure, supercell, order, cutoff, displacement, and ASR setting;
-- the complete traceback or numerical comparison;
-- whether forces came from `run()` or an external `sow()` / `reap()` workflow.
-
-Do not attach proprietary potentials or calculations unless you are allowed to redistribute them.
+Search existing issues and reduce the problem to a reproducible example. Include the MLFCS,
+Python, ASE, NumPy, SciPy, and spglib versions; operating system; primitive structure and cell;
+orders, cutoffs, supercell and displacement settings; and the full traceback or numerical
+comparison. Do not attach proprietary potentials or calculations unless redistribution is allowed.
 
 ## Development setup
 
 ```bash
 git clone https://github.com/gtiders/mlfcs.git
 cd mlfcs
-uv sync --locked --dev
+uv sync --group dev --group reference
 ```
 
-The public API and fast suite must pass before a pull request:
+Run the numerical suite and independent reference comparisons:
 
 ```bash
-uv run ruff check src tests reference_tools examples
-uv run ruff format --check src tests reference_tools examples
 uv run pytest -m "not reference"
+uv run pytest -m reference
+uv run ruff check src tests
 uv build
 ```
 
-Reference tests are intentionally serial and may be expensive. The pypolymlp comparison also
-requires Eigen headers and the dedicated dependency group:
+The reference group supplies SymPy for independent exact-algebra comparisons. Teaching scripts
+that call phonopy or phono3py use the optional tutorial group:
 
 ```bash
-uv sync --locked --dev --group reference
-uv run pytest tests/reference/analytic/Morse_FCC_FC4/test_morse_fc4.py
+uv sync --group tutorial
 ```
 
-Run only the reference affected by a change locally; CI performs the complete sequence.
+Documentation contributors can install the docs group, check the bilingual pages, and build the
+site with `uv sync --group docs`, `uv run python docs/scripts/check_docs.py`, and
+`uv run mkdocs build --strict -f mkdocs.yml`.
 
-## Test expectations
+## Tests and examples
 
-New or migrated validation content must follow the
-[tests and examples policy](docs/development/examples-policy.md). Numerical material comparisons against
-external programs belong in `examples`, not new pytest oracles.
+Keep numerical tests focused on reproducible behavior. Exact algebra and scientific results should
+be compared with independent reference implementations where available. Do not add permanent tests
+for `mlfcs.tools`; validate tool changes with a temporary check that is not committed. Teaching fit
+tasks capture their own complete output in the task directory's tracked `fit.log`.
 
-- Unit tests cover deterministic mathematical and I/O behavior.
-- Integration tests use only public APIs.
-- Scientific claims require an independent reference, provenance, units, atom-order mapping,
-  tolerances, and a separate CI step.
-- Third-party reference files document provenance and redistribution terms in the case README.
-- Tests must not depend on the legacy MLFCS implementation.
+Tutorial calculations may require separately prepared structures, external executables, or large
+reference datasets. Document those inputs and their provenance; do not add files unless they may be
+redistributed.
 
 ## Pull requests
 
-Keep changes scoped and explain the scientific or API motivation. Update both English and Chinese
-user documentation when public behavior changes. Preserve unrelated worktree changes, avoid
-committing generated build products, and add a changelog entry for user-visible changes.
-
-Contributions are accepted under the repository's GNU General Public License v3.0 or later.
+Keep changes scoped and explain their scientific or API motivation. Update English and Chinese user
+documentation when public behavior changes. Preserve unrelated worktree changes, avoid committing
+build products, and add a changelog entry for user-visible changes. Contributions are accepted
+under the GNU General Public License v3.0 or later.

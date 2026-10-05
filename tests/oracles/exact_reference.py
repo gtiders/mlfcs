@@ -21,7 +21,7 @@ Primes come from :func:`prime_stream`, an on-demand stream: it starts with
 :data:`RANK_PRIMES` and then takes successive ``prevprime`` steps.  It is not an
 infinite prime enumeration -- once ``prevprime`` has nothing smaller to offer
 the stream ends, and :func:`exact_rank` reports
-:class:`~mlfcs.errors.RankCertificateError` if the certificate was never
+:class:`~mlfcs.errors.RankError` if the certificate was never
 reached.  The result is nevertheless *exact* for integer inputs of arbitrary
 magnitude: entries are reduced modulo a prime with Python integer remainder
 before they ever reach a fixed-width buffer, so ``10**30`` entries are ranked
@@ -38,7 +38,7 @@ from collections.abc import Iterator
 import numpy as np
 from numba import njit
 
-from mlfcs.errors import RankCertificateError
+from mlfcs.errors import RankError
 
 #: Fast-path pair of primes just below 2**31; products of two residues stay in int64.
 RANK_PRIMES: tuple[int, int] = (2147483647, 2147483629)
@@ -92,6 +92,12 @@ def _row_residues(rows: list[list[int]], width: int, prime: int) -> np.ndarray:
 
 @njit(cache=True)
 def _modular_power(base: int, exponent: int, modulus: int) -> int:
+    """Return base**exponent modulo a positive modulus below 2**31.
+
+    Inputs are integers with a nonnegative exponent. Binary exponentiation
+    reduces every multiplication, yielding a residue in [0, modulus).
+    The caller supplies valid operands; no input checks are performed here.
+    """
     result = 1
     value = base % modulus
     while exponent:
@@ -184,6 +190,12 @@ def hadamard_bound(matrix, size: int) -> int:
 
 
 def _hadamard_bound(rows: list[list[int]], size: int) -> int:
+    """Bound size-order minors by the product of rounded-up row norms.
+
+    ``rows`` contains an integer matrix and ``size`` is a positive minor order
+    at most the matrix dimensions. Return a Python int product of the largest
+    ``size`` values isqrt(sum(value**2)) + 1, using Hadamard's inequality.
+    """
     norms = sorted(
         (math.isqrt(sum(value * value for value in row)) + 1 for row in rows),
         reverse=True,
@@ -252,7 +264,7 @@ def certified_pivots(matrix) -> tuple[int, np.ndarray, np.ndarray]:
         if prime_product > bound:
             break
     else:
-        raise RankCertificateError(
+        raise RankError(
             f"rank of a {height}x{width} integer matrix is not certified: the modular "
             f"lower bound {best} stays below {target} and the prime stream ended before "
             f"the Hadamard bound {bound} was exceeded"

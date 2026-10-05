@@ -6,6 +6,16 @@ All notable changes are documented here. Releases follow semantic versioning.
 
 ## Unreleased
 
+- **Breaking:** reorganize implementation modules around geometry, cluster-space records/construction, mapping geometry/periodic lookup/folding, force-constant expansion/formats/native storage, and phonons. Remove old internal module paths. `QGrid`, `QStars`, and `StarPlan` now prepare their data during direct initialization; their `from_*` factories are removed. Batch primitive-label mapping is exposed on `ClusterMap`.
+- Share FC2 Fourier term preparation between harmonic and SCPH calculations, including explicit orbit/image provenance so tensor bases follow the same stored term order. Numerical formulas and summation order are preserved.
+- Repair the documentation page checker to validate all Markdown pages, add the integer-audit pages to site navigation, and correct tutorial links. Remove deleted fingerprint fields from teaching fit scripts.
+
+- **Breaking:** rename the phonon package from `mlfcs.reciprocal` to `mlfcs.phonon`; update imports in source, tests, documentation and tutorials. The old package path is removed.
+
+- Organize tests by current functionality, parameterize scientific reference cases, and load optional oracle packages within individual reference tests. Remove architecture gates, obsolete-interface assertions and deliberately invalid-input/failure tests; retain normal numerical comparisons and historical data. Tools have no standing tests or dependency gates.
+
+- **Breaking:** name algebra operations by their mathematical role: `kernel_basis`, `rank`, `rank_pivots`, `matmul` and `unimodular_inverse`, in `algebra.linear` and `algebra.matrix`. Rename `Orbit.exact_lattice_basis` to `lattice_basis`, array conversion to `as_int64_array`, and algebra errors to `ArithmeticRangeError` and `RankError`. Native HDF5 format v5 uses the `lattice_basis` dataset and rejects older files. Migrate existing local models without changing numerical data; document input ranges and lattice semantics in definitions rather than repeated name qualifiers.
+
 - **Breaking:** remove object pickle support and all model fingerprints and cross-object identity checks. ForceConstants save/load now use explicit HDF5 native format version 4 and reject older files. Callers own matching parameter layouts and masses. Primitive fractional coordinates use ASE wrapping; saved coordinates are validated without rewrapping.
 
 ## 4.6.0 — 2026-10-04

@@ -8,10 +8,10 @@ from time import perf_counter
 import numpy as np
 from scipy import sparse
 
-from mlfcs.core.log import get_logger
-from mlfcs.core.tensors import rotate_basis
-from mlfcs.force_constants.acoustic import constraint_matrix, relative_residual
+from mlfcs.force_constants.acoustic import acoustic_constraint_matrix, relative_residual
 from mlfcs.force_constants.model import ForceConstants
+from mlfcs.log import get_logger
+from mlfcs.tensors import rotate_basis
 
 logger = get_logger(__name__)
 
@@ -24,7 +24,7 @@ class RotationResult:
     in angstrom; orthogonality_residual and relative fields are dimensionless.
     Born-Huang residuals have units of FC2 times length, Huang residuals FC2
     times length squared; disabled conditions report None. Singular-value/rank
-    fields describe resolvable scaled constraints, not exact integer rank.
+    fields describe resolvable scaled constraints, rather than rank over the rationals.
     The correction preserves the source acoustic residual rather than applying
     ASR. Input model coefficients are unchanged.
     """
@@ -70,16 +70,17 @@ def _append(
 
 
 def _fc2_moment_matrices(
-    model: ForceConstants,
+    cluster_space,
 ) -> tuple[sparse.csr_matrix, sparse.csr_matrix, float]:
     """Return Born-Huang and Huang CSR constraints plus a median pair length in angstrom.
 
     Columns follow the FC2 parameter block. First/second moments use relative
     lattice-site Cartesian vectors divided by the median non-onsite distance,
     so numerical constraint scales are independent of the length unit.
-    A missing positive non-onsite scale raises ValueError; model is preserved.
+    ``cluster_space`` supplies the FC2 parameter layout and lattice positions.
+    A missing positive non-onsite scale raises ValueError; input geometry is preserved.
     """
-    space = model.cluster_space
+    space = cluster_space
     block = space.block(2)
     parameter_count = block.parameters.stop - block.parameters.start
     offsets = np.cumsum(
@@ -211,8 +212,8 @@ def enforce_rotation(
         huang,
         rank_rtol if rank_rtol is not None else "automatic",
     )
-    acoustic = constraint_matrix(model, 2)
-    born, second_moment, length_scale = _fc2_moment_matrices(model)
+    acoustic = acoustic_constraint_matrix(model.cluster_space, 2)
+    born, second_moment, length_scale = _fc2_moment_matrices(model.cluster_space)
     selected = []
     if born_huang:
         selected.append(born)

@@ -15,7 +15,7 @@ import numpy as np
 import seekpath
 
 from mlfcs.force_constants import ForceConstants
-from mlfcs.reciprocal import SCPH, Harmonic
+from mlfcs.phonon import SCPH, Harmonic
 
 ROOT = Path(__file__).resolve().parents[1]
 HERE = Path(__file__).resolve().parent

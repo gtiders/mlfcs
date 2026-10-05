@@ -12,7 +12,7 @@ belong to the caller. There is no `stream`, file-path or format option:
 
 ```python
 import logging
-from mlfcs.core.log import configure
+from mlfcs.log import configure
 
 configure(level=logging.DEBUG)    # detailed diagnostics
 configure(level=logging.WARNING)  # warnings and errors only
@@ -69,7 +69,7 @@ exception hook or log and re-raise the same failure at every layer. At a task
 boundary, standard logging can record a caught failure:
 
 ```python
-from mlfcs.core.log import get_logger
+from mlfcs.log import get_logger
 
 logger = get_logger("task")
 try:

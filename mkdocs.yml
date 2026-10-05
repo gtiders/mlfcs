@@ -23,6 +23,9 @@ nav:
   - Q&A: Q&A.md
   - Version 6: domain-v6.md
   - Local integer contracts: local-integer-contracts.md
+  - Developer references:
+      - Integer safety audit: numba-integer-audit.md
+      - Numba backend: unified-numba-backend.md
 
 theme:
   name: material

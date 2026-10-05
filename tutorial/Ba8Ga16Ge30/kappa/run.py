@@ -1,123 +1,147 @@
 #!/usr/bin/env python3
-"""Calculate 300 K Ba8Ga16Ge30 thermal conductivity with phono3py."""
+"""Validate Ba8Ga16Ge30 ShengBTE IFC loading at the Gamma point with kALDo."""
 
 from __future__ import annotations
 
 import json
-import logging
+import sys
+import tempfile
 import traceback
-from contextlib import chdir, redirect_stderr, redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
+from importlib.metadata import version
 from pathlib import Path
 
-import h5py
 import numpy as np
-import phono3py
-from ase.io import read
-from phono3py import Phono3py
-from phono3py.file_IO import read_fc2_from_hdf5, read_fc3_from_hdf5
-from phonopy.structure.atoms import PhonopyAtoms
+from ase.io import read, write
+from kaldo.forceconstants import ForceConstants as KaldoForceConstants
+from kaldo.phonons import Phonons
 
 from mlfcs import ClusterMap, ForceConstants
 
 ROOT = Path(__file__).resolve().parents[1]
 HERE = Path(__file__).resolve().parent
-TEMPERATURE_K = 300
-MESH = (7, 7, 7)
 SUPERCELL_MATRIX = np.diag([2, 2, 2])
-OUTPUT_STEM = "ba8-m777-T300"
 
 
-def _read_kappa(path: Path) -> tuple[list[float], np.ndarray]:
-    with h5py.File(path, "r") as handle:
-        temperatures = np.asarray(handle["temperature"], dtype=float).reshape(-1)
-        values = np.asarray(handle["kappa"], dtype=float)
-    if values.shape != (len(temperatures), 6):
-        raise ValueError(f"unexpected phono3py kappa shape {values.shape}")
-    return temperatures.tolist(), values
+def export_kaldo_inputs(folder: Path) -> tuple[int, int]:
+    """Export the fitted MLFCS model for kALDo's VASP/ShengBTE reader.
 
+    FC2 is written in the VASP/phonopy ``FORCE_CONSTANTS_2ND`` text format;
+    FC3 is written in ShengBTE ``FORCE_CONSTANTS_3RD`` format. The primitive
+    POSCAR and both IFC files are staged in ``folder``. MLFCS exports Cartesian
+    energy derivatives in eV and Å using the primitive atom order from
+    ``primitive.vasp``.
 
-def run() -> None:
+    Args:
+        folder: Directory for the temporary kALDo input files.
+
+    Returns:
+        A pair containing the primitive and supercell atom counts.
+
+    Raises:
+        FileNotFoundError: If the saved model or either structure file is
+            missing.
+        ValueError: If the saved model cannot be mapped to the configured
+            supercell or lacks either required force-constant order.
+    """
     model = ForceConstants.load(ROOT / "force_constants.mlfcs")
+    primitive_atoms = read(ROOT / "primitive.vasp")
+    supercell_atoms = read(ROOT / "supercell.vasp")
     mapping = ClusterMap(
-        model.cluster_space, read(ROOT / "supercell.vasp"), supercell_matrix=SUPERCELL_MATRIX
+        model.cluster_space,
+        supercell_atoms,
+        supercell_matrix=SUPERCELL_MATRIX,
     )
+    folder.mkdir(parents=True, exist_ok=True)
+    model.write(
+        folder / "FORCE_CONSTANTS_2ND",
+        mapping,
+        format="phonopy",
+        order=2,
+        storage="text",
+    )
+    model.write(
+        folder / "FORCE_CONSTANTS_3RD",
+        mapping,
+        format="shengbte",
+        order=3,
+    )
+    write(folder / "POSCAR", primitive_atoms, format="vasp", direct=True, sort=False)
+    return len(primitive_atoms), len(supercell_atoms)
 
-    fc2_path = HERE / "fc2.hdf5"
-    fc3_path = HERE / "fc3.hdf5"
-    model.write(fc2_path, mapping, format="phonopy", order=2, storage="hdf5")
-    model.write(fc3_path, mapping, format="phono3py", order=3)
 
-    atoms = read(ROOT / "supercell.vasp")
-    unitcell = PhonopyAtoms(
-        symbols=atoms.get_chemical_symbols(),
-        cell=np.asarray(atoms.cell),
-        scaled_positions=atoms.get_scaled_positions(),
-        masses=atoms.get_masses(),
-    )
-    ph3 = Phono3py(
-        unitcell,
-        np.eye(3, dtype=int),
-        primitive_matrix="auto",
-        log_level=1,
-    )
-    ph3.fc2 = read_fc2_from_hdf5(fc2_path, p2s_map=ph3.p2s_map)
-    full_fc3 = read_fc3_from_hdf5(fc3_path)
-    expected = (len(atoms), len(atoms), len(atoms), 3, 3, 3)
-    if not isinstance(full_fc3, np.ndarray):
-        raise TypeError("the full FC3 file unexpectedly contains a nonzero mask")
-    if full_fc3.shape != expected:
-        raise ValueError(f"full FC3 shape {full_fc3.shape} does not match {expected}")
-    ph3.fc3 = full_fc3
-    del full_fc3
-    ph3.mesh_numbers = MESH
-    ph3.init_phph_interaction()
-    with chdir(HERE):
-        ph3.run_thermal_conductivity(
-            temperatures=(TEMPERATURE_K,),
-            is_isotope=True,
-            write_kappa=True,
-            output_filename=OUTPUT_STEM,
-            log_level=1,
+def inspect_gamma_point() -> dict[str, object]:
+    """Load both IFC orders and calculate harmonic frequencies at Gamma.
+
+    This low-memory workflow validates the MLFCS-to-kALDo structure and file
+    conventions. It does not calculate thermal conductivity: a single
+    reciprocal-space point cannot replace the Brillouin-zone integration
+    required for a bulk transport result.
+
+    Returns:
+        A JSON-serializable record with the Gamma-point frequencies in THz and
+        the input/export metadata.
+
+    Raises:
+        ValueError: If kALDo returns a frequency array of the wrong shape or
+            containing NaN or infinite values.
+    """
+    with tempfile.TemporaryDirectory(prefix="mlfcs-kaldo-ba-") as temporary:
+        input_folder = Path(temporary)
+        primitive_count, supercell_count = export_kaldo_inputs(input_folder)
+        force_constants = KaldoForceConstants.from_folder(
+            folder=str(input_folder),
+            supercell=(2, 2, 2),
+            format="vasp-sheng",
+            third_energy_threshold=0.0,
         )
+        phonons = Phonons(
+            forceconstants=force_constants,
+            kpts=(1, 1, 1),
+            n_workers=1,
+            folder=str(HERE / "kaldo-data"),
+            storage="memory",
+        )
+        frequencies = np.asarray(phonons.frequency, dtype=np.float64)
 
-    candidates = sorted(HERE.glob(f"kappa-*{OUTPUT_STEM}*.hdf5"))
-    if len(candidates) != 1:
-        raise FileNotFoundError(f"expected one kappa output, found {[x.name for x in candidates]}")
-    temperatures, kappa = _read_kappa(candidates[0])
-    report = {
+    expected_shape = (1, 3 * primitive_count)
+    if frequencies.shape != expected_shape:
+        raise ValueError(f"unexpected Gamma-point frequency shape {frequencies.shape}; expected {expected_shape}")
+    if not np.all(np.isfinite(frequencies)):
+        raise ValueError("Gamma-point frequencies contain NaN or infinite values")
+
+    return {
         "material": "Ba8Ga16Ge30",
-        "temperature_K": TEMPERATURE_K,
-        "temperatures_K": temperatures,
-        "mesh": list(MESH),
-        "isotope_scattering": True,
-        "primitive_matrix": "auto",
-        "primitive_atoms": model.cluster_space.n_atoms,
-        "supercell_atoms": len(mapping.atomic_numbers),
-        "phono3py_version": phono3py.__version__,
-        "force_constants_format": "full dense HDF5",
-        "fc2_file": fc2_path.name,
-        "fc3_file": fc3_path.name,
-        "kappa_file": candidates[0].name,
-        "kappa_W_mK": kappa.tolist(),
-        "kappa_diagonal_W_mK": kappa[:, :3].tolist(),
+        "reciprocal_point": [0.0, 0.0, 0.0],
+        "primitive_atoms": primitive_count,
+        "supercell_atoms": supercell_count,
+        "supercell_matrix": SUPERCELL_MATRIX.tolist(),
+        "kaldo_version": version("kaldo"),
+        "force_constants_format": "VASP/phonopy IFC2 + ShengBTE IFC3",
+        "frequency_unit": "THz",
+        "frequencies_THz": frequencies[0].tolist(),
+        "frequency_min_THz": float(np.min(frequencies)),
+        "frequency_max_THz": float(np.max(frequencies)),
+        "thermal_conductivity_calculated": False,
     }
-    (HERE / "thermal-conductivity.json").write_text(
-        json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-    )
-    print(f"Wrote {TEMPERATURE_K} K conductivity on {MESH}: {candidates[0].name}")
 
 
 def main() -> None:
-    with (HERE / "thermal-conductivity.log").open("w", encoding="utf-8") as log_file:
+    """Run the Gamma-point IFC check and overwrite its log and JSON summary."""
+    log_path = HERE / "gamma-point.log"
+    with log_path.open("w", encoding="utf-8") as log_file:
         try:
             with redirect_stdout(log_file), redirect_stderr(log_file):
-                logging.basicConfig(
-                    stream=log_file,
-                    level=logging.INFO,
-                    format="%(levelname)s %(name)s: %(message)s",
-                    force=True,
+                report = inspect_gamma_point()
+                (HERE / "gamma-point.json").write_text(
+                    json.dumps(report, indent=2, sort_keys=True) + "\n",
+                    encoding="utf-8",
                 )
-                run()
+                print(
+                    "kALDo Gamma-point IFC check passed: "
+                    f"{report['primitive_atoms']} primitive atoms, "
+                    f"{len(report['frequencies_THz'])} frequencies"
+                )
         except BaseException:
             traceback.print_exc(file=log_file)
             raise

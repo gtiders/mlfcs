@@ -8,11 +8,18 @@ import numpy as np
 from ase.neighborlist import neighbor_list
 
 from mlfcs import ClusterSpace
-from mlfcs.cluster_space.models import Cluster
-from mlfcs.core import LatticeSite
+from mlfcs.cluster_space.records import Cluster
+from mlfcs.geometry.primitive import LatticeSite
 
 
 def _neighbors(primitive: ClusterSpace, cutoff: float) -> tuple[tuple[LatticeSite, ...], ...]:
+    """List periodic neighbors strictly within cutoff of each primitive motif site.
+
+    ``primitive`` supplies row lattice vectors and wrapped fractional positions;
+    ``cutoff`` is a positive distance in angstrom. Return sorted LatticeSite
+    tuples, one per motif atom, including the anchor's self image. ASE supplies
+    translation offsets in the primitive lattice basis.
+    """
     first, second, shifts, distances = neighbor_list(
         "ijSd", primitive.primitive_atoms, cutoff, self_interaction=True
     )
@@ -42,6 +49,7 @@ def iter_candidates(
     cell = primitive.cell
 
     def point(label: LatticeSite) -> np.ndarray:
+        """Return the addressed site's Cartesian row position, shape (3,), in angstrom."""
         return (positions[label.site] + np.asarray(label.translation)) @ cell
 
     for anchor in range(primitive.n_atoms):
@@ -54,6 +62,13 @@ def iter_candidates(
             choices: tuple[LatticeSite, ...] = choices,
             prefix: list[LatticeSite] = prefix,
         ) -> Iterator[tuple[LatticeSite, ...]]:
+            """Yield nondecreasing neighbor sequences completing order-1 tensor slots.
+
+            ``start`` is the first admissible index into the anchor's choices.
+            ``prefix`` holds the current sequence and is restored after each
+            recursive branch. All selected pairs must be within cutoff;
+            repeating a neighbor is permitted. Yield tuples of LatticeSite.
+            """
             if len(prefix) == order - 1:
                 yield tuple(prefix)
                 return

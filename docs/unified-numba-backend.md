@@ -51,14 +51,15 @@ domain arrays are passed directly to numerical consumers. Quotient lookups are
 owned by `ClusterMap` as sorted arrays with compiled binary search. There is no
 implicit global mapping cache.
 
-## Exact kernel implementation
+## Lattice kernel implementation
 
-`exact_kernel(A)` returns an `int64` saturated basis.
+`mlfcs.algebra.linear.kernel_basis(A)` returns readonly `int64` columns
+generating all integer solutions of `A @ x == 0`.
 Signed incidence constraints take the signed union-find path. General matrices
 take a fixed two-prime pivot chart, rational reconstruction, and a composite
 congruence preimage. Independent modular annihilation certificates, with residual
 bounds, establish the reconstructed chart's exact upper rank; the nonzero pivot
-minor establishes its lower rank. Folded rank uses certified rank directly.
+minor establishes its lower rank. Folded rank calls `rank(A)` directly.
 
 The composite step is a specialized triangular preimage algorithm, rather than a
 general-purpose Howell library or finite-field RREF over a composite modulus.
@@ -111,7 +112,7 @@ supercell matrix from its ASE atoms when no matrix is supplied. `ClusterMap` is
 exported from `mlfcs.mapping` and the package root. `PrimitiveCell`, `Supercell`,
 Taylor calculators and the old `prepare()` APIs are not part of the current API.
 
-Native force-constant files use HDF5 format version 4; older native files are
+Native force-constant files use HDF5 format version 5; older native files are
 rejected. Explicit arrays preserve the stored physical parameterization and masses
 without reconstructing orbits. Only ForceConstants offers save/load; workspaces,
 JIT caches and object graphs are not serialized. Callers own compatibility of

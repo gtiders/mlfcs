@@ -5,7 +5,7 @@
 ## 构造 `SCPH`
 
 ```python
-from mlfcs.reciprocal import SCPH
+from mlfcs.phonon import SCPH
 
 scph = SCPH(model, mesh, statistics="quantum", time_reversal=True)
 ```
@@ -60,4 +60,4 @@ results = scph.run_many(
 
 `run_many(temperatures, **kwargs)` 要求温度序列非空、非负且严格递增。实际按高温到低温执行，返回的 `SCPHResult` 列表仍按输入升序排列。已收敛的高温 FC2 会作为下一个低温的初值；未收敛结果不会传递给下一次运行。虚频诊断与数值收敛状态分开报告。
 
-仓库中的 [K4As4Pt2 SCPH 脚本](../../tutorial/K4As4Pt2/scph/run.py)展示了温度序列、高温到低温的初值传递，以及使用各温度 FC2 绘制声子谱。
+仓库中的 [K4As4Pt2 SCPH 脚本](https://github.com/gtiders/mlfcs/blob/dev/tutorial/K4As4Pt2/scph/run.py)展示了温度序列、高温到低温的初值传递，以及使用各温度 FC2 绘制声子谱。

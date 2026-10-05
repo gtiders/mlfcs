@@ -46,4 +46,4 @@ No. Fit first, then apply the explicit force-constant post-processing projection
 
 ## How do I save or export the result?
 
-Use `ForceConstants.save(path)` for native version-4 HDF5 storage and `ForceConstants.load(path)` to read it back. Geometry, masses, symmetry, orbit bases and coefficients are stored explicitly, without rebuilding the cluster space. Older native files are rejected. For interoperable output, use `ForceConstants.write(path, mapping, format=..., order=...)`. Callers must supply a mapping for the same physical parameter layout; cross-object compatibility is not checked.
+Use `ForceConstants.save(path)` for native version-5 HDF5 storage and `ForceConstants.load(path)` to read it back. Geometry, masses, symmetry, orbit bases and coefficients are stored explicitly, without rebuilding the cluster space. Older native files are rejected. For interoperable output, use `ForceConstants.write(path, mapping, format=..., order=...)`. Callers must supply a mapping for the same physical parameter layout; cross-object compatibility is not checked.

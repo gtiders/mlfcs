@@ -5,18 +5,19 @@ from __future__ import annotations
 import numpy as np
 from scipy import sparse
 
-from mlfcs.core.tensors import rotate_basis
-from mlfcs.force_constants.model import ForceConstants
+from mlfcs.cluster_space import ClusterSpace
+from mlfcs.tensors import rotate_basis
 
 
-def constraint_matrix(model: ForceConstants, order: int) -> sparse.csr_matrix:
+def acoustic_constraint_matrix(cluster_space: ClusterSpace, order: int) -> sparse.csr_matrix:
     """Build Cartesian ASR equations as CSR rows for one order's parameter block.
 
     Rows group equal first p-1 lattice labels and all Cartesian directions,
     summing over the final site/image. Columns follow the order-local orbit
-    parameter layout. Duplicate sparse contributions are summed; model unchanged.
+    parameter layout. Return CSR shape (n_equations, n_order_parameters).
+    Duplicate sparse contributions are summed; the ClusterSpace is unchanged.
     """
-    space = model.cluster_space
+    space = cluster_space
     block = space.block(order)
     orbit_indices = range(block.orbits.start, block.orbits.stop)
     dimensions = [space.orbits[index].dimension for index in orbit_indices]
@@ -66,4 +67,4 @@ def relative_residual(matrix: sparse.csr_matrix, values: np.ndarray) -> tuple[fl
     return maximum, relative
 
 
-__all__ = ["constraint_matrix", "relative_residual"]
+__all__ = ["acoustic_constraint_matrix", "relative_residual"]

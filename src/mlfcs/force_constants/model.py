@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Literal
 import numpy as np
 
 from mlfcs.cluster_space import ClusterSpace
-from mlfcs.core.log import get_logger
+from mlfcs.log import get_logger
 
 logger = get_logger(__name__)
 
@@ -41,7 +41,7 @@ class ForceConstants:
     Only declared orders belong to the model; absence does not mean zero.
     The mapping is readonly. Supercell expansion is derived from a ClusterMap
     and is not stored. Parameters name representative Cartesian components,
-    not arbitrary exact lattice-kernel generator coefficients.
+    rather than lattice-basis generator coefficients.
 
     Raises
     ------
@@ -123,11 +123,11 @@ class ForceConstants:
         """Atomically save primitive geometry, bases, masses and coefficients as HDF5.
 
         file is a path-like target with any extension, conventionally .mlfcs.
-        Return its absolute Path. Native format version 4 stores int64 and
+        Return its absolute Path. Native format version 5 stores int64 and
         float64 arrays without executable object encoding. I/O errors propagate;
         a failed write leaves an existing target unchanged.
         """
-        from mlfcs.force_constants import _native
+        from mlfcs.force_constants import native as _native
 
         path = Path(file).resolve()
         started = perf_counter()
@@ -138,14 +138,14 @@ class ForceConstants:
 
     @classmethod
     def load(cls, file: str | os.PathLike[str]) -> ForceConstants:
-        """Load a validated native version-four HDF5 force-constant model.
+        """Load a validated native version-five HDF5 force-constant model.
 
         file is a path-like input. Restore physical coefficients and readonly
         primitive geometry, masses and bases without repeating orbit construction.
         Raise ValueError for unsupported formats or invalid stored arrays/layout;
         file-access errors propagate. Legacy pickle files are not supported.
         """
-        from mlfcs.force_constants import _native
+        from mlfcs.force_constants import native as _native
 
         path = Path(file).resolve()
         started = perf_counter()
@@ -193,7 +193,7 @@ class ForceConstants:
         The model is unchanged. Native save/load is separate from external formats.
         Invalid format/order/storage or mismatched model relation raises ValueError.
         """
-        from mlfcs.force_constants.io import write
+        from mlfcs.force_constants.formats import write
 
         return write(
             self,

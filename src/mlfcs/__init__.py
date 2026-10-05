@@ -1,6 +1,6 @@
 """Symmetry-reduced force constants in primitive-cell coordinates."""
 
-from mlfcs.core.log import configure
+from mlfcs.log import configure
 
 configure()
 from mlfcs.cluster_space import ClusterSpace

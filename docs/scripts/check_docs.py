@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the deliberately small public documentation set and site assets."""
+"""Check all documentation pages, required entries, local links, and site assets."""
 
 from __future__ import annotations
 
@@ -32,6 +32,9 @@ MIRRORED = (
     Path("Q&A.md"),
     Path("finite-difference-api.md"),
     Path("fitting-api.md"),
+    Path("harmonic-api.md"),
+    Path("logging.md"),
+    Path("scph.md"),
 )
 
 
@@ -67,10 +70,8 @@ def _check_local_links(path: Path, text: str) -> list[str]:
 def main() -> int:
     errors: list[str] = []
     actual = {path.relative_to(DOCS) for path in DOCS.rglob("*.md")}
-    unexpected = sorted(actual - PAGES)
     missing = sorted(PAGES - actual)
-    errors.extend(f"unexpected documentation page: docs/{path}" for path in unexpected)
-    errors.extend(f"missing documentation page: docs/{path}" for path in missing)
+    errors.extend(f"missing required documentation page: docs/{path}" for path in missing)
 
     if not (DOCS / "assets/images/logo.png").is_file():
         errors.append("missing docs/assets/images/logo.png")
@@ -79,7 +80,7 @@ def main() -> int:
     if (ROOT / "README_ZH.md").exists():
         errors.append("legacy README_ZH.md must not exist")
 
-    for relative in sorted(PAGES):
+    for relative in sorted(actual):
         path = DOCS / relative
         if not path.is_file():
             continue
@@ -107,7 +108,7 @@ def main() -> int:
     if errors:
         print("\n".join(errors), file=sys.stderr)
         return 1
-    print(f"documentation set is valid: {len(PAGES)} pages, {len(MIRRORED)} bilingual pairs")
+    print(f"documentation set is valid: {len(actual)} pages, {len(MIRRORED)} bilingual pairs")
     return 0
 
 

@@ -6,7 +6,7 @@
 
 ```python
 from mlfcs import ForceConstants
-from mlfcs.reciprocal import Harmonic
+from mlfcs.phonon import Harmonic
 
 heavy_cs = model.cluster_space.with_masses(2 * model.cluster_space.masses)
 heavy_model = ForceConstants(heavy_cs, model.coefficients)
@@ -45,7 +45,7 @@ full = result.full_frequencies()
 
 `mesh` 接受正整数三元组 `(nx, ny, nz)`、非奇异整数 3×3 超胞矩阵，或现有 `QGrid`。矩阵采用 `supercell_cell = matrix @ primitive_cell`；三元组转换为对角矩阵。这是包含 Gamma 的精确网格，目前不提供偏移网格。
 
-`HarmonicMeshResult` 中的数组只读。权重之和等于完整网格大小，代表点频率形状为 `(n_representatives, 3*n_atoms)`。只在代表点上计算 Fourier 矩阵；`full_frequencies()` 按需创建完整频率数组，顺序为 `QGrid` 精确整数 label 的字典序。对应的完整坐标是 `QGrid.from_matrix(result.mesh_matrix).points`。
+`HarmonicMeshResult` 中的数组只读。权重之和等于完整网格大小，代表点频率形状为 `(n_representatives, 3*n_atoms)`。只在代表点上计算 Fourier 矩阵；`full_frequencies()` 按需创建完整频率数组，顺序为 `QGrid` 精确整数 label 的字典序。对应的完整坐标是 `QGrid(result.mesh_matrix).points`。
 
 显式 q 点允许结构等价站点使用不同质量。网格只采用保持当前逐站点质量的结构对称操作，并按请求加入时间反演；不会改变 cs 的结构对称性或 FC basis。SCPH 使用相同规则。
 

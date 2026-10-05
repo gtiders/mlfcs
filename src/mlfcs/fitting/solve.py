@@ -8,8 +8,8 @@ from typing import TYPE_CHECKING
 import numpy as np
 from scipy.sparse.linalg import lsmr, minres
 
-from mlfcs.core.log import get_logger
 from mlfcs.errors import UnobservedParameterError
+from mlfcs.log import get_logger
 
 if TYPE_CHECKING:
     from mlfcs.fitting.system import FitSystem
@@ -49,7 +49,9 @@ class FitSolver:
         """
         missing = self.system.unobserved_parameters
         if missing:
-            shown = ", ".join(self.system.parameter_name(index) for index in missing[:12])
+            shown = ", ".join(
+                self.system.cluster_space.parameter_name(index) for index in missing[:12]
+            )
             remainder = "" if len(missing) <= 12 else f", and {len(missing) - 12} more"
             raise UnobservedParameterError(
                 f"{len(missing)} parameters are absent from the training design: "

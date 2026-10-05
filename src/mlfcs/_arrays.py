@@ -1,4 +1,4 @@
-"""Exact array normalization, readonly ownership and machine-word bounds."""
+"""Array normalization, storage ownership and size validation."""
 
 import math
 import operator
@@ -32,7 +32,7 @@ def require_allocation(name: str, shape: tuple[int, ...], itemsize: int = 8) -> 
     require_bound(f"{name} byte length", math.prod(shape) * itemsize, INTP_MAX)
 
 
-def integer_array(values, *, name: str = "integer array") -> np.ndarray:
+def as_int64_array(values, *, name: str = "array") -> np.ndarray:
     """Normalize declared integers to a readonly, C-contiguous int64 array.
 
     Floating-point inputs are rejected, even if integral. Object entries must
@@ -47,10 +47,10 @@ def integer_array(values, *, name: str = "integer array") -> np.ndarray:
     if source.dtype.kind == "O":
         for value in source.flat:
             try:
-                exact = operator.index(value)
+                entry = operator.index(value)
             except TypeError as error:
                 raise ValueError(f"{name} contains a value that is not an integer") from error
-            if not -INT64_MAX <= exact <= INT64_MAX:
+            if not -INT64_MAX <= entry <= INT64_MAX:
                 raise OverflowError(f"{name} entry does not fit the symmetric int64 domain")
     elif source.size and (int(source.min()) < -INT64_MAX or int(source.max()) > INT64_MAX):
         raise OverflowError(f"{name} entry does not fit the symmetric int64 domain")

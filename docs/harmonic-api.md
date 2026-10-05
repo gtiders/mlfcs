@@ -6,7 +6,7 @@
 
 ```python
 from mlfcs import ForceConstants
-from mlfcs.reciprocal import Harmonic
+from mlfcs.phonon import Harmonic
 
 heavy_cs = model.cluster_space.with_masses(2 * model.cluster_space.masses)
 heavy_model = ForceConstants(heavy_cs, model.coefficients)
@@ -45,7 +45,7 @@ full = result.full_frequencies()
 
 `mesh` accepts positive integer sizes `(nx, ny, nz)`, a nonsingular integer 3×3 supercell matrix, or an existing `QGrid`. The matrix follows `supercell_cell = matrix @ primitive_cell`; a size triple becomes a diagonal matrix. This is a Gamma-centered exact mesh. Shifted meshes are not provided.
 
-`HarmonicMeshResult` keeps readonly arrays. Its weights sum to the full mesh size, and frequencies have shape `(n_representatives, 3*n_atoms)`. Only representative Fourier matrices are evaluated. `full_frequencies()` allocates a new frequency array in the lexicographic exact-label order used by `QGrid`; its corresponding coordinates are `QGrid.from_matrix(result.mesh_matrix).points`.
+`HarmonicMeshResult` keeps readonly arrays. Its weights sum to the full mesh size, and frequencies have shape `(n_representatives, 3*n_atoms)`. Only representative Fourier matrices are evaluated. `full_frequencies()` allocates a new frequency array in the lexicographic exact-label order used by `QGrid`; its corresponding coordinates are `QGrid(result.mesh_matrix).points`.
 
 Explicit points permit different masses on structurally equivalent sites. Mesh reduction uses only structural operations that preserve the actual per-site masses, plus time reversal when requested. It does not change the cluster-space symmetry or FC basis. The same rule applies to SCPH.
 

@@ -12,7 +12,7 @@ MLFCS 导入时安装一个包日志 handler，默认 INFO。每行固定包含�
 
 ```python
 import logging
-from mlfcs.core.log import configure
+from mlfcs.log import configure
 
 configure(level=logging.DEBUG)    # 详细诊断
 configure(level=logging.WARNING)  # 只显示警告和错误
@@ -59,7 +59,7 @@ DEBUG 增加 workspace 细节。日志不计算或记录模型身份哈希。
 任务边界需要记录已捕获异常时使用标准接口：
 
 ```python
-from mlfcs.core.log import get_logger
+from mlfcs.log import get_logger
 
 logger = get_logger("task")
 try:

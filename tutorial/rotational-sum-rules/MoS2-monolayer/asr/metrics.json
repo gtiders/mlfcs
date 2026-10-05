@@ -14,8 +14,6 @@
     }
   ],
   "cutoff_angstrom": 8.0,
-  "fit_system_fingerprint": "13ea9b9ecc61fb04836790a8f63f9cd991fe0e5db6ab4cd0a34f8ad42b7c3334",
-  "force_constants_fingerprint": "19a58964e4c909d92bc72f4ba8f88a3f3a7f6c3391e0e18220afaa13f71555ae",
   "max_body_order": 2,
   "orbits": 17,
   "orders": [

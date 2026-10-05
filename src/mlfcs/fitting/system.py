@@ -13,11 +13,11 @@ from scipy.linalg.blas import dsyrk
 
 from mlfcs._arrays import require_allocation
 from mlfcs.cluster_space import ClusterSpace
-from mlfcs.core.geometry import PeriodicGeometry
-from mlfcs.core.log import get_logger
 from mlfcs.fitting.design import ForceDesign
 from mlfcs.fitting.solve import FitSolver
 from mlfcs.force_constants import ForceConstants
+from mlfcs.geometry.periodic import PeriodicGeometry
+from mlfcs.log import get_logger
 from mlfcs.mapping import ClusterMap
 
 logger = get_logger(__name__)
@@ -41,7 +41,7 @@ class FitSystem:
     ----------
     cluster_map : ClusterMap
         Reference supercell and primitive parameter model. ForceDesign requires
-        full exact structural rank; the completed system retains only its
+        full structural rank; the completed system retains only its
         ClusterSpace and equations, not the map or training structures.
     structures : iterable of ase.Atoms
         Nonempty displaced snapshots with matching atom order, PBC and reference
@@ -224,22 +224,6 @@ class FitSystem:
         else:
             missing = ~np.any(self._matrix != 0.0, axis=0)
         return tuple(int(index) for index in np.flatnonzero(missing))
-
-    def parameter_name(self, parameter: int) -> str:
-        """Return the physical layout address of one packed parameter."""
-        parameter = int(parameter)
-        if not 0 <= parameter < self.n_parameters:
-            raise IndexError("parameter is outside the cluster space")
-        offsets = self.cluster_space.parameter_offsets
-        orbit_index = int(np.searchsorted(offsets, parameter, side="right") - 1)
-        component = parameter - int(offsets[orbit_index])
-        for block in self.cluster_space.blocks:
-            if block.parameters.start <= parameter < block.parameters.stop:
-                return (
-                    f"FC{block.order} orbit {orbit_index - block.orbits.start} "
-                    f"component {component}"
-                )
-        raise RuntimeError("cluster-space parameter layout is inconsistent")
 
     def solve(self, **options) -> ForceConstants:
         """Return ForceConstants using temporary column scaling and the fixed solver.

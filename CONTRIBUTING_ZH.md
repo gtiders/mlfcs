@@ -2,58 +2,52 @@
 
 [English](CONTRIBUTING.md)
 
-欢迎提交缺陷报告、独立参考数据、文档修复和范围明确的拉取请求。
+欢迎提交问题报告、参考数据、文档修正和范围清晰的代码改进。
 
-## 提交 issue 前
+## 提交问题前
 
-请先搜索已有 issue，并提供可复现案例，包括：
-
-- MLFCS、Python、ASE、NumPy 和 JAX 版本；
-- 操作系统和 CPU/GPU 后端；
-- 原胞、超胞、阶数、截断、位移量和 ASR 设置；
-- 完整报错或数值比较；
-- 力来自 `run()` 还是外部 `sow()` / `reap()`。
-
-未经许可不得上传专有势函数或计算数据。
+请先搜索现有问题，并整理可复现的最小案例。报告中请包含 MLFCS、Python、ASE、NumPy、
+SciPy 和 spglib 版本，操作系统，原胞结构和晶格，阶数、截断半径、超胞与位移设置，以及完整
+traceback 或数值对比。未经许可，请勿附带不可再分发的势函数或计算数据。
 
 ## 开发环境
 
 ```bash
 git clone https://github.com/gtiders/mlfcs.git
 cd mlfcs
-uv sync --locked --dev
+uv sync --group dev --group reference
 ```
 
-提交前应通过：
+运行数值测试和独立参考对比：
 
 ```bash
-uv run ruff check src tests reference_tools examples
-uv run ruff format --check src tests reference_tools examples
 uv run pytest -m "not reference"
+uv run pytest -m reference
+uv run ruff check src tests
 uv build
 ```
 
-科学参考必须串行执行，并可能耗时较长。pypolymlp 比较还需要 Eigen 头文件及专用依赖组：
+reference 依赖组为独立精确代数对比提供 SymPy。调用 phonopy 或 phono3py 的教学脚本使用可选的
+tutorial 依赖组：
 
 ```bash
-uv sync --locked --dev --group reference
-uv run pytest tests/reference/analytic/Morse_FCC_FC4/test_morse_fc4.py
+uv sync --group tutorial
 ```
 
-本地只运行与改动相关的参考测试，完整序列由 CI 执行。
+文档贡献者可安装 docs 依赖组，并运行双语页面检查和严格构建：
+`uv sync --group docs`、`uv run python docs/scripts/check_docs.py` 和
+`uv run mkdocs build --strict -f mkdocs.yml`。
 
-## 测试要求
+## 测试与教学案例
 
-新增或迁移验证内容前必须遵循[测试与案例设计原则](docs/zh/开发/案例维护规范.md)。
-外部软件的材料数值对比属于 `examples`，不应新增为普通 pytest oracle。
+数值测试应聚焦可复现行为；精确代数和科学结果在适用时应与独立参考实现比较。不要为
+`mlfcs.tools` 添加常驻测试；工具修改通过临时验证确认，验证代码不得提交。每个教学拟合任务由
+自己的脚本捕获完整输出，并将覆盖后的 `fit.log` 保存在任务目录且纳入 Git。
 
-- 单元测试覆盖确定性的数学和 I/O 行为；
-- 集成测试只使用公共 API；
-- 科学结论必须提供独立参考、来源、单位、原子顺序映射、容差和独立 CI 步骤；
-- 第三方参考文件必须在案例 README 中说明来源和再分发条款；
-- 不得把旧版 MLFCS 当作当前测试的真值。
+教学计算可能需要另行准备结构、外部程序或大型参考数据。请记录这些输入及其来源；只有允许
+再分发时才添加文件。
 
-拉取请求应保持范围清晰并解释科学或 API 动机。公共行为变化时同步更新中英文文档，
-不要覆盖无关工作区修改，不提交构建产物，并在变更记录中说明用户可见变化。
+## Pull Request
 
-贡献按照仓库的 GNU 通用公共许可证第 3 版或更高版本接收。
+保持修改范围清晰，并说明科学或 API 动机。公开行为变化时同步更新中英文文档。保留无关的工作树
+修改，不提交构建产物；用户可见的变化应更新 changelog。本项目采用 GNU GPL v3.0 或更高版本。

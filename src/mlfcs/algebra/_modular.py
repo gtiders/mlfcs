@@ -3,7 +3,7 @@
 import numpy as np
 from numba import njit
 
-from mlfcs.algebra.integer import gcd
+from mlfcs.algebra.matrix import gcd
 
 RANK_PRIMES = (2147483647, 2147483629)
 CRT_MODULUS = RANK_PRIMES[0] * RANK_PRIMES[1]
@@ -131,7 +131,7 @@ def reconstruct(first, second, denominator_bound):
 
 @njit(cache=True)
 def common_denominator(numerators, denominators):
-    """Form bounded delta and F such that each reconstructed entry equals F/delta.
+    """Form a common denominator delta and scaled entries F for the reconstructed fractions.
 
     Inputs are int64 numerator/positive-denominator arrays of equal shape.
     Before each LCM multiplication, divide by gcd and test against MODULAR_LIMIT;
