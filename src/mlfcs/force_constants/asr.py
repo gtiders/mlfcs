@@ -7,11 +7,13 @@ from dataclasses import dataclass
 from time import perf_counter
 
 import numpy as np
-from scipy import sparse
 from scipy.sparse.linalg import lsmr
 
 from mlfcs.errors import ConstraintProjectionError
-from mlfcs.force_constants.acoustic import acoustic_constraint_matrix, relative_residual
+from mlfcs.force_constants.acoustic_operator import (
+    AcousticSumRuleOperator,
+    operator_relative_residual,
+)
 from mlfcs.force_constants.model import ForceConstants
 from mlfcs.log import get_logger
 
@@ -58,7 +60,7 @@ class ASRResult:
 
 def _project(
     order: int,
-    matrix: sparse.csr_matrix,
+    operator: AcousticSumRuleOperator,
     parameters: np.ndarray,
     *,
     rtol: float,
@@ -66,24 +68,26 @@ def _project(
 ) -> tuple[np.ndarray, ASRReport]:
     """Subtract minimum-norm LSMR corrections until ASR residual meets rtol.
 
-    matrix is CSR (equations, parameters), values a finite physical vector.
-    Up to three corrections address roundoff; return a new vector and ASRReport.
-    No force-fitting algorithm is selected here. Failure to reach relative
-    constraint tolerance raises ConstraintProjectionError; inputs are unchanged.
+    ``operator`` supplies the equation system through ``shape``, ``matvec``,
+    ``rmatvec`` and ``max_row_abs_sum``; values is a finite physical vector.
+    Up to three corrections address roundoff; return a new vector and
+    ASRReport. No force-fitting algorithm is selected here. Failure to reach
+    relative constraint tolerance raises ConstraintProjectionError; inputs are
+    unchanged.
     """
     values = np.asarray(parameters, dtype=np.float64)
-    if values.shape != (matrix.shape[1],):
+    if values.shape != (operator.shape[1],):
         raise ValueError(
-            f"order-{order} {name} expects {matrix.shape[1]} parameters, got {values.shape}"
+            f"order-{order} {name} expects {operator.shape[1]} parameters, got {values.shape}"
         )
     if not np.all(np.isfinite(values)):
         raise ValueError(f"order-{order} parameters contain NaN or infinite values")
-    before, relative_before = relative_residual(matrix, values)
-    if matrix.shape[0] == 0 or values.size == 0 or relative_before <= rtol:
+    before, relative_before = operator_relative_residual(operator, values)
+    if operator.shape[0] == 0 or values.size == 0 or relative_before <= rtol:
         return values.copy(), ASRReport(
             order,
-            matrix.shape[0],
-            matrix.shape[1],
+            operator.shape[0],
+            operator.shape[1],
             before,
             before,
             relative_before,
@@ -97,11 +101,11 @@ def _project(
     correction = np.zeros_like(values)
     iterations = 0
     solver_rtol = max(rtol * 0.1, np.finfo(float).eps)
-    maximum_steps = max(1, 4 * min(matrix.shape))
+    maximum_steps = max(1, 4 * min(operator.shape))
     for _ in range(3):
-        residual = np.asarray(matrix @ projected)
+        residual = np.asarray(operator.matvec(projected))
         solution = lsmr(
-            matrix,
+            operator,
             residual,
             atol=solver_rtol,
             btol=solver_rtol,
@@ -116,7 +120,7 @@ def _project(
         projected -= step
         correction += step
         iterations += int(solution[2])
-        after, relative_after = relative_residual(matrix, projected)
+        after, relative_after = operator_relative_residual(operator, projected)
         if relative_after <= rtol:
             break
     else:
@@ -130,8 +134,8 @@ def _project(
     relative_correction = correction_norm / parameter_norm if parameter_norm else 0.0
     return projected, ASRReport(
         order,
-        matrix.shape[0],
-        matrix.shape[1],
+        operator.shape[0],
+        operator.shape[1],
         before,
         after,
         relative_before,
@@ -170,10 +174,10 @@ def enforce_asr(
     logger.info("ASR projection started: orders=%s rtol=%.3g", selected, rtol)
     reports = []
     for order in selected:
-        matrix = acoustic_constraint_matrix(model.cluster_space, order)
+        operator = AcousticSumRuleOperator(model.cluster_space, order)
         projected, report = _project(
             order,
-            matrix,
+            operator,
             model.coefficients[order],
             rtol=float(rtol),
         )
