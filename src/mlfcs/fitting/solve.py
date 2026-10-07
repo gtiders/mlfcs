@@ -1,4 +1,4 @@
-"""Column-normalized MINRES and LSMR; public equations stay in physical units."""
+"""Column-scaled direct and iterative solvers for force-fitting systems."""
 
 from __future__ import annotations
 
@@ -6,10 +6,11 @@ import operator
 from typing import TYPE_CHECKING
 
 import numpy as np
-from scipy.sparse.linalg import lsmr, minres
+from scipy.linalg import lstsq
+from scipy.sparse.linalg import minres
 
-from mlfcs.errors import UnobservedParameterError
-from mlfcs.log import get_logger
+from mlfcs.foundation.errors import UnobservedParameterError
+from mlfcs.foundation.log import get_logger
 
 if TYPE_CHECKING:
     from mlfcs.fitting.system import FitSystem
@@ -29,8 +30,8 @@ class FitSolver:
     """Internal solver for a FitSystem; representation fixes the algorithm.
 
     Normal systems use diagonally scaled MINRES; raw systems use column-scaled
-    LSMR. Scaling is temporary, public physical equations are unchanged, and
-    the returned vector is restored to the original parameter coordinates.
+    dense least squares. Scaling is temporary, public physical equations are
+    unchanged, and the returned vector is restored to physical coordinates.
     """
 
     __slots__ = ("system",)
@@ -119,63 +120,47 @@ class FitSolver:
             )
         return parameters
 
-    def _raw(self, *, atol=1e-8, btol=1e-8, conlim=1e8, maxiter=1000):
-        """Solve A S z approximately equal to f by LSMR and return physical S z.
+    def _raw(self):
+        """Solve the column-scaled raw equations by dense least squares.
 
-        Scale columns to unit Euclidean norm using their maxima first to avoid
-        squaring huge or tiny physical entries. A is copied for normalization;
-        f and public equations retain their physical units. atol/btol control
-        LSMR stopping, conlim the scaled condition estimate (zero disables it),
-        and maxiter is positive. Stop codes 0/1/2/4/5 are accepted; others raise
-        RuntimeError. Nonrepresentable scale raises ValueError. In rank-deficient
-        problems the solution minimizes norm in scaled, not physical, coordinates.
+        The matrix is scaled to unit column norm before LAPACK solves it. The
+        rank cutoff is SciPy's machine-precision default; no iterative stopping
+        tolerance or condition limit is exposed. Rank-deficient systems return
+        the minimum-norm solution in scaled parameter coordinates.
         """
-        for name, value in (("atol", atol), ("btol", btol), ("conlim", conlim)):
-            if not np.isfinite(value) or value < 0.0:
-                raise ValueError(f"{name} must be nonnegative and finite")
-        maxiter = _maxiter(maxiter)
-        logger.info(
-            "Solver started: algorithm=LSMR normalization=unit_column_norm "
-            "atol=%.3g btol=%.3g conlim=%.3g maxiter=%d",
-            atol,
-            btol,
-            conlim,
-            maxiter,
-        )
+        logger.info("Solver started: algorithm=least_squares normalization=unit_column_norm")
         matrix, forces = self.system.design_matrix, self.system.forces
-        # Normalize via column maxima first, avoiding squared physical entries
-        # that could overflow or underflow when FC orders have disparate scales.
+        # Scale by each maximum before computing norms to avoid squaring large
+        # physical coefficients while normalizing columns from different orders.
         maxima = np.max(np.abs(matrix), axis=0)
-        normalized = matrix / maxima
+        normalized = np.array(matrix, dtype=np.float64, order="F", copy=True)
+        normalized /= maxima[None, :]
         norms = np.sqrt(np.einsum("ij,ij->j", normalized, normalized))
-        normalized /= norms
+        normalized /= norms[None, :]
         with np.errstate(over="ignore", under="ignore", divide="ignore"):
             scale = (1.0 / norms) / maxima
         if not np.all(np.isfinite(scale)) or np.any(scale <= 0.0):
             raise ValueError(
                 "raw column normalization cannot represent the physical parameter scale"
             )
-        result = lsmr(
+        scaled, _, rank, singular_values = lstsq(
             normalized,
             forces,
-            atol=atol,
-            btol=btol,
-            conlim=conlim,
-            maxiter=maxiter,
+            cond=None,
+            overwrite_a=True,
+            check_finite=False,
+            lapack_driver="gelsd",
         )
-        scaled, stop, iterations, residual, normal_residual, _, condition, _ = result
+        condition = (
+            float(singular_values[0] / singular_values[rank - 1])
+            if rank > 0
+            else float("inf")
+        )
         logger.info(
-            "Solver finished: algorithm=LSMR iterations=%d stop_code=%d force_residual=%.10e "
-            "scaled_normal_residual=%.10e scaled_condition_estimate=%.10e",
-            iterations,
-            stop,
-            residual,
-            normal_residual,
+            "Solver finished: algorithm=least_squares rank=%d/%d "
+            "scaled_condition_estimate=%.10e",
+            rank,
+            matrix.shape[1],
             condition,
         )
-        if stop not in (0, 1, 2, 4, 5):
-            raise RuntimeError(
-                f"LSMR did not converge: stop code {stop}, {iterations} steps, "
-                f"force residual {residual:.10e}, scaled condition estimate {condition:.10e}"
-            )
         return scale * scaled

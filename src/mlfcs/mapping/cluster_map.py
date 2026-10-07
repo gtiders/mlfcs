@@ -8,16 +8,16 @@ from time import perf_counter
 import numpy as np
 from ase import Atoms
 
-from mlfcs._arrays import as_int64_array, require_allocation
 from mlfcs.cluster_space import ClusterSpace
+from mlfcs.foundation.arrays import as_int64_array, require_allocation
+from mlfcs.foundation.log import get_logger
 from mlfcs.geometry.primitive import LatticeSite
-from mlfcs.log import get_logger
 from mlfcs.mapping.folding import RankInfo, folded_rank, group_folded_images
 from mlfcs.mapping.periodic import (
     PeriodicIndex,
     map_labels,
     prepare_periodic_index,
-    quotient_kernel,
+    quotient_label,
 )
 from mlfcs.mapping.supercell import infer_supercell_matrix, prepare_supercell_data
 
@@ -26,26 +26,30 @@ logger = get_logger(__name__)
 
 @dataclass(frozen=True, slots=True, init=False)
 class ClusterMap:
-    """Immutable realization of one ClusterSpace in one external supercell.
+    """Realization of a primitive force-constant space in a specific supercell.
+
+    ``ClusterSpace`` defines force-constant clusters and symmetry orbits in
+    primitive-lattice coordinates. ``ClusterMap`` embeds that model into one
+    validated periodic supercell by assigning primitive lattice sites and
+    orbit images to concrete supercell atom indices.
+
+    For each orbit, ``image_atom_indices`` stores the ordered atom tuple of
+    every symmetry image after supercell folding. This mapping provides the
+    structural basis for parameter-identifiability checks and other
+    supercell-based force-constant operations.
 
     Parameters
     ----------
-    cluster_space : ClusterSpace
-        Primitive model referenced by this mapping; it is not copied.
-    supercell_atoms : ase.Atoms
-        Fully periodic reference supercell. Atom order is retained and geometry
-        and masses are captured independently of this ASE object.
-    supercell_matrix : array_like of integers, shape (3, 3), optional
-        Row-cell convention: supercell_cell = matrix @ primitive_cell. If omitted,
-        infer each row by unique periodic matching at cluster_space.symprec.
+    cluster_space
+        Primitive force-constant model space.
+    supercell_atoms
+        Fully periodic ASE supercell.
+    supercell_matrix
+        Optional integer ``(3, 3)`` supercell matrix ``S`` satisfying
 
-    Notes
-    -----
-    Initialization validates the primitive-to-supercell relation and folds orbit
-    images into atom indices. Arrays are readonly. A ClusterSpace may have many
-    independent ClusterMap instances; this object owns one supercell realization.
-    image_atom_indices[i] has shape (n_images_i, order_i). It records tensor-slot
-    atom order, not a sorted set. supercell_atoms returns a detached ASE copy.
+            cell_super = S @ cell_primitive.
+
+        If omitted, ``S`` is inferred from the two lattices.
 
     Raises
     ------
@@ -71,7 +75,7 @@ class ClusterMap:
     def __init__(
         self, cluster_space: ClusterSpace, supercell_atoms: Atoms, *, supercell_matrix=None
     ):
-        """Infer or validate the supercell relation and prepare quotient/image lookup buffers."""
+        """Validate the supercell realization and construct all periodic atom mappings."""
         if not isinstance(cluster_space, ClusterSpace):
             raise TypeError("cluster_space must be a ClusterSpace")
         started = perf_counter()
@@ -136,10 +140,15 @@ class ClusterMap:
         return len(self.atomic_numbers)
 
     def rank_info(self, order=None) -> RankInfo:
-        """Return structural rank and alias counts for one order or all orders.
+        """Return structural parameter identifiability after supercell folding.
 
-        This evaluates folded orbit bases independently of training displacements;
-        it is recomputed on each call. Missing orders raise KeyError.
+        The folded orbit bases define a linear map from primitive force-constant
+        parameters to tensor components in this supercell. Its rank measures how
+        many primitive parameter directions remain distinguishable purely from
+        the supercell geometry, independently of displacement or training data.
+
+        If ``order`` is omitted, results are combined over all included
+        force-constant orders. Missing orders raise KeyError.
         """
         started = perf_counter()
         logger.info("Folded rank started: order=%s", order if order is not None else "all")
@@ -155,17 +164,20 @@ class ClusterMap:
         return result
 
     def quotient(self, translation: tuple[int, int, int]) -> tuple[int, int, int]:
-        """Return the quotient label of a primitive translation."""
+        """Return the quotient label of a primitive translation modulo the supercell lattice."""
         values = as_int64_array(translation, name="lattice translation")
         if values.shape != (3,):
             raise ValueError("lattice translation must have shape (3,)")
         return tuple(
-            int(v) for v in quotient_kernel(values, self._periodic.adjugate, self._periodic.modulus)
+            int(v) for v in quotient_label(values, self._periodic.adjugate, self._periodic.modulus)
         )
 
     @property
     def translation_representatives(self) -> tuple[tuple[int, int, int], ...]:
-        """One primitive translation per quotient, in explicit atom order for site zero."""
+        """Return one primitive-lattice representative for each supercell translation class.
+
+        Representatives follow the external atom order of primitive site zero.
+        """
         seen: set[tuple[int, int, int]] = set()
         result = []
         for site, translation, quotient in zip(
@@ -193,18 +205,33 @@ class ClusterMap:
             raise RuntimeError(f"primitive site {site} is absent from the supercell") from error
 
     def map_labels(self, labels: object, translations: object) -> np.ndarray:
-        """Map primitive lattice labels and translation offsets to atom indices.
+        """Map primitive lattice labels under additional translations to supercell atoms.
 
-        Labels have shape (n, 4) with columns (site, tx, ty, tz); translations
-        have shape (m, 3). Return int64 shape (n, m), preserving both input
-        orders. Actual integer additions and quotient operations are checked in
-        the compiled kernel; malformed shapes raise ValueError and unsafe
-        intermediates raise OverflowError.
+        For each primitive label ``(site, n)`` and translation offset ``t``,
+        return the atom index representing the periodic site
+
+            (site, [n + t])
+
+        in this supercell.
+
+        Parameters
+        ----------
+        labels
+            Primitive lattice labels of shape ``(n, 4)`` as
+            ``(site, tx, ty, tz)``.
+        translations
+            Primitive lattice translations of shape ``(m, 3)``.
+
+        Returns
+        -------
+        ndarray
+            Supercell atom indices of shape ``(n, m)``, preserving both input
+            orders.
         """
         return map_labels(labels, translations, self._periodic)
 
     def aliases(self, order: int) -> tuple[tuple[tuple[int, int], ...], ...]:
-        """Return folded atom tuples reached by more than one primitive image."""
+        """Return groups of primitive orbit images that fold onto the same atom tuple."""
         block = self.cluster_space.block(order)
         groups = group_folded_images(
             self.image_atom_indices, range(block.orbits.start, block.orbits.stop)

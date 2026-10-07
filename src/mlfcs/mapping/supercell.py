@@ -1,22 +1,38 @@
-"""Supercell matrix inference and primitive-to-supercell geometry validation."""
+"""Construct the periodic lattice mapping between a primitive cell and a supercell."""
 
 from __future__ import annotations
 
 import numpy as np
 from ase import Atoms
 
-from mlfcs._arrays import as_int64_array, readonly, require_allocation, require_bound
-from mlfcs.algebra.matrix import adjugate_3x3, determinant_3x3, to_python_rows
+from mlfcs.foundation.arrays import as_int64_array, readonly, require_allocation, require_bound
+from mlfcs.foundation.integer import adjugate_3x3, determinant_3x3, to_python_rows
 from mlfcs.geometry.periodic import PeriodicGeometry
-from mlfcs.mapping.periodic import quotient_kernel
+from mlfcs.mapping.periodic import quotient_label
 
 
 def infer_supercell_matrix(cluster_space, supercell_atoms):
-    """Infer the integer supercell matrix from the two lattices.
+    """Infer the integer matrix relating a primitive cell to a supercell.
 
-    Row convention: ``supercell_cell = matrix @ primitive_cell``. Each
-    supercell lattice vector must match exactly one primitive lattice image
-    within the declared ``symprec``.
+    The matrix ``S`` is defined by the row-vector convention
+
+        cell_super = S @ cell_primitive.
+
+    Each supercell lattice vector must correspond to a unique integer
+    combination of primitive lattice vectors within ``cluster_space.symprec``.
+
+    Returns
+    -------
+    ndarray
+        Readonly ``int64`` matrix of shape ``(3, 3)``.
+
+    Raises
+    ------
+    TypeError
+        If ``supercell_atoms`` is not an ASE ``Atoms`` object.
+    ValueError
+        If the supercell lattice is nonfinite or cannot be matched uniquely
+        to the primitive lattice within the symmetry tolerance.
     """
     if not isinstance(supercell_atoms, Atoms):
         raise TypeError("supercell_atoms must be an ASE Atoms object")
@@ -40,14 +56,37 @@ def infer_supercell_matrix(cluster_space, supercell_atoms):
 
 
 def prepare_supercell_data(cluster_space, atoms, matrix):
-    """Validate a declared supercell and return readonly geometry and lattice addresses.
+    """Validate a supercell and map its atoms to primitive lattice sites.
 
-    matrix uses cell_super = matrix @ cell_primitive, with integer entries and
-    nonzero determinant. Require full PBC, matching atom count and positive
-    masses. Same-species primitive matching uses Cartesian cluster-space
-    symprec; every atom must have exactly one match and a unique periodic key.
-    Preserve external atom order. Invalid geometry/matching raises ValueError;
-    nonrepresentable quotient arithmetic raises OverflowError.
+    For supercell matrix ``S`` defined by
+
+        cell_super = S @ cell_primitive,
+
+    each supercell atom is assigned a unique primitive motif site ``i`` and
+    integer lattice translation ``n``. Translations are further reduced to
+    classes of the finite quotient ``Z^3 / Z^3 S``. The validated atom set
+    must contain every combination of primitive motif site and supercell
+    translation class exactly once, so the atom count equals
+    ``n_primitive * abs(det(S))``. The mapping follows from species, geometry
+    and the lattice quotient alone; external atom ordering is preserved but
+    need not follow any replication order.
+
+    Returns
+    -------
+    dict
+        Supercell geometry, primitive-site indices, lattice translations,
+        quotient labels, determinant and atomic masses.
+
+    Raises
+    ------
+    TypeError
+        If ``atoms`` is not an ASE ``Atoms`` object.
+    ValueError
+        If the supercell geometry, lattice relation, atom count, masses,
+        periodicity, primitive-site matching or quotient uniqueness is
+        invalid.
+    OverflowError
+        If the integer quotient arithmetic exceeds the supported domain.
     """
     if not isinstance(atoms, Atoms):
         raise TypeError("supercell_atoms must be an ASE Atoms object")
@@ -104,7 +143,7 @@ def prepare_supercell_data(cluster_space, atoms, matrix):
     modulus = abs(determinant)
     quotients = np.empty((len(atoms), 3), dtype=np.int64)
     for atom, translation in enumerate(translations):
-        quotients[atom] = quotient_kernel(translation, adjugate, modulus)
+        quotients[atom] = quotient_label(translation, adjugate, modulus)
     keys = [
         (int(site), *(int(value) for value in quotient))
         for site, quotient in zip(sites, quotients, strict=True)

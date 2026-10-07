@@ -27,10 +27,11 @@ matrix, reconstruction and zero-constraint tests remain available.
 
 ## Organization
 
-Files follow the current features: algebra, geometry, cluster space, candidates,
-mapping, force design, fitting, finite differences, force constants and exports,
-invariance projections, reciprocal calculations, SCPH, and logging. Tools use
-temporary validation at implementation time and have no standing tests.
+Files follow the current features: geometry, cluster space (including its
+integer kernel), candidates, mapping, force design, fitting, finite differences,
+force constants and exports, invariance projections, reciprocal calculations,
+SCPH, and logging. Tools use temporary validation at implementation time and
+have no standing tests.
 
 Integer results use elementwise equality. Floating comparisons specify tolerances;
 invariant subspaces use projection matrices and integer lattices use HNF or Smith

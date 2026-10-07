@@ -9,10 +9,10 @@ from time import perf_counter
 import numpy as np
 from numba import get_num_threads, get_thread_id, njit, prange
 
-from mlfcs._arrays import as_int64_array, readonly, require_allocation
-from mlfcs.log import get_logger
+from mlfcs.foundation.arrays import as_int64_array, readonly, require_allocation
+from mlfcs.foundation.log import get_logger
+from mlfcs.foundation.tensors import rotate_basis
 from mlfcs.mapping import ClusterMap
-from mlfcs.tensors import rotate_basis
 
 logger = get_logger(__name__)
 
@@ -25,7 +25,7 @@ class OrderDesign:
     index image ranges; parameter starts refer to the global ClusterSpace.
     image_atoms is (images, translations, p); flattened image_basis stores
     (3**p, orbit_dimension) blocks delimited by image_basis_offsets.
-    factor is 1/p!, with differentiation over every tensor slot in the kernel.
+    factor is 1/p!, with differentiation over every tensor index in the kernel.
     """
 
     factor: float
@@ -258,7 +258,7 @@ def accumulate_design(
 
     Displacement is atom-major Cartesian float64; out has shape (rows, total
     parameters). Compiled ragged offsets delimit images and flattened bases.
-    Each tensor slot contributes -1/p! times the product of all other slot
+    Each tensor index contributes -1/p! times the product of all other index
     displacements. scratch has one (rows, max_orbit_dimension) block per thread.
     Orbits write disjoint parameter columns, so prange needs no atomics; each
     thread clears its scratch before use. Validated metadata admits all indices.
@@ -292,8 +292,8 @@ def accumulate_design(
                                     3 * image_atoms[image, translation, other]
                                     + components[component, other]
                                 ]
-                        # Differentiate every slot of the energy term: repeated
-                        # coordinates contribute once per slot, with the force sign.
+                        # Differentiate every index of the energy term: repeated
+                        # coordinates contribute once per index, with the force sign.
                         value = -factor * monomial
                         basis_row = basis_start + component * dimension_count
                         for dimension in range(dimension_count):

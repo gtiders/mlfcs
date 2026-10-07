@@ -1,214 +1,206 @@
-# Local integer contracts and cleanup rules
+# 本地整数契约与清理规则
 
-This document describes the current implementation. The existing mathematical audit and its G chapter are historical baselines and have not been edited.
+本文档描述当前实现。已有的数学审查及其 G 章是历史基线，未被编辑。
 
-## Policy
+## 策略
 
-A local proof replaces a whole-problem admission bound when it checks the same operation at the point where its actual operands are known. Remove the redundant whole-problem calculation, carried certificate fields, branches and tests. Use one checking algorithm for each operation; do not retain an aggregate screen and a separate local fallback for the same arithmetic.
+当一个局部证明在与运算相同的检查点、在实际操作数已知的位置验证同一操作时，它就替代了整题准入上界。移除冗余的整题计算、随之携带的 certificate 字段、分支与测试。每种运算只保留一个检查算法；不为同一算术同时保留聚合筛查和独立的局部回退。
 
-A local bound still bounds intermediates conservatively; failure means the operation cannot be certified under that contract, not that its final mathematical answer necessarily exceeds int64.
+局部上界仍然保守地界定中间量；失败意味着该运算在此契约下无法被认证，而不是其最终数学答案必然超出 int64。
 
-Python integers are used for boundary bounds and small lattice preprocessing. Production elimination, reconstruction, congruence and tensor kernels use int64; there is no bigint elimination fallback.
+边界上界与小型 lattice 预处理使用 Python 整数。生产环境的消元、重构、同余与张量核使用 int64；不存在 bigint 消元回退。
 
-Separate these obligations:
+区分以下几类义务：
 
-- arithmetic: products, partial sums, differences, negation and indices;
-- allocation: actual extents and byte lengths;
-- schema: shapes, declared integer dtype, permutations and valid indices;
-- exactness: rank, annihilation, reconstruction and saturation;
-- numerical input and physical constraints: finite values, geometry tolerance and fitting observations.
+- 算术：乘积、部分和、差、取负与索引；
+- 分配：实际尺寸与字节长度；
+- 模式（schema）：形状、声明的整数 dtype、置换与合法索引；
+- 精确性：rank、零化、重构与饱和；
+- 数值输入与物理约束：有限值、几何容差与拟合观测量。
 
-An arithmetic proof does not replace the other obligations.
+算术证明不替代其他义务。
 
-Admission checks belong to the operation that needs them. Domain objects do not carry proof records. Exact kernel returns only the readonly saturated basis; rank and annihilation certification still execute within the operation. Mapping `RankInfo` remains a business result rather than an admission token.
+准入检查属于需要它的那个运算。域对象不携带证明记录。exact kernel 只返回 readonly 的饱和基；rank 与零化认证仍在运算内部执行。映射的 `RankInfo` 仍是业务结果，而不是准入令牌。
 
-## Arithmetic and allocation conventions
+## 算术与分配约定
 
-Let $J=2^{63}-1$ and $J_p=\mathrm{np.iinfo(np.intp).max}$. Integer normalization admits the symmetric domain $[-J,J]$, excluding the minimum int64 value so absolute values and negation remain safe.
+令 $J=2^{63}-1$、$J_p=\mathrm{np.iinfo(np.intp).max}$。整数归一化允许对称域 $[-J,J]$，排除 int64 最小值，使绝对值与取负保持安全。
 
-For an actual array with shape $(s_1,\ldots,s_k)$ and item size $w$, require nonnegative extents representable by `np.intp` and
+对实际数组，形状为 $(s_1,\ldots,s_k)$、元素字节数为 $w$ 时，要求非负维度可被 `np.intp` 表示，且
 
 $$
 w\prod_i s_i\le J_p.
 $$
 
-This is a representation bound, not an available-RAM guarantee. A representable allocation can still raise `MemoryError`. Checks precede allocation and fixed-width conversion.
+这是表示上界，不是可用内存保证。可表示的分配仍可能抛出 `MemoryError`。检查先于分配与定宽转换。
 
-## Geometry sizing
+## 几何尺寸计算
 
-`cluster_space/candidates.py` validates the actual geometry and truncation inputs, computes traversal bounds and counts neighbors immediately before allocation and fill. Bounds and offsets are local algorithm data; no admission record is returned or stored on the model.
+`cluster_space/candidates.py` 在分配与填充之前，先验证实际几何与截断输入，计算遍历上界并统计邻居。上界与 offsets 是局部算法数据；不返回、不存储任何准入记录。
 
-Each neighbor traversal checks $2b_j+1\le J$, covering `range(-b_j,b_j+1)` endpoints and length. The sizing kernel stops before its counter exceeds the representable capacity of the actual neighbor-label array. A negative status rejects the sizing result before allocation or prefix conversion.
+每次邻居遍历检查 $2b_j+1\le J$，同时覆盖 `range(-b_j,b_j+1)` 的端点与长度。sizing kernel 在其计数器超过实际邻居标签数组的可表示容量之前停止。负状态码在分配或前缀转换之前拒绝 sizing 结果。
 
-Candidate sizing similarly caps its counter at the capacity of the actual $(C,p,4)$ labels. Both kernels specialize sizing and fill separately; the admitted fill path omits counter capacity checks. Repetition and candidate ordering are unchanged.
+候选 sizing 同样把计数器上限设在实际 $(C,p,4)$ 标签的容量。两个 kernel 分别特化 sizing 与填充；被准入的填充路径不再包含计数器容量检查。重复判断与候选排序保持不变。
 
-Before traversal, check geometry, order, cutoff and body order. The count pass writes offsets directly; fill reuses those offsets on the same readonly inputs. No count tuple, prefix-sum reconstruction or certificate matching is needed.
+遍历之前检查几何、阶、截断与体序。计数趟直接写出 offsets；填充趟在相同的 readonly 输入上复用这些 offsets。不需要计数元组、前缀和重构或 certificate 匹配。
 
-## Orbit actions
+## 轨道作用
 
-For actual cluster translation coordinate maxima $T_k$, operation $g$ and consumed sites, define
+对实际簇平移坐标上界 $T_k$、操作 $g$ 与被消耗的位点，定义
 
 $$
 E_{g,j}=\max_s|h_{g,s,j}|+\sum_k|R_{g,jk}|T_k.
 $$
 
-Absolute products and partial sums are bounded by $E_{g,j}$. Reanchoring subtracts two admitted results, so $2\max_{g,j}E_{g,j}\le J$ suffices for the whole action. Primitive site queries use the selected operation and site without the reanchoring factor.
+绝对值乘积与部分和被 $E_{g,j}$ 界定。重锚定（reanchoring）对两个已准入的结果作差，因此 $2\max_{g,j}E_{g,j}\le J$ 足以覆盖整个作用。原胞位点查询使用选定的操作与位点，不带重锚定因子。
 
-Actual action output, deduplication capacity, and registry initial/grown capacity have separate allocation checks. Normalized symmetry arrays do not bypass the action proof. Registry hashing has fixed small modular arithmetic bounds.
+实际作用输出、去重容量、registry 初始/增长容量各有独立的分配检查。归一化对称数组不绕过作用证明。registry 哈希具有固定的小模算术上界。
 
-## Tensor actions and invariant basis
+## 张量作用与不变量基
 
-For actual rotation $R$, order $p$, input coefficient maximum $V$ and
+对实际旋转 $R$、阶 $p$、输入系数最大值 $V$ 与
 
 $$
 L=\max\left(1,\max_j\sum_k|R_{jk}|\right),
 $$
 
-the axis-$t$ values, products and partial sums are bounded by $VL^t$. Thus $VL^p$ covers every stage. Label-symmetric seed coefficients have $V=1$; subtracting the seed adds one to the bound.
+轴 $t$ 的取值、乘积与部分和被 $VL^t$ 界定。因此 $VL^p$ 覆盖全部阶段。标签对称的种子系数满足 $V=1$；减去种子使上界加一。
 
-Each actual stabilizer is certified before constructing constraints. Allocation checks protect the real label basis, tensor frame, permutations and $(H D_p,k)$ constraint array. No hypothetical $(C_p,D_p,D_p)$ tensor array is admitted.
+每个实际 stabilizer 在构造约束之前完成认证。分配检查保护真实的标签基、张量框架、置换与 $(H D_p,k)$ 约束数组。不对假想的 $(C_p,D_p,D_p)$ 张量数组做准入。
 
-Parameter offsets are built from actual orbit dimensions and validated before conversion to int64.
+参数 offsets 由实际轨道维度构造，并在转换为 int64 之前验证。
 
-## Exact algebra
+## 精确代数
 
-The signed path first constructs its component metadata, determines nullity $d$, validates the actual $(n,d)$ basis allocation, then fills it. The modular path checks its actual kernel and congruence workspace shapes.
+signed 路径先构造其分量元数据，确定零化度 $d$，验证实际 $(n,d)$ 基的分配，然后填充。modular 路径检查其实际核与同余工作区形状。
 
-Primes and CRT constants have one source in `_modular.py`. For $q<2^{31}$, residues lie in $[0,q-1]$, giving
+核算法使用的素数定义在 `mlfcs.foundation.integer`，CRT 模数与逆元由 `cluster_space/integer_kernel.py` 根据这组素数派生。当 $q<2^{31}$ 时，剩余落在 $[0,q-1]$，于是
 
 $$
 (q-1)^2+(q-1)=q(q-1)<2^{62}.
 $$
 
-This covers modular multiplication, reduction and modular accumulation. For CRT, $0\le a<p_1$ and $0\le t<p_2$ imply
+这覆盖模乘、模归约与模累加。对 CRT，$0\le a<p_1$ 且 $0\le t<p_2$ 蕴含
 
 $$
 a+p_1t\le p_1p_2-1<J.
 $$
 
-Rational reconstruction preserves the Euclidean alternating-sign coefficient recurrence. Its coefficient products are bounded by the next coefficient magnitude, which is at most the CRT modulus. This is a coefficient invariant, not a consequence of the remainder-product inequality.
+有理重构保持 Euclidean 交错符号系数递推。其系数乘积被下一个系数的模界定，而后者不超过 CRT 模数。这是系数不变量，不是余数乘积不等式的推论。
 
-Common-denominator construction retains its dynamic multiplication guards. With $u=\delta/\gcd(\delta,d)$, verify $u\le\lfloor\delta_{\max}/d\rfloor$ before multiplying. Verify numerator scaling before multiplying as well.
+公分母构造保留其动态乘法守卫。记 $u=\delta/\gcd(\delta,d)$，乘法之前验证 $u\le\lfloor\delta_{\max}/d\rfloor$；分子缩放同样先验证再乘。
 
-Congruence preimage uses upper-triangular column HNF with positive diagonal and $0\le H_{ij}<H_{ii}\le\delta$ for $i<j$. The lattice contains $\delta\mathbb Z^d$, so the diagonal divides $\delta$. Reduced products are bounded by $\delta^2$; lift accumulation uses the actual bound
+同余原像使用上三角列 HNF，正对角元且 $0\le H_{ij}<H_{ii}\le\delta$（$i<j$）。该格包含 $\delta\mathbb Z^d$，因此对角元整除 $\delta$。约化后的乘积被 $\delta^2$ 界定；提升（lift）累加使用实际上界
 
 $$
 d(\max|F|+2\delta+1)\le J.
 $$
 
-Exact rank certification and modular annihilation verification remain mandatory. Their Python-integer bounds may exceed int64 because the verified product is evaluated modulo machine-word primes. They are not fixed-width dot-product admission checks.
+精确 rank 认证与模零化验证仍然强制执行。它们的 Python 整数上界可以超出 int64，因为被验证的乘积按机器字长的素数取模求值。它们不属于定宽点积准入检查。
 
-## Integer products and mapping
+## 整数乘积与映射
 
-For an actual integer product, require for each output entry
+对实际整数乘积，要求每个输出元素满足
 
 $$
 \sum_k|A_{ik}B_{kj}|\le J.
 $$
 
-Every multiplication and partial sum then fits, even when the final result involves cancellation. There is no separate maximum-coefficient product gate.
+于是即使最终结果含相消，每次乘法与部分和也全部可表示。不存在单独的最大系数乘积门。
 
-Periodic quotient queries and label mapping share one Numba quotient implementation. Label additions, quotient products and each partial sum are checked immediately before evaluation, using the actual operands in the symmetric int64 domain. There is no aggregate screening bound, fallback or second preflight traversal. Binary search uses `left + (right-left)//2`.
+周期 quotient 查询与标签映射共用同一个 Numba quotient 实现。标签加法、quotient 乘积与每个部分和都在求值之前用实际操作数检查，操作数位于对称 int64 域。不存在聚合筛查上界、回退或第二次预检遍历。二分查找使用 `left + (right-left)//2`。
 
-ClusterMap owns one immutable periodic index reused by mapping and queries. Arbitrary translation queries use the same checked quotient kernel. Export translation differences are computed as Python integers before normalization, avoiding an implicit dependence on an unrelated old quotient bound.
+ClusterMap 持有一个被映射与查询共用的不可变周期索引。任意平移查询使用同一个受检 quotient kernel。导出的平移差先用 Python 整数计算再做归一化，避免对无关旧 quotient 上界的隐式依赖。
 
-## Periodic geometry
+## 周期几何
 
-Primitive-site matching, supercell atom matching and supercell matrix inference all use one fixed-radius search. In the reduced cell $B$, every accepted image satisfies $|h_j+(vB^{-1})_j|<\epsilon\|(B^{-1})_{:j}\|$. Enumerate this integer box once and accept only Cartesian lengths below `symprec`; count every match to enforce uniqueness. There is no nearest-image prefilter or repeated search. Fitting displacements require the nearest image rather than all images below a tolerance and therefore retain their distinct minimum-image query.
+原胞位点匹配、supercell 原子匹配与 supercell matrix 推断共用同一次固定半径搜索。在约化胞 $B$ 中，每个被接受的像满足 $|h_j+(vB^{-1})_j|<\epsilon\|(B^{-1})_{:j}\|$。对该整数盒枚举一次，只接受笛卡尔长度低于 `symprec` 的结果，并统计每一次匹配以保证唯一性。不存在最近像预筛或重复搜索。拟合位移需要的是最近像而非容差内的全部像，因此保留其独立的最小像查询。
 
-## Folded rank
+## 折叠 rank
 
-Distinct orbits occupy disjoint parameter columns. For a folded atom tuple $a$ and orbit $o$, use
+不同轨道占据不相交的参数列。对折叠原子元组 $a$ 与轨道 $o$，使用
 
 $$
 U_{a,o}=\sum_{\text{image}\in(a,o)}V_o L_{g_{\text{image}}}^{p}.
 $$
 
-This bounds all transformations contributing to that block and every prefix of its accumulation. Other orbits and unrelated atom tuples do not enlarge the bound. Actual alias-component matrix shapes are checked before allocation. The existing exclusive-image full-rank shortcut runs without preparing unnecessary folding matrices or bounds.
+它界定贡献到该块的所有变换及其累加的每个前缀。其他轨道与无关原子元组不会扩大该上界。实际 alias 分量矩阵的形状在分配之前检查。既有的 exclusive-image 满秩捷径不准备多余的折叠矩阵或上界。
 
-## Remaining algorithm selection
+## 剩余的算法选择
 
-Removing redundant checking routes does not require deleting structural solutions:
+移除冗余检查路径不要求删除结构性解法：
 
-- Signed constraints have a direct saturated component basis. This path also accepts
-  scaled signed rows whose coefficients vanish at a reconstruction prime. For example,
-  $[p,-p]$ has basis $(1,1)^T$, while the current general chart rejects that pivot at
-  prime $p$. Removing this path without a replacement changes the admitted domain.
-- An exclusive folded image proves injectivity of its orbit parameter block directly.
-  Keep this proof instead of allocating and ranking redundant transformed matrices.
-- Rational reconstruction tries denominator windows within the same algorithm.
-  A single largest window imposes a smaller numerator limit and can reject charts
-  accepted by a smaller window. These iterations and their exact verification remain.
-- Neighbor counting and filling are two passes of the same enumeration, needed to
-  allocate variable-size outputs. They are not alternate enumeration algorithms.
+- signed 约束存在直接的饱和分量基。该路径也接受其系数在某重构素数处为零的缩放 signed 行。例如 $[p,-p]$ 的基是 $(1,1)^T$，而现行一般 chart 在素数 $p$ 处拒绝该主元。在没有替代的情况下移除此路径会改变被准入的域。
+- exclusive 折叠像直接证明其轨道参数块的单射性。保留该证明，而不是分配并对冗余变换矩阵求 rank。
+- 有理重构在同一算法内尝试多个分母窗口。单一最大窗口施加更小的分子限制，可能拒绝较小窗口接受的 chart。这些迭代及其精确验证予以保留。
+- 邻居计数与填充是同一次枚举的两趟，用于为变长输出分配。它们不是可互换的枚举算法。
 
-The mapping operation has one arithmetic route, and tolerance matching has one
-search route. Empty-input handling, validation failures and exact certificates
-remain part of those algorithms.
+映射运算只有一条算术路径，容差匹配只有一条搜索路径。空输入处理、验证失败与精确 certificate 仍是这些算法的一部分。
 
-## Design and fitting lifecycle
+## 设计与拟合生命周期
 
-ForceDesign validates actual image/basis buffers and fixed output shape during initialization. Snapshot calls retain displacement validation and mutable-workspace validation, but do not repeat fixed output-size admission.
+ForceDesign 在初始化时验证实际 image/basis 缓冲与固定输出形状。快照调用保留位移验证与可变工作区验证，但不重复固定输出尺寸的准入。
 
-Workspace allocation checks actual thread capacity and scratch shape. Every use checks dimensions, scratch count, dtype, layout, writability and active thread capacity. Workspaces are caller-owned and cannot be shared concurrently.
+工作区分配检查实际线程容量与 scratch 形状。每次使用都检查维度、scratch 计数、dtype、布局、可写性与活跃线程容量。工作区归调用者所有，不能并发共享。
 
-FitSystem ingestion checks actual normal or raw matrix and force-vector allocation. Solver column normalization is temporary; stored fitting data retains physical scale. Periodic indexes and workspaces are not serialized. Loading validates stored arrays, truncation inputs and model layout without neighbor enumeration. Numerical consumers use the domain object's existing read-only arrays directly.
+FitSystem 摄入检查实际 normal/raw 矩阵与力向量的分配。求解器列归一化是临时的；存储的拟合数据保留物理尺度。周期索引与工作区不被序列化。加载验证存储数组、截断输入与模型布局，不做邻居枚举。数值消费者直接使用域对象已有的只读数组。
 
-## Consolidation and cleanup
+## 合并与清理
 
-- Neighbor/candidate admission and sizing: `cluster_space/candidates.py`.
-- Invariant basis and Cartesian parameterization: `cluster_space/basis.py`.
-- Structure validation and lattice addresses: `core/structure.py`.
-- Supercell validation and quotient mapping: `mapping/geometry.py`.
-- Design and scratch: `fitting/design.py`.
-- Training ingestion and sufficient systems: `fitting/system.py`.
-- Displacements and reconstruction: `finite_difference/difference.py`.
-- External format adapters: `force_constants/io.py`.
+- 邻居/候选准入与 sizing：`cluster_space/candidates.py`。
+- 不变量基与 Cartesian 参数化：`cluster_space/basis.py`。
+- 结构验证与 lattice 地址：`core/structure.py`。
+- supercell 验证与 quotient 映射：`mapping/geometry.py`。
+- 设计与 scratch：`fitting/design.py`。
+- 训练摄入与充分方程组：`fitting/system.py`。
+- 位移采样：`finite_difference/sampling.py`；力常数重构：
+  `finite_difference/reconstruction.py`。
+- 外部格式适配器：`force_constants/io.py`。
 
-Modular, composite-congruence, signed-graph and exact-facade boundaries remain separate. Shared acoustic equations remain independent of ASR and rotation. Public constructors and native model format are unchanged.
+modular、复合同余、signed 图与 exact 门面边界保持分离。声学方程及其无矩阵/显式表示统一归属 `force_constants/asr.py`；`force_constants/rotation.py` 使用其中的 FC2 声学方程限制修正方向，保留已有 ASR 残差。公共构造函数与原生模型格式保持不变。
 
-Delete an old proof only after its replacement covers the same operations and data, including all intermediate values and actual allocation shapes. Delete dead code only after checking production imports, public exports, restoration and downstream usage. Keep test oracles, historical reports, teaching logs and numerical reference data. Do not create tests for removed global bounds.
+只有当替代证明覆盖相同的运算与数据（含全部中间值与实际分配形状）之后，才删除旧证明。只有在检查了生产 import、公共导出、恢复与下游使用之后，才删除死代码。保留测试 oracle、历史报告、教学日志与数值参考数据。不为被移除的全局上界新建测试。
 
-## Validation record
+## 验证记录
 
-Validated on Python 3.14.4, NumPy 2.5.3 and Numba 0.68.0:
+验证环境：Python 3.14.4、NumPy 2.5.3、Numba 0.68.0：
 
-- 101 tests passed, including 165 recorded FC2–FC6 exact-constraint matrices, bigint oracle lattice checks, original Python design/fitting snapshots and local-contract tests.
-- KAsPt was reconstructed from its saved model inputs: 333 orbits and 6849 parameters. Clusters, actions, exact/Cartesian bases, mappings, the sampled design matrix and predicted forces were bitwise identical to the saved model. The force-constant fingerprint remained `9199da2c45f7f657914acb79a68b21f86083c8f61e23deb35f349e2e173bd40a`.
-- Historical audit and architecture-report SHA-256 hashes were unchanged.
-- Ruff checks and formatting passed (excluding the pre-existing executable-bit warning on the cutoff utility), documentation validation and strict MkDocs build passed, and wheel/sdist packaging succeeded.
-- No teaching fits or thermal-conductivity calculations were rerun during this cleanup. Ba thermal conductivity was not run.
+- 101 个测试通过，包括 165 组记录在案的 FC2–FC6 精确约束矩阵、bigint oracle lattice 检查、原 Python design/fitting 快照与本地契约测试。
+- KAsPt 从其保存的模型输入重建：333 个轨道、6849 个参数。簇、作用、exact/Cartesian 基、映射、采样设计矩阵与预测力与保存模型逐位一致。力常数指纹保持 `9199da2c45f7f657914acb79a68b21f86083c8f61e23deb35f349e2e173bd40a`。
+- 历史审查与架构报告的 SHA-256 哈希不变。
+- Ruff 检查与格式化通过（不计 cutoff 工具预先存在的可执行位警告），文档验证与严格 MkDocs 构建通过，wheel/sdist 打包成功。
+- 本次清理未重跑任何教学拟合或热导率计算。未运行 Ba 的热导率。
 
-The Si benchmark uses FC2/FC3, cutoff 4 Å, a 3×3×3 supercell and 43 parameters. Cold construction uses a separate empty JIT cache. Warm design values average 100 calls; single-thread and two-thread matrices were bitwise identical.
+Si 基准使用 FC2/FC3、截断 4 Å、3×3×3 supercell 与 43 个参数。冷构造使用独立的空 JIT 缓存。热身 design 取 100 次调用平均；单线程与双线程矩阵逐位一致。
 
-| Measurement | Result |
+| 测量 | 结果 |
 |---|---:|
-| Cold construction (s) | 15.636 |
-| First design call (s) | 1.088 |
-| Warm construction (s) | 0.229 |
-| Warm single-thread design (ms) | 7.216 |
-| Warm two-thread design (ms) | 4.854 |
-| Peak RSS (MiB) | 438.383 |
+| 冷构造（s） | 15.636 |
+| 首次 design 调用（s） | 1.088 |
+| 热身构造（s） | 0.229 |
+| 热身单线程 design（ms） | 7.216 |
+| 热身双线程 design（ms） | 4.854 |
+| 峰值 RSS（MiB） | 438.383 |
 
-The earlier construction baseline was approximately 0.118 s warm and 12.954 s cold. Local proofs increase preparation cost; this single benchmark run does not establish a speedup. The earlier warm design measurements were 6.551 ms single-thread and 4.241 ms with two threads.
+更早的构造基线约为热身 0.118 s、冷 12.954 s。局部证明增加了准备成本；这单次基准不构成加速结论。更早的热身 design 测量为单线程 6.551 ms、双线程 4.241 ms。
 
 
-## Admission lifecycle validation (2026-10-03)
+## 准入生命周期验证（2026-10-03）
 
-Removed `OrderCertificate`, `ClusterCertificate` and `KernelCertificate` rather than replacing them with another proof record. Candidate traversal owns its local preparation, exact kernel returns only the saturated basis, and loaded models validate stored data without neighbor enumeration. The native file version remains 3.
+移除了 `OrderCertificate`、`ClusterCertificate` 与 `KernelCertificate`，而不是用另一种证明记录替代它们。候选遍历自持局部准备，exact kernel 只返回饱和基，加载的模型在不做邻居枚举的情况下验证存储数据。原生文件版本仍为 3。
 
-- All 100 collected tests passed, including the 165 recorded FC2–FC6 constraint matrices, lattice oracle checks, original Python force-design/fitting snapshots, invalid truncation restoration and loading with neighbor enumeration disabled.
-- KAsPt's saved model loaded without neighbor search and retained 333 orbits, 6849 parameters and its existing fingerprint. Prepared positions still share the model's readonly storage.
-- The two historical report hashes remained unchanged. Ruff checks and formatting passed for the changed modules/tests; the documentation checker passed. Full-source Ruff additionally reports a pre-existing slot-order issue in `tools/perturbation.py` (with the pre-existing executable-bit issue excluded). Strict MkDocs building was unavailable because MkDocs is not installed in this environment.
+- 收集的 100 个测试全部通过，包括 165 组 FC2–FC6 约束矩阵、lattice oracle 检查、原 Python 力设计/拟合快照、非法截断恢复以及禁用邻居枚举的加载。
+- KAsPt 保存的模型在无邻居搜索下加载，保留 333 个轨道、6849 个参数与既有指纹。准备好的位置仍与模型的 readonly 存储共享。
+- 两份历史报告哈希不变。Ruff 检查与格式化对改动模块/测试通过；文档检查器通过。全源码 Ruff 另报告 `tools/perturbation.py` 中预先存在的 slot 顺序问题（预先存在的可执行位问题不计）。严格 MkDocs 构建在该环境不可用，因为未安装 MkDocs。
 
-Ba measurements use FC4 only, cutoff 5 Å, maximum body order 4, one thread, three constructions per process and separate empty JIT caches. The comparison restored the previous certificate path in a temporary source copy; it is not a Git commit baseline. Both implementations returned 2838 orbits and 155586 parameters.
+Ba 测量使用仅 FC4、截断 5 Å、最大体序 4、单线程、每进程三次构造与独立空 JIT 缓存。对照通过在临时源码副本中恢复先前的 certificate 路径实现；它不是 Git 提交基线。两条实现都返回 2838 个轨道与 155586 个参数。
 
-| Measurement | Restored previous contract path | Current local admission |
+| 测量 | 恢复的先前契约路径 | 当前局部准入 |
 |---|---:|---:|
-| Cold initialization (s) | 25.074 | 25.241 |
-| Warm initialization, median of two (s) | 11.135 | 11.186 |
-| Peak RSS across three runs (MiB) | 648.336 | 632.090 |
+| 冷初始化（s） | 25.074 | 25.241 |
+| 热身初始化，两次取中位（s） | 11.135 | 11.186 |
+| 三次运行的峰值 RSS（MiB） | 648.336 | 632.090 |
 
-The paired initialization timings are essentially unchanged. The earlier historical warm measurement of 9.083 s was not reproduced by either path in this run; these samples do not establish an initialization speedup. Warm KAsPt loading took 0.259 s for the restored previous path and 0.246 s for the current implementation (medians of four calls); the stronger lifecycle regression is that current loading succeeds when neighbor enumeration is forbidden. Measurements remain in `/tmp/mlfcs-ba-fc4-lifecycle-*.json` and `/tmp/mlfcs-lifecycle-load*.json`.
+成对初始化计时基本不变。更早的历史热身测量 9.083 s 在本次运行中未被两条路径复现；这些样本不构成初始化加速结论。热身 KAsPt 加载为恢复路径 0.259 s、当前实现 0.246 s（四次调用取中位）；更强的生命周期回归是：禁止邻居枚举时当前加载仍然成功。测量数据存于 `/tmp/mlfcs-ba-fc4-lifecycle-*.json` 与 `/tmp/mlfcs-lifecycle-load*.json`。
 
-No teaching fits or thermal-conductivity calculations were rerun.
+未重跑任何教学拟合或热导率计算。

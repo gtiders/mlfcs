@@ -7,7 +7,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from mlfcs.force_constants.model import ForceConstants
-from mlfcs.tensors import rotate_basis, rotate_tensor
+from mlfcs.foundation.tensors import rotate_basis, rotate_tensor
 
 
 @dataclass(frozen=True, slots=True)
@@ -25,6 +25,33 @@ class LatticeForceConstants:
     tensors: tuple[np.ndarray, ...]
 
 
+def image_tensor(model, orbit, representative, image):
+    """Evaluate one orbit image with the model's Cartesian action convention."""
+    rotation = model.cluster_space.symmetry.cartesian_rotations[orbit.operations[image]].T
+    return rotate_tensor(representative, rotation, orbit.permutations[image])
+
+
+def iter_lattice_tensors(model: ForceConstants, order: int):
+    """Yield individual lattice labels and tensors without collecting image arrays."""
+    if order not in model.coefficients:
+        raise ValueError(f"force constants do not contain order {order}")
+    offset = 0
+    for orbit in model.cluster_space.orbits[model.cluster_space.block(order).orbits]:
+        stop = offset + orbit.dimension
+        representative = (orbit.component_basis @ model.coefficients[order][offset:stop]).reshape(
+            (3,) * order
+        )
+        for image, cluster in enumerate(orbit.clusters):
+            yield (
+                tuple(site.site for site in cluster.sites),
+                tuple(site.translation for site in cluster.sites[1:]),
+                image_tensor(model, orbit, representative, image),
+            )
+        offset = stop
+    if offset != len(model.coefficients[order]):
+        raise RuntimeError("orbit traversal did not consume all force-constant coefficients")
+
+
 def expand_lattice_tensors(model: ForceConstants, order: int) -> LatticeForceConstants:
     """Return all selected-order lattice-image tensors without supercell folding.
 
@@ -33,28 +60,13 @@ def expand_lattice_tensors(model: ForceConstants, order: int) -> LatticeForceCon
     Returns new arrays without mutating the model. Missing order raises
     ValueError; inconsistent coefficient traversal raises RuntimeError.
     """
-    if order not in model.coefficients:
-        raise ValueError(f"force constants do not contain order {order}")
-    block = model.cluster_space.block(order)
-    coefficients = model.coefficients[order]
-    offset = 0
     sites = []
     translations = []
     tensors = []
-    for orbit_index in range(block.orbits.start, block.orbits.stop):
-        orbit = model.cluster_space.orbits[orbit_index]
-        stop = offset + orbit.dimension
-        representative = (orbit.component_basis @ coefficients[offset:stop]).reshape((3,) * order)
-        offset = stop
-        for image, cluster in enumerate(orbit.clusters):
-            rotation = model.cluster_space.symmetry.cartesian_rotations[orbit.operations[image]].T
-            tensors.append(rotate_tensor(representative, rotation, orbit.permutations[image]))
-            sites.append(tuple(site.site for site in cluster.sites))
-            translations.append(tuple(site.translation for site in cluster.sites[1:]))
-    if offset != len(coefficients):
-        raise RuntimeError(
-            f"expanded {offset} order-{order} coefficients, expected {len(coefficients)}"
-        )
+    for site, translation, tensor in iter_lattice_tensors(model, order):
+        sites.append(site)
+        translations.append(translation)
+        tensors.append(tensor)
     return LatticeForceConstants(tuple(sites), tuple(translations), tuple(tensors))
 
 

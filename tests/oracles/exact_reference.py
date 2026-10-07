@@ -21,7 +21,7 @@ Primes come from :func:`prime_stream`, an on-demand stream: it starts with
 :data:`RANK_PRIMES` and then takes successive ``prevprime`` steps.  It is not an
 infinite prime enumeration -- once ``prevprime`` has nothing smaller to offer
 the stream ends, and :func:`exact_rank` reports
-:class:`~mlfcs.errors.RankError` if the certificate was never
+:class:`~mlfcs.foundation.errors.RankError` if the certificate was never
 reached.  The result is nevertheless *exact* for integer inputs of arbitrary
 magnitude: entries are reduced modulo a prime with Python integer remainder
 before they ever reach a fixed-width buffer, so ``10**30`` entries are ranked
@@ -38,7 +38,7 @@ from collections.abc import Iterator
 import numpy as np
 from numba import njit
 
-from mlfcs.errors import RankError
+from mlfcs.foundation.errors import RankError
 
 #: Fast-path pair of primes just below 2**31; products of two residues stay in int64.
 RANK_PRIMES: tuple[int, int] = (2147483647, 2147483629)

@@ -1,4 +1,9 @@
-"""Periodic neighbors and candidate clusters constructed in count and fill passes."""
+"""Enumerate periodic neighbors and geometrically admissible force-constant clusters.
+
+Candidate clusters are defined by a force-constant order, an all-pairs
+distance cutoff, and a maximum body order. Enumeration uses separate count
+and fill passes to allow exact array allocation.
+"""
 
 import math
 import operator
@@ -6,15 +11,16 @@ import operator
 import numpy as np
 from numba import njit
 
-from mlfcs._arrays import INTP_MAX, readonly, require_allocation, require_bound
+from mlfcs.foundation.arrays import INTP_MAX, readonly, require_allocation, require_bound
 
 
 def neighbor_translation_bounds(cell, cutoff):
-    """Return integer traversal half-widths from cutoff and inverse row-cell geometry.
+    """Return periodic-image search bounds sufficient for the given cutoff.
 
-    Wrapped fractional site differences are less than one per axis, so each
-    width is ceil(cutoff * norm(inv(cell)[:, j]) + 1). Reject nonfinite widths
-    or int64 traversal sizes before constructing neighbor loops.
+    The bounds are integer half-widths of lattice translations along each
+    cell direction and conservatively include every periodic image that may
+    lie within the Cartesian cutoff. Nonfinite or unrepresentable widths
+    raise OverflowError.
     """
     radii = cutoff * np.linalg.norm(np.linalg.inv(cell), axis=0) + 1.0
     if not np.all(np.isfinite(radii)):
@@ -26,7 +32,15 @@ def neighbor_translation_bounds(cell, cutoff):
 
 
 def enumerate_candidate_labels(cell, scaled_positions, *, order, cutoff, max_body_order):
-    """Validate and size actual outputs immediately before their fill passes."""
+    """Enumerate force-constant cluster labels satisfying the geometric truncation.
+
+    Each cluster contains ``order`` lattice sites, with the first site fixed
+    in the reference cell. Every pair of sites must lie within ``cutoff``,
+    and the number of distinct atomic positions must not exceed
+    ``max_body_order``. Returns integer labels of shape ``(n_clusters,
+    order, 4)``, one ``(site, tx, ty, tz)`` tuple per tensor index; a
+    truncation whose labels cannot be represented raises OverflowError.
+    """
     order, max_body_order = operator.index(order), operator.index(max_body_order)
     cutoff = float(cutoff)
     if order < 2 or not 1 <= max_body_order <= order:
@@ -87,12 +101,12 @@ def enumerate_candidate_labels(cell, scaled_positions, *, order, cutoff, max_bod
 
 @njit(cache=True, inline="always")
 def _neighbors(positions, cell, bounds, cutoff, offsets, labels, points, fill, limit=0):
-    """Count or fill anchor-grouped periodic neighbors strictly inside the cutoff.
+    """Count or store the periodic neighbors of each anchor within the cutoff.
 
-    Inputs use wrapped fractional positions (N, 3), row cell vectors (3, 3),
-    and admitted int64 half-widths (3,). Mutates offsets (N+1,). Fill mode also
-    writes labels (total, 4) and Cartesian points (total, 3). Count mode returns
-    -1 at the allocation limit; fill mode relies on that preceding count.
+    One traversal run twice: the sizing pass returns the total and writes
+    ``offsets``, the fill pass relies on it. Inputs are wrapped fractional
+    positions with row cell vectors; labels are ``(site, tx, ty, tz)``
+    relative to the anchor.
     """
     total = 0
     for anchor in range(len(positions)):
@@ -125,12 +139,12 @@ def _neighbors(positions, cell, bounds, cutoff, offsets, labels, points, fill, l
 
 @njit(cache=True, inline="always")
 def _candidates(labels, offsets, points, order, body_order, cutoff, counts, output, fill, limit=0):
-    """Enumerate nondecreasing neighbor combinations with repetition for each anchor.
+    """Enumerate the admissible cluster combinations of one anchor.
 
-    Every selected pair must lie strictly inside cutoff; body_order counts
-    unique (site, translation) labels including the anchor. Mutates per-anchor
-    counts. Fill mode writes (total, order, 4) labels; count mode returns -1
-    before exceeding limit. Output allocation must match the preceding count.
+    Sites combine nondecreasing with repetition, so repeated lattice sites
+    never generate permutation duplicates; each new site must lie within
+    ``cutoff`` of all selected ones, and the distinct-position count may
+    not exceed ``body_order``. Sizing and filling share this traversal.
     """
     total = 0
     for anchor in range(len(offsets) - 1):
@@ -190,18 +204,18 @@ def _candidates(labels, offsets, points, order, body_order, cutoff, counts, outp
 
 @njit(cache=True)
 def _count_neighbors(positions, cell, bounds, cutoff, offsets, labels, points, limit):
-    """Run the neighbor traversal in sizing mode, updating offsets and respecting limit."""
+    """Count periodic neighbors and build anchor offsets."""
     return _neighbors(positions, cell, bounds, cutoff, offsets, labels, points, False, limit)
 
 
 @njit(cache=True)
 def _fill_neighbors(positions, cell, bounds, cutoff, offsets, labels, points):
-    """Fill pre-sized neighbor labels and Cartesian points, updating anchor offsets."""
+    """Fill preallocated periodic-neighbor buffers."""
     return _neighbors(positions, cell, bounds, cutoff, offsets, labels, points, True, 0)
 
 
 def _count_candidates(labels, offsets, points, order, body_order, cutoff, counts, output, limit):
-    """Size actual retained candidates and per-anchor counts, returning -1 on capacity exhaustion."""
+    """Count admissible candidate clusters for exact output allocation."""
     return _candidates(
         labels, offsets, points, order, body_order, cutoff, counts, output, False, limit
     )
@@ -209,5 +223,5 @@ def _count_candidates(labels, offsets, points, order, body_order, cutoff, counts
 
 @njit(cache=True)
 def _fill_candidates(labels, offsets, points, order, body_order, cutoff, counts, output):
-    """Fill the admitted candidate buffer with the same traversal used for sizing."""
+    """Fill the preallocated candidate-cluster buffer."""
     return _candidates(labels, offsets, points, order, body_order, cutoff, counts, output, True, 0)

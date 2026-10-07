@@ -14,8 +14,9 @@ from ase.calculators.calculator import Calculator, all_changes
 from ase.calculators.singlepoint import SinglePointCalculator
 
 from mlfcs import ClusterMap, ClusterSpace, FiniteDifference, FitSystem, ForceConstants
+from mlfcs.dataset import ForceDataset
 from mlfcs.fitting.design import ForceDesign
-from mlfcs.log import configure, get_logger
+from mlfcs.foundation.log import configure, get_logger
 from mlfcs.phonon import SCPH, Harmonic
 
 
@@ -93,7 +94,7 @@ def test_fit_logs_progress_quality_and_preserves_results(package_log, representa
                 consumed.append(index)
                 yield atoms
 
-        system = FitSystem(mapping, samples(), representation=representation)
+        system = FitSystem(ForceDataset(mapping, samples()), representation=representation)
         configure(level=logging.DEBUG)
         observed = system.solve()
         configure(level=logging.WARNING)
@@ -147,7 +148,9 @@ def test_task_summaries_cover_difference_projection_phonons_and_output(package_l
         Harmonic(model).mesh((2, 2, 2))
         result = SCPH(model, (2, 2, 2)).run(100, max_iterations=2)
         assert result.converged
-        model.write(tmp_path / "fc.tdep", format="tdep", order=2)
+        model.write(
+            tmp_path / "FORCE_CONSTANTS", ClusterMap(space, atoms), format="phonopy", order=2
+        )
         ForceConstants.load(model.save(tmp_path / "fc.mlfcs"))
         onsite = ClusterSpace(atoms, cutoffs={2: 0.1})
         mapping = ClusterMap(onsite, atoms)
@@ -163,7 +166,13 @@ def test_task_summaries_cover_difference_projection_phonons_and_output(package_l
                 super().calculate(atoms, properties, system_changes)
                 self.results = {"forces": -2.0 * atoms.positions}
 
-        difference.reconstruct(difference.evaluate(Spring()))
+        samples = []
+        calculator = Spring()
+        for sample in difference.displacements():
+            calculator.calculate(sample, properties=["forces"], system_changes=all_changes)
+            sample.calc = SinglePointCalculator(sample, forces=calculator.results["forces"])
+            samples.append(sample)
+        difference.reconstruct(ForceDataset(mapping, samples))
     text = output.getvalue()
     for required in (
         "ASR projection started",
@@ -174,7 +183,6 @@ def test_task_summaries_cover_difference_projection_phonons_and_output(package_l
         "Native save complete",
         "Native load complete",
         "Export complete",
-        "Finite-difference evaluation complete",
         "Finite-difference reconstruction complete",
     ):
         assert required in text

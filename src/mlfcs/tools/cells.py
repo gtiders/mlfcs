@@ -1,13 +1,14 @@
-"""Cell utilities: phonopy-replica supercell construction and spglib standardization.
+"""Cell construction and crystallographic standardization utilities.
 
-The supercell builder is a dependency-free replication of phonopy's historical
-algorithm; the standardization helpers hand the same structure to spglib and
-report the basis change they applied.
+Supercells follow phonopy's historical old-style atom order without requiring
+phonopy at runtime. Standard primitive and conventional cells come from
+spglib, together with the basis transformation applied to the input cell.
 """
 
 from __future__ import annotations
 
 import operator
+from dataclasses import dataclass
 
 import numpy as np
 import spglib
@@ -16,7 +17,7 @@ from ase.data import chemical_symbols
 
 
 def _matrix(values: object) -> np.ndarray:
-    """Normalize supercell dimensions or a 3 by 3 matrix."""
+    """Normalize diagonal repetitions or a 3x3 integer supercell matrix."""
     array = np.asarray(values, dtype=object)
     if array.shape == (3,):
         array = np.diag(array)
@@ -41,9 +42,7 @@ def _matrix(values: object) -> np.ndarray:
 
 
 def _determinant(matrix: np.ndarray) -> int:
-    """Compute a 3x3 determinant with Python-integer intermediates, without fixed-width
-    cancellation.
-    """
+    """Return the exact 3x3 determinant using Python-integer arithmetic."""
     a, b, c = (int(value) for value in matrix[0])
     d, e, f = (int(value) for value in matrix[1])
     g, h, i = (int(value) for value in matrix[2])
@@ -51,7 +50,7 @@ def _determinant(matrix: np.ndarray) -> int:
 
 
 def _build_supercell(atoms: Atoms, matrix: np.ndarray, *, symprec: float) -> Atoms:
-    """Enumerate a surrounding integer box in phonopy's old-style order."""
+    """Construct a supercell in phonopy's historical atom order."""
     column_matrix = matrix.T
     corners = np.asarray(
         (
@@ -117,51 +116,19 @@ def build_supercell(
     *,
     symprec: float = 1e-5,
 ) -> Atoms:
-    """Build an ASE supercell in primitive-site-major order.
+    """Build a periodic ASE supercell in phonopy's historical atom order.
 
-    This function is a dependency-free replication of phonopy's historical
-    supercell construction (``is_old_style=True``), so that structure
-    preparation does not require phonopy at runtime.
+    ``matrix`` may be three positive integer repetitions or a nonsingular
+    integer matrix in row convention,
 
-    Algorithm
-    ---------
-    1. Bound the three column vectors of ``matrix.T`` with an axis-aligned
-       integer box: the eight corner combinations give per-axis
-       multiplicities ``m``, and ``simple_cell = diag(m) @ primitive.cell``
-       is a plain supercell large enough to contain the target.
-    2. Build the rational frame ``trim = matrix.T / m`` mapping the simple
-       box onto the requested supercell,
-       ``target_cell = trim.T @ simple_cell``.
-    3. Enumerate the simple-box lattice points in phonopy's order, tile the
-       wrapped fractional positions of every primitive site over them, and
-       convert to target-cell fractional coordinates, wrapping by
-       ``-floor`` into ``[0, 1)``.
-    4. Walk the candidates in order and drop any image whose minimum-image
-       distance to an earlier same-species image is below ``symprec``. The
-       survivors, in site-major order (all images of site 0, then site 1,
-       ...), are exactly phonopy's historical atom order.
+        ``cell_super = matrix @ primitive.cell``.
 
-    Parameters
-    ----------
-    primitive : ase.Atoms
-        Fully periodic primitive structure; its wrapped fractional positions
-        are the tiling seeds and its masses are carried over per site.
-    matrix : sequence of int
-        Three integer repetitions along the primitive axes, or a 3 by 3
-        integer supercell matrix in row convention
-        (``target_cell = matrix @ primitive.cell``). Entries must be
-        integers and the determinant must be positive.
-    symprec : float, keyword-only, default 1e-5
-        Cartesian length in angstrom used to identify duplicate images where
-        a lattice point lands on the boundary of the surrounding box.
-
-    Returns
-    -------
-    ase.Atoms
-        The supercell with ``abs(det(matrix))`` times the input atoms, in
-        site-major order.
-
-    The implementation uses NumPy and ASE only; it has no phonopy dependency.
+    The result uses the site-major ordering of phonopy's historical
+    ``is_old_style=True`` construction. Coincident boundary images are merged
+    within ``symprec``, a Cartesian tolerance in angstrom. The primitive must
+    be periodic in all three directions and the matrix must have positive
+    determinant. The implementation uses ASE and NumPy without importing
+    phonopy.
     """
     if not isinstance(primitive, Atoms):
         raise TypeError("primitive must be an ASE Atoms object")
@@ -177,33 +144,52 @@ def build_supercell(
     return _build_supercell(primitive, supercell_matrix, symprec=symprec)
 
 
-def standard_primitive(atoms: Atoms, *, symprec: float = 1e-5) -> Atoms:
-    """Return spglib's standardized primitive cell as a new ASE Atoms object.
+@dataclass(frozen=True, slots=True)
+class StandardizedCell:
+    """A spglib-standardized ASE cell and its basis transformation.
 
-    The basis-change matrix from the input cell to the standardized primitive
-    cell is printed in row convention (``new_cell = change @ input_cell``)
-    together with its determinant, the volume ratio. Masses are carried over
-    from the input, averaged per chemical element. ``no_idealize`` is left
-    off, so the returned cell also sits in spglib's standard orientation.
+    ``transformation`` follows the row-vector convention
+    ``atoms.cell = transformation @ input_cell``. ``atoms`` contains the
+    idealized standard geometry. Masses are assigned by chemical species, so
+    different isotope masses for sites of the same element are averaged.
+    """
+
+    atoms: Atoms
+    transformation: np.ndarray
+
+    def __post_init__(self) -> None:
+        """Store the basis transformation as an independent readonly array."""
+        transformation = np.array(self.transformation, dtype=np.float64, copy=True)
+        transformation.setflags(write=False)
+        object.__setattr__(self, "transformation", transformation)
+
+
+def standard_primitive(atoms: Atoms, *, symprec: float = 1e-5) -> StandardizedCell:
+    """Return the spglib-standardized primitive cell and its basis change.
+
+    ``symprec`` is the Cartesian symmetry tolerance in angstrom. Spglib
+    standardizes and idealizes the geometry; masses are averaged by chemical
+    species. The transformation follows row convention, with
+    ``result.atoms.cell = result.transformation @ atoms.cell``.
     """
     return _standardized(atoms, to_primitive=True, symprec=symprec)
 
 
-def standard_cell(atoms: Atoms, *, symprec: float = 1e-5) -> Atoms:
-    """Return spglib's standardized conventional cell as a new ASE Atoms object.
+def standard_conventional(atoms: Atoms, *, symprec: float = 1e-5) -> StandardizedCell:
+    """Return the spglib-standardized conventional cell and its basis change.
 
-    The basis-change matrix from the input cell to the standardized
-    conventional cell is printed in row convention
-    (``new_cell = change @ input_cell``) together with its determinant, the
-    volume ratio. Masses are carried over from the input, averaged per
-    chemical element. ``no_idealize`` is left off, so the returned cell also
-    sits in spglib's standard orientation.
+    ``symprec`` is the Cartesian symmetry tolerance in angstrom. Spglib
+    standardizes and idealizes the geometry; masses are averaged by chemical
+    species. The transformation follows row convention, with
+    ``result.atoms.cell = result.transformation @ atoms.cell``.
     """
     return _standardized(atoms, to_primitive=False, symprec=symprec)
 
 
-def _standardized(atoms: Atoms, *, to_primitive: bool, symprec: float) -> Atoms:
-    """Standardize with spglib, print the basis change, and return ASE Atoms."""
+def _standardized(
+    atoms: Atoms, *, to_primitive: bool, symprec: float
+) -> StandardizedCell:
+    """Standardize a periodic structure and retain its basis transformation."""
     if not isinstance(atoms, Atoms):
         raise TypeError("atoms must be an ASE Atoms object")
     if not np.all(atoms.pbc):
@@ -224,26 +210,26 @@ def _standardized(atoms: Atoms, *, to_primitive: bool, symprec: float) -> Atoms:
         raise ValueError(f"spglib could not standardize the structure at symprec {symprec:g}")
     new_cell, new_positions, new_numbers = standardized
     change = np.asarray(new_cell) @ np.linalg.inv(cell)
-    label = "standard primitive cell" if to_primitive else "standard conventional cell"
-    print(
-        f"{label}: transformation matrix in row convention "
-        f"(new_cell = change @ input_cell), det = {float(np.linalg.det(change)):.6f}"
-    )
-    for row in change:
-        print("  [{:12.6f} {:12.6f} {:12.6f}]".format(*row))
-
     symbols = [chemical_symbols[number] for number in new_numbers]
     averaged: dict[str, list[float]] = {}
     for symbol, mass in zip(atoms.get_chemical_symbols(), atoms.get_masses(), strict=True):
         averaged.setdefault(symbol, []).append(mass)
     means = {symbol: float(np.mean(masses)) for symbol, masses in averaged.items()}
-    return Atoms(
-        numbers=new_numbers,
-        masses=[means[symbol] for symbol in symbols],
-        scaled_positions=new_positions,
-        cell=new_cell,
-        pbc=True,
+    return StandardizedCell(
+        atoms=Atoms(
+            numbers=new_numbers,
+            masses=[means[symbol] for symbol in symbols],
+            scaled_positions=new_positions,
+            cell=new_cell,
+            pbc=True,
+        ),
+        transformation=change,
     )
 
 
-__all__ = ["build_supercell", "standard_cell", "standard_primitive"]
+__all__ = [
+    "StandardizedCell",
+    "build_supercell",
+    "standard_conventional",
+    "standard_primitive",
+]

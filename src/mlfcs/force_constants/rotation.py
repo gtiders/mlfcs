@@ -1,4 +1,10 @@
-"""Resolvable FC2 rotational moments, independent of ASR projection."""
+"""FC2 rotational-invariance and zero-stress equilibrium projection.
+
+Born-Huang conditions constrain first moments of force constants and
+interatomic separations. Huang conditions constrain second moments at zero
+stress. Corrections preserve the existing acoustic residual and minimize
+change in physical component coordinates within the resolvable subspace.
+"""
 
 from __future__ import annotations
 
@@ -8,25 +14,39 @@ from time import perf_counter
 import numpy as np
 from scipy import sparse
 
-from mlfcs.force_constants.acoustic import acoustic_constraint_matrix, relative_residual
+from mlfcs.force_constants.asr import acoustic_constraint_matrix
 from mlfcs.force_constants.model import ForceConstants
-from mlfcs.log import get_logger
-from mlfcs.tensors import rotate_basis
+from mlfcs.foundation.log import get_logger
+from mlfcs.foundation.tensors import rotate_basis
 
 logger = get_logger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
 class RotationResult:
-    """FC2 rotational projection and diagnostics; other model orders are retained.
+    """FC2 rotational correction, physical residuals and resolved constraint rank.
 
-    force_constants is the new model. length_scale and geometry_residual are
-    in angstrom; orthogonality_residual and relative fields are dimensionless.
-    Born-Huang residuals have units of FC2 times length, Huang residuals FC2
-    times length squared; disabled conditions report None. Singular-value/rank
-    fields describe resolvable scaled constraints, rather than rank over the rationals.
-    The correction preserves the source acoustic residual rather than applying
-    ASR. Input model coefficients are unchanged.
+    ``force_constants`` contains the corrected model; higher orders retain
+    their input coefficients. The correction preserves the initial acoustic
+    residual rather than applying the acoustic sum rule.
+
+    ``length_scale`` is the median non-onsite pair distance in angstrom.
+    Absolute acoustic, Born-Huang and Huang residuals have units of
+    eV/angstrom**2, eV/angstrom and eV, respectively. Disabled rotational
+    conditions report ``None``. Relative residuals use moment equations
+    divided by the corresponding power of ``length_scale``, normalized by
+    the largest row absolute sum times the largest parameter magnitude.
+
+    ``correction_norm`` is the Euclidean change in physical FC2 parameters;
+    ``relative_correction`` divides it by their initial norm. ``retained_rank``
+    counts effective singular directions above ``rank_cutoff``. The adjacent
+    retained/discarded singular values are ``None`` when the corresponding
+    set is empty. ``automatic_rank`` indicates whether ``rank_rtol`` was
+    estimated from geometry rather than supplied by the caller.
+
+    ``geometry_residual`` is the largest symmetry-related position mismatch
+    in angstrom; ``orthogonality_residual`` measures the dimensionless
+    departure of Cartesian symmetry operations from orthogonality.
     """
 
     force_constants: ForceConstants
@@ -60,7 +80,7 @@ def _append(
     column_start: int,
     values: np.ndarray,
 ) -> None:
-    """Append nonzero row coefficients to mutable COO row/column/data lists."""
+    """Collect nonzero parameter contributions to one rotational moment equation."""
     rows, columns, data = entries
     for column, value in enumerate(values):
         if value != 0.0:
@@ -72,13 +92,14 @@ def _append(
 def _fc2_moment_matrices(
     cluster_space,
 ) -> tuple[sparse.csr_matrix, sparse.csr_matrix, float]:
-    """Return Born-Huang and Huang CSR constraints plus a median pair length in angstrom.
+    """Construct Born-Huang first-moment and Huang second-moment constraints.
 
-    Columns follow the FC2 parameter block. First/second moments use relative
-    lattice-site Cartesian vectors divided by the median non-onsite distance,
-    so numerical constraint scales are independent of the length unit.
-    ``cluster_space`` supplies the FC2 parameter layout and lattice positions.
-    A missing positive non-onsite scale raises ValueError; input geometry is preserved.
+    Use Cartesian separations including periodic images, divided by the
+    median non-onsite pair distance in angstrom. Born-Huang equations are
+    antisymmetric in their displacement and moment directions; Huang
+    equations compare exchanged tensor/moment axis pairs after summing over
+    primitive atoms. Columns follow the physical FC2 parameters.
+    No positive finite non-onsite length scale raises ValueError.
     """
     space = cluster_space
     block = space.block(2)
@@ -150,15 +171,38 @@ def _fc2_moment_matrices(
     return born, huang, length_scale
 
 
+def _relative_residual(matrix: sparse.csr_matrix, values: np.ndarray) -> tuple[float, float]:
+    """Measure rotational violation relative to row norm and parameter magnitude.
+
+    Return the largest absolute residual and its ratio to the largest row
+    absolute sum times the largest parameter magnitude. Empty systems and
+    zero scales return zero.
+    """
+    if matrix.shape[0] == 0 or values.size == 0:
+        return 0.0, 0.0
+    residual = np.asarray(matrix @ values)
+    maximum = float(np.max(np.abs(residual), initial=0.0))
+    row_norms = np.asarray(np.abs(matrix).sum(axis=1)).reshape(-1)
+    equation_scale = float(np.max(row_norms, initial=0.0))
+    parameter_scale = float(np.max(np.abs(values), initial=0.0))
+    scale = equation_scale * parameter_scale
+    relative = maximum / scale if scale else 0.0
+    return maximum, relative
+
+
 def _maximum_residual(matrix: sparse.csr_matrix, values: np.ndarray) -> float:
-    """Return the largest absolute constraint residual, or zero for an empty row set."""
+    """Return the largest absolute moment violation, or zero for no equations."""
     if matrix.shape[0] == 0:
         return 0.0
     return float(np.max(np.abs(matrix @ values), initial=0.0))
 
 
 def _geometry_residuals(model: ForceConstants) -> tuple[float, float]:
-    """Measure the symmetry mismatch of the supplied, non-idealized primitive."""
+    """Measure site-symmetry mismatch and Cartesian nonorthogonality.
+
+    Evaluate the supplied geometry without idealizing positions or cell;
+    the symmetry-search tolerance is not itself a measured error.
+    """
     primitive = model.cluster_space
     symmetry = model.cluster_space.symmetry
     positions = primitive.scaled_positions
@@ -191,13 +235,52 @@ def enforce_rotation(
     huang: bool = False,
     rank_rtol: float | None = None,
 ) -> RotationResult:
-    """Project FC2 onto resolvable rotational moments without changing its ASR.
+    """Correct FC2 rotational moments while preserving its acoustic residual.
 
-    Huang's second-moment condition is appropriate only for a stress-free
-    equilibrium structure and therefore has to be enabled explicitly. The
-    automatic singular-value cutoff is estimated from *observed* geometry
-    mismatch, not the caller's symmetry-search precision. ``rank_rtol``
-    overrides it as a fraction of the largest singular value.
+    Born-Huang first-moment conditions describe rotational invariance when
+    atoms are in force equilibrium. Huang second-moment conditions additionally
+    impose zero stress and should only be enabled for that physical setting.
+    The correction minimizes the Euclidean change of physical FC2 parameters
+    within the resolved constraint directions. Higher orders are retained.
+
+    Parameters
+    ----------
+    model
+        Primitive force constants containing FC2 and their reference geometry.
+    born_huang
+        Enforce Born-Huang first-moment conditions; enabled by default.
+    huang
+        Enforce zero-stress Huang second-moment conditions; disabled by default.
+    rank_rtol
+        Relative singular-value cutoff between zero and one. By default,
+        estimate it as twice the sum of the measured position mismatch
+        divided by the median pair distance and Cartesian nonorthogonality.
+        A machine-precision floor is applied in either case. Directions below
+        the cutoff are unresolved and are not corrected.
+
+    Returns
+    -------
+    RotationResult
+        New force constants, physical residuals, correction size and rank
+        diagnostics for the length-normalized moment equations.
+
+    Raises
+    ------
+    ValueError
+        If no condition is selected, the cutoff is invalid, FC2 is absent,
+        or non-onsite pairs do not define a positive finite length scale.
+
+    Notes
+    -----
+    This operation preserves an existing ASR violation; it does not remove
+    it. Apply ``enforce_asr`` first when both conditions are required. Actual
+    interatomic separations enter the equations, so the projection remains
+    floating-point and does not rationalize or idealize the geometry.
+
+    References
+    ----------
+    C. Lin, S. Ponce and N. Marzari, npj Computational Materials 8, 236
+    (2022), equations (6) and (16), doi:10.1038/s41524-022-00920-6.
     """
     if not born_huang and not huang:
         raise ValueError("select born_huang=True and/or huang=True")
@@ -252,8 +335,8 @@ def enforce_rotation(
     else:
         correction = np.zeros_like(initial)
     projected = initial - correction
-    _, relative_before = relative_residual(constraints, initial)
-    _, relative_after = relative_residual(constraints, projected)
+    _, relative_before = _relative_residual(constraints, initial)
+    _, relative_after = _relative_residual(constraints, projected)
     correction_norm = float(np.linalg.norm(correction))
     initial_norm = float(np.linalg.norm(initial))
 

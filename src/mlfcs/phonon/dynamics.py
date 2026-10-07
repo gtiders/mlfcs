@@ -1,4 +1,4 @@
-"""Shared FC2 Fourier terms and dynamical-matrix operations."""
+"""Shared FC2 Fourier representation and dynamical-matrix operations."""
 
 from __future__ import annotations
 
@@ -8,11 +8,12 @@ import numpy as np
 from numba import njit
 from scipy.constants import angstrom, atomic_mass, electron_volt
 
-from mlfcs._arrays import readonly
 from mlfcs.force_constants.expansion import LatticeForceConstants, expand_lattice_tensors
 from mlfcs.force_constants.model import ForceConstants
-from mlfcs.tensors import rotate_basis
+from mlfcs.foundation.arrays import readonly
+from mlfcs.foundation.tensors import rotate_basis
 
+# Convert sqrt(eV / (angstrom**2 * amu)) to ordinary frequency in THz.
 THZ_PER_SQRT_EV_PER_A2_AMU = np.sqrt(electron_volt / (angstrom**2 * atomic_mass)) / (
     2.0 * np.pi * 1e12
 )
@@ -20,16 +21,19 @@ THZ_PER_SQRT_EV_PER_A2_AMU = np.sqrt(electron_volt / (angstrom**2 * atomic_mass)
 
 @dataclass(frozen=True, slots=True)
 class DynamicalTerms:
-    """Readonly FC2 Fourier metadata in orbit-major, image-major expansion order.
+    """Geometry and mass data for the Fourier expansion of primitive FC2 terms.
 
-    ``first_sites`` and ``second_sites`` are int64 arrays of shape (n_terms,)
-    containing primitive motif indices. ``fractional_separations`` is float64
-    shape (n_terms, 3), equal to the last-slot integer translation plus the
-    second minus first wrapped primitive fractional position. ``mass_weights``
-    is float64 shape (n_terms,), equal to 1/sqrt(m_i*m_j) in inverse square-root
-    atomic mass units. ``orbit_indices`` and ``image_indices`` are int64
-    provenance arrays of shape (n_terms,). All arrays are readonly; entries
-    align one-for-one with the lattice tensor expansion.
+    Each entry represents an expanded pair interaction between primitive
+    motif sites ``i`` and ``j`` with fractional separation
+
+        d = n + s_j - s_i,
+
+    where ``n`` is the lattice translation of the second site relative to the
+    first. Its dynamical-matrix contribution carries phase
+    ``exp(2*pi*i*q·d)`` and mass factor ``1/sqrt(m_i*m_j)``. The separation
+    follows the positional Fourier gauge. ``orbit_indices`` and
+    ``image_indices`` identify the symmetry orbit and image that produced each
+    term; the term order matches the expanded lattice FC2 tensors.
     """
 
     first_sites: np.ndarray
@@ -41,12 +45,14 @@ class DynamicalTerms:
 
 
 def prepare_dynamical_terms(model: ForceConstants) -> tuple[DynamicalTerms, LatticeForceConstants]:
-    """Prepare FC2 Fourier metadata with explicit orbit/image provenance.
+    """Expand FC2 interactions and prepare their Fourier geometry.
 
-    Expansion order is block orbit order followed by each orbit's stored image
-    order. Separations are fractional rows ``shift + r_j - r_i``; returned
-    tensors remain Cartesian in eV/angstrom**2. Raises ValueError if FC2 is
-    absent and RuntimeError if provenance and expansion lengths disagree.
+    For each expanded interaction ``(i, j, n)``, record the fractional
+    separation ``n + s_j - s_i``, the factor ``1/sqrt(m_i*m_j)``, and its
+    originating orbit and image. The geometry aligns one-to-one with the
+    returned lattice FC2 tensors, which remain Cartesian in eV/angstrom**2.
+    Raise ValueError if FC2 is absent and RuntimeError if expansion provenance
+    is inconsistent.
     """
     lattice = expand_lattice_tensors(model, 2)
     block = model.cluster_space.block(2)
@@ -84,12 +90,13 @@ def prepare_dynamical_terms(model: ForceConstants) -> tuple[DynamicalTerms, Latt
 def prepare_fc2_bases(
     cluster_space, terms: DynamicalTerms
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Build term-aligned rotated FC2 bases, parameter offsets, and dimensions.
+    """Expand primitive FC2 orbit bases into Fourier-term image order.
 
-    ``terms`` must come from ``prepare_dynamical_terms`` for this cluster space.
-    Return float64 bases (n_terms, 9, max_dimension) and int32 offset/dimension
-    vectors. Every basis is placed by the provenance arrays, preserving expansion
-    order and parameter offsets.
+    Each symmetry image receives the Cartesian basis obtained by rotating and
+    permuting its primitive orbit basis. For each term, ``offsets`` and
+    ``dimensions`` select the corresponding coefficient slice
+    ``coefficients[offset:offset + dimension]`` in the global FC2 parameter
+    vector. ``terms`` must have been prepared from this cluster space.
     """
     block = cluster_space.block(2)
     maximum_dimension = max(
@@ -117,11 +124,12 @@ def prepare_fc2_bases(
 
 
 def translation_complement(masses: np.ndarray) -> np.ndarray:
-    """Return a (3*N, 3*(N-1)) orthonormal complement of mass-weighted translations.
+    """Return an orthonormal basis excluding the three acoustic translations.
 
-    masses is a positive per-site mass vector in atomic mass units. Atom-major
-    Cartesian rows exclude the three Gamma translation directions. For one
-    site return (3, 0); input masses are not modified.
+    In mass-weighted Cartesian coordinates, rigid translations span vectors
+    proportional to ``sqrt(m_i)`` along x, y, and z. Return an orthonormal
+    complement with shape ``(3*N, 3*(N-1))`` for positive per-site masses in
+    atomic mass units. A single-site primitive cell has an empty complement.
     """
     count = len(masses)
     if count == 1:
@@ -143,25 +151,30 @@ def _accumulate_dynamical_matrices(
     points: np.ndarray,
     first: np.ndarray,
     second: np.ndarray,
-    images: np.ndarray,
+    separations: np.ndarray,
     tensors: np.ndarray,
     mass_weights: np.ndarray,
     n_sites: int,
 ) -> np.ndarray:
-    """Fourier-accumulate requested q points and symmetrize Hermitian roundoff.
+    """Fourier transform expanded FC2 tensors into dynamical matrices.
 
-    points is fractional reciprocal (nq, 3); first/second index primitive sites,
-    images holds fractional positional-gauge separations, tensors is (terms, 3, 3)
-    in eV/angstrom**2, and mass_weights is 1/sqrt(m_i*m_j) in inverse atomic mass
-    units. Return complex128 (nq, 3*N, 3*N), before conversion to THz.
-    Uses exp(+2*pi*i*q.dot(image)); no full reciprocal grid is required.
+    For each q point, accumulate
+
+        D[i,alpha,j,beta](q) = sum_R Phi[i,alpha,j,beta](R)
+            * exp(2*pi*i*q·(R + s_j - s_i)) / sqrt(m_i*m_j).
+
+    ``points`` are fractional reciprocal coordinates and ``separations``
+    stores the corresponding positional-gauge vectors ``R + s_j - s_i``.
+    The result is mass weighted and retains the native FC2 units before
+    frequency conversion. Hermitian symmetrization removes numerical roundoff;
+    it does not impose a physical correction on the force constants.
     """
     matrices = np.zeros((len(points), 3 * n_sites, 3 * n_sites), dtype=np.complex128)
     for iq in range(len(points)):
         for term in range(len(first)):
             angle = 0.0
             for axis in range(3):
-                angle += points[iq, axis] * images[term, axis]
+                angle += points[iq, axis] * separations[term, axis]
             phase = 2.0 * np.pi * angle
             real = np.cos(phase) * mass_weights[term]
             imaginary = np.sin(phase) * mass_weights[term]
@@ -182,12 +195,12 @@ def _accumulate_dynamical_matrices(
 
 
 def accumulate_dynamical_matrices(points, terms, tensors, n_sites):
-    """Evaluate dynamical matrices from normalized q points and prepared terms.
+    """Evaluate mass-weighted dynamical matrices at fractional q points.
 
-    ``points`` has shape (nq, 3) in fractional reciprocal coordinates;
-    ``tensors`` has shape (n_terms, 3, 3) in eV/angstrom**2. Return complex128
-    shape (nq, 3*n_sites, 3*n_sites), Hermitian-symmetrized by the compiled
-    accumulation. The calculation uses the positional Fourier gauge.
+    ``tensors`` must align with ``terms`` and contain Cartesian FC2 tensors in
+    eV/angstrom**2. The positional Fourier convention
+    ``exp(2*pi*i*q·d)`` uses the pair separations stored in ``terms``. Return
+    complex dynamical matrices in the native FC2 unit divided by atomic mass.
     """
     return _accumulate_dynamical_matrices(
         points,

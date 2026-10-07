@@ -1,4 +1,4 @@
-"""Primitive-cell symmetry without supercell realization state."""
+"""Primitive-cell space-group actions on lattice sites and Cartesian tensors."""
 
 from __future__ import annotations
 
@@ -7,20 +7,20 @@ from dataclasses import dataclass
 import numpy as np
 import spglib
 
-from mlfcs._arrays import as_int64_array, require_bound
+from mlfcs.foundation.arrays import as_int64_array, require_bound
 from mlfcs.geometry.periodic import PeriodicGeometry
 from mlfcs.geometry.primitive import LatticeSite
 
 
 def _readonly(values: object, *, dtype: object) -> np.ndarray:
-    """Copy symmetry values into owned, readonly C-contiguous storage of the requested dtype."""
+    """Return an owned readonly array with the requested dtype."""
     result = np.array(values, dtype=dtype, copy=True, order="C")
     result.setflags(write=False)
     return result
 
 
 def _readonly_int64(values: object, *, name: str) -> np.ndarray:
-    """Normalize symmetry buffers to int64; reject noninteger input with TypeError."""
+    """Return an owned readonly int64 array, requiring integer-valued input."""
     try:
         return as_int64_array(values, name=name)
     except ValueError as error:
@@ -28,15 +28,26 @@ def _readonly_int64(values: object, *, name: str) -> np.ndarray:
 
 
 def validate_site_actions(translations, rotations, shifts, *, reanchor=False):
-    """Validate affine site-action products and optional re-anchoring.
+    """Validate integer bounds for affine actions on lattice translations.
 
-    ``translations`` is an (n, 3) array of lattice offsets, ``rotations`` has
-    shape (s, 3, 3), and ``shifts`` has a leading operation axis of length s
-    and a final coordinate axis of length three. Values are integers.
-    For component j, bound each action by max(abs(shift_j)) plus the sum of
-    abs(rotation[j,k]) * max(abs(translation_k)). If ``reanchor`` is True,
-    double the bound to cover subtraction of a transformed anchor.
-    Return the largest bound; raise OverflowError if it exceeds INT64_MAX.
+    A primitive lattice translation ``n`` transforms as
+
+        n' = n @ R.T + s,
+
+    where ``R`` is an integer lattice rotation and ``s`` is the site-dependent
+    lattice shift. If ``reanchor`` is true, the bound also covers subtraction
+    of a transformed reference translation.
+
+    Returns
+    -------
+    int
+        Maximum admitted absolute integer magnitude.
+
+    Raises
+    ------
+    OverflowError
+        If any transformed or re-anchored translation may exceed the supported
+        integer range.
     """
     maxima = [max((abs(int(v)) for v in translations[:, k]), default=0) for k in range(3)]
     bound = 0
@@ -51,31 +62,25 @@ def validate_site_actions(translations, rotations, shifts, *, reanchor=False):
 
 @dataclass(frozen=True, slots=True)
 class PrimitiveSymmetry:
-    """Immutable affine space-group actions on one primitive motif.
+    """Space-group actions on a primitive motif and its periodic lattice sites.
 
-    Attributes
-    ----------
-    rotations : ndarray of int64, shape (s, 3, 3)
-        Spglib fractional lattice actions: x' = x @ rotation.T + translation.
-    translations : ndarray of float64, shape (s, 3)
-        Fractional affine offsets.
-    cartesian_rotations : ndarray of float64, shape (s, 3, 3)
-        Cartesian row actions inv(cell) @ rotation.T @ cell. Tensor contractions
-        use their transpose; these are not generally integer signed permutations.
-    site_permutations : ndarray of int64, shape (s, n_atoms)
-        Primitive motif indices reached by each operation.
-    site_shifts : ndarray of int64, shape (s, n_atoms, 3)
-        Integer shifts satisfying transformed motif position = mapped position
-        + shift. Translated lattice addresses additionally receive t @ R.T.
-    symbol : str
-        Space-group symbol supplied by spglib.
-    symprec : float
-        Positive Cartesian matching tolerance in angstrom.
+    Spglib symmetry operations act on fractional row coordinates as
 
-    Notes
-    -----
-    Construction validates buffer shapes and permutations and makes them readonly.
-    No supercell atom permutation, cell matrix or mutable cache is stored here.
+        x' = x @ R_g.T + t_g.
+
+    Each motif site ``i`` is mapped to ``sigma_g(i)`` with an integer lattice
+    shift ``s_g(i)`` satisfying
+
+        x_i @ R_g.T + t_g
+        = x_{sigma_g(i)} + s_g(i).
+
+    Hence a periodic lattice site ``(i, n)`` transforms as
+
+        (i, n) -> (sigma_g(i), n @ R_g.T + s_g(i)).
+
+    The corresponding Cartesian row-vector action is
+
+        Q_g = inv(cell) @ R_g.T @ cell.
     """
 
     rotations: np.ndarray
@@ -87,7 +92,7 @@ class PrimitiveSymmetry:
     symprec: float
 
     def __post_init__(self) -> None:
-        """Normalize readonly buffers and validate operation shapes and motif permutations."""
+        """Validate and normalize the primitive symmetry representation."""
         rotations = _readonly_int64(self.rotations, name="primitive rotations")
         translations = _readonly(self.translations, dtype=np.float64)
         cartesian = _readonly(self.cartesian_rotations, dtype=np.float64)
@@ -125,7 +130,20 @@ class PrimitiveSymmetry:
         return len(self.rotations)
 
     def transform_site(self, operation: int, label: LatticeSite) -> LatticeSite:
-        """Apply an operation to one primitive lattice site."""
+        """Apply one space-group operation to a periodic lattice site.
+
+        For ``label = (i, n)``, operation ``g`` returns
+
+            (sigma_g(i), n @ R_g.T + s_g(i)).
+
+        Raises
+        ------
+        IndexError
+            If the operation or primitive motif index is outside its valid range.
+        OverflowError
+            If the transformed lattice translation exceeds the supported integer
+            range.
+        """
         site = label.site
         if not 0 <= operation < self.size:
             raise IndexError("symmetry operation is outside the group")
@@ -145,16 +163,46 @@ class PrimitiveSymmetry:
 
 
 def discover_symmetry(cell, scaled_positions, atomic_numbers, symprec) -> PrimitiveSymmetry:
-    """Discover affine primitive symmetry and uniquely match every mapped site.
+    """Discover primitive-cell space-group actions and motif-site mappings.
 
-    ``cell`` has lattice vectors as rows in angstrom; ``scaled_positions`` are
-    fractional rows and ``atomic_numbers`` preserves motif order. ``symprec`` is
-    a Cartesian tolerance in angstrom. Return readonly PrimitiveSymmetry data.
-    Raise ValueError if spglib fails or any same-species image is not unique.
+    Spglib operations act on fractional row coordinates as
 
-    Spglib uses x' = x @ R.T + t in fractional coordinates. The Cartesian row
-    rotation is inv(cell) @ R.T @ cell; stored site shifts satisfy
-    x_i @ R.T + t = x_permutation[i] + shift[i]. No supercell state is created.
+        x' = x @ R.T + t.
+
+    For every operation and primitive motif site ``i``, this function finds
+    the unique same-species motif site ``sigma(i)`` and integer shift ``s(i)``
+    satisfying
+
+        x_i @ R.T + t = x_{sigma(i)} + s(i)
+
+    within the Cartesian tolerance ``symprec``.
+
+    The corresponding Cartesian rotation is
+
+        Q = inv(cell) @ R.T @ cell.
+
+    Parameters
+    ----------
+    cell
+        Primitive lattice vectors as rows, shape ``(3, 3)``, in angstrom.
+    scaled_positions
+        Fractional motif coordinates of shape ``(n_atoms, 3)``.
+    atomic_numbers
+        Atomic numbers in primitive motif order.
+    symprec
+        Positive Cartesian matching tolerance in angstrom.
+
+    Returns
+    -------
+    PrimitiveSymmetry
+        Primitive symmetry operations together with motif permutations,
+        lattice shifts and Cartesian rotations.
+
+    Raises
+    ------
+    ValueError
+        If spglib cannot determine the symmetry or if a transformed motif
+        site does not have a unique same-species periodic match.
     """
     dataset = spglib.get_symmetry_dataset(
         (cell, scaled_positions, atomic_numbers),

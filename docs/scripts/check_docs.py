@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Check all documentation pages, required entries, local links, and site assets."""
+"""Check all documentation pages, tutorial notebooks, local links, and site assets."""
 
 from __future__ import annotations
 
+import json
 import re
 import sys
 from pathlib import Path
@@ -10,32 +11,34 @@ from urllib.parse import unquote, urlsplit
 
 ROOT = Path(__file__).resolve().parents[2]
 DOCS = ROOT / "docs"
+NOTEBOOKS = DOCS / "notebooks"
 PAGES = {
     Path("index.md"),
-    Path("numba-integer-audit.md"),
-    Path("unified-numba-backend.md"),
-    Path("domain-v6.md"),
-    Path("local-integer-contracts.md"),
-    Path("Q&A.md"),
     Path("finite-difference-api.md"),
     Path("fitting-api.md"),
-    Path("zh/index.md"),
-    Path("zh/Q&A.md"),
-    Path("zh/finite-difference-api.md"),
-    Path("zh/fitting-api.md"),
+    Path("dataset-api.md"),
+    Path("harmonic-api.md"),
+    Path("scph.md"),
+    Path("logging.md"),
+    Path("Q&A.md"),
+    Path("domain-v6.md"),
+    Path("local-integer-contracts.md"),
+    Path("numba-integer-audit.md"),
+    Path("unified-numba-backend.md"),
+    Path("supercell-quotient.md"),
+    Path("notebooks/index.md"),
+}
+TUTORIAL_NOTEBOOKS = {
+    "rotational-sum-rules.ipynb",
+    "si-finite-difference.ipynb",
+    "nacl-long-range.ipynb",
+    "ba8ga16ge30.ipynb",
+    "si-fitting.ipynb",
+    "k4as4pt2.ipynb",
 }
 LEGACY_MATH = re.compile(r"(?<!\\)\\(?:\(|\)|\[|\])")
 LINK = re.compile(r"!?\[[^\]]*\]\((<[^>]+>|[^)\s]+)(?:\s+[^)]*)?\)")
 FENCE = re.compile(r"^\s*(?:```|~~~)")
-MIRRORED = (
-    Path("index.md"),
-    Path("Q&A.md"),
-    Path("finite-difference-api.md"),
-    Path("fitting-api.md"),
-    Path("harmonic-api.md"),
-    Path("logging.md"),
-    Path("scph.md"),
-)
 
 
 def _content_without_fences(text: str) -> str:
@@ -67,18 +70,40 @@ def _check_local_links(path: Path, text: str) -> list[str]:
     return errors
 
 
+def _check_notebook(path: Path) -> list[str]:
+    errors: list[str] = []
+    notebook = json.loads(path.read_text(encoding="utf-8"))
+    for index, cell in enumerate(notebook.get("cells", [])):
+        if cell.get("cell_type") != "markdown":
+            continue
+        source = "".join(cell.get("source", []))
+        if LEGACY_MATH.search(source):
+            errors.append(
+                f"legacy Markdown math delimiter in "
+                f"{path.relative_to(ROOT)} (markdown cell {index})"
+            )
+        errors.extend(_check_local_links(path, source))
+    return errors
+
+
 def main() -> int:
     errors: list[str] = []
     actual = {path.relative_to(DOCS) for path in DOCS.rglob("*.md")}
     missing = sorted(PAGES - actual)
     errors.extend(f"missing required documentation page: docs/{path}" for path in missing)
 
+    notebook_names = {path.name for path in NOTEBOOKS.glob("*.ipynb")}
+    missing_notebooks = sorted(TUTORIAL_NOTEBOOKS - notebook_names)
+    errors.extend(
+        f"missing tutorial notebook: docs/notebooks/{name}" for name in missing_notebooks
+    )
+
     if not (DOCS / "assets/images/logo.png").is_file():
         errors.append("missing docs/assets/images/logo.png")
     if not (DOCS / "assets/stylesheets/extra.css").is_file():
         errors.append("missing docs/assets/stylesheets/extra.css")
-    if (ROOT / "README_ZH.md").exists():
-        errors.append("legacy README_ZH.md must not exist")
+    if (ROOT / "README.zh-CN.md").exists():
+        errors.append("legacy README.zh-CN.md must not exist; the README is Chinese-only")
 
     for relative in sorted(actual):
         path = DOCS / relative
@@ -89,26 +114,20 @@ def main() -> int:
             errors.append(f"legacy Markdown math delimiter in {path.relative_to(ROOT)}")
         errors.extend(_check_local_links(path, text))
 
-    for relative in MIRRORED:
-        english = DOCS / relative
-        chinese = DOCS / "zh" / relative
-        if not english.is_file() or not chinese.is_file():
-            continue
-        if relative == Path("index.md"):
-            continue
-        en_text = _content_without_fences(english.read_text(encoding="utf-8"))
-        zh_text = _content_without_fences(chinese.read_text(encoding="utf-8"))
-        if not en_text.strip() or not zh_text.strip():
-            errors.append(f"empty bilingual page pair: {relative}")
+    for path in sorted(NOTEBOOKS.glob("*.ipynb")):
+        errors.extend(_check_notebook(path))
 
-    for path in (ROOT / "README.md", ROOT / "README.zh-CN.md"):
-        if path.exists() and LEGACY_MATH.search(path.read_text(encoding="utf-8")):
-            errors.append(f"legacy Markdown math delimiter in {path.relative_to(ROOT)}")
+    readme = ROOT / "README.md"
+    if readme.exists() and LEGACY_MATH.search(readme.read_text(encoding="utf-8")):
+        errors.append("legacy Markdown math delimiter in README.md")
 
     if errors:
         print("\n".join(errors), file=sys.stderr)
         return 1
-    print(f"documentation set is valid: {len(actual)} pages, {len(MIRRORED)} bilingual pairs")
+    print(
+        f"documentation set is valid: {len(actual & PAGES)} pages, "
+        f"{len(notebook_names)} notebooks"
+    )
     return 0
 
 

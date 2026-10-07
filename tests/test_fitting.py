@@ -10,6 +10,7 @@ from ase.build import bulk
 from ase.calculators.singlepoint import SinglePointCalculator
 
 from mlfcs import ClusterMap, ClusterSpace
+from mlfcs.dataset import ForceDataset
 from mlfcs.fitting import FitSystem
 from mlfcs.fitting.design import ForceDesign
 
@@ -51,7 +52,7 @@ def test_design_and_fitted_force_constants_match_original_python_snapshots():
             sample.positions += displacement
             sample.calc = SinglePointCalculator(sample, forces=forces)
             structures.append(sample)
-        system = FitSystem(mapping, structures)
+        system = FitSystem(ForceDataset(mapping, structures))
         model = system.solve(rtol=1e-11, maxiter=5000)
         parameters = model.parameters()
         for index, orbit in enumerate(space.orbits):
@@ -134,8 +135,10 @@ def test_normal_fit_recovers_harmonic_stiffness() -> None:
         [[0.01, -0.02, 0.03]],
     ]
     structures = evaluated(supercell_atoms, displacements, lambda value: -stiffness * value)
-    system = FitSystem(mapping, iter(structures))
-    merged = FitSystem(mapping, structures[:2]) + FitSystem(mapping, structures[2:])
+    system = FitSystem(ForceDataset(mapping, iter(structures)))
+    merged = FitSystem(ForceDataset(mapping, structures[:2])) + FitSystem(
+        ForceDataset(mapping, structures[2:])
+    )
     model = system.solve(rtol=1e-12)
     parameters = model.parameters()
     assert system.n_structures == len(structures)
@@ -218,7 +221,7 @@ def test_joint_orders_preserve_the_complete_system() -> None:
     rng = np.random.default_rng(7)
     displacements = rng.normal(scale=0.03, size=(20, 2, 3))
     structures = evaluated(supercell_atoms, displacements, force)
-    system = FitSystem(mapping, structures)
+    system = FitSystem(ForceDataset(mapping, structures))
     assert system.cluster_space.orders == (2, 3)
     assert system.unobserved_parameters == ()
     model = system.solve(rtol=1e-11, maxiter=5000)
@@ -241,15 +244,15 @@ def test_raw_and_normal_keep_physical_equations_and_match_external_solution():
         rng.normal(scale=0.05, size=(25, 1, 3)),
         lambda displacement: (design.matrix(displacement) @ target).reshape(1, 3),
     )
-    raw = FitSystem(mapping, iter(structures), representation="raw")
-    normal = FitSystem(mapping, iter(structures))
+    raw = FitSystem(ForceDataset(mapping, iter(structures)), representation="raw")
+    normal = FitSystem(ForceDataset(mapping, iter(structures)))
     original_a, original_f = (raw.design_matrix.copy(), raw.forces.copy())
     np.testing.assert_allclose(raw.design_matrix.T @ raw.design_matrix, normal.normal_matrix)
     np.testing.assert_allclose(raw.design_matrix.T @ raw.forces, normal.normal_rhs)
     converted = raw.to_normal()
     np.testing.assert_allclose(converted.normal_matrix, normal.normal_matrix)
     external = np.linalg.lstsq(raw.design_matrix, raw.forces, rcond=None)[0]
-    raw_model = raw.solve(atol=1e-12, btol=1e-12)
+    raw_model = raw.solve()
     normal_model = normal.solve(rtol=1e-12)
     np.testing.assert_allclose(raw_model.parameters(), target, atol=1e-10)
     np.testing.assert_allclose(normal_model.parameters(), external, atol=1e-09)
@@ -259,8 +262,8 @@ def test_raw_and_normal_keep_physical_equations_and_match_external_solution():
     assert raw.rmse(raw_model) < 1e-14
 
 
-def test_lsmr_normalizes_disparate_columns_and_restores_physical_parameters():
-    """Verify lsmr normalizes disparate columns and restores physical parameters."""
+def test_raw_least_squares_normalizes_disparate_columns_and_restores_parameters():
+    """Verify raw least squares handles disparate column scales."""
     mapping, _ = ar_mapping((2, 4))
     n = mapping.cluster_space.n_parameters
     rng = np.random.default_rng(14)
@@ -271,7 +274,7 @@ def test_lsmr_normalizes_disparate_columns_and_restores_physical_parameters():
     raw = FitSystem._from_equations(
         mapping.cluster_space, "raw", matrix, forces, float(forces @ forces), 40, 1
     )
-    physical = raw.solve(atol=1e-12, btol=1e-12).parameters()
+    physical = raw.solve().parameters()
     np.testing.assert_allclose(physical * amplitudes, target * amplitudes, atol=1e-11)
     np.testing.assert_array_equal(raw.design_matrix, matrix)
     np.testing.assert_array_equal(raw.forces, forces)
@@ -291,17 +294,17 @@ def test_raw_merge_preserves_physical_equations():
         rng.normal(scale=0.1, size=(12, 1, 3)),
         lambda displacement: (design.matrix(displacement) @ target).reshape(1, 3),
     )
-    raw = FitSystem(mapping, structures, representation="raw")
-    merged = FitSystem(mapping, structures[:6], representation="raw") + FitSystem(
-        mapping, structures[6:], representation="raw"
+    raw = FitSystem(ForceDataset(mapping, structures), representation="raw")
+    merged = FitSystem(ForceDataset(mapping, structures[:6]), representation="raw") + FitSystem(
+        ForceDataset(mapping, structures[6:]), representation="raw"
     )
     np.testing.assert_array_equal(merged.design_matrix, raw.design_matrix)
     assert not raw.design_matrix.flags.writeable
     assert not raw.forces.flags.writeable
 
 
-def test_lsmr_recovers_the_noisy_least_squares_solution():
-    """Verify lsmr recovers the noisy least squares solution."""
+def test_raw_solver_recovers_the_noisy_least_squares_solution():
+    """Verify the raw solver matches the direct least-squares solution."""
     mapping, _ = ar_mapping((2, 4))
     rng = np.random.default_rng(21)
     matrix = rng.normal(size=(50, mapping.cluster_space.n_parameters))
@@ -310,6 +313,6 @@ def test_lsmr_recovers_the_noisy_least_squares_solution():
         mapping.cluster_space, "raw", matrix, forces, float(forces @ forces), 50, 1
     )
     expected = np.linalg.lstsq(matrix, forces, rcond=None)[0]
-    model = raw.solve(atol=1e-12, btol=1e-12)
+    model = raw.solve()
     np.testing.assert_allclose(model.parameters(), expected, atol=1e-10)
     np.testing.assert_allclose(raw.residual(model), np.linalg.norm(matrix @ expected - forces))

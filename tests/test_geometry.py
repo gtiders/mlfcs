@@ -7,9 +7,9 @@ import pytest
 from ase.build import bulk
 
 from mlfcs import ClusterSpace
+from mlfcs.foundation.tensors import apply_tensor_action
 from mlfcs.geometry.primitive import LatticeSite
 from mlfcs.geometry.symmetry import discover_symmetry
-from mlfcs.tensors import apply_tensor_action
 
 
 @pytest.mark.parametrize("order", (2, 3, 4, 5), ids=("FC2", "FC3", "FC4", "FC5"))

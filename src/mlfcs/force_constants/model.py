@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Literal
 import numpy as np
 
 from mlfcs.cluster_space import ClusterSpace
-from mlfcs.log import get_logger
+from mlfcs.foundation.log import get_logger
 
 logger = get_logger(__name__)
 
@@ -164,7 +164,7 @@ class ForceConstants:
         file: str | os.PathLike[str],
         cluster_map: ClusterMap | None = None,
         *,
-        format: Literal["phonopy", "phono3py", "shengbte", "tdep"],
+        format: Literal["phonopy", "phono3py", "shengbte"],
         order: int,
         storage: Literal["text", "hdf5"] | None = None,
         threshold: float = 1e-8,
@@ -176,29 +176,28 @@ class ForceConstants:
         file : path-like
             Target file; parent directories are created.
         cluster_map : ClusterMap, optional
-            Matching supercell relation required for phonopy, phono3py and ShengBTE.
-            TDEP uses primitive lattice data. Callers own map/model compatibility.
-        format : {'phonopy', 'phono3py', 'shengbte', 'tdep'}
-            phonopy supports FC2; phono3py FC3; ShengBTE FC3/FC4; TDEP FC2/FC3/FC4.
+            Matching supercell relation required for phonopy and phono3py.
+            ShengBTE uses primitive lattice data and needs no map.
+            Callers own map/model compatibility.
+        format : {'phonopy', 'phono3py', 'shengbte'}
+            phonopy supports FC2; phono3py FC3; ShengBTE FC3/FC4.
         order : int
             Explicitly present order to export.
         storage : {'text', 'hdf5'}, optional
             phonopy defaults to text and permits HDF5; phono3py requires HDF5;
-            ShengBTE and TDEP require text.
+            ShengBTE requires text.
         threshold : float, default 1e-8
             Nonnegative physical component cutoff; smaller absolute entries become zero.
 
         Notes
         -----
         The model is unchanged. Native save/load is separate from external formats.
-        Invalid format/order/storage or mismatched model relation raises ValueError.
+        Invalid format/order/storage or missing required tensor information raises ValueError.
         """
-        from mlfcs.force_constants.formats import write
+        from mlfcs.force_constants.compact import CompactForceConstants
 
-        return write(
-            self,
+        return CompactForceConstants(self, cluster_map).write(
             file,
-            cluster_map,
             format=format,
             order=order,
             storage=storage,
@@ -211,7 +210,19 @@ class ForceConstants:
         orders: Iterable[int] | None = None,
         rtol: float = 1e-10,
     ) -> ASRResult:
-        """Return the shared post-processing projection onto translational invariance."""
+        """Project selected orders onto the acoustic sum rule and return diagnostics.
+
+        Each order's Cartesian force constants sum to zero over the final
+        atomic position and its periodic images. ``orders`` defaults to all
+        stored orders; an explicit selection must be ascending and unique.
+        ``rtol`` is a positive relative equation tolerance, normalized by
+        the largest row absolute sum times the largest parameter magnitude.
+
+        The correction minimizes Euclidean change in physical component
+        parameters. The source model and unselected orders are unchanged.
+        Missing orders raise KeyError; invalid inputs raise ValueError.
+        Failure to meet the tolerance raises ConstraintProjectionError.
+        """
         from mlfcs.force_constants.asr import enforce_asr
 
         return enforce_asr(self, orders=orders, rtol=rtol)
@@ -223,7 +234,22 @@ class ForceConstants:
         huang: bool = False,
         rank_rtol: float | None = None,
     ) -> RotationResult:
-        """Apply resolvable rotational conditions without changing the existing ASR."""
+        """Correct FC2 rotational moments without changing its acoustic residual.
+
+        ``born_huang`` selects first-moment rotational conditions for atoms
+        in force equilibrium. ``huang`` additionally selects zero-stress
+        second-moment conditions and is disabled by default. ``rank_rtol``
+        sets a relative singular-value cutoff between zero and one; when
+        omitted, it is estimated from the actual symmetry mismatch of the
+        geometry, with a machine-precision floor.
+
+        Return a RotationResult containing a new model and residual/rank
+        diagnostics. The correction minimizes change in physical FC2
+        parameters within resolved directions; other orders are unchanged.
+        Apply ``enforce_asr`` first when both constraints are required.
+        Invalid selections, missing FC2 or an undefined pair length scale
+        raise ValueError.
+        """
         from mlfcs.force_constants.rotation import enforce_rotation
 
         return enforce_rotation(

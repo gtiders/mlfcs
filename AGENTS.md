@@ -1,6 +1,24 @@
 # 项目准则
 
 1. 所有 Markdown（`.md`）文件中的数学公式必须使用美元符号：行内公式使用 `$...$`，独立公式使用 `$$...$$`；不得使用 `\(...\)`、`\[...\]` 或其他数学定界符。
-2. 教学案例的每个独立拟合任务必须由该任务脚本将完整 stdout、stderr 与 traceback 覆盖保存为任务所在目录中的固定 `fit.log`。日志是案例结果的一部分，必须纳入 Git，且不得被 `.gitignore` 排除。教学拟合任务不得依赖公用日志包装器。
+2. 教学拟合由文档中的教程 notebook 承担：notebook 的完整执行输出（含图、指标与文本输出）是拟合任务的结果记录，必须纳入 Git，且不得被 `.gitignore` 排除；重新生成输出时必须逐个串行执行 notebook。教学拟合不得依赖公用日志包装器。
 3. `src/mlfcs/tools` 包不编写常驻测试：工具的正确性在实现时以一次性临时验证代替，验证脚本及其输出不纳入版本库；测试套件不保留工具包的依赖方向门禁。
-4. 每个函数与每个类都必须编写英文 docstring，私有成员一律不得豁免。凡有数学含义的函数或类，docstring 必须详细到足以独立复现其数学定义，至少说明：所计算的数学对象；各参数与返回值的形状、类型与取值约束；所遵循的约定（单位、指标基、行/列向量、归一化、边界条件等）；可能抛出的异常及其触发条件；定义取自文献时给出出处或公式编号。docstring 一律使用英文，不得以行内注释代替。
+4. Every function and class must have an English docstring, including private members. The level of detail, however, must match the semantic role of the object rather than follow a uniform template.
+
+For public APIs and classes or functions that define a mathematical or physical object, the docstring must explain the object from the user's perspective before describing implementation details. It should include, where relevant:
+
+- the mathematical or physical object being represented or computed;
+- the meaning of important parameters and return values;
+- non-obvious shape, type, domain, or dimensional constraints;
+- conventions required to interpret the result correctly, such as units, coordinate basis, tensor-index order, row/column-vector convention, normalization, periodicity, or boundary conditions;
+- mathematically meaningful truncation, symmetry, invariance, or equivalence rules;
+- exceptions whose conditions are part of the public contract;
+- literature references or equation numbers when the definition is taken from an external source.
+
+Do not mechanically document information that is already obvious from type annotations or the implementation. In particular, dtype, array shape, readonly status, allocation strategy, copying behavior, internal indexing details, and validation steps should only appear when they are necessary to correctly interpret or use the API.
+
+For private helper functions, the docstring should concisely state the function's role in the algorithm and any non-obvious mathematical or numerical convention it relies on. Private helpers are not required to repeat full parameter tables, return schemas, or exception lists when these are already defined by the public interface.
+
+Docstrings must prioritize semantic meaning over implementation mechanics. For physics-related code, prefer descriptions such as "number of distinct atomic positions involved" over storage-oriented descriptions such as "number of unique lattice addresses" unless the latter distinction is itself part of the physical definition.
+
+Inline comments may explain local implementation choices, but must not replace a docstring.

@@ -1,69 +1,18 @@
-# ====================== 根目录：原有黑名单规则保留 ======================
-# Python-generated files
+# Python 产物
 __pycache__/
+.pytest_cache/
+.ruff_cache/
 *.py[oc]
+*.egg-info
 build/
 dist/
 wheels/
-*.egg-info
+.venv/
+
+# 构建与本地工具输出
+site/
+.cache/
+uv.lock
+.zcode/
 .omo
 .omp
-uv.lock
-# Virtual environments
-.venv
-site/
-
-# ====================== examples / examples-next / tutorial / tests：白名单模式 ======================
-# 逻辑：先忽略目录下全部文件，再把需要追踪的后缀加回来
-# 允许后缀：py md toml png jpg jpeg svg gif fcp txt log cff yaml yml json vasp extxyz
-
-/tutorial/**/*
-!/tutorial/**/
-!/tutorial/**/*.py
-!/tutorial/**/*.md
-!/tutorial/**/*.toml
-!/tutorial/**/*.png
-!/tutorial/**/*.jpg
-!/tutorial/**/*.jpeg
-!/tutorial/**/*.svg
-!/tutorial/**/*.gif
-!/tutorial/**/*.fcp
-!/tutorial/**/*.txt
-!/tutorial/**/*.log
-!/tutorial/**/*.cff
-!/tutorial/**/*.yaml
-!/tutorial/**/*.yml
-!/tutorial/**/*.json
-!/tutorial/**/*.vasp
-!/tutorial/**/*.extxyz
-!/tutorial/**/*.xyz
-!/tutorial/**/BORN
-# Tutorial force-constant models and external phonon/transport HDF5 outputs.
-!/tutorial/**/*.hdf5
-
-/tests/**/*
-!/tests/**/*.py
-!/tests/**/*.md
-!/tests/**/*.toml
-!/tests/**/*.png
-!/tests/**/*.jpg
-!/tests/**/*.jpeg
-!/tests/**/*.svg
-!/tests/**/*.gif
-!/tests/**/*.fcp
-!/tests/**/*.txt
-!/tests/**/*.log
-!/tests/**/*.cff
-!/tests/**/*.yaml
-!/tests/**/*.yml
-!/tests/**/*.json
-
-# Persist migration oracles and exact differential fixtures.
-!/tests/**/
-!/tests/data/*.npz
-!/tests/data/*.mlfcs
-
-# External reference clone and local build artifacts
-alamode/
-src/mlfcs/_native*.so
-.zcode/

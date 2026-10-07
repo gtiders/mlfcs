@@ -24,20 +24,18 @@ jobs:
         run: uv sync --group docs
       - name: Verify README single source of truth
         run: uv run python docs/scripts/sync_readmes.py --check
-      - name: Verify bilingual documentation structure
+      - name: Verify documentation structure
         run: uv run python docs/scripts/check_docs.py
       - name: Build documentation
         run: uv run --group docs mkdocs build --strict -f mkdocs.yml
       - name: Verify published layout
         run: |
           test -f site/index.html
-          test -f site/zh/index.html
           test -f site/finite-difference-api/index.html
-          test -f site/zh/finite-difference-api/index.html
           test -f site/fitting-api/index.html
-          test -f site/zh/fitting-api/index.html
           test -f 'site/Q&A/index.html'
-          test -f 'site/zh/Q&A/index.html'
+          test -f site/notebooks/index.html
+          test -f site/notebooks/rotational-sum-rules/index.html
 
   tests:
     runs-on: ubuntu-latest

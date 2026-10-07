@@ -1,25 +1,236 @@
-"""Immutable primitive-cell cluster-space models."""
+"""Immutable cluster-space, cluster, orbit, and order models."""
 
 from __future__ import annotations
 
+import math
 import operator
 from dataclasses import dataclass
 
 import numpy as np
 from ase import Atoms
 
-from mlfcs._arrays import require_bound
-from mlfcs.cluster_space.records import Orbit, OrderBlock
-from mlfcs.geometry.primitive import primitive_data
+from mlfcs.foundation.arrays import as_int64_array, require_bound
+from mlfcs.foundation.log import get_logger
+from mlfcs.foundation.tensors import tensor_dimension
+from mlfcs.geometry.primitive import LatticeSite, primitive_data
 from mlfcs.geometry.symmetry import PrimitiveSymmetry
-from mlfcs.log import get_logger
+
+
+@dataclass(frozen=True, order=True, slots=True)
+class Cluster:
+    """Ordered collection of lattice sites defining a force-constant term.
+
+    Each site corresponds to one atomic index of the force-constant tensor,
+    so repeated sites are allowed. ``order`` is the force-constant order,
+    while ``body_order`` counts the distinct atomic positions involved.
+
+    Clusters related by a common lattice translation are equivalent; the first
+    site is therefore used as the translational reference.
+    """
+
+    sites: tuple[LatticeSite, ...]
+
+    def __post_init__(self) -> None:
+        """Express all lattice translations relative to the first site."""
+        if len(self.sites) < 2:
+            raise ValueError("a cluster must contain at least two sites")
+
+        origin = self.sites[0].translation
+        anchored = tuple(
+            LatticeSite(
+                site.site,
+                tuple(value - zero for value, zero in zip(site.translation, origin, strict=True)),
+            )
+            for site in self.sites
+        )
+        object.__setattr__(self, "sites", anchored)
+
+    @property
+    def order(self) -> int:
+        """Force-constant order."""
+        return len(self.sites)
+
+    @property
+    def body_order(self) -> int:
+        """Number of distinct atomic positions in the interaction."""
+        return len(set(self.sites))
+
+    @property
+    def labels(self) -> tuple[tuple[int, int, int, int], ...]:
+        """Lattice-site labels ``(site, tx, ty, tz)`` in tensor index order."""
+        return tuple((site.site, *site.translation) for site in self.sites)
+
+    @classmethod
+    def from_labels(cls, labels: object) -> Cluster:
+        """Construct a cluster from ``(site, tx, ty, tz)`` lattice-site labels."""
+        rows = tuple(tuple(int(value) for value in row) for row in labels)
+
+        if any(len(row) != 4 for row in rows):
+            raise ValueError("cluster labels must have shape (order, 4)")
+
+        return cls(tuple(LatticeSite(row[0], row[1:]) for row in rows))
+
+
+@dataclass(frozen=True, slots=True)
+class Orbit:
+    """Symmetry orbit of a force-constant cluster.
+
+    ``representative`` defines the reference cluster. ``clusters`` contains
+    all symmetry-equivalent images generated from it, together with the
+    corresponding symmetry operations and tensor-index permutations.
+
+    ``component_basis`` spans the symmetry-allowed Cartesian tensor space.
+    Its columns define the independent force-constant parameters, named by
+    selected Cartesian tensor components in ``observation_rows``.
+    """
+
+    representative: Cluster
+    lattice_basis: np.ndarray
+    component_basis: np.ndarray
+    observation_rows: np.ndarray
+    observation_condition: float
+    clusters: tuple[Cluster, ...]
+    operations: np.ndarray
+    permutations: np.ndarray
+
+    def __post_init__(self) -> None:
+        """Validate the symmetry orbit and freeze its array data."""
+        lattice_basis = as_int64_array(
+            self.lattice_basis,
+            name="orbit lattice basis",
+        )
+        component_basis = np.array(
+            self.component_basis,
+            dtype=np.float64,
+            copy=True,
+            order="C",
+        )
+        observation_rows = as_int64_array(
+            self.observation_rows,
+            name="observation rows",
+        )
+        operations = as_int64_array(
+            self.operations,
+            name="orbit operations",
+        )
+        permutations = as_int64_array(
+            self.permutations,
+            name="orbit permutations",
+        )
+
+        if lattice_basis.ndim != 2 or component_basis.ndim != 2:
+            raise ValueError("orbit bases must be matrices")
+
+        if lattice_basis.shape != component_basis.shape:
+            raise ValueError("lattice and Cartesian orbit bases have inconsistent shapes")
+
+        if observation_rows.shape != (component_basis.shape[1],):
+            raise ValueError("observation rows must select one row per parameter")
+
+        if operations.shape != (len(self.clusters),):
+            raise ValueError("orbit operations must have one entry per cluster")
+
+        if permutations.shape != (
+            len(self.clusters),
+            self.representative.order,
+        ):
+            raise ValueError("orbit permutations have an inconsistent shape")
+
+        if lattice_basis.shape[0] != tensor_dimension(self.representative.order):
+            raise ValueError("orbit basis does not have the declared Cartesian tensor dimension")
+
+        if np.any(observation_rows < 0) or np.any(observation_rows >= component_basis.shape[0]):
+            raise ValueError("observation row is outside the tensor")
+
+        if len(np.unique(observation_rows)) != len(observation_rows):
+            raise ValueError("observation rows must be distinct")
+
+        if not np.all(np.isfinite(component_basis)):
+            raise ValueError("Cartesian orbit basis must be finite")
+
+        expected = np.arange(self.representative.order)
+        if not np.array_equal(
+            np.sort(permutations, axis=1),
+            np.broadcast_to(expected, permutations.shape),
+        ):
+            raise ValueError("orbit axis actions must be permutations")
+
+        for values in (
+            lattice_basis,
+            component_basis,
+            observation_rows,
+            operations,
+            permutations,
+        ):
+            values.setflags(write=False)
+
+        object.__setattr__(self, "lattice_basis", lattice_basis)
+        object.__setattr__(self, "component_basis", component_basis)
+        object.__setattr__(self, "observation_rows", observation_rows)
+        object.__setattr__(self, "operations", operations)
+        object.__setattr__(self, "permutations", permutations)
+
+    @property
+    def dimension(self) -> int:
+        """Number of independent force-constant parameters in the orbit."""
+        return int(self.component_basis.shape[1])
+
+    @property
+    def observation_matrix(self) -> np.ndarray:
+        """Basis rows defining the physical parameter coordinates."""
+        return self.component_basis[self.observation_rows]
+
+
+@dataclass(frozen=True, slots=True)
+class OrderBlock:
+    """Truncation settings and index ranges for one force-constant order.
+
+    ``order`` specifies the force-constant order, ``cutoff`` limits the
+    interaction range, and ``max_body_order`` limits the number of distinct
+    atomic positions involved.
+
+    ``orbits`` and ``parameters`` give the corresponding half-open slices in
+    the enclosing ``ClusterSpace``.
+    """
+
+    order: int
+    cutoff: float
+    max_body_order: int
+    orbits: slice
+    parameters: slice
+
+    def __post_init__(self) -> None:
+        """Validate and normalize the truncation settings."""
+        order = operator.index(self.order)
+        body = operator.index(self.max_body_order)
+        cutoff = float(self.cutoff)
+
+        if order < 2 or not 1 <= body <= order:
+            raise ValueError("order must be >= 2 and max_body_order must lie in 1..order")
+
+        if not math.isfinite(cutoff) or cutoff <= 0:
+            raise ValueError("cutoff must be a positive finite distance")
+
+        object.__setattr__(self, "order", order)
+        object.__setattr__(self, "max_body_order", body)
+        object.__setattr__(self, "cutoff", cutoff)
+
 
 logger = get_logger(__name__)
 
 
 @dataclass(frozen=True, slots=True, init=False)
 class ClusterSpace:
-    """Immutable primitive geometry, symmetry orbits and force-constant parameters.
+    """Symmetry-reduced force-constant model space built from a primitive cell.
+
+    The primitive structure and truncation rules define the candidate
+    force-constant clusters. Crystal symmetry groups equivalent clusters into
+    ``Orbit`` objects, whose independent Cartesian components form the global
+    force-constant parameter space.
+
+    Each force-constant order is described by an ``OrderBlock`` specifying
+    its cutoff, maximum body order, and ranges within the global orbit and
+    parameter lists.
 
     Parameters
     ----------
@@ -27,23 +238,21 @@ class ClusterSpace:
         Fully periodic primitive reference structure. Atom order and cell basis
         are retained; geometry and masses are captured independently of the input.
     cutoffs : mapping of int to float
-        Included tensor orders (at least two) and positive pairwise cutoffs in
-        angstrom. Every pair of sites in a retained cluster lies below its cutoff.
+        Pairwise distance cutoff for each included force-constant order, in
+        angstrom. Every pair of sites in a retained cluster must lie within
+        the corresponding cutoff.
     max_body_orders : mapping of int to int, optional
-        Maximum distinct lattice sites per order. Must cover the same orders as
-        cutoffs; omitted values default to each tensor order.
+        Maximum number of distinct atomic positions allowed at each order.
+        Must cover the same orders as ``cutoffs``; omitted values default to
+        the corresponding force-constant order.
     symprec : float, default 1e-5
-        Positive Cartesian symmetry matching tolerance in angstrom.
+        Positive Cartesian symmetry matching tolerance, in angstrom.
 
     Notes
     -----
-    Initialization discovers symmetry, enumerates clusters, builds invariant
-    bases and assigns contiguous parameter slices. This can be expensive.
-    Geometry and basis buffers are readonly. No supercell, fitted coefficients
-    or training structures are owned; ClusterMap supplies each supercell relation.
-    The primitive_atoms property creates a detached ASE object.
-    masses exposes readonly per-site atomic masses; with_masses replaces only
-    their assignment in a new space sharing the existing structural model.
+    Initialization discovers symmetry, enumerates clusters and builds the
+    invariant bases; this can be expensive. No supercell or training
+    structures are owned; ``ClusterMap`` supplies each supercell relation.
 
     Raises
     ------
@@ -51,12 +260,6 @@ class ClusterSpace:
         Primitive geometry, truncation inputs or symmetry matching are invalid.
     OverflowError
         A local integer or array-size contract cannot be satisfied.
-
-    Examples
-    --------
-    >>> cs = ClusterSpace(atoms, cutoffs={2: 5.0, 3: 3.0})
-    >>> cs.orders
-    (2, 3)
     """
 
     cell: np.ndarray
@@ -69,7 +272,7 @@ class ClusterSpace:
     orbits: tuple[Orbit, ...]
 
     def __init__(self, primitive_atoms: Atoms, *, cutoffs, max_body_orders=None, symprec=1e-5):
-        """Capture validated primitive data and construct the requested order blocks and orbits."""
+        """Construct the symmetry-reduced force-constant space."""
         from mlfcs.cluster_space.construction import construct_space
 
         geometry = primitive_data(primitive_atoms, symprec)
@@ -103,7 +306,7 @@ class ClusterSpace:
 
     @property
     def primitive_atoms(self) -> Atoms:
-        """A detached ASE copy of the primitive reference structure."""
+        """Detached ASE representation of the primitive reference structure."""
         return Atoms(
             numbers=self.atomic_numbers,
             scaled_positions=self.scaled_positions,
@@ -114,18 +317,16 @@ class ClusterSpace:
 
     @property
     def masses(self) -> np.ndarray:
-        """Readonly primitive-site masses, shape (n_atoms,), in atomic mass units."""
+        """Readonly primitive-site masses, in atomic mass units."""
         return self._masses
 
     def with_masses(self, masses: object) -> ClusterSpace:
-        """Return a new mass assignment sharing all immutable structural data.
+        """Return an equivalent cluster space with new atomic masses.
 
-        masses must be finite, strictly positive and have shape (n_atoms,).
-        Values are copied; changing the source does not affect either space.
-        No symmetry discovery, cluster enumeration or kernel solve is repeated.
-        The physical parameter layout is unchanged. Rebind existing physical
-        coefficients with ForceConstants(new_space, model.coefficients).
-        Invalid shape or values raise ValueError.
+        Geometry, symmetry, orbits and the parameter layout are preserved.
+        ``masses`` must be finite, strictly positive and have shape
+        (n_atoms,); invalid values raise ValueError. Rebind existing
+        coefficients with ``ForceConstants(new_space, model.coefficients)``.
         """
         values = np.array(masses, dtype=np.float64, copy=True, order="C")
         if values.shape != (self.n_atoms,) or not np.all(np.isfinite(values)):
@@ -154,11 +355,11 @@ class ClusterSpace:
 
     @property
     def cartesian_positions(self) -> np.ndarray:
-        """New (n_atoms, 3) Cartesian position array in angstrom, using row lattice vectors."""
+        """New (n_atoms, 3) Cartesian position array in angstrom."""
         return self.scaled_positions @ self.cell
 
     def __post_init__(self) -> None:
-        """Check ordered blocks, contiguous slices, valid orbit actions and int64 parameter offsets."""
+        """Validate the consistency of the assembled force-constant space."""
         orders = tuple(block.order for block in self.blocks)
         if not orders or orders != tuple(sorted(set(orders))):
             raise ValueError("cluster-space orders must be nonempty, unique and ascending")
@@ -191,11 +392,14 @@ class ClusterSpace:
 
     @property
     def orders(self) -> tuple[int, ...]:
-        """Included tensor orders in ascending block order."""
+        """Included force-constant orders in ascending order."""
         return tuple(block.order for block in self.blocks)
 
     def block(self, order: int) -> OrderBlock:
-        """Return the slices belonging to one tensor order."""
+        """Return the order block for a force-constant order.
+
+        Missing orders raise KeyError.
+        """
         for block in self.blocks:
             if block.order == order:
                 return block
@@ -203,15 +407,15 @@ class ClusterSpace:
 
     @property
     def n_parameters(self) -> int:
-        """Total number of physical Cartesian component parameters across all orders."""
+        """Total number of independent force-constant parameters."""
         return int(self.blocks[-1].parameters.stop)
 
     def parameter_name(self, parameter: int) -> str:
-        """Return the order, orbit, and local component address of one parameter.
+        """Return a stable label for one global force-constant parameter.
 
         ``parameter`` is a zero-based index in the global packed parameter
-        vector, in ``[0, n_parameters)``. Return a stable descriptive string;
-        raise IndexError when the index is outside the cluster-space layout.
+        vector, in ``[0, n_parameters)``. Raise IndexError when the index is
+        outside the cluster-space layout.
         """
         parameter = int(parameter)
         if not 0 <= parameter < self.n_parameters:
@@ -229,7 +433,7 @@ class ClusterSpace:
 
     @property
     def parameter_offsets(self) -> np.ndarray:
-        """New readonly int64 array of cumulative orbit dimensions, including the final endpoint."""
+        """Cumulative parameter offsets of the symmetry orbits, including the final endpoint."""
         offsets = np.empty(len(self.orbits) + 1, dtype=np.int64)
         offsets[0] = 0
         np.cumsum([orbit.dimension for orbit in self.orbits], out=offsets[1:])
@@ -237,4 +441,4 @@ class ClusterSpace:
         return offsets
 
 
-__all__ = ["ClusterSpace"]
+__all__ = ["Cluster", "ClusterSpace", "Orbit", "OrderBlock"]

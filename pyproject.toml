@@ -46,15 +46,19 @@ dev = [
 reference = [
     "sympy>=1.13",
 ]
+# Dependencies for executing the documentation tutorial notebooks; run them
+# serially, one notebook at a time.
 tutorial = [
     "phonopy>=2.20",
     "phono3py>=3.0",
     "matplotlib",
     "seekpath",
+    "nbclient",
+    "ipykernel",
 ]
 docs = [
     "mkdocs-material>=9.5",
-    "mkdocs-static-i18n>=1.3",
+    "mkdocs-jupyter>=0.25",
 ]
 
 [[tool.uv.index]]

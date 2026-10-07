@@ -1,9 +1,7 @@
-"""Reproducible Gaussian position perturbations of one periodic structure.
+"""Reproducible Gaussian perturbations of periodic atomic positions.
 
-Pure geometry: the tool moves positions and never evaluates forces. One
-instance owns a detached copy of the structure and one random stream, so a
-fixed ``seed`` reproduces the whole sequence of ``rattle`` and ``ensemble``
-calls.
+The tool changes geometry only and never evaluates forces. Each instance owns
+one random stream, so a fixed seed reproduces its complete sequence of samples.
 """
 
 from __future__ import annotations
@@ -15,33 +13,28 @@ from ase import Atoms
 from ase.data import covalent_radii
 from ase.neighborlist import neighbor_list
 
+# Maximum resampling attempts when minimum-distance rejection is enabled.
 _ATTEMPTS = 32
 
 
 class GaussianPerturbation:
-    """Reproducible Gaussian Cartesian perturbations of one periodic structure.
+    """Generate reproducible Gaussian perturbations of a periodic structure.
 
-    Parameters
-    ----------
-    atoms : ase.Atoms
-        Fully periodic reference with a finite nonsingular cell.
-    seed : int, optional
-        Seed for one owned NumPy random stream; omission uses fresh entropy.
+    Cartesian displacements are sampled independently from a zero-mean normal
+    distribution with standard deviation ``stdev``. Selected atoms may remain
+    fixed, and candidates may be rejected when interatomic distances fall below
+    a prescribed threshold.
 
-    Notes
-    -----
-    Owns a detached structure copy. rattle/ensemble advance the stream, return
-    fresh structures and never evaluate forces. Distance rejection resamples
-    from the same stream. Fixed atoms are selected by indices in later calls.
-    Invalid reference type/geometry raises TypeError or ValueError.
+    The reference geometry is copied at construction and never modified by the
+    generator. Each instance owns one random stream, so a fixed ``seed``
+    reproduces the complete sequence of generated structures. The tool does not
+    evaluate forces.
     """
 
-    __slots__ = ("_rng", "atoms")
+    __slots__ = ("_atoms", "_rng")
 
     def __init__(self, atoms: Atoms, *, seed: int | None = None):
-        """Validate periodic geometry, capture a detached reference and initialize the random
-        stream.
-        """
+        """Create a perturbation generator for a fully periodic reference."""
         if not isinstance(atoms, Atoms):
             raise TypeError("atoms must be an ASE Atoms object")
         if not bool(np.all(atoms.pbc)):
@@ -53,22 +46,30 @@ class GaussianPerturbation:
             or float(np.linalg.det(cell)) == 0.0
         ):
             raise ValueError("structure requires a finite nonsingular cell")
-        self.atoms = atoms.copy()  # Detached: later caller mutations are invisible.
+        self._atoms = atoms.copy()
         self._rng = np.random.default_rng(seed)
 
-    def rattle(self, stdev: float = 0.01, *, indices=None, min_distance="covalent") -> Atoms:
-        """Return one perturbed copy; the input structure is never modified.
+    @property
+    def atoms(self) -> Atoms:
+        """Return a copy of the reference structure."""
+        return self._atoms.copy()
 
-        ``indices`` pins those atoms exactly; ``min_distance`` is ``"covalent"``
-        (per-pair floor of half the covalent-bond length), a positive absolute
-        length in angstrom, or ``None`` to disable the check.
+    def rattle(self, stdev: float = 0.01, *, indices=None, min_distance="covalent") -> Atoms:
+        """Return one Gaussian-perturbed copy of the reference structure.
+
+        Displacements are independent Cartesian normal samples with standard
+        deviation ``stdev`` in angstrom. ``indices`` selects atoms that remain
+        fixed. ``min_distance`` may be a positive absolute distance,
+        ``"covalent"`` for pair thresholds equal to half the sum of the two ASE
+        covalent radii, or ``None`` to disable rejection. Rejected candidates
+        are resampled from the same random stream.
         """
         stdev = _validate_stdev(stdev)
-        mask = _fixed_mask(len(self.atoms), indices)
+        mask = _fixed_mask(len(self._atoms), indices)
         kind, value = _validate_min_distance(min_distance)
         violation = None
         for _ in range(_ATTEMPTS):
-            displaced = self.atoms.copy()
+            displaced = self._atoms.copy()
             noise = self._rng.normal(scale=stdev, size=(len(displaced), 3))
             if mask is not None:
                 noise[mask] = 0.0
@@ -77,7 +78,7 @@ class GaussianPerturbation:
             if violation is None:
                 return displaced
         distance, threshold, i, j = violation
-        symbols = self.atoms.get_chemical_symbols()
+        symbols = self._atoms.get_chemical_symbols()
         raise ValueError(
             f"no perturbation kept every pair at or above the minimum distance in "
             f"{_ATTEMPTS} attempts; closest pair {symbols[i]}-{symbols[j]} at "
@@ -85,7 +86,7 @@ class GaussianPerturbation:
         )
 
     def ensemble(self, count: int, stdev: float = 0.01, *, indices=None, min_distance="covalent"):
-        """Sample ``count`` frames from one random stream, in order."""
+        """Return ``count`` sequential perturbations from the owned random stream."""
         count = operator.index(count)
         if count < 1:
             raise ValueError("count must be at least one")
@@ -103,7 +104,7 @@ def _validate_stdev(stdev: float) -> float:
 
 
 def _fixed_mask(count: int, indices) -> np.ndarray | None:
-    """Return a mask of pinned atom indices, or None; reject indices outside [0, count)."""
+    """Return the boolean mask of fixed atoms, validating all indices."""
     if indices is None:
         return None
     mask = np.zeros(count, dtype=bool)
@@ -116,7 +117,7 @@ def _fixed_mask(count: int, indices) -> np.ndarray | None:
 
 
 def _validate_min_distance(min_distance):
-    """Return (kind, value) with kind in {"none", "fixed", "covalent"}."""
+    """Normalize the minimum-distance specification."""
     if min_distance is None:
         return "none", 0.0
     if isinstance(min_distance, str):
@@ -132,7 +133,7 @@ def _validate_min_distance(min_distance):
 
 
 def _closest_violation(atoms: Atoms, kind: str, value: float):
-    """Return (distance, threshold, i, j) of the worst violating pair, or None."""
+    """Return the most severe minimum-distance violation, or ``None``."""
     if kind == "none":
         return None
     if kind == "fixed":

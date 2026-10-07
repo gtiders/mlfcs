@@ -12,6 +12,7 @@ from ase.calculators.singlepoint import SinglePointCalculator
 from ase.io import read, write
 
 from mlfcs.cluster_space import ClusterSpace
+from mlfcs.dataset import ForceDataset
 from mlfcs.finite_difference import FiniteDifference
 from mlfcs.mapping import ClusterMap
 
@@ -81,18 +82,22 @@ def stored(structures, forces) -> tuple[Atoms, ...]:
     return tuple(result)
 
 
-def test_evaluate_forces_every_calculation_and_freezes_standard_ase_forces(tmp_path) -> None:
-    """Verify evaluate forces every calculation and freezes standard ase forces."""
+def test_external_calculation_and_extxyz_reconstruct_the_same_fc2(tmp_path) -> None:
+    """Recover the same Hessian from in-memory and external stored-force samples."""
     mapping, supercell_atoms = ar_mapping(3)
     fd = FiniteDifference(mapping, order=2, disps=(0.01,))
     calculator = HarmonicCalculator(supercell_atoms.positions)
-    evaluated = fd.evaluate(calculator)
+    evaluated = []
+    for atoms in fd.displacements():
+        calculator.calculate(atoms, properties=["forces"], system_changes=all_changes)
+        atoms.calc = SinglePointCalculator(atoms, forces=calculator.results["forces"])
+        evaluated.append(atoms)
     assert calculator.calls == fd.n_configurations
     assert all(isinstance(atoms.calc, SinglePointCalculator) for atoms in evaluated)
     write(tmp_path / "forces.extxyz", evaluated)
     restored = tuple(read(tmp_path / "forces.extxyz", ":"))
-    first = fd.reconstruct(evaluated)
-    second = fd.reconstruct(restored)
+    first = fd.reconstruct(ForceDataset(mapping, evaluated))
+    second = fd.reconstruct(ForceDataset(mapping, restored))
     np.testing.assert_array_equal(second.coefficients[2], first.coefficients[2])
     block = first.cluster_space.block(2)
     tensors = representative_tensors(first, 2)
@@ -114,12 +119,8 @@ def test_finite_difference_reconstructs_stored_forces() -> None:
     structures = tuple(fd.displacements())
     forces = [-(atoms.positions - supercell_atoms.positions) for atoms in structures]
     evaluated = stored(structures, forces)
-    model = fd.reconstruct(evaluated)
+    model = fd.reconstruct(ForceDataset(mapping, evaluated))
     assert model.orders == (2,)
-    missing = list(evaluated)
-    missing[0] = missing[0].copy()
-    shuffled = list(evaluated)
-    shuffled[0], shuffled[1] = (shuffled[1], shuffled[0])
 
 
 def test_multiple_disps_remove_the_leading_even_difference_error() -> None:
@@ -133,7 +134,7 @@ def test_multiple_disps_remove_the_leading_even_difference_error() -> None:
     for atoms in structures:
         displacement = atoms.positions - supercell_atoms.positions
         forces.append(-stiffness * displacement - cubic_error * displacement**3)
-    model = fd.reconstruct(stored(structures, forces))
+    model = fd.reconstruct(ForceDataset(mapping, stored(structures, forces)))
     tensors = representative_tensors(model, 2)
     assert len(tensors) == 1
     np.testing.assert_allclose(tensors[0], stiffness * np.eye(3), atol=1e-12, rtol=0.0)
@@ -160,10 +161,26 @@ def test_fc3_reconstruction_uses_atoms_and_the_orbit_basis() -> None:
     for displaced in structures:
         movement = displaced.positions - atoms.positions
         forces.append(-0.5 * diagonal * movement**2)
-    model = fd.reconstruct(stored(structures, forces))
+    model = fd.reconstruct(ForceDataset(fd.cluster_map, stored(structures, forces)))
     tensors = representative_tensors(model, 3)
     expected = np.zeros((2, 3, 3, 3))
     for atom in range(2):
         for axis in range(3):
             expected[atom, axis, axis, axis] = diagonal[atom, axis]
     np.testing.assert_allclose(tensors, expected, atol=1e-12, rtol=0.0)
+
+
+def test_fc4_reconstruction_consumes_the_shared_force_dataset():
+    """Recover quartic energy derivatives from ordered cubic force samples."""
+    atoms = bulk("Ar", "sc", a=2.0)
+    space = ClusterSpace(atoms, cutoffs={4: 0.1})
+    mapping = ClusterMap(space, atoms)
+    fd = FiniteDifference(mapping, order=4, disps=0.001)
+    structures = tuple(fd.displacements())
+    stiffness = 2.5
+    forces = [-stiffness / 6 * (sample.positions - atoms.positions) ** 3 for sample in structures]
+    model = fd.reconstruct(ForceDataset(mapping, stored(structures, forces)))
+    expected = np.zeros((3, 3, 3, 3))
+    for axis in range(3):
+        expected[axis, axis, axis, axis] = stiffness
+    np.testing.assert_allclose(representative_tensors(model, 4)[0], expected, atol=1e-12)

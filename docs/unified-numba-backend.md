@@ -1,14 +1,10 @@
-# Unified Numba backend
+# 统一 Numba 后端
 
-The mathematical baseline is [Numba migration audit](numba-integer-audit.md). That
-report is preserved. This document describes the implementation contract.
+数学基线是 [Numba 迁移前数学审查](numba-integer-audit.md)。该报告原样保留。本文档描述实现契约。
 
-## Domain and dependency boundaries
+## 域与依赖边界
 
-`ClusterSpace` owns the immutable primitive interaction model and
-`PrimitiveSymmetry`. `ClusterMap` owns one explicit supercell realization and
-the derived quotient, atom and folded-cluster mappings. A space can have many
-maps; neither the space nor its maps retain training structures.
+`ClusterSpace` 持有不可变的原胞交互模型与 `PrimitiveSymmetry`。`ClusterMap` 持有一个显式 supercell 实现及其派生的 quotient、原子与折叠簇映射。一个 space 可以对应多个 map；space 与它的 map 都不保留训练结构。
 
 ```text
 ASE/spglib → ClusterSpace ← ASE supercell atoms
@@ -19,83 +15,33 @@ ASE/spglib → ClusterSpace ← ASE supercell atoms
                                └── reciprocal calculations
 ```
 
-Python owns validation, spglib calls, orchestration and NumPy/SciPy linear algebra.
-Numba kernels live beside the domain operation that owns their inputs; they take
-contiguous arrays and scalar metadata, not ASE objects or Python containers. Shared
-periodic geometry lives in `core/geometry.py` and is evaluated in Cartesian coordinates
-after Minkowski reduction. Site matching enumerates images within the declared tolerance
-once; fitting displacements use the separate nearest-image query.
+Python 负责验证、spglib 调用、编排与 NumPy/SciPy 线性代数。Numba kernel 位于拥有其输入的域运算旁边；它们接受连续数组与标量元数据，不接受 ASE 对象或 Python 容器。共享周期几何位于 `core/geometry.py`，在 Minkowski 约化之后按笛卡尔坐标求值。位点匹配在声明的容差内一次性枚举所有的像；拟合位移使用独立的最小像查询。
 
-## Array and safety contract
+## 数组与安全契约
 
-Mathematical integers, labels, permutations, indices and offsets use C-contiguous
-`int64`; floating arrays use `float64`; masks use `uint8`. The admitted integer
-interval excludes `INT64_MIN`, so absolute value and sign normalization are safe.
-Shapes and byte lengths are checked against `np.intp` before allocation. Inputs
-are read-only; writable caller arrays are copied during normalization.
+数学整数、标签、置换、索引与 offsets 使用 C 连续 `int64`；浮点数组使用 `float64`；掩码使用 `uint8`。被准入的整数区间排除 `INT64_MIN`，因此绝对值与符号归一化是安全的。形状与字节长度在分配之前对照 `np.intp` 检查。输入为只读；可写的调用者数组在归一化时复制。
 
-The geometry entry first bounds counters by the cutoff/inverse-cell translation
-box. Its neighbor counts give the actual maximum $M$, which tightens the candidate
-bound $N\binom{M+p-2}{p-1}$. Subsequent label, tensor, orbit image, parameter and
-allocation bounds are evaluated with Python integers at the stage where those
-values are known. These integers describe local bounds; they do not perform
-characteristic-zero elimination or travel with domain objects.
+几何入口先用截断/逆胞平移盒界定计数器。其邻居计数给出实际最大值 $M$，从而收紧候选上界 $N\binom{M+p-2}{p-1}$。后续的标签、张量、轨道像、参数与分配上界，都在这些值已知的阶段用 Python 整数求值。这些整数描述局部上界；它们不做特征零消元，也不随域对象传播。
 
-Hot loops use int64 arithmetic. Periodic quotient mapping checks each actual
-addition, product and partial sum in its single Numba mapping pass. Staged
-denominator and numerator checks precede their multiplications. Rank,
-reconstruction and residual certificates remain part of the exact algorithm.
+热点循环使用 int64 算术。周期 quotient 映射在其单次 Numba 映射趟中检查每个实际的加法、乘积与部分和。分阶段的分母与分子检查先于各自的乘法执行。rank、重构与残差 certificate 仍是精确算法的一部分。
 
-There are no `PreparedClusterSpace` or `PreparedClusterMap` wrappers. Immutable
-domain arrays are passed directly to numerical consumers. Quotient lookups are
-owned by `ClusterMap` as sorted arrays with compiled binary search. There is no
-implicit global mapping cache.
+不存在 `PreparedClusterSpace` 或 `PreparedClusterMap` 包装。不可变域数组直接传给数值消费者。quotient 查找由 `ClusterMap` 持有，以有序数组加编译期二分查找实现。不存在隐式全局映射缓存。
 
-## Lattice kernel implementation
+## 整数核实现
 
-`mlfcs.algebra.linear.kernel_basis(A)` returns readonly `int64` columns
-generating all integer solutions of `A @ x == 0`.
-Signed incidence constraints take the signed union-find path. General matrices
-take a fixed two-prime pivot chart, rational reconstruction, and a composite
-congruence preimage. Independent modular annihilation certificates, with residual
-bounds, establish the reconstructed chart's exact upper rank; the nonzero pivot
-minor establishes its lower rank. Folded rank calls `rank(A)` directly.
+`mlfcs.cluster_space.integer_kernel.integer_kernel_basis(A)` 返回 readonly 的 `int64` 列，生成 `A @ x == 0` 的全部整数解。signed 关联约束走 signed union-find 路径。一般矩阵走固定的双素数主元 chart、有理重构与复合同余原像。带残差上界的独立模零化 certificate 确立重构 chart 的上秩；非零主元子式确立其下秩。折叠秩认证由 `mlfcs.mapping.folding` 承担，模消元原语与整数核共享 `mlfcs.foundation.integer`。
 
-The composite step is a specialized triangular preimage algorithm, rather than a
-general-purpose Howell library or finite-field RREF over a composite modulus.
-It produces column HNF: positive diagonal, upper triangular, and
-$0\le H_{ij}<H_{ii}$ for $i<j$.
+复合步骤是特化的三角原像算法，而不是通用 Howell 库或复合模上的有限域 RREF。它产生列 HNF：正对角元、上三角，且 $0\le H_{ij}<H_{ii}$（$i<j$）。
 
-For one row $w$, put $g_{-1}=\delta$ and
-$g_j=\gcd(\delta,w_0,\ldots,w_j)$. The $j$th diagonal pivot is
-$g_{j-1}/g_j$. A bounded Bezout vector represents $g_{j-1}$ modulo $\delta$;
-it supplies the preceding coordinates of that column. All coordinates are
-reduced modulo $\delta$, then by preceding columns. The constructed columns
-satisfy the congruence and their determinant is $\delta/g_{d-1}$, exactly the
-index of the congruence kernel, so they generate the full preimage.
+对单行 $w$，令 $g_{-1}=\delta$、$g_j=\gcd(\delta,w_0,\ldots,w_j)$。第 $j$ 个对角主元是 $g_{j-1}/g_j$。一个有界的 Bezout 向量把 $g_{j-1}$ 表示模 $\delta$；它提供该列的前置坐标。所有坐标先模 $\delta$ 归约，再被前面的列归约。构造出的列满足同余，其行列式为 $\delta/g_{d-1}$，恰是同余核的指数，因此生成完整原像。
 
-For multiple rows, intersect the current $H\mathbb Z^d$ with each congruence by
-computing the one-row preimage $T$ of $w=F_iH\bmod\delta$. The new lattice has basis
-$HT$. It still contains $\delta\mathbb Z^d$, so its triangular diagonal divides
-$\delta$. Off-diagonal multiplication can be performed modulo $\delta$ because
-subtracting $\delta e_i$ belongs to the preceding column lattice. Reducing by
-already constructed columns yields the canonical column HNF. Stored entries are
-at most $\delta$, each product is below $\delta^2$, and each modular sum/subtraction
-is reduced immediately. No full unimodular transform is maintained.
+对多行，通过计算 $w=F_iH\bmod\delta$ 的单行原像 $T$，把当前 $H\mathbb Z^d$ 与每条同余求交。新格的基是 $HT$。它仍包含 $\delta\mathbb Z^d$，因此其三角对角整除 $\delta$。非对角乘法可以模 $\delta$ 执行，因为减去 $\delta e_i$ 属于前面各列的格。用已构造的列归约得到规范列 HNF。存储的元素至多 $\delta$，每个乘积低于 $\delta^2$，每次模加/减立即归约。不维护完整的幺模变换。
 
-The lift $(-FH/\delta;H)$ uses quotient/remainder accumulation with the admitted
-bound $d(\max|F|+2\delta+1)$. Rational reconstruction uses alternating convergent
-coefficient signs and the Euclidean determinant invariant to bound coefficient
-products independently of remainder products. LCM and numerator scaling are
-checked before multiplication.
+提升 $(-FH/\delta;H)$ 使用带准入上界 $d(\max|F|+2\delta+1)$ 的商/余累加。有理重构使用交错的收敛项系数符号与 Euclidean 行列式不变量，独立于余数乘积地界定系数乘积。LCM 与分子缩放先检查再乘。
 
-The current reconstruction domain uses primes 2147483647 and 2147483629,
-denominator windows through $2^{30}$, common denominator below $2^{31}$, and the
-accumulator bound above. A singular fixed pivot chart or failed reconstruction is
-reported; there is no bigint or floating fallback. This is a sufficient dynamic
-admission domain, not support for every arbitrary-precision integer matrix.
+当前重构域使用素数 2147483647 与 2147483629、至多 $2^{30}$ 的分母窗口、低于 $2^{31}$ 的公分母，以及上述累加上界。奇异的定主元 chart 或重构失败会被报告；不存在 bigint 或浮点回退。这是一个充分的动态准入域，不是对任意精度整数矩阵的支持。
 
-## Public API and persistence
+## 公共 API 与持久化
 
 ```python
 space = ClusterSpace(
@@ -103,38 +49,18 @@ space = ClusterSpace(
     cutoffs={2: 4.0, 3: 3.0}, max_body_orders={2: 2, 3: 3},
 )
 mapping = ClusterMap(space, supercell_atoms)
-system = FitSystem(mapping, structures)
+system = FitSystem(ForceDataset(mapping, structures))
 model = system.solve()
 ```
 
-`ClusterSpace` accepts ASE primitive atoms directly. `ClusterMap` infers the
-supercell matrix from its ASE atoms when no matrix is supplied. `ClusterMap` is
-exported from `mlfcs.mapping` and the package root. `PrimitiveCell`, `Supercell`,
-Taylor calculators and the old `prepare()` APIs are not part of the current API.
+`ClusterSpace` 直接接受 ASE 原胞原子。`ClusterMap` 在未提供矩阵时从其 ASE 原子推断 supercell matrix。`ClusterMap` 从 `mlfcs.mapping` 与包根导出。`PrimitiveCell`、`Supercell`、Taylor calculator 与旧的 `prepare()` API 不属于当前 API。
 
-Native force-constant files use HDF5 format version 5; older native files are
-rejected. Explicit arrays preserve the stored physical parameterization and masses
-without reconstructing orbits. Only ForceConstants offers save/load; workspaces,
-JIT caches and object graphs are not serialized. Callers own compatibility of
-models and mappings; no model identity hashes are computed or compared.
+原生力常数文件使用 HDF5 格式版本 5；更旧的原生文件被拒绝。显式数组在不重构轨道的情况下保留存储的物理参数化与质量。只有 ForceConstants 提供 save/load；工作区、JIT 缓存与对象图不被序列化。模型与映射的兼容性由调用者负责；不计算、不比较模型身份哈希。
 
-`ForceDesign.allocate_workspace()` returns caller-owned scratch. Streaming fitting
-reuses it across snapshots. Concurrent operations must use separate workspaces.
-Changing to more Numba threads than a workspace admits raises an error. Taylor
-calculators share compiled code and supply material arrays at runtime, avoiding
-compilation per model. Tensor order is a runtime argument; only force-design orbit
-blocks currently use `prange`, with disjoint parameter columns.
+`ForceDesign.allocate_workspace()` 返回调用者持有的 scratch。流式拟合跨快照复用它。并发操作必须使用各自的工作区。把 Numba 线程数提高到工作区允许之上会抛错。Taylor calculator 共享编译代码并在运行时提供材料数组，避免按模型编译。张量阶是运行时参数；当前只有力设计轨道块使用 `prange`，各轨道块参数列不相交。
 
-## Validation and measurement
+## 验证与测量
 
-Tests compare original Python candidate labels/order, tensor contractions and
-SymPy saturated lattices. Frozen symmetry and force-design fixtures cover multiple
-orders, structures and sheared cells. Exact residual, rank and saturation checks
-guard the exact algebra path. Production code imports neither SymPy nor Rust;
-SymPy is in the reference dependency group, and native binaries are excluded from
-wheels.
+测试对照原 Python 候选标签/顺序、张量收缩与 SymPy 饱和格。冻结的对称性与力设计 fixture 覆盖多个阶、结构与剪切胞。精确残差、rank 与饱和检查守护精确代数路径。生产代码不 import SymPy 或 Rust；SymPy 位于 reference 依赖组，原生二进制不进入 wheel。
 
-Performance measurements are workload-specific. Always report cold JIT separately
-from warmed execution, record thread count and peak memory, and compare complete
-construction/design paths as well as individual kernels. A microbenchmark does not
-establish performance for every material.
+性能测量依赖具体负载。始终把冷 JIT 与热身执行分开报告，记录线程数与峰值内存，并比较完整的构造/design 路径以及单个 kernel。微基准不构成对所有材料的性能结论。

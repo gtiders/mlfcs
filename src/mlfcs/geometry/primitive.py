@@ -1,4 +1,4 @@
-"""Primitive atomic structures and periodic site addresses."""
+"""Primitive-cell geometry and periodic lattice-site addresses."""
 
 from __future__ import annotations
 
@@ -8,40 +8,51 @@ import numpy as np
 import spglib
 from ase import Atoms
 
-from mlfcs._arrays import as_int64_array, readonly
+from mlfcs.foundation.arrays import as_int64_array, readonly
 
 
 def validate_primitive_arrays(cell, scaled_positions, atomic_numbers, symprec):
-    """Validate a periodic primitive motif and return normalized readonly arrays.
+    """Validate a primitive periodic structure without changing its representation.
+
+    The structure is defined by row lattice vectors ``cell``, wrapped
+    fractional motif coordinates, and atomic species. The supplied structure
+    must already be primitive at the Cartesian tolerance ``symprec``; no
+    standardization or primitive-cell reduction is performed. spglib is used
+    only to detect whether a smaller primitive motif exists.
 
     Parameters
     ----------
-    cell : array_like, shape (3, 3)
-        Lattice vectors as rows, in angstrom.
-    scaled_positions : array_like, shape (n_atoms, 3)
-        Fractional row coordinates already wrapped into [0, 1); values outside this interval are rejected.
-    atomic_numbers : array_like, shape (n_atoms,)
-        Declared integer species identifiers representable by spglib's int32 ABI.
-    symprec : float
-        Positive Cartesian matching tolerance in angstrom.
+    cell
+        Lattice vectors as rows, shape ``(3, 3)``, in angstrom.
+    scaled_positions
+        Fractional motif coordinates of shape ``(n_atoms, 3)``, wrapped into
+        ``[0, 1)``.
+    atomic_numbers
+        Atomic numbers of shape ``(n_atoms,)``.
+    symprec
+        Positive Cartesian tolerance in angstrom used to verify primitiveness.
 
     Returns
     -------
-    cell, positions, numbers, symprec : tuple
-        Readonly float64 geometry, int64 species and normalized scalar tolerance.
+    cell
+        Readonly ``float64`` lattice matrix.
+    scaled_positions
+        Readonly ``float64`` fractional coordinates.
+    atomic_numbers
+        Readonly ``int64`` atomic numbers.
+    symprec
+        Normalized positive floating-point tolerance.
 
     Raises
     ------
-    ValueError
-        Geometry is invalid or spglib cannot certify the declared atom count as primitive.
     TypeError
-        Species are not declared integers.
+        If atomic numbers are not represented by integers.
+    ValueError
+        If the geometry is invalid, coordinates are not wrapped, or the
+        supplied structure is not primitive at ``symprec``.
     OverflowError
-        Species or array sizes cannot enter the required integer interfaces.
-
-    Notes
-    -----
-    The input basis and atom order are retained; no standardized cell is substituted.
+        If atomic numbers cannot enter the integer interface required by
+        spglib.
     """
     cell = readonly(cell, np.float64)
     positions = np.asarray(scaled_positions, dtype=np.float64)
@@ -86,11 +97,13 @@ def validate_primitive_arrays(cell, scaled_positions, atomic_numbers, symprec):
 
 
 def primitive_data(atoms, symprec):
-    """Extract validated primitive geometry and positive masses from ASE Atoms.
+    """Extract the validated primitive-cell representation from an ASE structure.
 
-    Requires full three-dimensional periodicity and uses ASE get_scaled_positions(wrap=True).
-    Returns readonly geometry arrays
-    and masses in atomic mass units; it does not retain or mutate ``atoms``.
+    The structure must be fully periodic in three dimensions and primitive at
+    ``symprec``. Fractional coordinates are wrapped into the reference cell,
+    while the original lattice basis and atom order are preserved. Atomic
+    masses are returned in atomic mass units and must be positive and finite.
+    The input ``Atoms`` object is neither retained nor modified.
     """
     if not isinstance(atoms, Atoms):
         raise TypeError("primitive_atoms must be an ASE Atoms object")
@@ -113,30 +126,22 @@ def primitive_data(atoms, symprec):
 
 @dataclass(frozen=True, order=True, slots=True)
 class LatticeSite:
-    """Identify one motif atom and one of its periodic images.
+    """Address one atomic site of the infinite periodic crystal.
 
-    Parameters
-    ----------
-    site : int
-        Nonnegative zero-based index into the primitive motif. Consumers check
-        that it is within the motif.
-    translation : tuple of int, default (0, 0, 0)
-        Three lattice-coordinate offsets along the primitive cell vectors,
-        whose vectors are stored as rows. The default identifies the atom in
-        the reference cell; nonzero offsets identify its periodic images.
+    A site ``(i, n)`` denotes primitive motif atom ``i`` translated by the
+    integer lattice vector ``n``. With row lattice vectors,
 
-    Notes
-    -----
-    The value is immutable, orderable and hashable. Translation is not a
-    Cartesian displacement. Distinct images remain distinct even when they
-    refer to the same motif atom.
+        r(i, n) = (s_i + n) @ cell.
+
+    ``translation`` is therefore a lattice-coordinate address, not a
+    Cartesian displacement.
     """
 
     site: int
     translation: tuple[int, int, int] = (0, 0, 0)
 
     def __post_init__(self) -> None:
-        """Validate the motif index and the three lattice-coordinate offsets."""
+        """Validate and normalize the lattice-site address."""
         if self.site < 0:
             raise ValueError("primitive site must be non-negative")
         if len(self.translation) != 3 or any(

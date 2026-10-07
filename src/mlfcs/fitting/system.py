@@ -3,22 +3,19 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Iterable
 from dataclasses import dataclass
 from time import perf_counter
 
 import numpy as np
-from ase import Atoms
 from scipy.linalg.blas import dsyrk
 
-from mlfcs._arrays import require_allocation
 from mlfcs.cluster_space import ClusterSpace
+from mlfcs.dataset import ForceDataset
 from mlfcs.fitting.design import ForceDesign
 from mlfcs.fitting.solve import FitSolver
 from mlfcs.force_constants import ForceConstants
-from mlfcs.geometry.periodic import PeriodicGeometry
-from mlfcs.log import get_logger
-from mlfcs.mapping import ClusterMap
+from mlfcs.foundation.arrays import require_allocation
+from mlfcs.foundation.log import get_logger
 
 logger = get_logger(__name__)
 
@@ -39,16 +36,13 @@ class FitSystem:
 
     Parameters
     ----------
-    cluster_map : ClusterMap
-        Reference supercell and primitive parameter model. ForceDesign requires
-        full structural rank; the completed system retains only its
-        ClusterSpace and equations, not the map or training structures.
-    structures : iterable of ase.Atoms
-        Nonempty displaced snapshots with matching atom order, PBC and reference
-        cell within symprec. Forces must already be stored in ASE calculators.
+    dataset : ForceDataset
+        Ordered physical displacements and target forces for one mapped
+        supercell. ForceDesign requires full structural rank. The completed
+        system retains its ClusterSpace and equations, not the input dataset.
     representation : {'normal', 'raw'}, default 'normal'
         normal streams H = A.T @ A, g = A.T @ f and f.T @ f; raw retains A and f.
-        This fixes the built-in solver to MINRES or LSMR respectively.
+        This fixes the built-in solver to MINRES or dense least squares respectively.
 
     Notes
     -----
@@ -66,7 +60,7 @@ class FitSystem:
     ValueError
         Samples, representation or stored force values are inconsistent.
     TypeError
-        The map or sample container has an unsupported type.
+        The input is not a ForceDataset.
     AliasingError
         The supercell cannot distinguish all primitive parameters.
     OverflowError
@@ -74,8 +68,8 @@ class FitSystem:
 
     Examples
     --------
-    >>> system = FitSystem(mapping, structures, representation='raw')
-    >>> model = system.solve(atol=1e-8, btol=1e-8)
+    >>> system = FitSystem(dataset, representation='raw')
+    >>> model = system.solve()
     >>> system.rmse(model)  # doctest: +SKIP
     """
 
@@ -87,16 +81,15 @@ class FitSystem:
     n_equations: int
     n_structures: int
 
-    def __init__(
-        self, cluster_map: ClusterMap, structures: Iterable[Atoms], *, representation="normal"
-    ):
-        """Ingest stored-force snapshots once and initialize unscaled physical equations."""
-        if not isinstance(cluster_map, ClusterMap):
-            raise TypeError("cluster_map must be a ClusterMap")
+    def __init__(self, dataset: ForceDataset, *, representation="normal"):
+        """Initialize unscaled physical equations from a prepared force dataset."""
+        if not isinstance(dataset, ForceDataset):
+            raise TypeError("dataset must be a ForceDataset")
+        cluster_map = dataset.cluster_map
         if representation not in ("raw", "normal"):
             raise ValueError("representation must be 'raw' or 'normal'")
         started = perf_counter()
-        arrays = _build_equations(cluster_map, structures, representation)
+        arrays = _build_equations(dataset, representation)
         self._initialize(cluster_map.cluster_space, representation, *arrays)
         logger.info(
             "Fit-system complete: representation=%s structures=%d equations=%d "
@@ -231,8 +224,9 @@ class FitSystem:
         Parameters
         ----------
         **options
-            normal accepts rtol=1e-8 and maxiter=1000 for MINRES. raw accepts
-            atol=1e-8, btol=1e-8, conlim=1e8 and maxiter=1000 for LSMR.
+            normal accepts rtol=1e-8 and maxiter=1000 for MINRES. raw uses
+            dense least squares with a fixed machine-precision rank cutoff and
+            accepts no solver options.
 
         Returns
         -------
@@ -428,48 +422,6 @@ class FitSystem:
         )
 
 
-def _sample(
-    cluster_map: ClusterMap,
-    atoms: Atoms,
-    index: int,
-    supercell_positions: np.ndarray,
-    geometry: PeriodicGeometry,
-) -> tuple[np.ndarray, np.ndarray]:
-    """Validate one snapshot and return minimum-image displacements and stored forces.
-
-    Both outputs have shape (n_atoms, 3), in angstrom and eV/angstrom respectively.
-    Cell and atom order must match the map; calculator access uses
-    allow_calculation=False, so missing forces fail without launching a calculation.
-    """
-    if not isinstance(atoms, Atoms):
-        raise TypeError(f"training structure {index} is not an ASE Atoms object")
-    supercell = cluster_map
-    if not np.array_equal(atoms.numbers, supercell.atomic_numbers):
-        raise ValueError(f"training structure {index} has a different atom sequence")
-    if not np.array_equal(atoms.pbc, np.ones(3, dtype=bool)):
-        raise ValueError(f"training structure {index} must be periodic in all directions")
-    cell = np.asarray(atoms.cell, dtype=np.float64)
-    cell_residual = float(np.max(np.linalg.norm(cell - supercell.cell, axis=1)))
-    symprec = cluster_map.cluster_space.symprec
-    if cell_residual >= symprec:
-        raise ValueError(
-            f"training structure {index} has cell residual {cell_residual:.10g} Å, "
-            f"not below symprec {symprec:.10g} Å"
-        )
-    displacement, _ = geometry.minimum_image(atoms.positions - supercell_positions)
-    if not np.all(np.isfinite(displacement)):
-        raise ValueError(f"training structure {index} contains invalid positions")
-    if atoms.calc is None:
-        raise ValueError(f"training structure {index} has no stored ASE forces")
-    forces = atoms.calc.get_property("forces", atoms, allow_calculation=False)
-    if forces is None:
-        raise ValueError(f"training structure {index} has no stored ASE forces")
-    forces = np.asarray(forces, dtype=np.float64)
-    if forces.shape != (len(atoms), 3) or not np.all(np.isfinite(forces)):
-        raise ValueError(f"training structure {index} contains invalid forces")
-    return displacement, forces
-
-
 def _normal_matrix(design):
     """Allocate A.T @ A with upper-triangle DSYRK and return an exactly symmetric float64 matrix."""
     require_allocation("fit normal matrix", (design.shape[1], design.shape[1]))
@@ -483,15 +435,14 @@ def _symmetrize(matrix):
     return upper + np.triu(upper, 1).T
 
 
-def _build_equations(cluster_map, structures, representation):
-    """Consume snapshots once, compiling one design and reusing its mutable workspace.
+def _build_equations(dataset, representation):
+    """Accumulate dataset equations using one design and a reusable workspace.
 
     Normal mode streams upper-triangle Gram sums and RHS; raw mode stacks
     physical design/force rows. Return matrix, rhs, force_squared_norm,
     n_equations and n_structures. No snapshots or normalized equations are kept.
     """
-    if isinstance(structures, (Atoms, np.ndarray)):
-        raise TypeError("FitSystem requires an iterable of ASE Atoms")
+    cluster_map = dataset.cluster_map
     started = perf_counter()
     logger.info(
         "Fit-system construction started: representation=%s supercell_atoms=%d "
@@ -514,10 +465,9 @@ def _build_equations(cluster_map, structures, representation):
         matrices, force_vectors = [], []
     force_squared_norm = 0.0
     count = 0
-    supercell_positions = cluster_map.scaled_positions @ cluster_map.cell
-    geometry = PeriodicGeometry(cluster_map.cell)
-    for count, atoms in enumerate(structures, start=1):
-        displacement, forces = _sample(cluster_map, atoms, count - 1, supercell_positions, geometry)
+    for count, (displacement, forces) in enumerate(
+        zip(dataset.displacements, dataset.forces, strict=True), start=1
+    ):
         values = design.matrix(displacement, workspace=workspace)
         flattened = forces.reshape(-1)
         if representation == "normal":

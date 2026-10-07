@@ -1,12 +1,9 @@
-"""Neighbour-shell cutoff advisory for one periodic structure.
+"""Neighbour-shell cutoff estimates for periodic structures.
 
-Fuses the shell spectrum of the rewritten core (all site pairs over every
-periodic translation, aggregated by the one declared ``symprec``) with the
-supercell advisory of the retired ``estimate_cutoff`` standalone script: the
-reported cutoff between two shells is their midpoint, which captures exactly
-the shells below it no matter where floating point lands on a shell radius,
-and the Wigner-Seitz inradius reports how far a neighbour list may reach in
-this cell before periodic images duplicate.
+Distinct pair distances are grouped into coordination shells using ``symprec``.
+A cutoff between successive shells is their midpoint, including the lower
+shells while remaining separated from the next. The Wigner-Seitz inradius gives
+a geometric guide to when periodic images may begin to duplicate.
 """
 
 from __future__ import annotations
@@ -21,29 +18,28 @@ from ase.units import Bohr
 
 
 class EstimateCutoff:
-    """Neighbor-shell midpoint advisory for one periodic reference structure.
+    """Estimate periodic interaction cutoffs from neighbour shells.
 
-    Parameters
-    ----------
-    atoms : ase.Atoms
-        Fully periodic structure with finite nonsingular row cell vectors in angstrom.
-    symprec : float, default 1e-5
-        Positive absolute distance separation for merging shells, in angstrom.
+    Nonzero distances between motif sites and their periodic images are grouped
+    into shells; distances separated by less than ``symprec`` angstrom are
+    treated as one shell. Given successive shell radii ``d_n`` and
+    ``d_(n+1)``, the recommended cutoff is their midpoint, which separates the
+    first ``n`` resolved shells from the next.
 
-    Notes
-    -----
-    Owns a detached ASE copy. Shells count all site pairs over periodic images;
-    get/report grow and cache a distance spectrum lazily. Caller mutation of
-    the original atoms has no effect. Modifying this object's atoms directly
-    would invalidate that cache and is unsupported. The Wigner-Seitz inradius
-    is a property of this cell and advises when periodic images can duplicate.
-    No forces are evaluated.
+    The Wigner-Seitz inradius is half the shortest nonzero lattice translation.
+    It provides a geometric guide to when periodic images may begin to
+    duplicate within a cutoff sphere. These estimates describe cell geometry;
+    they do not determine the physical interaction range of a model.
     """
 
-    __slots__ = ("_probe", "_shells", "atoms", "symprec")
+    __slots__ = ("_atoms", "_probe", "_shells", "_symprec")
 
     def __init__(self, atoms: Atoms, *, symprec: float = 1e-5):
-        """Validate periodic geometry, capture a detached copy and initialize an empty shell cache."""
+        """Create a neighbour-shell estimator for a fully periodic structure.
+
+        The reference geometry is copied and remains fixed for subsequent
+        estimates.
+        """
         if not isinstance(atoms, Atoms):
             raise TypeError("atoms must be an ASE Atoms object")
         if not bool(np.all(atoms.pbc)):
@@ -57,13 +53,27 @@ class EstimateCutoff:
             or float(np.linalg.det(cell)) == 0.0
         ):
             raise ValueError("structure requires a finite nonsingular cell")
-        self.atoms = atoms.copy()  # Detached: later caller mutations are invisible.
-        self.symprec = float(symprec)
+        self._atoms = atoms.copy()
+        self._symprec = float(symprec)
         self._shells: tuple[float, ...] = ()
         self._probe = 0.0
 
+    @property
+    def atoms(self) -> Atoms:
+        """Return a copy of the reference structure."""
+        return self._atoms.copy()
+
+    @property
+    def symprec(self) -> float:
+        """Absolute distance tolerance used to group pair distances into shells."""
+        return self._symprec
+
     def get(self, n: int, *, units: str = "A") -> float:
-        """Return the cutoff midpoint between neighbour shells ``n`` and ``n+1``."""
+        """Return the midpoint separating shells ``n`` and ``n+1``.
+
+        The returned length is in angstrom for ``units="A"`` or Bohr for
+        ``units="Bohr"``.
+        """
         n = operator.index(n)
         if n < 1:
             raise ValueError("shell index must be at least one")
@@ -85,10 +95,10 @@ class EstimateCutoff:
         if units not in ("A", "Bohr"):
             raise ValueError("units must be 'A' or 'Bohr'")
         shells = self._spectrum(max_shells + 1)
-        inradius = _in_unit(_ws_inradius(np.asarray(self.atoms.cell, dtype=np.float64)), units)
-        symbols = " ".join(dict.fromkeys(self.atoms.get_chemical_symbols()))
-        print(f"Structure: {len(self.atoms)} atoms ({symbols}); symprec {self.symprec:g} A")
-        print(f"WS inradius (max cutoff without duplicate images): {inradius:.6f} {units}")
+        inradius = _in_unit(_ws_inradius(np.asarray(self._atoms.cell, dtype=np.float64)), units)
+        symbols = " ".join(dict.fromkeys(self._atoms.get_chemical_symbols()))
+        print(f"Structure: {len(self._atoms)} atoms ({symbols}); symprec {self._symprec:g} A")
+        print(f"WS inradius (geometric guide): {inradius:.6f} {units}")
         print()
         print(f"{'Shell':>5s}  {'Cutoff':>12s}  {'d_n':>12s}  {'d_n+1':>12s}   ({units})")
         print("-" * 58)
@@ -105,16 +115,16 @@ class EstimateCutoff:
             print("(fewer than two shells resolved within the probe budget)")
 
     def max_cutoff(self, *, units: str = "A") -> float:
-        """Return the largest midpoint cutoff this cell supports.
+        """Return the last resolved shell midpoint below the Wigner-Seitz inradius.
 
-        The two largest shells inside the Wigner-Seitz inradius bracket the
-        last safe midpoint: beyond it the next shell or a duplicate periodic
-        image is closer than the cutoff itself.
+        This is a geometric guideline derived from the shell spectrum inside
+        the inradius, not a physical interaction-range criterion or a strict
+        guarantee that a force-constant cutoff is suitable.
         """
         if units not in ("A", "Bohr"):
             raise ValueError("units must be 'A' or 'Bohr'")
-        inradius = _ws_inradius(np.asarray(self.atoms.cell, dtype=np.float64))
-        shells = _aggregate(_pair_distances(self.atoms, inradius), self.symprec)
+        inradius = _ws_inradius(np.asarray(self._atoms.cell, dtype=np.float64))
+        shells = _aggregate(_pair_distances(self._atoms, inradius), self._symprec)
         if len(shells) < 2:
             raise ValueError(
                 f"the cell resolves only {len(shells)} shell(s) inside its Wigner-Seitz "
@@ -123,17 +133,12 @@ class EstimateCutoff:
         return _in_unit(0.5 * (shells[-2] + shells[-1]), units)
 
     def _spectrum(self, need: int) -> tuple[float, ...]:
-        """Return at least need cached shell radii, increasing the periodic probe if necessary.
-
-        Each accepted radius fixes a prefix of globally smallest shells. Search
-        is capped at 64 radius increases; insufficient shells raise RuntimeError.
-        Mutates only this instance's spectrum and probe cache.
-        """
+        """Return at least ``need`` shell radii, extending the search as needed."""
         if len(self._shells) >= need:
             return self._shells
-        probe = max(self._probe, 2.0 * self.symprec)
+        probe = max(self._probe, 2.0 * self._symprec)
         for _ in range(64):
-            shells = _aggregate(_pair_distances(self.atoms, probe), self.symprec)
+            shells = _aggregate(_pair_distances(self._atoms, probe), self._symprec)
             if len(shells) >= need:
                 # Shells within a radius are the globally smallest ones, so the
                 # prefix is final even though later probes reach farther.
@@ -151,7 +156,7 @@ def _in_unit(value: float, units: str) -> float:
 
 
 def _pair_distances(atoms: Atoms, radius: float) -> np.ndarray:
-    """Distances of all site pairs over all translations inside the radius sphere."""
+    """Return nonzero periodic pair distances within ``radius``."""
     cell = np.asarray(atoms.cell, dtype=np.float64)
     inverse = np.linalg.inv(cell)
     bounds = [math.ceil(radius * float(np.linalg.norm(inverse[:, j]))) + 1 for j in range(3)]
@@ -169,7 +174,7 @@ def _pair_distances(atoms: Atoms, radius: float) -> np.ndarray:
 
 
 def _aggregate(values: np.ndarray, symprec: float) -> tuple[float, ...]:
-    """Sorted distances with entries less than ``symprec`` apart merged."""
+    """Group sorted pair distances into neighbour shells using ``symprec``."""
     shells: list[float] = []
     for value in sorted(float(item) for item in values):
         if not shells or value - shells[-1] >= symprec:
@@ -178,7 +183,7 @@ def _aggregate(values: np.ndarray, symprec: float) -> tuple[float, ...]:
 
 
 def _ws_inradius(cell: np.ndarray) -> float:
-    """Half the shortest non-zero lattice vector of the Delaunay-reduced cell."""
+    """Return the Wigner-Seitz inradius, half the shortest nonzero lattice vector."""
     reduced = spglib.delaunay_reduce(np.array(cell, dtype=float))
     if reduced is None:
         reduced = np.array(cell, dtype=float)

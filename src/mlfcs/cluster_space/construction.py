@@ -8,14 +8,14 @@ from time import perf_counter
 
 import numpy as np
 
-from mlfcs._arrays import require_allocation
 from mlfcs.cluster_space.basis import component_parameterization, compute_invariant_basis
 from mlfcs.cluster_space.candidates import enumerate_candidate_labels
+from mlfcs.cluster_space.model import Cluster, Orbit, OrderBlock
 from mlfcs.cluster_space.orbits import ClusterRegistry, compute_orbit_actions
-from mlfcs.cluster_space.records import Cluster, Orbit, OrderBlock
+from mlfcs.foundation.arrays import require_allocation
+from mlfcs.foundation.log import get_logger
+from mlfcs.foundation.tensors import tensor_dimension
 from mlfcs.geometry.symmetry import PrimitiveSymmetry, discover_symmetry
-from mlfcs.log import get_logger
-from mlfcs.tensors import tensor_dimension
 
 logger = get_logger(__name__)
 
@@ -34,7 +34,7 @@ def _axis_permutations(order: int) -> tuple[tuple[tuple[int, ...], ...], np.ndar
 def _tensor_frame(cell: np.ndarray, order: int) -> np.ndarray:
     """Build the (3**p, 3**p) lattice-to-Cartesian frame as cell.T Kronecker powers.
 
-    The cell holds lattice vectors as rows. Each tensor slot receives the same
+    The cell holds lattice vectors as rows. Each tensor index receives the same
     frame; flattened components follow C order. Return a new float64 matrix.
     """
     dimension = tensor_dimension(order)

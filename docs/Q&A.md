@@ -1,49 +1,55 @@
 # Q&A
 
-## Can I pass a NumPy force array to finite-difference reconstruction?
+## 有限差分重建能否直接传 NumPy 力数组？
 
-No. `FiniteDifference.reconstruct` consumes an ordered sequence of ASE `Atoms`, each with its force result attached. Geometry, atom order, and force data form one record; a bare array cannot certify which displacement it belongs to.
+不能。`FiniteDifference.reconstruct` 接收带有力结果的有序 ASE `Atoms` 序列。几何、原子顺序和力数据共同构成一条记录；单独的数组无法证明它对应哪个位移。
 
-## Does `fd.evaluate(calculator)` use cached forces?
+## 如何计算有限差分的力？
 
-It deliberately requests a fresh force calculation for every generated structure and stores the result on the returned structures. Use this when the calculator should evaluate the current geometry. If forces came from an external program, attach them as stored ASE results and call `reconstruct` directly.
+力计算在外部完成。将 `fd.displacements()` 按原顺序交给 ASE calculator 或外部程序，保存每帧的力，再构造 `ForceDataset(mapping, structures)`，最后调用 `fd.reconstruct(dataset)`。MLFCS 不提供 `evaluate()` 包装器，也不核对采样 metadata。
 
-## Can I use MACE or another ASE calculator?
+## 可以使用 MACE 或其他 ASE calculator 吗？
 
-Yes. MLFCS does not own the calculator. Any ASE-compatible calculator can be used with `fd.evaluate(calculator)` if it supports the species and conditions in the input structures. For a force-fitting workflow, calculate forces with your chosen calculator first and provide the resulting ASE structures to `FitSystem`.
+可以。MLFCS 不拥有 calculator。只要支持输入结构中的元素和条件，任意 ASE 兼容 calculator 都可在外部计算位移结构的力。拟合和有限差分均通过 `ForceDataset` 收集结果。
 
-## Why is finite-difference input order strict?
+## 为什么有限差分输入必须保持顺序？
 
-The displacement index encodes which mixed derivative is measured. Keep the order returned by `displacements()` through external evaluation. The reconstruction checks frame geometry and atom sequence and refuses mismatches; it does not infer a new ordering.
+位移索引编码了测量的混合导数。外部计算时，应保持 `displacements()` 返回的次序。重建会检查帧几何与原子顺序并拒绝不匹配，不会推断新顺序。
 
-## How do I resume an external finite-difference calculation?
+## 如何继续外部有限差分计算？
 
-The supported workflow is to regenerate the deterministic sequence from the same primitive model, cluster space, explicit supercell, and mapping, then pass the evaluated ASE frames in their original order. MLFCS does not define a serialized experiment-plan format. Persist the ASE structures and forces with a suitable data format when moving calculations between programs.
+受支持的工作流是：用相同的原胞模型、cluster space、显式参考超胞和映射重新生成确定性序列，然后按原顺序传入带力 ASE 帧。MLFCS 不定义序列化实验计划格式。在不同程序间传递计算时，使用合适格式保存 ASE 结构和力。
 
-## Does one finite-difference object calculate several orders?
+## 一个有限差分对象能计算多个阶次吗？
 
-No. One `FiniteDifference` object handles one order. For joint multi-order fitting, use one `ClusterSpace` with per-order cutoffs and body-order limits, then build one `FitSystem`.
+不能。一个 `FiniteDifference` 对象处理一个阶次。联合拟合多个阶次时，在一个 `ClusterSpace` 中为各阶指定截断和体阶限制，再构建一个 `FitSystem`。
 
-## Does fitting calculate forces?
+## 拟合过程会计算力吗？
 
-No. `FitSystem` only reads forces already stored on each ASE `Atoms`; it does not call the attached calculator. This keeps force generation under the user's control and works with external electronic-structure or machine-learning calculations.
+不会。`ForceDataset` 只读取 ASE `Atoms` 上已经保存的力，不调用附带的 calculator；`FitSystem` 只消费准备好的数据集。这样力的产生始终由用户控制，也适用于外部电子结构或机器学习势计算。
 
-## What is the role of the supercell?
+## 参考超胞起什么作用？
 
-The primitive cluster space defines which interactions and symmetry-reduced parameters are in the model. The explicit supercell maps those primitive interactions onto the training atom list. Its size and shape determine whether the requested parameters can be distinguished. Check `mapping.rank_info(...).require_full()` before an expensive calculation.
+原胞 cluster space 定义模型中的相互作用和对称约化参数；显式参考超胞把这些原胞相互作用映射到训练原子列表。超胞尺寸与形状决定目标参数能否区分。在昂贵计算前用 `mapping.rank_info(...).require_full()` 检查。
 
-## Why does fitting construct a normal system?
+## 为什么拟合要构造正规系统？
 
-The optimized fit path accumulates the sufficient statistics `A.T @ A` and `A.T @ f` while streaming training structures. It avoids retaining a potentially huge design matrix and allows compatible systems to be merged or reused. The default solver is column-scaled MINRES; it is not a batch-gradient neural-network optimizer.
+优化拟合路径在流式读取训练结构时累积充分统计量 `A.T @ A` 和 `A.T @ f`，避免保留可能非常大的设计矩阵，也便于合并或复用兼容系统。默认求解器是列缩放 MINRES，不是批量梯度下降的神经网络优化器。
 
-## What if a parameter is unobserved?
+## 如果有参数未被观测怎么办？
 
-An exactly zero normal-matrix diagonal identifies a parameter absent from the training design. The default solver rejects this with a named error. Add structures or displacements that excite the missing direction, use a more informative supercell, or revise the model. Regularization cannot create information that is absent from the data.
+正规矩阵中精确为零的对角元表示该参数在训练设计中缺失。默认求解器会抛出具名错误。应增加能激发该方向的结构或位移，选择更有信息量的参考超胞，或调整模型。正则化不能创造数据中不存在的信息。
 
-## Are ASR and rotational conditions part of fitting?
+## ASR 和旋转条件属于拟合的一部分吗？
 
-No. Fit first, then apply the explicit force-constant post-processing projection if desired. This keeps the linear force fit separate from the choice of physical constraints. Review the projection report and its effect on the force constants.
+不属于。先拟合，再按需显式执行力常数后处理投影。这样线性力拟合与物理约束选择彼此分离。请检查投影报告及其对力常数的影响。
 
-## How do I save or export the result?
+ASR 逐阶用浮点 LSMR 修复平移不变性；它不调用构造轨道不变基时的整数核。旋转投影只修改 FC2，通过实际原子间距构造 Born–Huang 一次矩及可选的 Huang 二次矩，再用 SVD 处理可分辨方向。Born–Huang 的齐次形式要求原子力平衡；Huang 还要求零应力，所以默认关闭。
 
-Use `ForceConstants.save(path)` for native version-5 HDF5 storage and `ForceConstants.load(path)` to read it back. Geometry, masses, symmetry, orbit bases and coefficients are stored explicitly, without rebuilding the cluster space. Older native files are rejected. For interoperable output, use `ForceConstants.write(path, mapping, format=..., order=...)`. Callers must supply a mapping for the same physical parameter layout; cross-object compatibility is not checked.
+旋转修正保留原有 ASR 残差，不会代替 ASR。需要两者时，先对模型执行 `enforce_asr()`，再对返回的 `force_constants` 执行 `enforce_rotation()`。`rtol` 控制 ASR 相对残差；`rank_rtol` 控制旋转奇异值截断，两者语义不同。详见[投影与参数度量](domain-v6.md#旋转与平衡条件)。
+
+## 如何保存或导出结果？
+
+使用 `ForceConstants.save(path)` 保存原生版本 5 的 HDF5 文件，用 `ForceConstants.load(path)` 读取。文件显式保存几何、质量、对称操作、轨道基和系数，其中晶格基 dataset 名为 `lattice_basis`，加载不重建 cluster space。旧原生文件被拒绝。互操作输出使用 `ForceConstants.write(path, mapping, format=..., order=...)`；用户必须提供对应物理参数布局的 mapping，程序不检查跨对象兼容性。
+
+折叠秩由 `ClusterMap.rank_info()` 报告；它使用 mapping 内部的精确秩认证。饱和整数核用于 ClusterSpace 的 stabilizer 不变基构造。跨领域的整数矩阵原语位于 `mlfcs.foundation.integer`，倒格点标签变换由 `mlfcs.phonon.grid` 内部完成。`Orbit.lattice_basis` 表示 stabilizer 不变晶格基；这些定义写入 docstring，名称按数学对象和操作命名。

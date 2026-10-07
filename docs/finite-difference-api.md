@@ -1,69 +1,57 @@
-# Finite-difference API
+# 有限差分 API
 
-`FiniteDifference` generates a deterministic, order-defined sequence of ASE structures. The sequence is also the data contract for reconstruction: structure `i` returned by `displacements()` must be paired with the forces calculated for that exact geometry and atom order.
+`FiniteDifference` 为一个力常数阶次生成确定顺序的 ASE 位移结构。力计算属于外部流程；计算完后统一通过 `ForceDataset` 收集，再重建。
 
-## Define the primitive model and supercell
+## 超胞与采样
 
 ```python
-import numpy as np
 from ase.build import bulk
-from mlfcs import ClusterMap, ClusterSpace, FiniteDifference
+from mlfcs import ClusterMap, ClusterSpace, FiniteDifference, ForceDataset
 
 primitive_atoms = bulk("Al", "fcc", a=4.05)
-space = ClusterSpace(primitive_atoms, cutoffs={2: 4.0}, max_body_orders={2: 2}, symprec=1e-05)
-supercell_atoms = primitive_atoms.repeat((3, 3, 3))
-mapping = ClusterMap(space, supercell_atoms, supercell_matrix=np.diag([3, 3, 3]))
-mapping.rank_info(2).require_full()
+space = ClusterSpace(primitive_atoms, cutoffs={2: 4.0}, max_body_orders={2: 2})
+mapping = ClusterMap(space, primitive_atoms.repeat((3, 3, 3)))
+fd = FiniteDifference(mapping, order=2, disps=(0.01, 0.02))
 ```
 
-`symprec` is the declared geometric tolerance in Å used for symmetry and primitive-to-supercell mapping. The integer supercell matrix is mandatory. The caller supplies the supercell and is responsible for selecting one large enough to identify the requested interactions.
+`order` 至少为 2，且存在于模型中；对应阶次的超胞映射必须能区分参数。`disps` 是一个正位移长度或一组互不相同的正长度，单位 Å。多步幅度按偶次误差外推到零位移。
 
-## Generate and evaluate displacements
+`fd.displacements()` 返回懒加载、有序的 Atoms 序列，不附加采样 ID、位移标签或其他 metadata。固定顺序为：位移键、升序位移幅度、符号组合。重复的原子/方向将带符号位移相加。
+
+## 外部 ASE 计算
 
 ```python
 from ase.calculators.emt import EMT
-
-fd = FiniteDifference(mapping, order=2, disps=(0.01, 0.02))
-displaced = fd.displacements()
-evaluated = fd.evaluate(EMT())
-fc2 = fd.reconstruct(evaluated)
-```
-
-The example uses ASE's EMT as a compact calculator demonstration. Any ASE calculator can be substituted if it supports the elements and structures. `evaluate(calculator)` explicitly forces a fresh force calculation for every displacement and stores each result on the returned `Atoms` with a single-point calculator.
-
-The constructor is:
-
-```python
-FiniteDifference(mapping, *, order: int, disps: float | Sequence[float] = 0.01)
-```
-
-- `order` is the force-constant order and must be at least 2.
-- `disps` is one positive displacement length in Å or a sequence of distinct positive lengths. Multiple lengths are extrapolated to zero displacement using the even-error polynomial in displacement squared.
-- The selected order must exist in the cluster space, and the supercell mapping must be structurally identifiable for that order.
-
-## External calculators and persisted structures
-
-An external code may evaluate the structures instead of `fd.evaluate`. Write the output of `fd.displacements()` to a format that preserves atom order and cell, run the external calculation, then read the structures back in the same order. Attach each force array to its corresponding ASE object:
-
-```python
 from ase.calculators.singlepoint import SinglePointCalculator
 
-for atoms, forces in zip(displaced, force_arrays, strict=True):
+calculator = EMT()
+evaluated = []
+for atoms in fd.displacements():
+    atoms.calc = calculator
+    forces = atoms.get_forces()
     atoms.calc = SinglePointCalculator(atoms, forces=forces)
+    evaluated.append(atoms)
 
-fc2 = fd.reconstruct(displaced)
+data = ForceDataset(mapping, evaluated)
+fc2 = fd.reconstruct(data)
 ```
 
-`force_arrays` here means the forces read from the external calculation, one array per structure with shape `(n_atoms, 3)`. It is not itself accepted by `reconstruct`: the ASE structures carry the required geometry, atom ordering, and force association. Use an ordered format such as extxyz, and do not sort, deduplicate, or otherwise reorder frames.
+不存在 `fd.evaluate()`。也可将位移结构送入 VASP 等外部程序，再按原顺序读回带力 Atoms。数据集只读取已有力，不启动计算器；没有 Atoms 便利重建入口。
 
-## Reconstruction contract and errors
+## 力扣除与重建
 
-`fd.reconstruct(structures)` accepts only an ordered sequence of ASE `Atoms` with stored forces. It checks the sequence length, atomic numbers and order, periodicity, cell and periodic positions against the generated structures, then validates finite force arrays. Reconstruction refuses mismatches rather than guessing a permutation.
+```python
+# 参考构型的力广播给每一帧。
+centered = data.subtract_forces(supercell_forces)
+fc2 = fd.reconstruct(centered)
 
-Common failures:
+# 若使用长程模型，则按每帧位移计算并扣除。
+short_data = data.subtract_forces(long_range.forces(data.displacements))
+short_fc2 = fd.reconstruct(short_data)
+```
 
-- `AliasingError`: the explicit supercell cannot distinguish all requested primitive parameters. Change the supercell or reduce the model cutoff/body order.
-- Missing stored forces: attach the force results to each ASE structure; reconstruction does not run a calculator.
-- Geometry or order mismatch: restore the original frame order and atom ordering before reconstruction.
+`reconstruct()` 只检查数据集类型、力的形状、数量与有限值。不核对预期位移，不检查帧是否重排，不查找 metadata。相同长度的错误顺序不会被发现；调用者必须保持采样顺序、原子顺序，以及原胞参数布局一致。
 
-The result is a primitive `ForceConstants` object containing only the selected order. It can be combined with disjoint orders using `ForceConstants.combine`, saved in the native format with `fc2.save("fc2.mlfcs")`, or exported through `fc2.write(...)`.
+中央混合差分把力对位移的导数转为能量导数，再通过 orbit observation matrix 恢复参数。结果只包含所选阶次。不同阶次可用 `ForceConstants.combine` 合并；`save()` 保存参数化模型，`write()` 导出文件。
+
+更多数据和长程约定见[数据集与 Ewald](dataset-api.md)。

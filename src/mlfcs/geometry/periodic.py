@@ -1,4 +1,4 @@
-"""Tolerance matching and nearest images in fully periodic 3D lattices."""
+"""Minimum-image and tolerance searches in fully periodic three-dimensional lattices."""
 
 from __future__ import annotations
 
@@ -8,26 +8,26 @@ from math import prod
 import numpy as np
 from ase.geometry import minkowski_reduce
 
-from mlfcs._arrays import require_allocation
+from mlfcs.foundation.arrays import require_allocation
 
 
 class PeriodicGeometry:
-    """Periodic image searches in a fixed nonsingular three-dimensional cell.
+    """Periodic-image geometry for a fixed three-dimensional lattice.
 
-    Parameters
-    ----------
-    cell : array_like, shape (3, 3)
-        Cartesian lattice vectors as rows, in angstrom.
+    Cartesian displacement vectors are compared modulo lattice translations.
+    The class provides minimum-image reduction and exhaustive periodic-image
+    matching within a Cartesian tolerance.
 
-    Notes
-    -----
-    Construction performs one Minkowski reduction. Readonly ``reduced``,
-    ``inverse`` and integer ``reduction`` satisfy reduced = reduction @ cell.
-    All displacement inputs are Cartesian row vectors. Searches do not mutate them.
+    A Minkowski-reduced basis is constructed once,
+
+        cell_reduced = U @ cell,
+
+    with integer unimodular ``U``. This changes only the lattice basis, not the
+    periodic lattice, and enables bounded periodic-image searches.
     """
 
     def __init__(self, cell: object) -> None:
-        """Validate the cell and cache its reduced basis, inverse and neighboring shifts."""
+        """Construct periodic-search geometry for the given lattice."""
         values = np.asarray(cell, dtype=np.float64)
         if values.shape != (3, 3) or not np.all(np.isfinite(values)):
             raise ValueError("periodic geometry requires a finite cell with shape (3, 3)")
@@ -43,12 +43,26 @@ class PeriodicGeometry:
         self._neighbors.setflags(write=False)
 
     def minimum_image(self, vectors: object) -> tuple[np.ndarray, np.ndarray | float]:
-        """Return nearest Cartesian images and their lengths, in the input length unit.
+        """Return the minimum-image representative of each Cartesian displacement.
 
-        ``vectors`` has shape (3,) or (n, 3). Outputs retain that vector shape;
-        a single input returns a scalar length, a batch returns shape (n,).
-        Equal-distance ties follow candidate enumeration order. Invalid inputs raise
-        ValueError; nonrepresentable integer shifts raise OverflowError.
+        For each displacement ``v``, find an integer lattice translation ``n``
+        that minimizes ``||v + n @ cell||``. The returned image is the
+        minimizing Cartesian displacement and the second return value is its
+        Euclidean norm.
+
+        Parameters
+        ----------
+        vectors
+            Cartesian row vector of shape ``(3,)`` or an array of shape
+            ``(n, 3)``.
+
+        Returns
+        -------
+        images
+            Minimum-image Cartesian displacements with the same vector shape
+            as the input.
+        lengths
+            Corresponding Euclidean lengths. A single input returns a scalar.
         """
         images, lengths = self._nearest_reduced(vectors)
         if np.asarray(vectors).ndim == 1:
@@ -56,10 +70,11 @@ class PeriodicGeometry:
         return images, lengths
 
     def _nearest_reduced(self, vectors: object) -> tuple[np.ndarray, np.ndarray]:
-        """Evaluate 27 shifts around each reduced-cell displacement and select a minimum.
+        """Find minimum images by testing the 27 neighboring reduced-cell translations.
 
-        Returns batched images (n, 3) and lengths (n,). Shift endpoints are checked
-        before int64 conversion and before adding the neighboring offsets.
+        For a Minkowski-reduced three-dimensional lattice, the nearest image
+        lies among the integer translations neighboring the wrapped
+        reduced-coordinate representative.
         """
         values = np.asarray(vectors, dtype=np.float64)
         batch = np.atleast_2d(values)
@@ -87,30 +102,39 @@ class PeriodicGeometry:
     def matching_images(
         self, vectors: object, *, tolerance: float
     ) -> tuple[np.ndarray, np.ndarray]:
-        """Return all periodic matches strictly inside a Cartesian tolerance.
+        """Return all periodic images lying within a Cartesian tolerance.
+
+        For each input displacement ``v_i``, find every integer lattice
+        translation ``n`` satisfying
+
+            ||v_i + n @ cell|| < tolerance.
 
         Parameters
         ----------
-        vectors : array_like, shape (n, 3)
-            Finite Cartesian displacement rows, in the cell's length unit.
-        tolerance : float
-            Positive finite matching radius in that same unit.
+        vectors
+            Finite Cartesian displacement rows of shape ``(n, 3)``.
+        tolerance
+            Positive Cartesian matching radius in the cell's length unit.
 
         Returns
         -------
-        indices : ndarray of int64, shape (n_matches,)
-            Input vector index for each match; indices may repeat or be absent.
-        shifts : ndarray of int64, shape (n_matches, 3)
-            Original-cell shifts satisfying norm(vectors[indices] + shifts @ cell)
-            < tolerance. Empty output has shape (0, 3).
+        indices
+            Input-vector index associated with each periodic match.
+        shifts
+            Integer original-cell translations satisfying the tolerance
+            condition, shape ``(n_matches, 3)``.
 
         Notes
         -----
-        For reduced row cell B, Cauchy-Schwarz bounds each integer coordinate by
-        abs(h_j + (v @ inv(B))_j) < tolerance * norm(inv(B)[:, j]). Enumerate that
-        box with outward-rounded endpoints and test distances directly. No unique
-        match is assumed; callers enforce uniqueness where required.
-        Invalid input raises ValueError and unrepresentable shifts raise OverflowError.
+        Matching is performed in a Minkowski-reduced basis. A finite integer
+        search box is derived from Cauchy-Schwarz bounds: for reduced row cell
+        ``B``, the coordinate bound is
+
+            abs(h_j + (v @ inv(B))_j) < tolerance * norm(inv(B)[:, j]).
+
+        Every candidate is tested directly in Cartesian distance. Multiple
+        matches are returned when present; uniqueness is the responsibility
+        of the caller.
         """
         if not np.isfinite(tolerance) or tolerance <= 0.0:
             raise ValueError("tolerance must be positive and finite")
@@ -156,7 +180,7 @@ class PeriodicGeometry:
 
 
 def _require_int64_values(values: np.ndarray, name: str) -> None:
-    """Check finite float shift bounds against the int64 conversion endpoints."""
+    """Require floating shift bounds to be safely representable as int64."""
     if (
         not np.all(np.isfinite(values))
         or np.any(values < -((1 << 63) - 1))
@@ -166,13 +190,29 @@ def _require_int64_values(values: np.ndarray, name: str) -> None:
 
 
 def _transform_image_shifts(left: np.ndarray, right: np.ndarray) -> np.ndarray:
-    """Transform image shifts from the reduced basis to the original cell basis.
+    """Transform integer image shifts from the reduced to the original lattice basis.
 
-    ``left`` has shape (n, 3) and ``right`` is the (3, 3) lattice reduction.
-    Both contain integers. Return an int64 array of shape (n, 3), with rows
-    equal to left @ right. Python sums are evaluated before dtype conversion;
-    results outside [-INT64_MAX, INT64_MAX] raise OverflowError. Storage limits
-    also raise OverflowError. Inputs are not modified.
+    If the reduced lattice satisfies ``cell_reduced = U @ cell``, then a
+    reduced-basis image shift ``h`` corresponds to the original-cell shift
+
+        n = h @ U.
+
+    Parameters
+    ----------
+    left
+        Reduced-basis integer shifts of shape ``(n, 3)``.
+    right
+        Integer reduction matrix ``U`` of shape ``(3, 3)``.
+
+    Returns
+    -------
+    ndarray
+        Original-cell integer shifts of shape ``(n, 3)``.
+
+    Raises
+    ------
+    OverflowError
+        If an exact transformed shift cannot be represented as int64.
     """
     require_allocation("periodic image shift product", (len(left), right.shape[1]))
     result = np.empty((len(left), right.shape[1]), dtype=np.int64)

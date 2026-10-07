@@ -13,7 +13,13 @@ from mlfcs.cluster_space import ClusterSpace
 from mlfcs.force_constants import ForceConstants
 from mlfcs.geometry.symmetry import PrimitiveSymmetry
 from mlfcs.phonon import Harmonic, QGrid, QStars, StarPlan
-from mlfcs.phonon.grid import rotate_q_labels
+from mlfcs.phonon.grid import _integer_matmul, rotate_q_labels
+
+
+def test_integer_matmul_handles_zero_terms_and_large_operands() -> None:
+    """Keep reciprocal-label matrix products within their admitted int64 range."""
+    np.testing.assert_array_equal(_integer_matmul([[2**40, 0]], [[0], [2**40]]), [[0]])
+    np.testing.assert_array_equal(_integer_matmul([[2, 3]], [[4], [5]]), [[23]])
 
 
 def test_reciprocal_rotation_matches_the_dual_action() -> None:

@@ -9,9 +9,8 @@ from pathlib import Path
 import h5py
 import numpy as np
 
-from mlfcs._arrays import readonly
-from mlfcs.cluster_space.model import ClusterSpace
-from mlfcs.cluster_space.records import Cluster, Orbit, OrderBlock
+from mlfcs.cluster_space.model import Cluster, ClusterSpace, Orbit, OrderBlock
+from mlfcs.foundation.arrays import readonly
 from mlfcs.geometry.primitive import validate_primitive_arrays
 from mlfcs.geometry.symmetry import PrimitiveSymmetry
 
@@ -43,7 +42,7 @@ def _array(group, name, kind, ndim):
 
 
 def _cluster(labels):
-    """Decode anchored int64 labels of shape (p, 4) into a tensor-slot cluster.
+    """Decode anchored int64 labels of shape (p, 4) into a tensor-index cluster.
 
     Each row is (primitive site, tx, ty, tz), where p >= 2 and the first
     translation is zero. Raise ValueError for malformed or unanchored labels.
@@ -114,7 +113,7 @@ def _write_space(group, space):
 def _read_space(group):
     """Restore a validated ClusterSpace from explicit HDF5 model datasets.
 
-    Data follow the units, shapes and tensor-slot conventions of ``_write_space``.
+    Data follow the units, shapes and tensor-index conventions of ``_write_space``.
     Returns an immutable model without neighbor enumeration, symmetry discovery
     or integer-kernel solving. Primitive validation still certifies the motif
     through spglib. Raise ValueError for invalid geometry, masses or layout.

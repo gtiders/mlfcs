@@ -1,4 +1,4 @@
-site_name: MLFCS Documentation
+site_name: MLFCS 文档
 site_description: ASE-first symmetry-reduced force constants from second to arbitrary order
 site_url: https://gtiders.github.io/mlfcs/
 site_dir: site
@@ -8,29 +8,41 @@ edit_uri: edit/dev/docs/
 copyright: MLFCS contributors
 
 # The documentation tooling lives inside docs_dir, so everything that belongs to the site
-# sits in one tree; it must not be published as static files.
+# sits in one tree; it must not be published as static files. Notebook training data is
+# needed to re-execute the tutorials but is not site content.
 exclude_docs: |
   /overrides/
   /scripts/
+  /notebooks/data/
 
 nav:
-  - Home: index.md
-  - Finite difference: finite-difference-api.md
-  - Fitting: fitting-api.md
-  - Harmonic: harmonic-api.md
+  - 概览: index.md
+  - 有限差分: finite-difference-api.md
+  - 拟合: fitting-api.md
+  - 数据集与 Ewald: dataset-api.md
+  - 谐波声子: harmonic-api.md
   - SCPH: scph.md
-  - Logging: logging.md
+  - 日志: logging.md
   - Q&A: Q&A.md
-  - Version 6: domain-v6.md
-  - Local integer contracts: local-integer-contracts.md
-  - Developer references:
-      - Integer safety audit: numba-integer-audit.md
-      - Numba backend: unified-numba-backend.md
+  - 教程:
+      - 教程总览: notebooks/index.md
+      - NaCl：长程力扣除与 FC2 拟合: notebooks/nacl-long-range.ipynb
+      - 石墨烯与 MoS₂：转动求和规则: notebooks/rotational-sum-rules.ipynb
+      - Si：有限差分与外推: notebooks/si-finite-difference.ipynb
+      - Ba8Ga16Ge30：FC2+FC3 拟合与声子谱: notebooks/ba8ga16ge30.ipynb
+      - Si：FC2–FC5 联合拟合与热导率: notebooks/si-fitting.ipynb
+      - K4As4Pt2：FC2–FC4 拟合、热导率与 SCPH: notebooks/k4as4pt2.ipynb
+  - 整数核与开发者参考:
+      - Numba 迁移前数学审查: numba-integer-audit.md
+      - 本地整数契约与清理规则: local-integer-contracts.md
+      - 统一 Numba 后端: unified-numba-backend.md
+      - 超胞平移商与商标签约定: supercell-quotient.md
+      - 版本 6 域与执行契约: domain-v6.md
 
 theme:
   name: material
   custom_dir: docs/overrides
-  language: en
+  language: zh
   logo: assets/images/logo.png
   favicon: assets/images/logo.png
   features:
@@ -51,30 +63,23 @@ theme:
       accent: blue
       toggle:
         icon: material/weather-night
-        name: Switch to dark mode
+        name: 切换到深色模式
     - scheme: slate
       primary: black
       accent: light blue
       toggle:
         icon: material/weather-sunny
-        name: Switch to light mode
+        name: 切换到浅色模式
 
 plugins:
   - search
-  - i18n:
-      docs_structure: folder
-      languages:
-        - locale: en
-          name: English
-          default: true
-        - locale: zh
-          name: 简体中文
-          nav_translations:
-            Home: 概览
-            Finite difference: 有限差分
-            Fitting: 拟合
-            Harmonic: 谐波声子
-            Logging: 日志
+  - mkdocs-jupyter:
+      # Tutorials ship with their committed execution outputs; the build only
+      # renders them. Re-execution is a manual serial step, one notebook at a
+      # time, via the tutorial dependency group.
+      execute: false
+      include_source: true
+      kernel_name: python3
 
 markdown_extensions:
   - admonition
@@ -89,6 +94,9 @@ markdown_extensions:
   - tables
 
 extra_javascript:
+  # Must precede the MathJax bundle: notebook pages keep literal $...$, and
+  # MathJax 3 only honours those delimiters when configured before startup.
+  - assets/javascripts/mathjax-config.js
   - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
 
 extra_css:

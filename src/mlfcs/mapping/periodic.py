@@ -1,4 +1,4 @@
-"""Periodic quotient arithmetic and primitive-label to supercell lookup."""
+"""Periodic quotient arithmetic for primitive-to-supercell atom indexing."""
 
 from __future__ import annotations
 
@@ -7,20 +7,39 @@ from dataclasses import dataclass
 import numpy as np
 from numba import njit
 
-from mlfcs._arrays import as_int64_array, readonly, require_allocation, require_bound
-from mlfcs.algebra.matrix import adjugate_3x3
+from mlfcs.foundation.arrays import as_int64_array, readonly, require_allocation, require_bound
+from mlfcs.foundation.integer import adjugate_3x3
 
 INT64_MAX = (1 << 63) - 1
 
 
 @njit(cache=True, inline="always")
-def quotient_kernel(translation, adjugate, modulus):
-    """Return translation @ adjugate modulo the positive supercell determinant magnitude.
+def quotient_label(translation, adjugate, modulus):
+    """Return the periodic quotient label of a primitive lattice translation.
 
-    Translation has shape (3,), adjugate (3, 3), both in the symmetric int64
-    domain. Check every multiplication and running addition before executing
-    it; raise OverflowError even if later cancellation would make the final
-    residue small. Return a new canonical nonnegative int64 quotient label.
+    For supercell matrix ``S``, translations that differ by a supercell
+    lattice vector belong to the same class of ``Z^3 / Z^3 S``. Using
+    ``adjugate = adj(S)`` and ``modulus = abs(det(S))``, the class is
+    represented by ``q(n) = n @ adj(S) mod modulus``.
+
+    Parameters
+    ----------
+    translation
+        Primitive lattice translation ``n`` of shape ``(3,)``.
+    adjugate
+        Integer adjugate of the supercell matrix, shape ``(3, 3)``.
+    modulus
+        Positive ``abs(det(S))``.
+
+    Returns
+    -------
+    ndarray
+        Canonical nonnegative integer quotient label of shape ``(3,)``.
+
+    Raises
+    ------
+    OverflowError
+        If an exact fixed-width intermediate cannot be represented safely.
     """
     result = np.zeros(3, dtype=np.int64)
     for j in range(3):
@@ -40,13 +59,39 @@ def quotient_kernel(translation, adjugate, modulus):
 
 @njit(cache=True)
 def _map_labels_kernel(labels, translations, adjugate, modulus, keys, atoms):
-    """Map every lattice label plus translation to its original supercell atom index.
+    """Map translated primitive lattice labels to supercell atom indices.
 
-    Labels are (n, 4), translations (m, 3). Sorted keys are (n_atoms, 4)
-    (site, quotient), and atoms maps sorted rows back to input atom order.
-    Return (n, m) int64 indices. Translation addition and quotient arithmetic
-    are checked in this single compiled path. Missing keys raise ValueError;
-    nonrepresentable intermediates raise OverflowError. Inputs are preserved.
+    For every primitive label ``(i, n)`` and translation ``t``, form
+    ``(i, [n + t])``, where ``[n + t]`` is the corresponding class in the
+    supercell translation quotient. The resulting key is looked up in the
+    validated periodic index.
+
+    Parameters
+    ----------
+    labels
+        Primitive lattice labels of shape ``(n, 4)`` as
+        ``(site, tx, ty, tz)``.
+    translations
+        Additional primitive lattice translations of shape ``(m, 3)``.
+    adjugate, modulus
+        Integer data defining the supercell quotient.
+    keys
+        Lexicographically sorted ``(site, quotient)`` keys.
+    atoms
+        Supercell atom indices corresponding to ``keys``.
+
+    Returns
+    -------
+    ndarray
+        Supercell atom indices of shape ``(n, m)``.
+
+    Raises
+    ------
+    ValueError
+        If a periodic quotient site is absent from the validated supercell.
+    OverflowError
+        If translated labels or quotient arithmetic exceed the supported
+        integer range.
     """
     result = np.empty((len(labels), len(translations)), dtype=np.int64)
     for i in range(len(labels)):
@@ -59,7 +104,7 @@ def _map_labels_kernel(labels, translations, adjugate, modulus, keys, atoms):
                 if offset < 0 and value < -INT64_MAX - offset:
                     raise OverflowError("translated labels exceed int64")
                 shift[k] = value + offset
-            q = quotient_kernel(shift, adjugate, modulus)
+            q = quotient_label(shift, adjugate, modulus)
             key = np.empty(4, dtype=np.int64)
             key[0], key[1:] = labels[i, 0], q
             left, right = 0, len(keys)
@@ -85,10 +130,14 @@ def _map_labels_kernel(labels, translations, adjugate, modulus, keys, atoms):
 
 @dataclass(frozen=True, slots=True)
 class PeriodicIndex:
-    """Readonly quotient lookup for a validated supercell realization.
+    """Lookup from primitive quotient sites to supercell atom indices.
 
-    Keys are lexicographically sorted (site, qx, qy, qz) rows; atom_indices
-    recovers the external atom ordering. Modulus is abs(det(supercell_matrix)).
+    A periodic site is identified by a primitive motif index together with a
+    translation class in the finite quotient defined by the supercell matrix.
+
+    ``keys`` stores these ``(site, qx, qy, qz)`` identifiers in lexicographic
+    order, while ``atom_indices`` maps them back to the original supercell
+    atom ordering.
     """
 
     adjugate: np.ndarray
@@ -98,12 +147,28 @@ class PeriodicIndex:
 
 
 def prepare_periodic_index(supercell_matrix, determinant, primitive_site_indices, quotient_labels):
-    """Build sorted readonly quotient keys and adjugate data from validated geometry.
+    """Build the periodic atom lookup for a validated supercell.
 
-    The matrix is an integer (3, 3) row-basis supercell transform; determinant is
-    its exact nonzero Python-integer determinant. Site indices have shape (n,),
-    quotient labels (n, 3), and outputs are contiguous readonly int64 buffers.
-    Python integer matrix preprocessing precedes all fixed-width storage.
+    Each supercell atom is identified by its primitive motif site and
+    quotient translation label. These identifiers are sorted to support
+    deterministic lookup while preserving a map back to the original atom
+    ordering.
+
+    Parameters
+    ----------
+    supercell_matrix
+        Integer ``(3, 3)`` supercell matrix ``S``.
+    determinant
+        Exact nonzero determinant of ``S``.
+    primitive_site_indices
+        Primitive motif-site index of each supercell atom.
+    quotient_labels
+        Quotient translation label of each supercell atom, shape ``(n, 3)``.
+
+    Returns
+    -------
+    PeriodicIndex
+        Prepared lookup data for primitive-label to supercell-atom mapping.
     """
     # The 3x3 preprocessing uses Python integers before conversion.
     adjugate = adjugate_3x3(supercell_matrix)
@@ -120,12 +185,26 @@ def prepare_periodic_index(supercell_matrix, determinant, primitive_site_indices
 
 
 def map_labels(labels, translations, prepared):
-    """Normalize label buffers and map their Cartesian product of translations.
+    """Map primitive lattice labels under additional translations to supercell atoms.
 
-    Return int64 atom indices with shape (n_labels, n_translations). Input
-    labels are (site, tx, ty, tz) rows; translations are integer triples.
-    Allocation validation precedes the compiled path, which checks actual
-    addition, product and accumulation operations instead of a global bound.
+    For every pair of a lattice label and an additional translation, return
+    the atom index of the corresponding periodic site in the validated
+    supercell.
+
+    Parameters
+    ----------
+    labels
+        Primitive lattice labels of shape ``(n, 4)`` as
+        ``(site, tx, ty, tz)``.
+    translations
+        Primitive lattice translations of shape ``(m, 3)``.
+    prepared
+        Periodic quotient index of the supercell.
+
+    Returns
+    -------
+    ndarray
+        Integer atom-index array of shape ``(n, m)``.
     """
     labels, translations = as_int64_array(labels), as_int64_array(translations)
     if (
@@ -146,4 +225,4 @@ def map_labels(labels, translations, prepared):
     )
 
 
-__all__ = ["PeriodicIndex", "map_labels", "prepare_periodic_index", "quotient_kernel"]
+__all__ = ["PeriodicIndex", "map_labels", "prepare_periodic_index", "quotient_label"]

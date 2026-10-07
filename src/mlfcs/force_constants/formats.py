@@ -1,9 +1,7 @@
-"""External force-constant formats and their writers."""
+"""Stream Cartesian force-constant blocks into external phonon file formats."""
 
 from __future__ import annotations
 
-import os
-from collections import defaultdict
 from importlib.metadata import PackageNotFoundError, version
 from itertools import product
 from pathlib import Path
@@ -11,85 +9,75 @@ from time import perf_counter
 
 import h5py
 import numpy as np
+from numba import njit
 
-from mlfcs.force_constants.expansion import expand_lattice_tensors
-from mlfcs.force_constants.export import (
-    DEFAULT_THRESHOLD,
-    expand_fc2_to_supercell_order,
-    fold_compact_tensors,
-    primitive_atom_indices,
-    threshold_components,
-    threshold_value,
-    translated_atom_indices,
-    validate_export_request,
-)
-from mlfcs.force_constants.model import ForceConstants
-from mlfcs.log import get_logger
-from mlfcs.mapping import ClusterMap
+from mlfcs.foundation.log import get_logger
+from mlfcs.geometry.primitive import LatticeSite
 
 logger = get_logger(__name__)
+DEFAULT_THRESHOLD = 1e-8
 
 
-def write(
-    model: ForceConstants,
-    file: str | os.PathLike[str],
-    cluster_map: ClusterMap | None,
-    *,
-    format: str,
-    order: int,
-    storage: str | None = None,
-    threshold: float = DEFAULT_THRESHOLD,
-) -> Path:
-    """Write one explicitly selected order in one supported external format."""
+def threshold_value(value):
+    """Require a finite nonnegative cleanup threshold in the selected order's units."""
+    threshold = float(value)
+    if not np.isfinite(threshold) or threshold < 0:
+        raise ValueError("threshold must be a finite non-negative number")
+    return threshold
+
+
+def threshold_components(values, threshold):
+    """Copy finite tensors and zero components below the physical output threshold."""
+    result = np.array(values, dtype=np.float64, copy=True, order="C")
+    _clean_components(result.reshape(-1), threshold_value(threshold))
+    return result
+
+
+@njit(cache=True)
+def _clean_components(values, threshold):
+    """Validate and clean a private output buffer without full-sized temporary masks."""
+    for index in range(len(values)):
+        if not np.isfinite(values[index]):
+            raise ValueError("expanded force constants contain NaN or infinite values")
+        if abs(values[index]) < threshold:
+            values[index] = 0
+
+
+def write(tensors, file, *, format, order, storage=None, threshold=DEFAULT_THRESHOLD):
+    """Write a declared tensor order, rejecting formats lacking the required information."""
+    if order not in tensors.orders:
+        raise ValueError(f"force constants do not contain order {order}")
+    threshold = threshold_value(threshold)
+    if format == "phonopy":
+        if order != 2 or storage not in {None, "text", "hdf5"}:
+            raise ValueError("phonopy supports FC2 with text or hdf5 storage")
+    elif format == "phono3py":
+        if order != 3 or storage not in {None, "hdf5"}:
+            raise ValueError("phono3py supports FC3 with hdf5 storage")
+    elif format == "shengbte":
+        if order not in {3, 4} or storage not in {None, "text"}:
+            raise ValueError("ShengBTE supports FC3/FC4 with text storage")
+    else:
+        raise ValueError("supported force-constant formats are phonopy, phono3py, and shengbte")
+    if format in {"phonopy", "phono3py"} and tensors.cluster_map is None:
+        raise ValueError("periodic tensor export requires a ClusterMap")
     path = Path(file).resolve()
     path.parent.mkdir(parents=True, exist_ok=True)
-    threshold = threshold_value(threshold)
     started = perf_counter()
     logger.info(
         "Export started: path=%s format=%s order=%d storage=%s threshold=%.6g",
         path,
         format,
         order,
-        storage if storage is not None else "default",
+        storage or "default",
         threshold,
     )
-    if format == "phonopy":
-        if order != 2:
-            raise ValueError("phonopy output supports only order 2")
-        selected_storage = "text" if storage is None else storage
-        if selected_storage not in {"text", "hdf5"}:
-            raise ValueError("phonopy storage must be 'text' or 'hdf5'")
-        validate_export_request(model, cluster_map, order)
-        _write_phonopy(path, model, cluster_map, storage=selected_storage, threshold=threshold)
-    elif format == "phono3py":
-        if order != 3:
-            raise ValueError("phono3py output supports only order 3")
-        if storage not in {None, "hdf5"}:
-            raise ValueError("phono3py output uses HDF5 storage")
-        validate_export_request(model, cluster_map, order)
-        _write_phono3py(path, model, cluster_map, threshold=threshold)
-    elif format == "shengbte":
-        if order not in {3, 4}:
-            raise ValueError("ShengBTE output supports only orders 3 and 4")
-        if storage not in {None, "text"}:
-            raise ValueError("ShengBTE output uses text storage")
-        validate_export_request(model, cluster_map, order)
-        _write_shengbte(path, model, cluster_map, order=order, threshold=threshold)
-    elif format == "tdep":
-        if order not in {2, 3, 4}:
-            raise ValueError("TDEP output supports only orders 2, 3 and 4")
-        if storage not in {None, "text"}:
-            raise ValueError("TDEP output uses text storage")
-        if order not in model.coefficients:
-            raise ValueError(f"force constants do not contain order {order}")
-        if cluster_map is not None:
-            validate_export_request(model, cluster_map, order)
-        _write_tdep(path, model, order=order, threshold=threshold)
+    if format == "phonopy" and storage != "hdf5":
+        _write_phonopy_text(path, tensors, threshold)
+    elif format in {"phonopy", "phono3py"}:
+        _write_hdf5(path, tensors, order, threshold)
     else:
-        raise ValueError(
-            f"unsupported force-constant format {format!r}; supported formats are "
-            "phonopy, phono3py, shengbte, and tdep"
-        )
+        _write_shengbte(path, tensors, order, threshold)
     logger.info(
         "Export complete: path=%s format=%s order=%d elapsed_s=%.2f",
         path,
@@ -100,36 +88,34 @@ def write(
     return path
 
 
-def _write_hdf5(
-    path: Path,
-    model: ForceConstants,
-    cluster_map: ClusterMap,
-    *,
-    order: int,
-    threshold: float,
-) -> None:
-    """Write full-supercell FC2 or FC3 in phonon HDF5 conventions."""
-    values = fold_compact_tensors(model, cluster_map, order, threshold=threshold)
-    size = len(cluster_map.atomic_numbers)
-    shape = (size,) * order + (3,) * order
+def _write_hdf5(path, tensors, order, threshold):
+    """Write full-supercell HDF5 slices without collecting a full or compact array."""
+    mapping = tensors.cluster_map
+    n = mapping.n_atoms
+    shape = (n,) * order + (3,) * order
+    blocks = tensors.full_blocks(order)
+    slices, block = next(blocks)
+    chunks = block.shape
     name = "force_constants" if order == 2 else "fc3"
     with h5py.File(path, "w") as handle:
         dataset = handle.create_dataset(
             name,
             shape=shape,
             dtype=np.float64,
-            chunks=(1,) + shape[1:],
+            chunks=chunks,
             compression="gzip",
             compression_opts=4,
         )
-        for first in range(size):
-            tails = translated_atom_indices(cluster_map, first)
-            primitive = int(cluster_map.primitive_site_indices[first])
-            if order == 2:
-                dataset[first] = values[primitive, tails]
-            else:
-                dataset[first] = values[primitive][np.ix_(tails, tails)]
-        handle.create_dataset("p2s_map", data=primitive_atom_indices(cluster_map))
+        dataset[slices] = threshold_components(block, threshold)
+        del block
+        for slices, block in blocks:
+            dataset[slices] = threshold_components(block, threshold)
+            del block
+        anchors = [
+            mapping.atom_index(LatticeSite(i, (0, 0, 0)))
+            for i in range(tensors.cluster_space.n_atoms)
+        ]
+        handle.create_dataset("p2s_map", data=np.asarray(anchors, dtype=np.int64))
         try:
             release = version("mlfcs")
         except PackageNotFoundError:
@@ -140,128 +126,47 @@ def _write_hdf5(
         handle.attrs["mlfcs_threshold"] = threshold
 
 
-def _write_phonopy(
-    path: Path,
-    model: ForceConstants,
-    cluster_map: ClusterMap,
-    *,
-    storage: str,
-    threshold: float,
-) -> None:
-    """Write FC2 as phonopy text or HDF5 in explicit supercell order."""
-    if storage == "hdf5":
-        _write_hdf5(path, model, cluster_map, order=2, threshold=threshold)
-        return
-    values = expand_fc2_to_supercell_order(
-        fold_compact_tensors(model, cluster_map, 2, threshold=threshold), cluster_map
-    )
-    size = len(cluster_map.atomic_numbers)
-    lines = [f"{size:4d} {size:4d}"]
-    for first in range(size):
-        for second in range(size):
-            lines.append(f"{first + 1:d} {second + 1:d}")
-            lines.extend(("%22.15f" * 3) % tuple(row) for row in values[first, second])
-    path.write_text("\n".join(lines) + "\n")
-
-
-def _write_phono3py(
-    path: Path,
-    model: ForceConstants,
-    cluster_map: ClusterMap,
-    *,
-    threshold: float,
-) -> None:
-    """Write full-supercell FC3 in phono3py HDF5 convention."""
-    _write_hdf5(path, model, cluster_map, order=3, threshold=threshold)
-
-
-def _vector_line(vector: np.ndarray) -> str:
-    """Format one Cartesian lattice vector as a ShengBTE text line in scientific notation."""
-    return " ".join(f"{value:>15.10e}" for value in vector)
-
-
-def _write_shengbte(
-    path: Path,
-    model: ForceConstants,
-    cluster_map: ClusterMap,
-    *,
-    order: int,
-    threshold: float,
-) -> None:
-    """Write nonzero primitive-lattice FC3 or FC4 blocks in ShengBTE style."""
-    validate_export_request(model, cluster_map, order)
-    expanded = expand_lattice_tensors(model, order)
-    physical: dict[
-        tuple[int, ...], tuple[tuple[int, ...], tuple[tuple[int, int, int], ...], np.ndarray]
-    ] = {}
-    for sites, translations, tensor in zip(
-        expanded.sites, expanded.translations, expanded.tensors, strict=True
-    ):
-        key = (*sites, *(value for translation in translations for value in translation))
-        if key in physical:
-            raise RuntimeError("cluster-space expansion produced a duplicate lattice cluster")
-        physical[key] = (sites, translations, np.array(tensor, copy=True))
-
-    blocks = []
-    primitive_cell = model.cluster_space.cell
-    for key in sorted(physical):
-        sites, translations, tensor = physical[key]
-        tensor = threshold_components(tensor, threshold)
-        if not np.any(tensor):
-            continue
-        lines = ["", f"{len(blocks) + 1:>5}"]
-        lines.extend(
-            _vector_line(np.asarray(translation) @ primitive_cell) for translation in translations
-        )
-        lines.append(" ".join(f"{site + 1:>6d}" for site in sites))
-        for directions in product(range(3), repeat=order):
-            direction_text = " ".join(f"{direction + 1:>2d}" for direction in directions)
-            lines.append(f"{direction_text} {tensor[directions]:>20.10e}")
-        blocks.append("\n".join(lines) + "\n")
-    path.write_text(f"{len(blocks):>5}\n" + "".join(blocks))
-
-
-def _write_tdep(path: Path, model: ForceConstants, *, order: int, threshold: float) -> None:
-    """Write TDEP's per-primitive-atom list of Cartesian energy derivatives.
-
-    Indices are one-based; lattice vectors are integer coefficients of the
-    primitive cell. TDEP's FC2 reader additionally requires a polar flag, so
-    this writer marks FC2 as nonpolar (no Born-charge correction is exported).
-    """
-    primitive = model.cluster_space
-    expanded = expand_lattice_tensors(model, order)
-    grouped: dict[
-        int, list[tuple[tuple[int, ...], tuple[tuple[int, int, int], ...], np.ndarray]]
-    ] = defaultdict(list)
-    seen: set[tuple[tuple[int, ...], tuple[tuple[int, int, int], ...]]] = set()
-    for sites, translations, tensor in zip(
-        expanded.sites, expanded.translations, expanded.tensors, strict=True
-    ):
-        key = (sites, translations)
-        if key in seen:
-            raise RuntimeError("cluster-space expansion produced a duplicate lattice cluster")
-        seen.add(key)
-        grouped[sites[0]].append((sites, translations, threshold_components(tensor, threshold)))
-
+def _write_phonopy_text(path, tensors, threshold):
+    """Write full FC2 rows in supercell order, including zero Cartesian blocks."""
+    n = tensors.cluster_map.n_atoms
     with path.open("w", encoding="ascii") as handle:
-        handle.write(f"{primitive.n_atoms}\n{model.cluster_space.block(order).cutoff:.17g}\n")
-        for first in range(primitive.n_atoms):
-            blocks = sorted(grouped[first], key=lambda block: (block[0], block[1]))
-            handle.write(f"{len(blocks)}\n")
-            for sites, translations, tensor in blocks:
-                if order == 2:
-                    handle.write(f"{sites[1] + 1}\n")
-                    vectors = translations
-                else:
-                    for site in sites:
-                        handle.write(f"{site + 1}\n")
-                    vectors = ((0, 0, 0), *translations)
-                for vector in vectors:
-                    handle.write(" ".join(str(int(value)) for value in vector) + "\n")
-                for directions in product(range(3), repeat=order - 1):
-                    handle.write(" ".join(f"{value:.17e}" for value in tensor[directions]) + "\n")
-        if order == 2:
-            handle.write("0\n")
+        handle.write(f"{n:4d} {n:4d}\n")
+        for slices, block in tensors.full_blocks(2):
+            cleaned = threshold_components(block, threshold)
+            first = slices[0].start
+            for local, second in enumerate(range(slices[1].start, slices[1].stop)):
+                handle.write(f"{first + 1:d} {second + 1:d}\n")
+                for row in cleaned[0, local]:
+                    handle.write(("%22.15f" * 3) % tuple(row) + "\n")
+            del block, cleaned, row
+
+
+def _lattice_records(tensors, order, threshold):
+    """Yield canonical lattice labels and cleaned tensors in primitive-site order."""
+    for sites, translations, values in tensors.lattice_blocks(order):
+        for index in range(len(values)):
+            yield sites[index], translations[index], threshold_components(values[index], threshold)
+        del values
+
+
+def _write_shengbte(path, tensors, order, threshold):
+    """Count and stream nonzero anchored FC3/FC4 blocks with Cartesian translations."""
+    count = sum(np.any(value) for _, _, value in _lattice_records(tensors, order, threshold))
+    with path.open("w", encoding="ascii") as handle:
+        handle.write(f"{count:>5}\n")
+        number = 0
+        for sites, translations, value in _lattice_records(tensors, order, threshold):
+            if not np.any(value):
+                continue
+            number += 1
+            handle.write(f"\n{number:>5}\n")
+            for translation in translations:
+                vector = translation @ tensors.cluster_space.cell
+                handle.write(" ".join(f"{entry:>15.10e}" for entry in vector) + "\n")
+            handle.write(" ".join(f"{site + 1:>6d}" for site in sites) + "\n")
+            for directions in product(range(3), repeat=order):
+                text = " ".join(f"{direction + 1:>2d}" for direction in directions)
+                handle.write(f"{text} {value[directions]:>20.10e}\n")
 
 
 __all__ = ["write"]

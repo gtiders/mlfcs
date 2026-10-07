@@ -10,12 +10,11 @@ from scipy import sparse
 
 from mlfcs.cluster_space import ClusterSpace
 from mlfcs.force_constants import ForceConstants
-from mlfcs.force_constants.acoustic import acoustic_constraint_matrix, relative_residual
-from mlfcs.force_constants.acoustic_operator import (
+from mlfcs.force_constants.asr import (
     AcousticSumRuleOperator,
-    operator_relative_residual,
+    _project,
+    acoustic_constraint_matrix,
 )
-from mlfcs.force_constants.asr import _project
 from mlfcs.force_constants.expansion import expand_lattice_tensors
 from mlfcs.force_constants.rotation import _fc2_moment_matrices
 
@@ -71,6 +70,36 @@ def physical_fc2_moments(model: ForceConstants) -> tuple[float, float, float]:
     )
 
 
+@pytest.fixture(scope="module")
+def acoustic_space() -> ClusterSpace:
+    """Provide nearest-neighbor tensors with repeated sites through fifth order."""
+    return ClusterSpace(
+        bulk("Ar", "sc", a=1.0),
+        cutoffs={order: 1.1 for order in range(2, 6)},
+        max_body_orders={order: 2 for order in range(2, 6)},
+    )
+
+
+@pytest.mark.parametrize("order", [2, 3, 4, 5])
+def test_acoustic_operator_matches_explicit_equations(
+    acoustic_space: ClusterSpace, order: int
+) -> None:
+    """Check tensor sums, transpose weights and cancellation-aware residual scales."""
+    operator = AcousticSumRuleOperator(acoustic_space, order)
+    matrix = acoustic_constraint_matrix(acoustic_space, order)
+    rng = np.random.default_rng(order)
+    parameters = rng.normal(size=matrix.shape[1])
+    weights = rng.normal(size=matrix.shape[0])
+    assert operator.shape == matrix.shape
+    np.testing.assert_allclose(operator.matvec(parameters), matrix @ parameters, atol=2e-12)
+    np.testing.assert_allclose(operator.rmatvec(weights), matrix.T @ weights, atol=2e-12)
+    row_norms = np.asarray(np.abs(matrix).sum(axis=1)).reshape(-1)
+    assert operator.max_row_abs_sum == pytest.approx(np.max(row_norms, initial=0.0))
+    assert weights @ operator.matvec(parameters) == pytest.approx(
+        operator.rmatvec(weights) @ parameters, abs=2e-12
+    )
+
+
 def test_asr_projection_matches_the_minimum_norm_dense_oracle() -> None:
     """Verify asr projection matches the minimum norm dense oracle."""
     matrix = np.array([[1.0, -1.0, 0.0, 0.0], [0.0, 1.0, -1.0, 0.0], [1.0, -1.0, 0.0, 0.0]])
@@ -82,85 +111,6 @@ def test_asr_projection_matches_the_minimum_norm_dense_oracle() -> None:
     np.testing.assert_allclose(matrix @ projected, 0.0, atol=1e-11)
     assert report.relative_after <= 1e-12
     assert report.correction_norm > 0.0
-
-
-@pytest.mark.parametrize("cell_error,site_error,symprec", [(0.0, 0.0, 1e-05), (0.001, 0.0001, 0.01)])
-def test_streamed_asr_operator_matches_the_sparse_oracle(
-    cell_error: float, site_error: float, symprec: float
-) -> None:
-    """Verify the streamed ASR operator reproduces the sparse CSR oracle."""
-    a = 3.14879776
-    cell = np.array([[a, 0.0, 0.0], [-a / 2, np.sqrt(3) * a / 2, 0.0], [0.0, 0.0, 27.14312451]])
-    positions = np.array(
-        [[1 / 3, 2 / 3, 0.5], [2 / 3, 1 / 3, 0.44212744], [2 / 3, 1 / 3, 0.55787256]]
-    )
-    cell[1, 1] -= cell_error
-    positions[0, 1] -= 2 * site_error
-    positions[1:, 0] -= site_error
-    primitive = Atoms(numbers=[42, 16, 16], cell=cell, scaled_positions=positions, pbc=True)
-    space = ClusterSpace(
-        primitive,
-        cutoffs={2: 8.0, 3: 4.0},
-        max_body_orders={2: 2, 3: 3},
-        symprec=symprec,
-    )
-    rng = np.random.default_rng(7)
-    for order in space.orders:
-        oracle_matrix = acoustic_constraint_matrix(space, order)
-        operator = AcousticSumRuleOperator(space, order)
-        assert operator.shape == oracle_matrix.shape
-        vector = rng.normal(size=oracle_matrix.shape[1])
-        residual = rng.normal(size=oracle_matrix.shape[0])
-        np.testing.assert_allclose(
-            operator @ vector, oracle_matrix @ vector, rtol=1e-12, atol=1e-12
-        )
-        np.testing.assert_allclose(
-            operator.rmatvec(residual),
-            np.asarray(oracle_matrix.T @ residual).reshape(-1),
-            rtol=1e-12,
-            atol=1e-12,
-        )
-        expected_row_sums = np.asarray(np.abs(oracle_matrix).sum(axis=1)).reshape(-1)
-        np.testing.assert_allclose(
-            operator.row_abs_sums(), expected_row_sums, rtol=1e-12, atol=1e-12
-        )
-        _, streamed_relative = operator_relative_residual(operator, vector)
-        _, sparse_relative = relative_residual(oracle_matrix, vector)
-        assert streamed_relative == pytest.approx(sparse_relative, rel=1e-9)
-
-
-def test_streamed_asr_projection_matches_the_sparse_path() -> None:
-    """Verify enforce_asr on the streamed operator matches the sparse CSR path."""
-    primitive = bulk("Ar", "sc", a=1.0)
-    space = ClusterSpace(
-        primitive, cutoffs={2: 1.1, 3: 1.1}, max_body_orders={2: 2, 3: 3}, symprec=1e-05
-    )
-    rng = np.random.default_rng(11)
-    model = ForceConstants(
-        space,
-        {
-            order: rng.normal(
-                size=space.block(order).parameters.stop - space.block(order).parameters.start
-            )
-            for order in space.orders
-        },
-    )
-    result = model.enforce_asr(rtol=1e-10)
-    for order in space.orders:
-        oracle = acoustic_constraint_matrix(space, order)
-        expected, expected_report = _project(
-            order,
-            AcousticSumRuleOperator.from_matrix(oracle),
-            model.coefficients[order],
-            rtol=1e-10,
-        )
-        np.testing.assert_allclose(
-            result.force_constants.coefficients[order], expected, rtol=1e-9, atol=1e-12
-        )
-        report = result.report(order)
-        assert report.equations == expected_report.equations
-        assert report.relative_before == pytest.approx(expected_report.relative_before, rel=1e-9)
-        assert report.relative_after <= 1e-10
 
 
 def test_force_constants_project_each_order_without_a_supercell() -> None:

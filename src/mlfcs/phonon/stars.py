@@ -1,7 +1,10 @@
-"""Positional-gauge matrix action of irreducible reciprocal stars.
+"""Expand irreducible reciprocal-space matrices in the positional gauge.
 
-The plan stores only site phases and operation indices.  A member matrix is
-assembled from its representative; no Fourier matrix is built at a member.
+Full-grid matrices are reconstructed from irreducible representatives using
+the stored space-group route, optional time reversal, and reciprocal-lattice
+shift associated with each star member. The plan stores symmetry metadata and
+site-dependent gauge phases; Fourier matrices are evaluated only at
+irreducible representatives.
 """
 
 from __future__ import annotations
@@ -24,12 +27,15 @@ def _transform(
     phase: np.ndarray,
     antiunitary: bool,
 ) -> np.ndarray:
-    """Return the rotated/permuted positional-gauge matrix for one star member.
+    """Transform one representative matrix to a reciprocal-star member.
 
-    source is complex128 (3*N, 3*N), permutation (N,), Cartesian row rotation
-    (3, 3), and phase (N,). Conjugate source first if antiunitary; rotate site
-    blocks, scatter by permutation, and apply phase_i*conj(phase_j).
-    No dense action matrix is built and inputs are preserved.
+    For ``g(i) = permutation[i]``, the transformed block is
+
+        D'[g(i)α,g(j)β] = phase[g(i)]*conj(phase[g(j)])
+            * sum_ℓr R[ℓ,α] D[*][iℓ,jr] R[r,β],
+
+    where ``D[*]`` is the complex conjugate when time reversal is used and is
+    ``D`` otherwise. No dense symmetry-action matrix is formed.
     """
     count = len(permutation)
     result = np.empty_like(source)
@@ -53,12 +59,14 @@ def _transform(
 
 @dataclass(frozen=True, slots=True, init=False)
 class StarPlan:
-    """Stream positional-gauge matrices from irreducible representatives.
+    """Symmetry plan for expanding irreducible reciprocal-space matrices.
 
-    stars and space are referenced domain objects. phases is complex128
-    (grid.size, n_atoms), readonly and prepared during direct initialization.
-    matrix creates one member;
-    iter_matrices streams grid order without retaining another full-grid stack.
+    Scalar star-invariant quantities can be expanded by star membership alone,
+    but positional-gauge matrices require the full symmetry route. For each
+    full-grid member, this plan combines the primitive space-group operation,
+    optional time reversal, and reciprocal-lattice shift into the site-dependent
+    phase needed to transform its irreducible representative matrix. Full-grid
+    matrices are generated on demand rather than stored by the plan.
     """
 
     stars: QStars
@@ -66,12 +74,12 @@ class StarPlan:
     phases: np.ndarray
 
     def __init__(self, stars: QStars, space: ClusterSpace) -> None:
-        """Prepare readonly site phases for expanding star matrices in positional gauge.
+        """Prepare positional-gauge phases for every reciprocal-star member.
 
-        Reference QStars and ClusterSpace are retained, not copied. phases has
-        shape (grid.size, n_atoms), using exp(2*pi*i*G.dot(fractional_position))
-        from each member_shift. Wrong types or motif sizes raise an error;
-        full-grid Fourier matrices are not constructed.
+        For reciprocal-lattice shift ``G`` and fractional motif position ``s_i``,
+        the phase associated with site ``i`` is
+        ``exp(2*pi*i*G·s_i)``. The supplied stars and cluster space must describe
+        the same primitive motif.
         """
         if not isinstance(stars, QStars) or not isinstance(space, ClusterSpace):
             raise TypeError("stars and space must be QStars and a ClusterSpace")
@@ -88,12 +96,13 @@ class StarPlan:
         object.__setattr__(self, "phases", phases)
 
     def matrix(self, member: int, representative_matrix: object) -> np.ndarray:
-        """Map one representative matrix onto one stored full-grid label.
+        """Transform one irreducible representative matrix to a full-grid member.
 
-        Time reversal conjugates first; the space-group operation then rotates
-        and permutes Cartesian site blocks.  Finally the reciprocal-lattice
-        shift applies its site-dependent positional phase.  The operation's
-        global translation phase cancels in a matrix similarity transform.
+        The stored route applies complex conjugation when time reversal is
+        required, then the Cartesian rotation and motif-site permutation, and
+        finally the site-dependent positional-gauge phase from the reciprocal-
+        lattice shift. The operation's global translation phase cancels in a
+        matrix similarity transform.
         """
         if not 0 <= member < self.stars.grid.size:
             raise IndexError("member is outside the reciprocal grid")
@@ -113,7 +122,7 @@ class StarPlan:
         )
 
     def iter_matrices(self, representatives: object) -> Iterator[tuple[int, np.ndarray]]:
-        """Yield ``(member, matrix)`` without retaining the full-grid stack."""
+        """Yield full-grid matrices in grid order without materializing the stack."""
         values = np.asarray(representatives)
         count = 3 * len(self.space.atomic_numbers)
         expected = (len(self.stars.representatives), count, count)

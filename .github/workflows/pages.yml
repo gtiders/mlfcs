@@ -35,7 +35,7 @@ jobs:
       - name: Verify README single source of truth
         run: uv run python docs/scripts/sync_readmes.py --check
 
-      - name: Verify bilingual documentation structure
+      - name: Verify documentation structure
         run: uv run python docs/scripts/check_docs.py
 
       - name: Build documentation
@@ -44,13 +44,11 @@ jobs:
       - name: Verify published layout
         run: |
           test -f site/index.html
-          test -f site/zh/index.html
           test -f site/finite-difference-api/index.html
-          test -f site/zh/finite-difference-api/index.html
           test -f site/fitting-api/index.html
-          test -f site/zh/fitting-api/index.html
           test -f 'site/Q&A/index.html'
-          test -f 'site/zh/Q&A/index.html'
+          test -f site/notebooks/index.html
+          test -f site/notebooks/rotational-sum-rules/index.html
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3

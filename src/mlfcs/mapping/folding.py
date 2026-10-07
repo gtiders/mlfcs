@@ -1,24 +1,83 @@
-"""Structural rank of folded cluster images."""
+"""Assess structural parameter aliasing induced by supercell folding.
 
+Primitive cluster images that fold onto the same ordered tuple of supercell
+atoms are summed into the same rows of an integer linear map. The rank of
+that map determines which primitive force-constant parameter directions
+remain distinguishable in a given supercell, independently of any training
+data.
+"""
+
+import math
 from dataclasses import dataclass
 
 import numpy as np
 from numba import njit
 
-from mlfcs._arrays import require_allocation, require_bound
-from mlfcs.algebra.linear import rank as matrix_rank
-from mlfcs.errors import AliasingError
-from mlfcs.tensors import apply_tensor_action, tensor_action_bound
+from mlfcs.foundation.arrays import require_allocation, require_bound
+from mlfcs.foundation.errors import AliasingError, RankError
+from mlfcs.foundation.integer import as_int64_matrix, echelon, prime_stream, to_python_rows
+from mlfcs.foundation.tensors import apply_tensor_action, tensor_action_bound
+
+
+def _hadamard_minor_bound(matrix: np.ndarray, size: int) -> int:
+    """Bound the absolute value of every ``size`` minor by Hadamard's inequality.
+
+    The bound is the product of the ``size`` largest Euclidean row-norm bounds
+    and is used to certify rational rank from modular rank calculations.
+    """
+    if size <= 0:
+        return 1
+    rows = to_python_rows(matrix)
+    row_bounds = sorted(
+        (math.isqrt(sum(value * value for value in row)) + 1 for row in rows), reverse=True
+    )
+    return math.prod(row_bounds[:size])
+
+
+def _matrix_rank(matrix: object) -> int:
+    """Certify the rational rank of an integer matrix using modular arithmetic.
+
+    For each tested prime ``p``, the rank over ``F_p`` gives a lower bound on
+    the rational rank. If a full-rank modular witness is found, the rank is
+    settled immediately. Otherwise, once the product of tested primes exceeds
+    a Hadamard bound for all maximal minors, no unobserved nonzero integer
+    minor can remain, and the best modular rank is exact.
+
+    Returns
+    -------
+    int
+        Exact rank over the rationals.
+
+    Raises
+    ------
+    RankError
+        If the available prime stream is exhausted before the rank can be
+        certified.
+    """
+    values = as_int64_matrix(matrix)
+    target = min(values.shape)
+    if target == 0:
+        return 0
+    minor_bound = _hadamard_minor_bound(values, target)
+    prime_product, best_rank = 1, 0
+    for prime in prime_stream():
+        _, pivot_columns, _ = echelon(values, prime)
+        best_rank = max(best_rank, len(pivot_columns))
+        prime_product *= prime
+        if best_rank == target or prime_product > minor_bound:
+            return best_rank
+    raise RankError("prime stream exhausted before determining folded matrix rank")
 
 
 @dataclass(frozen=True, slots=True)
 class RankInfo:
-    """Folded structural rank, independent of training snapshots.
+    """Structural identifiability of primitive parameters in a supercell.
 
-    parameters counts primitive parameter columns; rank is their rational rank
-    under supercell folding. aliases counts excess images sharing atom tuples,
-    which is not necessarily equal to nullity. No numerical rank tolerance or
-    training-data conditioning estimate is represented.
+    ``parameters`` is the number of primitive force-constant parameters before
+    folding, while ``rank`` is the dimension that remains distinguishable
+    after all symmetry images are mapped onto supercell atom tuples. The rank
+    is exact over the rationals. ``aliases`` counts repeated folded images and
+    is only a diagnostic; it is not generally equal to the rank loss.
     """
 
     parameters: int
@@ -36,7 +95,7 @@ class RankInfo:
         return self.rank == self.parameters
 
     def require_full(self) -> None:
-        """Raise when the supercell leaves primitive parameters aliased."""
+        """Require the supercell to preserve all primitive parameter directions."""
         if not self.full:
             raise AliasingError(
                 f"supercell realization has rank {self.rank} for {self.parameters} "
@@ -45,12 +104,17 @@ class RankInfo:
 
 
 def group_folded_images(image_atom_indices, orbit_indices):
-    """Group (orbit, image) addresses by their ordered supercell atom tuple.
+    """Group cluster images that fold onto the same ordered supercell atom tuple.
 
-    ``image_atom_indices`` is indexed by global orbit and stores int64 arrays
-    shaped (n_images, tensor_order). ``orbit_indices`` selects global entries.
-    Return an insertion-ordered mapping from tuples of atom indices to lists of
-    (orbit_index, image_index), preserving the original traversal order.
+    Each orbit image is represented by the ordered tuple of supercell atoms
+    reached by its tensor slots. Images with identical tuples accumulate into
+    the same rows of the folded linear map and may therefore alias primitive
+    parameter directions.
+
+    Returns
+    -------
+    dict
+        Insertion-ordered mapping from atom tuples to ``(orbit, image)`` pairs.
     """
     groups: dict[tuple[int, ...], list[tuple[int, int]]] = {}
     for orbit_index in orbit_indices:
@@ -60,7 +124,37 @@ def group_folded_images(image_atom_indices, orbit_indices):
 
 
 def folded_rank(cluster_space, image_atom_indices, order=None):
-    """Return structural rank, independently of training displacements."""
+    """Compute the structural rank of primitive parameters after supercell folding.
+
+    Each symmetry image of a primitive orbit contributes a transformed tensor
+    basis to the ordered tuple of supercell atoms onto which that image folds.
+    Contributions reaching the same tuple are summed, producing an integer
+    linear map from primitive force-constant parameters to folded supercell
+    tensor components.
+
+    The rational rank of this map is the number of primitive parameter
+    directions that remain distinguishable in the chosen supercell. Its
+    nullity therefore measures parameter directions lost purely through
+    periodic folding, independently of displacement patterns or training data.
+
+    Parameters
+    ----------
+    cluster_space
+        Primitive force-constant parameter space.
+    image_atom_indices
+        For each global orbit, integer arrays of shape
+        ``(n_images, tensor_order)`` giving the supercell atom tuple of every
+        symmetry image.
+    order
+        Optional force-constant order. If omitted, ranks are summed over all
+        included orders.
+
+    Returns
+    -------
+    RankInfo
+        Number of primitive parameters, exact folded rank, and image-alias
+        count.
+    """
     if order is None:
         values = [
             folded_rank(cluster_space, image_atom_indices, value) for value in cluster_space.orders
@@ -141,18 +235,19 @@ def folded_rank(cluster_space, image_atom_indices, order=None):
                 )
                 row_start = row_locations[tuple(int(v) for v in atoms)] * tensor_dimension
                 accumulate_folded(matrix, basis, row_start, starts[index])
-        rank += matrix_rank(np.unique(matrix, axis=0))
+        rank += _matrix_rank(np.unique(matrix, axis=0))
     start = block.parameters.stop - block.parameters.start
     return RankInfo(parameters=start, rank=rank, aliases=aliases)
 
 
 @njit(cache=True)
 def accumulate_folded(out, basis, row_start, column_start):
-    """Add a tensor basis into an int64 folded matrix block in place.
+    """Accumulate one transformed orbit basis into the folded linear map.
 
-    basis has shape (3**p, orbit_dimension), with admitted row/column offsets.
-    folded_rank validates the sum of per-image action bounds for each shared
-    atom tuple/orbit before entry. No integer kernel or transform is constructed.
+    ``basis`` holds the lattice-coordinate tensor basis of one orbit image; it
+    is added to the row block of its folded supercell atom tuple and to the
+    parameter columns of its primitive orbit. ``folded_rank`` validates the
+    per-tuple accumulation bounds before entry.
     """
     for i in range(basis.shape[0]):
         for j in range(basis.shape[1]):

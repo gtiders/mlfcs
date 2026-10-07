@@ -1,4 +1,4 @@
-"""Quartic-loop self-consistent phonons on an irreducible reciprocal grid."""
+"""Quartic-loop self-consistent phonons on symmetry-reduced reciprocal grids."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from scipy.constants import Boltzmann, angstrom, atomic_mass, electron_volt, hba
 
 from mlfcs.force_constants import ForceConstants
 from mlfcs.force_constants.expansion import expand_lattice_tensors
-from mlfcs.log import get_logger
+from mlfcs.foundation.log import get_logger
 from mlfcs.phonon.dynamics import (
     THZ_PER_SQRT_EV_PER_A2_AMU,
     accumulate_dynamical_matrices,
@@ -39,13 +39,11 @@ def _add_covariance(
     mass_weights: np.ndarray,
     n_qpoints: int,
 ) -> None:
-    """Accumulate one q member's Fourier covariance into selected pair blocks in place.
+    """Accumulate one reciprocal-space covariance contribution into pair blocks.
 
-    result is complex128 (pairs, 3, 3), matrix (3*N, 3*N) in the mass-weighted
-    modal basis, and qpoint a fractional reciprocal triple. first/second index
-    sites; distances stores the corresponding fractional Fourier separation.
-    Divide by n_qpoints and undo pair mass weighting. Caller supplies compatible
-    indices; the resulting physical displacement covariance is in angstrom**2.
+    Fourier transform the mass-weighted displacement covariance at one q point
+    using the positional-gauge phase, average over the full grid, and restore
+    the physical displacement normalization for each atomic pair.
     """
     for key in range(len(first)):
         angle = 0.0
@@ -68,12 +66,10 @@ def _contract(
     orbit_index: np.ndarray,
     n_orbits: int,
 ) -> np.ndarray:
-    """Contract quartic tensors with pair covariance into representative FC2 corrections.
+    """Contract FC4 with displacement covariance to obtain a quartic-loop FC2 correction.
 
-    Inputs are tensors (terms, 3, 3, 3, 3), covariance (pairs, 3, 3), and
-    per-term covariance/orbit indices. Negative orbit indices skip terms absent
-    from the FC2 truncation. Sum half the real contraction over the last two
-    axes; return float64 (n_orbits, 3, 3), in eV/angstrom**2.
+    The correction is ``Delta Phi2_ab = 1/2 * sum_cd Phi4_abcd <u_c u_d>``.
+    Pair terms outside the retained FC2 cluster space are omitted.
     """
     correction = np.zeros((n_orbits, 3, 3), dtype=np.float64)
     for term in range(len(tensors)):
@@ -100,7 +96,7 @@ def _fc2_tensors(
     offsets: np.ndarray,
     dimensions: np.ndarray,
 ) -> np.ndarray:
-    """Evaluate cached, symmetry-rotated FC2 bases without Python tensor work."""
+    """Expand an FC2 parameter vector into Cartesian tensors for all Fourier terms."""
     result = np.empty((len(offsets), 3, 3), dtype=np.float64)
     for term in range(len(offsets)):
         for component in range(9):
@@ -119,14 +115,18 @@ def _modal_covariance(
     gamma: bool,
     statistics: Literal["quantum", "classical"],
 ) -> np.ndarray:
-    """Return mass-weighted modal displacement covariance at temperature in kelvin.
+    """Return the harmonic displacement covariance of one dynamical matrix.
 
-    matrix is a Hermitian (3*N, 3*N) dynamical matrix; masses are positive atomic
-    mass units. Gamma translations are removed by an internal orthonormal
-    basis. Quantum statistics include zero-point motion; classical statistics
-    use the thermal limit. Negative curvature uses its magnitude as a trial
-    covariance, without claiming physical stability. Nontranslational zero
-    modes or nonfinite variance raise ValueError.
+    The matrix is diagonalized in mass-weighted coordinates. A mode of angular
+    frequency ``omega`` has quantum variance
+
+        <Q**2> = hbar/(2*omega) * coth(hbar*omega/(2*k_B*T)),
+
+    including zero-point motion. Classical statistics use the equipartition
+    variance ``k_B*T/omega**2``. At Gamma, rigid translations are projected
+    out before diagonalization. Negative curvatures use their absolute values
+    to form a trial covariance; this does not classify the structure as stable.
+    A non-translational zero mode has divergent covariance and raises ValueError.
     """
     if gamma:
         internal = translation_complement(masses)
@@ -156,10 +156,11 @@ def _modal_covariance(
 
 @dataclass(frozen=True, slots=True)
 class SCPHStep:
-    """One iteration's index, RMS frequency change and minimum signed frequency.
+    """Convergence diagnostics recorded for one SCPH iteration.
 
-    Both frequency fields are in THz. minimum_frequency_thz includes the
-    Gamma translations; the final result has a separate internal-mode diagnostic.
+    ``frequency_change_thz`` is the star-weighted RMS change in signed
+    frequencies. ``minimum_frequency_thz`` is the smallest signed frequency
+    on the mesh, including Gamma translations. Both are in THz.
     """
 
     index: int
@@ -169,13 +170,12 @@ class SCPHStep:
 
 @dataclass(frozen=True, slots=True)
 class SCPHResult:
-    """SCPH outcome at a temperature in kelvin, including convergence diagnostics.
+    """Result of an SCPH calculation at one temperature.
 
-    fc2 is the final effective FC2-only model. frequencies has shape
-    (n_stars, 3*n_atoms) in signed THz; stars provides full-grid expansion.
-    history records iterations. converged tests frequency change only;
-    minimum_mode_thz excludes Gamma translations and may be None if no internal
-    mode exists. A converged result may still have imaginary physical modes.
+    ``fc2`` is the final effective second-order model. ``frequencies`` contains
+    signed THz frequencies on the irreducible mesh, and ``history`` records the
+    iteration diagnostics. Convergence is based only on frequency change; a
+    converged result may still have physically imaginary modes.
     """
 
     temperature: float
@@ -201,13 +201,23 @@ class SCPHResult:
 
 
 class SCPH:
-    """Static quartic-loop self-consistent phonons on one reciprocal mesh.
+    """Static quartic-loop self-consistent phonon model.
+
+    The effective FC2 is updated according to
+
+        Phi2_eff = Phi2_bare + 1/2 * Phi4 : <u u>,
+
+    where the displacement covariance ``<u u>`` is evaluated from the current
+    effective harmonic dynamical matrix using quantum or classical statistics.
+    The self-consistency cycle uses a symmetry-reduced reciprocal mesh. Matrix-
+    valued covariances are transformed to full-grid members before the real-
+    space quartic contraction.
 
     Parameters
     ----------
     model : ForceConstants
         Primitive model containing FC2 and FC4 on the same cluster space.
-        Retained by reference; optional FC3 does not enter this approximation.
+        FC3 does not enter this approximation.
     mesh : QGrid or array_like of integers, shape (3,) or (3, 3)
         Positive diagonal mesh sizes or a supercell row matrix/grid.
     statistics : {'quantum', 'classical'}, default 'quantum'
@@ -215,13 +225,6 @@ class SCPH:
     time_reversal : bool, default True
         Include time reversal when building irreducible reciprocal stars.
 
-    Notes
-    -----
-    Initialization expands quartic terms and caches FC2 basis/Fourier metadata.
-    Each iteration evaluates representatives and streams symmetry-related
-    covariances through StarPlan, without storing a second full-grid stack.
-    No fitted coefficients or reference geometry are modified.
-    Invalid input model or statistics raises ValueError.
     """
 
     def __init__(
@@ -232,7 +235,7 @@ class SCPH:
         statistics: Literal["quantum", "classical"] = "quantum",
         time_reversal: bool = True,
     ) -> None:
-        """Build the mesh/stars and cache harmonic, quartic and covariance-index metadata."""
+        """Construct the static quartic-loop SCPH problem on the requested mesh."""
         if not isinstance(model, ForceConstants) or not {2, 4} <= set(model.orders):
             raise ValueError("SCPH requires one ForceConstants model containing FC2 and FC4")
         if statistics not in ("quantum", "classical"):
@@ -325,7 +328,7 @@ class SCPH:
         )
 
     def _fc2(self, parameters: np.ndarray) -> ForceConstants:
-        """Bind a physical FC2 parameter vector to the original schema, omitting other orders."""
+        """Construct an FC2-only model from the current parameter vector."""
         return ForceConstants(self.model.cluster_space, {2: parameters})
 
     def _matrices(self, parameters: np.ndarray) -> np.ndarray:
@@ -343,7 +346,10 @@ class SCPH:
         return np.sign(eigenvalues) * np.sqrt(np.abs(eigenvalues)) * THZ_PER_SQRT_EV_PER_A2_AMU
 
     def _minimum_mode(self, parameters: np.ndarray) -> float | None:
-        """Smallest signed mesh frequency, excluding Gamma translations by construction."""
+        """Return the minimum signed physical mode frequency on the mesh.
+
+        The three rigid Gamma translations are excluded.
+        """
         minimum = None
         internal = translation_complement(self._masses)
         for index, matrix in enumerate(self._matrices(parameters)):
@@ -358,12 +364,14 @@ class SCPH:
         return float(np.sign(minimum) * np.sqrt(abs(minimum)) * THZ_PER_SQRT_EV_PER_A2_AMU)
 
     def _correction(self, parameters: np.ndarray, temperature: float) -> np.ndarray:
-        """Build the physical quartic-loop FC2 parameter correction for one temperature.
+        """Evaluate the quartic-loop correction to the FC2 parameter vector.
 
-        Compute representative covariances, stream full-grid member actions, then
-        contract FC4 into representative FC2 tensors. Observation rows recover
-        physical component parameters. Nonfinite correction raises ValueError;
-        input parameters and bare model are unchanged.
+        The current effective FC2 defines harmonic covariances on the
+        irreducible mesh. Transform the matrix-valued covariances to full-grid
+        members, Fourier transform them to the real-space pairs required by
+        FC4, and contract ``Delta Phi2 = 1/2 * Phi4 : <u u>``. Convert the
+        resulting FC2 tensors back to the physical parameter coordinates of
+        the original cluster space.
         """
         matrices = self._matrices(parameters)
         covariance = np.asarray(
@@ -418,7 +426,17 @@ class SCPH:
         tolerance: float = 1e-9,
         max_iterations: int = 200,
     ) -> SCPHResult:
-        """Iterate one temperature and return an SCPHResult, even if iteration limits are reached.
+        """Run the SCPH fixed-point iteration at one temperature.
+
+        At iteration ``n``, evaluate the quartic-loop correction from the
+        current effective FC2 and mix toward the updated model:
+
+            Phi2[n+1] = (1 - mixing) * Phi2[n]
+                + mixing * (Phi2_bare + Delta Phi2[Phi2[n]]).
+
+        Convergence is reached when the star-weighted RMS change in signed
+        phonon frequencies falls below ``tolerance``. The result is returned
+        even when ``max_iterations`` is reached; inspect ``result.converged``.
 
         Parameters
         ----------
@@ -440,11 +458,6 @@ class SCPH:
             Final FC2, representative frequencies, iteration history and stability
             diagnostic. Check converged explicitly; exhaustion does not raise.
 
-        Notes
-        -----
-        Update toward bare FC2 plus the current quartic-loop correction. Convergence
-        is numerical and independent of imaginary-mode diagnostics. Invalid options
-        or nonfinite/zero-mode covariances raise ValueError.
         """
         if not np.isfinite(temperature) or temperature < 0.0:
             raise ValueError("temperature must be finite and non-negative in kelvin")
@@ -528,10 +541,11 @@ class SCPH:
         return result
 
     def run_many(self, temperatures: object, **kwargs: object) -> list[SCPHResult]:
-        """Solve from high to low temperature; return results in ascending order.
+        """Solve a temperature sequence by cooling from high to low temperature.
 
-        Only a converged solution seeds the next temperature. An imaginary mode
-        is allowed and reported separately from numerical convergence.
+        Each converged solution seeds the next lower temperature. Results are
+        returned in ascending temperature order. Dynamical instability and
+        numerical convergence remain separate diagnostics.
         """
         values = np.asarray(temperatures, dtype=np.float64)
         if values.ndim != 1 or len(values) == 0 or not np.all(np.isfinite(values)):

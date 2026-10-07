@@ -6,6 +6,7 @@ All notable changes are documented here. Releases follow semantic versioning.
 
 ## Unreleased
 
+- Project acoustic sum rules through the matrix-free `AcousticSumRuleOperator` instead of assembling an explicit COO/CSR constraint matrix: rows follow the sparse builder's first-encounter order, rotated bases are tabulated per (orbit, operation) pair, and per-image permutations apply as index arithmetic. `enforce_asr` keeps its minimum-norm correction, tolerance semantics and report fields; the sparse builder remains for the rotational projection and as the standing test oracle. The Si FC5 projection no longer builds ~88 million scatter entries, removing the memory spike.
 - **Breaking:** reorganize implementation modules around geometry, cluster-space records/construction, mapping geometry/periodic lookup/folding, force-constant expansion/formats/native storage, and phonons. Remove old internal module paths. `QGrid`, `QStars`, and `StarPlan` now prepare their data during direct initialization; their `from_*` factories are removed. Batch primitive-label mapping is exposed on `ClusterMap`.
 - Share FC2 Fourier term preparation between harmonic and SCPH calculations, including explicit orbit/image provenance so tensor bases follow the same stored term order. Numerical formulas and summation order are preserved.
 - Repair the documentation page checker to validate all Markdown pages, add the integer-audit pages to site navigation, and correct tutorial links. Remove deleted fingerprint fields from teaching fit scripts.
