@@ -48,7 +48,9 @@ class FitSystem:
     -----
     Displacements are minimum-image Cartesian vectors in angstrom. Force rows
     are atom-major x/y/z in eV/angstrom; columns follow canonical primitive
-    parameters. ForceDesign includes force signs, Taylor factorials and images.
+    parameters unless ASR preparation is enabled, in which case they follow the
+    order-local free acoustic coordinates. ForceDesign includes force signs, Taylor
+    factorials and images.
     Construction does not evaluate calculators, subtract mean forces, weight
     samples or normalize columns. Public arrays are readonly and unscaled.
     Solving normalizes temporary data and returns physical coefficients.
@@ -121,7 +123,7 @@ class FitSystem:
         n_equations, n_structures = int(n_equations), int(n_structures)
         if n_equations < 0 or n_structures < 0:
             raise ValueError("fit-system counts must be nonnegative")
-        count = cluster_space.n_parameters
+        count = cluster_space.n_free_parameters
         shape = (n_equations, count) if representation == "raw" else (count, count)
         matrix = _readonly(matrix, shape)
         rhs = _readonly(rhs, (n_equations if representation == "raw" else count,))
@@ -202,8 +204,8 @@ class FitSystem:
 
     @property
     def n_parameters(self):
-        """Canonical parameter count across every fitted cluster-space order."""
-        return self.cluster_space.n_parameters
+        """Number of fitted coordinates, reduced by ASR when enabled."""
+        return self.cluster_space.n_free_parameters
 
     @property
     def unobserved_parameters(self):
@@ -260,7 +262,7 @@ class FitSystem:
         model = self.force_constants(FitSolver(self).solve(**options))
         if logger.isEnabledFor(logging.INFO):
             try:
-                residual = self.residual(model.parameters())
+                residual = self.residual(model)
                 if not self.n_equations:
                     raise ValueError("no training equations for RMSE")
                 rmse = residual / np.sqrt(self.n_equations)
@@ -294,7 +296,17 @@ class FitSystem:
         if isinstance(values, ForceConstants):
             if values.orders != self.cluster_space.orders:
                 raise ValueError("force constants must contain every fitted order")
-            values = values.parameters()
+            if self.cluster_space.asr:
+                values = np.concatenate(
+                    [
+                        self.cluster_space.acoustic_coordinates(order).extract(
+                            values.coefficients[order]
+                        )
+                        for order in self.cluster_space.orders
+                    ]
+                )
+            else:
+                values = values.parameters()
         values = np.asarray(values, dtype=np.float64)
         if values.shape != (self.n_parameters,):
             raise ValueError(
@@ -305,17 +317,26 @@ class FitSystem:
         return values
 
     def force_constants(self, parameters) -> ForceConstants:
-        """Bind an external solver's physical parameter vector to all fitted orders.
+        """Bind an external solver's fitting-coordinate vector to all fitted orders.
 
-        parameters has shape (n_parameters,) in canonical order and must be finite.
+        parameters has shape (n_parameters,) in fitting-coordinate order and must be finite.
+        Acoustic-enabled systems lift free coordinates to canonical coefficients.
         A matching complete ForceConstants is also accepted. Any external scaling
         must be undone by the caller first; no scaling or solving happens here.
         """
         values = self._parameters(parameters)
-        return ForceConstants(
-            self.cluster_space,
-            {block.order: values[block.parameters] for block in self.cluster_space.blocks},
-        )
+        coefficients, offset = {}, 0
+        for block in self.cluster_space.blocks:
+            coordinates = self.cluster_space.acoustic_coordinates(block.order)
+            dimension = (
+                coordinates.dimension
+                if coordinates is not None
+                else block.parameters.stop - block.parameters.start
+            )
+            local = values[offset : offset + dimension]
+            coefficients[block.order] = local if coordinates is None else coordinates.lift(local)
+            offset += dimension
+        return ForceConstants(self.cluster_space, coefficients)
 
     def residual(self, model_or_parameters):
         """Return ||A @ theta - f|| in physical force units for a model or vector.
@@ -454,8 +475,8 @@ def _build_equations(dataset, representation):
         3 * cluster_map.n_atoms,
     )
     design = ForceDesign(cluster_map)
-    workspace = design.allocate_workspace()
-    parameters = design.n_parameters
+    workspace = None if cluster_map.cluster_space.asr else design.allocate_workspace()
+    parameters = cluster_map.cluster_space.n_free_parameters
     if representation == "normal":
         require_allocation("fit normal matrix", (parameters, parameters))
         require_allocation("fit right hand side", (parameters,))
@@ -468,18 +489,23 @@ def _build_equations(dataset, representation):
     for count, (displacement, forces) in enumerate(
         zip(dataset.displacements, dataset.forces, strict=True), start=1
     ):
-        values = design.matrix(displacement, workspace=workspace)
         flattened = forces.reshape(-1)
-        if representation == "normal":
-            # DSYRK updates only the upper triangle; mirror it after streaming
-            # all frames, rather than treating the unused lower triangle as data.
-            dsyrk(1.0, a=values, c=matrix, beta=1.0, trans=1, lower=0, overwrite_c=1)
-            rhs += values.T @ flattened
-        else:
-            require_allocation("raw design", (count * design.rows, parameters))
-            require_allocation("raw forces", (count * design.rows,))
-            matrices.append(values)
-            force_vectors.append(flattened.copy())
+        blocks = (
+            design.iter_fit_blocks(displacement)
+            if cluster_map.cluster_space.asr
+            else ((slice(0, design.rows), design.matrix(displacement, workspace=workspace)),)
+        )
+        for row_slice, values in blocks:
+            target = flattened[row_slice]
+            if representation == "normal":
+                if parameters:
+                    dsyrk(1.0, a=values, c=matrix, beta=1.0, trans=1, lower=0, overwrite_c=1)
+                rhs += values.T @ target
+            else:
+                require_allocation("raw design", (count * design.rows, parameters))
+                require_allocation("raw forces", (count * design.rows,))
+                matrices.append(values)
+                force_vectors.append(target.copy())
         force_squared_norm += float(flattened @ flattened)
         if count == 1 or count % 10 == 0:
             elapsed = perf_counter() - started

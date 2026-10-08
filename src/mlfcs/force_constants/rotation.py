@@ -14,7 +14,6 @@ from time import perf_counter
 import numpy as np
 from scipy import sparse
 
-from mlfcs.force_constants.asr import acoustic_constraint_matrix
 from mlfcs.force_constants.model import ForceConstants
 from mlfcs.foundation.log import get_logger
 from mlfcs.foundation.tensors import rotate_basis
@@ -31,8 +30,8 @@ class RotationResult:
     residual rather than applying the acoustic sum rule.
 
     ``length_scale`` is the median non-onsite pair distance in angstrom.
-    Absolute acoustic, Born-Huang and Huang residuals have units of
-    eV/angstrom**2, eV/angstrom and eV, respectively. Disabled rotational
+    Absolute Born-Huang and Huang residuals have units of
+    eV/angstrom and eV, respectively. Disabled rotational
     conditions report ``None``. Relative residuals use moment equations
     divided by the corresponding power of ``length_scale``, normalized by
     the largest row absolute sum times the largest parameter magnitude.
@@ -54,8 +53,6 @@ class RotationResult:
     huang: bool
     length_scale: float
     equations: int
-    acoustic_before: float
-    acoustic_after: float
     born_huang_before: float | None
     born_huang_after: float | None
     huang_before: float | None
@@ -247,6 +244,7 @@ def enforce_rotation(
     ----------
     model
         Primitive force constants containing FC2 and their reference geometry.
+        Their cluster space must have been initialized with ``asr=True``.
     born_huang
         Enforce Born-Huang first-moment conditions; enabled by default.
     huang
@@ -268,12 +266,13 @@ def enforce_rotation(
     ------
     ValueError
         If no condition is selected, the cutoff is invalid, FC2 is absent,
-        or non-onsite pairs do not define a positive finite length scale.
+        ASR coordinates were not prepared, or non-onsite pairs do not define
+        a positive finite length scale.
 
     Notes
     -----
-    This operation preserves an existing ASR violation; it does not remove
-    it. Apply ``enforce_asr`` first when both conditions are required. Actual
+    The correction lies in the initialized acoustic subspace, preserving any
+    existing ASR residual without measuring or repairing it. Actual
     interatomic separations enter the equations, so the projection remains
     floating-point and does not rationalize or idealize the geometry.
 
@@ -295,7 +294,9 @@ def enforce_rotation(
         huang,
         rank_rtol if rank_rtol is not None else "automatic",
     )
-    acoustic = acoustic_constraint_matrix(model.cluster_space, 2)
+    coordinates = model.cluster_space.acoustic_coordinates(2)
+    if coordinates is None:
+        raise ValueError("rotational correction requires ClusterSpace(..., asr=True)")
     born, second_moment, length_scale = _fc2_moment_matrices(model.cluster_space)
     selected = []
     if born_huang:
@@ -305,18 +306,11 @@ def enforce_rotation(
     constraints = sparse.vstack(selected, format="csr")
     initial = model.coefficients[2]
 
-    # The acoustic equations are used only to restrict the *change*: this
-    # operation neither applies ASR nor changes a pre-existing ASR residual.
-    acoustic_array = acoustic.toarray()
-    _, acoustic_singular, acoustic_right = np.linalg.svd(acoustic_array, full_matrices=False)
-    acoustic_cutoff = (
-        np.finfo(float).eps
-        * max(acoustic_array.shape)
-        * float(acoustic_singular[0] if acoustic_singular.size else 0.0)
-    )
-    acoustic_right = acoustic_right[acoustic_singular > acoustic_cutoff]
+    # Project moment rows onto the prepared subspace in the physical metric.
+    # Free lattice coordinates are not an orthonormal parameterization.
+    normals = coordinates.normal_basis()
     rotation_array = constraints.toarray()
-    effective = rotation_array - (rotation_array @ acoustic_right.T) @ acoustic_right
+    effective = rotation_array - (rotation_array @ normals) @ normals.T
     left, singular, right = np.linalg.svd(effective, full_matrices=False)
     largest = float(singular[0] if singular.size else 0.0)
     geometry_residual, orthogonality_residual = _geometry_residuals(model)
@@ -349,8 +343,6 @@ def enforce_rotation(
         huang=huang,
         length_scale=length_scale,
         equations=constraints.shape[0],
-        acoustic_before=_maximum_residual(acoustic, initial),
-        acoustic_after=_maximum_residual(acoustic, projected),
         born_huang_before=(_maximum_residual(born, initial) * length_scale if born_huang else None),
         born_huang_after=(
             _maximum_residual(born, projected) * length_scale if born_huang else None
@@ -377,14 +369,12 @@ def enforce_rotation(
     logger.info(
         "Rotation projection complete: retained_rank=%d rank_cutoff=%.6g "
         "relative_before=%.6g relative_after=%.6g correction_norm=%.6g "
-        "acoustic_before=%.6g acoustic_after=%.6g elapsed_s=%.2f",
+        "elapsed_s=%.2f",
         report.retained_rank,
         report.rank_cutoff,
         report.relative_before,
         report.relative_after,
         report.correction_norm,
-        report.acoustic_before,
-        report.acoustic_after,
         perf_counter() - started,
     )
     return report

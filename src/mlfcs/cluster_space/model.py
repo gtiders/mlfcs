@@ -9,6 +9,7 @@ from dataclasses import dataclass
 import numpy as np
 from ase import Atoms
 
+from mlfcs.cluster_space.acoustic import prepare_acoustic_coordinates
 from mlfcs.foundation.arrays import as_int64_array, require_bound
 from mlfcs.foundation.log import get_logger
 from mlfcs.foundation.tensors import tensor_dimension
@@ -248,6 +249,11 @@ class ClusterSpace:
     symprec : float, default 1e-5
         Positive Cartesian symmetry matching tolerance, in angstrom.
 
+    asr : bool, default False
+        Prepare exact sparse acoustic coordinates for fitting and reconstruction.
+        Orbit bases and stored physical coefficients remain canonical. Preparation
+        may have substantial sparse fill and raises on unsupported integer ranges.
+
     Notes
     -----
     Initialization discovers symmetry, enumerates clusters and builds the
@@ -270,11 +276,16 @@ class ClusterSpace:
     symmetry: PrimitiveSymmetry
     blocks: tuple[OrderBlock, ...]
     orbits: tuple[Orbit, ...]
+    _acoustic_coordinates: tuple | None
 
-    def __init__(self, primitive_atoms: Atoms, *, cutoffs, max_body_orders=None, symprec=1e-5):
+    def __init__(
+        self, primitive_atoms: Atoms, *, cutoffs, max_body_orders=None, symprec=1e-5, asr=False
+    ):
         """Construct the symmetry-reduced force-constant space."""
         from mlfcs.cluster_space.construction import construct_space
 
+        if not isinstance(asr, (bool, np.bool_)):
+            raise TypeError("asr must be boolean")
         geometry = primitive_data(primitive_atoms, symprec)
         cutoffs = {operator.index(order): float(cutoff) for order, cutoff in cutoffs.items()}
         bodies = (
@@ -303,6 +314,10 @@ class ClusterSpace:
         ):
             object.__setattr__(self, name, value)
         self.__post_init__()
+        coordinates = None
+        if asr:
+            coordinates = prepare_acoustic_coordinates(self)
+        object.__setattr__(self, "_acoustic_coordinates", coordinates)
 
     @property
     def primitive_atoms(self) -> Atoms:
@@ -343,10 +358,29 @@ class ClusterSpace:
             "symmetry",
             "blocks",
             "orbits",
+            "_acoustic_coordinates",
         ):
             object.__setattr__(result, name, getattr(self, name))
         object.__setattr__(result, "_masses", values)
         return result
+
+    @property
+    def asr(self) -> bool:
+        """Whether fitting coordinates enforce translational invariance by construction."""
+        return self._acoustic_coordinates is not None
+
+    @property
+    def n_free_parameters(self) -> int:
+        """Fitting-coordinate dimension; canonical orbit parameter counts remain unchanged."""
+        if self._acoustic_coordinates is None:
+            return self.n_parameters
+        return sum(coordinates.dimension for coordinates in self._acoustic_coordinates)
+
+    def acoustic_coordinates(self, order):
+        """Return prepared acoustic coordinates for one order, or None when disabled."""
+        if self._acoustic_coordinates is None:
+            return None
+        return self._acoustic_coordinates[self.orders.index(order)]
 
     @property
     def n_atoms(self) -> int:

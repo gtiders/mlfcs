@@ -85,19 +85,22 @@ ClusterSpace + ASE supercell atoms + integer supercell matrix
 
 证明、所有权与清理规则见[本地整数契约与清理规则](local-integer-contracts.md)。
 
-## 流式 ASR 投影
+## 初始化 ASR 自由坐标
 
-平移不变性统一由 `force_constants.asr` 实现。`AcousticSumRuleOperator` 向 LSMR 提供 $v\mapsto Av$ 与 $u\mapsto A^Tu$，无需构造高阶显式矩阵。`acoustic_constraint_matrix` 表示相同的方程，服务于 FC2 旋转投影。方程固定前 $p-1$ 个原子位置和全部 Cartesian 方向，对最后一个位置及其周期镜像求和；列对应当前阶的物理分量参数。重复贡献先按符号合并，再计算残差尺度。
+使用 `ClusterSpace(..., asr=True)` 在初始化时准备声学零空间。lattice-coordinate
+方程经稀疏模分解、有理重建和精确证书确定完整实数零空间；物理参数通过隐式三角 lift
+恢复。拟合直接在自由坐标中求解，有限差分在原有外推之后进行约束重建。
+原始 orbit 整数核和物理系数布局不改变。详见 [ASR 零空间实现](asr-nullspace.md)。
 
-`enforce_asr` 逐阶求满足 $Ac'=0$ 的最小欧氏参数修正。`rtol` 控制最大绝对方程残差相对于 $\|A\|_\infty\|c'\|_\infty$ 的比例，而非相对于初始残差。当前 ASR 使用浮点 LSMR；整数核用于更早的轨道 stabilizer 不变基构造，不用于这一步投影。
-
-对照验证（Si FC2–FC5，rtol=1e-10）：流式与稀疏路径的 LSMR 迭代数逐阶相同（1/18/36/74），投影系数最大绝对差 4.7e-12（FC5），`relative_before` 逐位一致；算子构建 0.08 s（稀疏构建 39.5 s）。流式路径的常驻内存全程约 0.45 GiB；对照观测到的 5.5 GiB 峰值属于稀疏 oracle 自身的构建。对照为一次性验证，常驻测试覆盖 `enforce_asr` 端到端行为（残差阈值、幂等性、物理残差交叉核对）。
+ASR 算法与方程归 `cluster_space`，不再提供对已有模型的 ASR 后投影接口。
+独立 Cartesian ASR 矩阵、矩阵无关算子及其残差交叉验证已移除。旋转修正复用初始化
+得到的认证三角因子和物理坐标映射。
 
 ## 旋转与平衡条件
 
 `force_constants.rotation` 构造并投影 FC2 的距离矩。Born–Huang 条件使用实际原子间距的一次矩，采用原子处于力平衡时的齐次形式；Huang 条件使用二次矩，并要求零应力，因此默认关闭。[条件定义见 Lin、Poncé 与 Marzari 的式 (6)、(16)](https://arxiv.org/html/2209.09520v2)。一般高阶旋转条件联系相邻阶力常数，当前接口不将其独立逐阶投影。
 
-令 $C$ 为除以相应长度尺度后的旋转方程，$W$ 为声学矩阵行空间的正交基。旋转修正通过有效矩阵 $E=C-(CW^T)W$ 的 SVD 求解，因此满足 $A\Delta c\approx0$，保留已有声学残差。需要两种约束时，先调用 `enforce_asr()`，再对返回的模型调用 `enforce_rotation()`。两步都在物理分量参数坐标下最小化改变量，不代表最小化全部展开张量元素的改变量。
+令 $C$ 为除以相应长度尺度后的旋转方程，$Q$ 为初始化 ASR 子空间的物理正交补。认证因子 $U$ 和 orbit 坐标映射 $W$ 给出法向行空间 $U W^{-1}$，reduced QR 构造 $Q$；不再次计算声学 rank。旋转修正通过有效矩阵 $E=C-(CQ)Q^T$ 的 SVD 求解，因此修正处于原有 ASR 零空间。需要两种约束时，使用 `ClusterSpace(..., asr=True)` 拟合或重建，然后调用 `enforce_rotation()`。旋转修正在物理分量参数坐标下最小化改变量，不代表最小化全部展开张量元素的改变量。
 
 `rank_rtol` 是最大奇异值的截断比例，不是残差容差。默认比例为实际位置对称误差除以中位非 onsite 距离，再加 Cartesian 旋转的非正交误差，取和的两倍；始终保留机器精度下限。被截断的方向不予修正，报告可能保留相应残差。Born–Huang 和 Huang 的绝对残差分别以 eV/Å 和 eV 表示，声学残差为 eV/Å²。
 

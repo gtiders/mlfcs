@@ -157,7 +157,7 @@ FitSystem 摄入检查实际 normal/raw 矩阵与力向量的分配。求解器�
   `finite_difference/reconstruction.py`。
 - 外部格式适配器：`force_constants/io.py`。
 
-modular、复合同余、signed 图与 exact 门面边界保持分离。声学方程及其无矩阵/显式表示统一归属 `force_constants/asr.py`；`force_constants/rotation.py` 使用其中的 FC2 声学方程限制修正方向，保留已有 ASR 残差。公共构造函数与原生模型格式保持不变。
+modular、复合同余、signed 图与 exact 门面边界保持分离。声学方程、认证自由坐标和物理正交补统一归属 `cluster_space/acoustic.py`；`force_constants/rotation.py` 复用认证因子限制修正方向，不再独立构建 Cartesian ASR 方程。公共构造函数与原生模型格式保持不变。
 
 只有当替代证明覆盖相同的运算与数据（含全部中间值与实际分配形状）之后，才删除旧证明。只有在检查了生产 import、公共导出、恢复与下游使用之后，才删除死代码。保留测试 oracle、历史报告、教学日志与数值参考数据。不为被移除的全局上界新建测试。
 

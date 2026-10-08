@@ -108,6 +108,29 @@ normal 路线把 `normal_matrix`、`normal_rhs` 交给自己的对称方程求�
 - `a + b` 累加 normal 统计量，或拼接 raw 方程。要求表示一致；用户负责保证物理参数布局一致，不检查模型几何或基的身份。混合合并前显式调用 `to_normal()`。
 - `residual(model_or_parameters)`、`rmse(model_or_parameters)`、`relative_error(model_or_parameters)` 评估物理力误差。raw 直接算残差；normal 使用 $\theta^TH\theta-2\theta^Tg+c$，接近完美拟合时存在相消精度限制。
 - FitSystem 不提供持久化 API。拟合结果用 ForceConstants.save() 保存；需要保存方程时，用户可自行存储公开数组。
-- ASR 与旋转约束投影继续显式作用于求解得到的 `ForceConstants`。
+- ASR 通过 `ClusterSpace(..., asr=True)` 的初始化自由坐标实现；旋转修正仍作用于求解得到的 `ForceConstants`。
 
 删除 `FitData`、`FitSystem.from_atoms()`、`matrix`、`rhs`、`force_norm`、`column_scale` 和 `max_steps`。使用直接初始化、明确的数据属性及 `maxiter`。`solve()` 返回模型，`model.parameters()` 提取物理参数向量。
+
+## 可选的初始化 ASR
+
+`ClusterSpace(..., asr=True)` 在初始化时准备精确认证的稀疏 ASR 自由坐标。
+默认仍为 `False`。启用后，`FitSystem.n_parameters` 对应自由维数，公开矩阵列是
+这些自由坐标，而不是 `space.parameter_offsets` 指定的原始 Cartesian 分量。
+
+```python
+space = ClusterSpace(primitive_atoms, cutoffs={2: 4.0, 3: 3.0}, asr=True)
+mapping = ClusterMap(space, supercell_atoms)
+system = FitSystem(ForceDataset(mapping, structures), representation="raw")
+eta = scipy.linalg.lstsq(system.design_matrix, system.forces)[0]
+model = system.force_constants(eta)
+```
+
+外部求解器与内置求解器消费同一未经归一化的自由坐标方程。
+`force_constants()` 自动恢复原始物理系数，HDF5 与声子接口继续使用原参数布局。
+`space.n_parameters` 是原始参数数；`space.n_free_parameters` 才是当前拟合维数。
+在启用 ASR 的系统中，诊断函数接受自由坐标向量或满足该子空间的 `ForceConstants`，
+不能把任意原始系数向量当作自由坐标。
+
+构造时分块转换设计行，但 normal 表示仍需自由维数平方的内存；ASR 不保证大模型
+可进行稠密拟合。具体范围、内存和验证见[初始化阶段 ASR](asr-nullspace.md)。

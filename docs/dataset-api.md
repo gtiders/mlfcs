@@ -29,6 +29,8 @@ corrected = data.subtract_forces(per_frame_forces) # (frames, atoms, 3)
 
 ## Born 偶极 Ewald
 
+以下拟合流程的 `mapping` 使用 `ClusterSpace(..., asr=True)` 构造。
+
 ```python
 from mlfcs import DipoleEwald, CompactForceConstants
 
@@ -36,7 +38,6 @@ ewald = DipoleEwald(mapping, born_charges=born, dielectric=epsilon)
 long_range = ewald.force_constants()
 short_data = data.subtract_forces(ewald.forces(data.displacements))
 short_fc = FitSystem(short_data).solve()
-short_fc = short_fc.enforce_asr().force_constants
 total = CompactForceConstants(short_fc, mapping) + long_range
 total.write("force_constants.hdf5", format="phonopy", order=2, storage="hdf5")
 ```

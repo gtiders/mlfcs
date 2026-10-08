@@ -46,7 +46,7 @@
 
 ASR 逐阶用浮点 LSMR 修复平移不变性；它不调用构造轨道不变基时的整数核。旋转投影只修改 FC2，通过实际原子间距构造 Born–Huang 一次矩及可选的 Huang 二次矩，再用 SVD 处理可分辨方向。Born–Huang 的齐次形式要求原子力平衡；Huang 还要求零应力，所以默认关闭。
 
-旋转修正保留原有 ASR 残差，不会代替 ASR。需要两者时，先对模型执行 `enforce_asr()`，再对返回的 `force_constants` 执行 `enforce_rotation()`。`rtol` 控制 ASR 相对残差；`rank_rtol` 控制旋转奇异值截断，两者语义不同。详见[投影与参数度量](domain-v6.md#旋转与平衡条件)。
+旋转修正保留原有 ASR 残差，不会代替 ASR。需要两者时，使用 `ClusterSpace(..., asr=True)` 拟合或重建，再执行 `enforce_rotation()`。`rank_rtol` 控制旋转奇异值截断。详见[投影与参数度量](domain-v6.md#旋转与平衡条件)。
 
 ## 如何保存或导出结果？
 

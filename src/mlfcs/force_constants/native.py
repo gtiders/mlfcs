@@ -190,6 +190,7 @@ def _read_space(group):
         ("orbits", tuple(orbits)),
     ):
         object.__setattr__(space, name, value)
+    object.__setattr__(space, "_acoustic_coordinates", None)
     space.__post_init__()
     return space
 

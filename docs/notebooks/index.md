@@ -9,9 +9,9 @@ notebook 在本仓库环境中运行生成，并随源码一起提交。改代�
 
 | Notebook | 内容 | 涉及的 API |
 |---|---|---|
-| [石墨烯与 MoS₂：转动求和规则](rotational-sum-rules.ipynb) | 同一 FC2 拟合在 ASR 与 ASR + Born–Huang + Huang 两种投影下的声子谱对比 | `ClusterSpace`、`ClusterMap`、`FitSystem`、`enforce_asr`、`enforce_rotation` |
-| [Si：有限差分与外推](si-finite-difference.ipynb) | 用 ASE Tersoff 势做多步位移的 FC2/FC3 有限差分与外推，并计算声子谱与热导率 | `FiniteDifference`、`enforce_asr`、导出 API |
-| [Ba8Ga16Ge30：FC2+FC3 拟合与声子谱](ba8ga16ge30.ipynb) | 54 原子笼形化合物从 300 K NVE 快照拟合有效 FC2+FC3，再画谐波声子谱 | `FitSystem`、`enforce_asr`、`Harmonic` |
+| [石墨烯与 MoS₂：转动求和规则](rotational-sum-rules.ipynb) | 同一 FC2 拟合在 ASR 与 ASR + Born–Huang + Huang ASR 自由坐标拟合及旋转修正下的声子谱对比 | `ClusterSpace`、`ClusterMap`、`FitSystem`、初始化 `asr=True`、`enforce_rotation` |
+| [Si：有限差分与外推](si-finite-difference.ipynb) | 用 ASE Tersoff 势做多步位移的 FC2/FC3 有限差分与外推，并计算声子谱与热导率 | `FiniteDifference`、初始化 `asr=True`、导出 API |
+| [Ba8Ga16Ge30：FC2+FC3 拟合与声子谱](ba8ga16ge30.ipynb) | 54 原子笼形化合物从 300 K NVE 快照拟合有效 FC2+FC3，再画谐波声子谱 | `FitSystem`、初始化 `asr=True`、`Harmonic` |
 | [Si：FC2–FC5 联合拟合与热导率](si-fitting.ipynb) | 四阶联合拟合、壳截断语义、`EstimateCutoff` 工具与 phono3py 热导率 | `FitSystem`、`EstimateCutoff`、`rank_info` |
 | [K4As4Pt2：FC2–FC4 拟合、热导率与 SCPH](k4as4pt2.ipynb) | FC2–FC4 联合拟合、RTA 热导率与温度相关的 SCPH 声子谱 | `FitSystem`、`SCPH`、`Harmonic` |
 | [NaCl：短程拟合与 NAC 声子谱](nacl-long-range.ipynb) | 长程力扣除、短程拟合、总 FC2 导出，再用 Phonopy NAC 比较声子谱 | `ForceDataset`、`DipoleEwald`、`CompactForceConstants`、`FitSystem` |

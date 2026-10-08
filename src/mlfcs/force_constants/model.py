@@ -18,7 +18,6 @@ from mlfcs.foundation.log import get_logger
 logger = get_logger(__name__)
 
 if TYPE_CHECKING:
-    from mlfcs.force_constants.asr import ASRResult
     from mlfcs.force_constants.rotation import RotationResult
     from mlfcs.mapping import ClusterMap
 
@@ -204,29 +203,6 @@ class ForceConstants:
             threshold=threshold,
         )
 
-    def enforce_asr(
-        self,
-        *,
-        orders: Iterable[int] | None = None,
-        rtol: float = 1e-10,
-    ) -> ASRResult:
-        """Project selected orders onto the acoustic sum rule and return diagnostics.
-
-        Each order's Cartesian force constants sum to zero over the final
-        atomic position and its periodic images. ``orders`` defaults to all
-        stored orders; an explicit selection must be ascending and unique.
-        ``rtol`` is a positive relative equation tolerance, normalized by
-        the largest row absolute sum times the largest parameter magnitude.
-
-        The correction minimizes Euclidean change in physical component
-        parameters. The source model and unselected orders are unchanged.
-        Missing orders raise KeyError; invalid inputs raise ValueError.
-        Failure to meet the tolerance raises ConstraintProjectionError.
-        """
-        from mlfcs.force_constants.asr import enforce_asr
-
-        return enforce_asr(self, orders=orders, rtol=rtol)
-
     def enforce_rotation(
         self,
         *,
@@ -246,7 +222,7 @@ class ForceConstants:
         Return a RotationResult containing a new model and residual/rank
         diagnostics. The correction minimizes change in physical FC2
         parameters within resolved directions; other orders are unchanged.
-        Apply ``enforce_asr`` first when both constraints are required.
+        The cluster space must have been initialized with ``asr=True``.
         Invalid selections, missing FC2 or an undefined pair length scale
         raise ValueError.
         """

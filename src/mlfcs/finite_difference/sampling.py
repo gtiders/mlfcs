@@ -19,10 +19,10 @@ logger = get_logger(__name__)
 
 
 def _keys(cluster_map: ClusterMap, order: int) -> tuple[tuple[tuple[int, int], ...], ...]:
-    """Find the distinct Cartesian displacements needed by representative observations.
+    """Return the displacement coordinates required by representative observations.
 
-    The final atom index is the force component; the preceding indices identify
-    the displaced atoms and Cartesian directions.
+    Each key contains the ``order - 1`` atomic Cartesian coordinates with
+    respect to which the force is differentiated.
     """
     block = cluster_map.cluster_space.block(order)
     keys: set[tuple[tuple[int, int], ...]] = set()
@@ -37,7 +37,11 @@ def _keys(cluster_map: ClusterMap, order: int) -> tuple[tuple[tuple[int, int], .
 
 
 class FiniteDifference:
-    """Define finite-difference force measurements for one primitive force-constant order.
+    """Finite-difference sampling plan for one primitive force-constant order.
+
+    For an order-``p`` force constant, the plan generates central-difference
+    structures for the ``p - 1`` Cartesian displacement coordinates required
+    by representative tensor observations.
 
     Parameters
     ----------
@@ -51,16 +55,13 @@ class FiniteDifference:
 
     Notes
     -----
-    The plan differentiates forces with respect to order minus one Cartesian
-    displacements. Repeating an atom/direction in one stencil adds its signed
-    displacement. Samples are ordered by displacement key, ascending step,
-    then sign combination. Multiple steps extrapolate the even central-difference
-    error to zero step. The recovered order-p coefficients use ASE energy units
-    per angstrom to the power p.
+    Repeated occurrences of one atom and direction are summed in the resulting
+    displacement. Structures are ordered by displacement key, step length,
+    then central-difference sign combination. Multiple step lengths are
+    combined by extrapolating the even finite-difference error to zero step.
 
-    Construction requires a structurally full-rank supercell mapping but does
-    not call a calculator. External calculations are collected through
-    ForceDataset before reconstruction.
+    The selected order must be structurally identifiable in the mapped
+    supercell.
 
     Raises
     ------
@@ -108,7 +109,7 @@ class FiniteDifference:
 
     @property
     def n_configurations(self) -> int:
-        """Number of structures in the key, step, and sign-product sampling sequence."""
+        """Number of displaced structures in the canonical sampling sequence."""
         return len(self._keys) * len(self.disps) * len(self._signs)
 
     def displacements(self) -> Sequence[Atoms]:
@@ -116,11 +117,12 @@ class FiniteDifference:
         return Displacements(self)
 
     def reconstruct(self, dataset: ForceDataset) -> ForceConstants:
-        """Recover this order from a ForceDataset in canonical sampling order.
+        """Reconstruct this force-constant order from an ordered force dataset.
 
-        Only the sample count and force shape are checked. The caller must
-        preserve the order produced by displacements(); no geometry matching,
-        metadata lookup, calculator evaluation or reordering is performed.
+        Frames must correspond one-to-one with ``displacements()`` in canonical
+        sampling order. Reconstruction uses the stored forces and does not use
+        frame geometry or metadata to infer or repair their order. The returned
+        ``ForceConstants`` contains only this order.
         """
         started = perf_counter()
         logger.info(
@@ -140,12 +142,12 @@ class FiniteDifference:
 
 
 class Displacements(Sequence[Atoms]):
-    """Sequence view that lazily creates structures for one sampling plan."""
+    """Lazy sequence of displaced structures defined by a finite-difference plan."""
 
     __slots__ = ("_finite_difference",)
 
     def __init__(self, finite_difference: FiniteDifference):
-        """Retain a sampling plan and defer construction of its ASE structures."""
+        """Create a lazy structure view for one finite-difference plan."""
         self._finite_difference = finite_difference
 
     def __len__(self) -> int:
@@ -153,10 +155,11 @@ class Displacements(Sequence[Atoms]):
         return self._finite_difference.n_configurations
 
     def __getitem__(self, index: int | slice) -> Atoms | tuple[Atoms, ...]:
-        """Generate fresh ASE structures by integer index or slice.
+        """Return freshly generated displaced structures by index or slice.
 
-        Negative indices follow sequence conventions. Structures carry no
-        sampling metadata or force results. Invalid indices raise IndexError.
+        Negative indices follow sequence conventions. Each structure is an
+        independent copy of the mapped reference supercell and carries no
+        sampling metadata or force results. Invalid indices raise ``IndexError``.
         """
         if isinstance(index, slice):
             return tuple(self[position] for position in range(*index.indices(len(self))))
@@ -180,7 +183,7 @@ class Displacements(Sequence[Atoms]):
         return atoms
 
     def __iter__(self) -> Iterator[Atoms]:
-        """Yield fresh structures in canonical key, step, then sign order."""
+        """Yield fresh structures in canonical key, step-length, then sign order."""
         for index in range(len(self)):
             yield self[index]
 

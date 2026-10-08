@@ -48,10 +48,24 @@ class FitSolver:
         TypeError. Nonconvergence raises RuntimeError and nonfinite physical output
         raises ValueError. The system's readonly arrays remain unchanged.
         """
+        if self.system.n_parameters == 0:
+            if options:
+                # Keep route-specific option validation even for a zero-dimensional model.
+                return (
+                    self._normal(**options)
+                    if self.system.representation == "normal"
+                    else self._raw(**options)
+                )
+            return np.empty(0, dtype=float)
         missing = self.system.unobserved_parameters
         if missing:
             shown = ", ".join(
-                self.system.cluster_space.parameter_name(index) for index in missing[:12]
+                (
+                    f"acoustic coordinate {index}"
+                    if self.system.cluster_space.asr
+                    else self.system.cluster_space.parameter_name(index)
+                )
+                for index in missing[:12]
             )
             remainder = "" if len(missing) <= 12 else f", and {len(missing) - 12} more"
             raise UnobservedParameterError(
@@ -84,6 +98,8 @@ class FitSolver:
             maxiter,
         )
         matrix, rhs = self.system.normal_matrix, self.system.normal_rhs
+        if len(rhs) == 0:
+            return np.empty(0, dtype=float)
         scale = 1.0 / np.sqrt(np.diag(matrix))
         normal = matrix * scale[:, None] * scale[None, :]
         scaled_rhs = scale * rhs
@@ -152,13 +168,10 @@ class FitSolver:
             lapack_driver="gelsd",
         )
         condition = (
-            float(singular_values[0] / singular_values[rank - 1])
-            if rank > 0
-            else float("inf")
+            float(singular_values[0] / singular_values[rank - 1]) if rank > 0 else float("inf")
         )
         logger.info(
-            "Solver finished: algorithm=least_squares rank=%d/%d "
-            "scaled_condition_estimate=%.10e",
+            "Solver finished: algorithm=least_squares rank=%d/%d scaled_condition_estimate=%.10e",
             rank,
             matrix.shape[1],
             condition,

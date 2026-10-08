@@ -69,7 +69,9 @@ def test_logging_follows_current_stdout(package_log, tmp_path):
     assert "after-marker" not in path.read_text()
 
 
-@pytest.mark.parametrize("representation,algorithm", [("normal", "MINRES"), ("raw", "LSMR")])
+@pytest.mark.parametrize(
+    "representation,algorithm", [("normal", "MINRES"), ("raw", "least_squares")]
+)
 def test_fit_logs_progress_quality_and_preserves_results(package_log, representation, algorithm):
     """Verify fit logs progress quality and preserves results."""
     output = StringIO()
@@ -115,7 +117,7 @@ def test_fit_logs_progress_quality_and_preserves_results(package_log, representa
         "Fit-system complete",
         "Fit solve started",
         f"algorithm={algorithm}",
-        "stop_code=",
+        "stop_code=" if representation == "normal" else "rank=",
         "training_force_rmse=",
         "training_relative_force_error=",
     ):
@@ -127,7 +129,7 @@ def test_task_summaries_cover_difference_projection_phonons_and_output(package_l
     output = StringIO()
     with redirect_stdout(output):
         atoms = bulk("Ar", "sc", a=1.0)
-        space = ClusterSpace(atoms, cutoffs={2: 1.1, 4: 0.1})
+        space = ClusterSpace(atoms, cutoffs={2: 1.1, 4: 0.1}, asr=True)
         coefficients = []
         for orbit in space.orbits[space.block(2).orbits]:
             tensor = (
@@ -143,7 +145,6 @@ def test_task_summaries_cover_difference_projection_phonons_and_output(package_l
                 4: np.zeros(space.block(4).parameters.stop - space.block(4).parameters.start),
             },
         )
-        model.enforce_asr()
         model.enforce_rotation()
         Harmonic(model).mesh((2, 2, 2))
         result = SCPH(model, (2, 2, 2)).run(100, max_iterations=2)
@@ -175,8 +176,6 @@ def test_task_summaries_cover_difference_projection_phonons_and_output(package_l
         difference.reconstruct(ForceDataset(mapping, samples))
     text = output.getvalue()
     for required in (
-        "ASR projection started",
-        "ASR projection complete",
         "Rotation projection complete",
         "Harmonic mesh complete",
         "SCPH run complete",

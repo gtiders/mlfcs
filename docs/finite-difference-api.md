@@ -55,3 +55,13 @@ short_fc2 = fd.reconstruct(short_data)
 中央混合差分把力对位移的导数转为能量导数，再通过 orbit observation matrix 恢复参数。结果只包含所选阶次。不同阶次可用 `ForceConstants.combine` 合并；`save()` 保存参数化模型，`write()` 导出文件。
 
 更多数据和长程约定见[数据集与 Ewald](dataset-api.md)。
+
+## 使用初始化 ASR 自由坐标
+
+若 mapping 的空间由 `ClusterSpace(..., asr=True)` 构造，差分采样仍保持当前数量与顺序。
+`reconstruct()` 先完成全部中央差分和步长外推，再通过隐式 ASR 坐标作受约束重建。
+因此结果满足 ASR，而采样数尚未减少。有噪声时，各 orbit 的观察结果会共同决定
+约束子空间内的最小二乘解，结果可以不同于逐 orbit 独立恢复。
+
+该重建通过矩阵自由 lift/adjoint 和 LSMR 完成，不物化全局稠密 nullspace。
+具体语义和后续范围见[初始化阶段 ASR](asr-nullspace.md)。

@@ -239,6 +239,52 @@ class ForceDesign:
             )
         return result
 
+    def iter_fit_blocks(self, displacement, *, rows_per_block=64):
+        """Yield bounded force-row blocks in the cluster space's fitting coordinates.
+
+        Acoustic-enabled spaces transform canonical rows through their sparse
+        triangular lift. The temporary canonical design contains at most
+        ``rows_per_block`` force rows, rather than one entire snapshot.
+        """
+        values = np.ascontiguousarray(displacement, dtype=float).reshape(-1)
+        if values.shape != (self.rows,) or not np.all(np.isfinite(values)):
+            raise ValueError("invalid design displacements")
+        if rows_per_block < 1:
+            raise ValueError("rows_per_block must be positive")
+        space = self.cluster_map.cluster_space
+        scratch = allocate_design_workspace(
+            min(rows_per_block, self.rows), tuple(order.max_dimension for order in self.orders)
+        )
+        for start in range(0, self.rows, rows_per_block):
+            count = min(rows_per_block, self.rows - start)
+            canonical = np.zeros((count, self.n_parameters))
+            for order, work in zip(self.orders, scratch.scratch, strict=True):
+                accumulate_design(
+                    values,
+                    canonical,
+                    order.orbit_image_offsets,
+                    order.orbit_parameter_starts,
+                    order.orbit_dimensions,
+                    order.image_atoms,
+                    order.image_basis,
+                    order.image_basis_offsets,
+                    order.components,
+                    order.factor,
+                    work,
+                    start,
+                )
+            reduced = np.empty((count, space.n_free_parameters))
+            offset = 0
+            for block in space.blocks:
+                coordinates = space.acoustic_coordinates(block.order)
+                observed = canonical[:, block.parameters]
+                transformed = (
+                    observed if coordinates is None else coordinates.restrict_rows(observed)
+                )
+                reduced[:, offset : offset + transformed.shape[1]] = transformed
+                offset += transformed.shape[1]
+            yield slice(start, start + count), reduced
+
 
 @njit(cache=True, parallel=True, nogil=True)
 def accumulate_design(
@@ -253,6 +299,7 @@ def accumulate_design(
     components,
     factor,
     scratch,
+    row_start=0,
 ):
     """Accumulate one order into a physical force-design matrix in place.
 
@@ -267,7 +314,7 @@ def accumulate_design(
     translation_count = image_atoms.shape[1]
     order = image_atoms.shape[2]
     component_count = components.shape[0]
-    rows = displacement.size
+    rows = out.shape[0]
     # Orbit columns are disjoint even when their images share force rows.
     # Each thread therefore accumulates privately, then writes its own columns.
     for orbit in prange(orbit_count):
@@ -285,6 +332,9 @@ def accumulate_design(
                         row = (
                             3 * image_atoms[image, translation, axis] + components[component, axis]
                         )
+                        row -= row_start
+                        if row < 0 or row >= rows:
+                            continue
                         monomial = 1.0
                         for other in range(order):
                             if other != axis:

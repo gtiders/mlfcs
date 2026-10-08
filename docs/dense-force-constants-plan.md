@@ -570,3 +570,10 @@ TDEP writer、格式选项及其专属测试已删除。当前外部导出仅支
 ## 模块归属调整与 NAC 后续研究
 
 以上设计记录保留。当前数据入口已合并为 `mlfcs.dataset` 单文件，Ewald 已迁移至 `mlfcs.phonon.ewald`；此前提到的 `dataset/ewald.py` 是历史路径。通用张量与 IO 仍不依赖 Ewald。此次不改变数值算法，也未实现 NAC。现有声子接口缺口、Γ 极限和任意 q 长程接入范围详见 [NAC 调研方案](nac-plan.md)。
+
+
+## ASR 初始化接口更新
+
+上述历史设计中的 `enforce_asr()` 后处理已移除。当前流程在创建 mapping 所属
+`ClusterSpace` 时指定 `asr=True`，然后直接拟合短程模型并与 compact 长程 FC2 相加。
+原方案的 compact 表示、折叠与导出职责不改变。

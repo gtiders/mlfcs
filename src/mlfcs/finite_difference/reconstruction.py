@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import numpy as np
+from scipy.sparse.linalg import LinearOperator, lsmr
 
 from mlfcs.dataset import ForceDataset
 from mlfcs.force_constants import ForceConstants
@@ -28,13 +29,23 @@ def reconstruct_force_constants(
     finite_difference: FiniteDifference,
     dataset: ForceDataset,
 ) -> ForceConstants:
-    """Recover one force-constant order from its canonical force samples.
+    """Recover one primitive force-constant order from finite-difference forces.
 
-    Dataset frames must follow the sampling plan's canonical displacement order.
-    Frame geometry and metadata are not used to verify that order. Central mixed derivatives are extrapolated across
-    the requested step lengths, then mapped through each orbit's observation
-    matrix. The result uses the primitive cluster-space parameterization and
-    contains only the selected order.
+    Dataset frames must follow the canonical sampling order defined by
+    ``finite_difference``. This ordering is assumed and is not inferred from
+    frame geometry or metadata.
+
+    For an order-``p`` force constant, mixed central differences of the forces
+    provide the required ``p - 1`` displacement derivatives. When multiple
+    step lengths are supplied, these derivatives are extrapolated to zero step
+    through the even central-difference error expansion.
+
+    Representative Cartesian tensor components are converted to the physical
+    parameter coordinates of the primitive symmetry orbits. If acoustic
+    coordinates are available for this order, the reconstructed parameter
+    vector is projected onto that constrained subspace by least squares.
+
+    The returned ``ForceConstants`` contains only the selected order.
     """
     if not isinstance(dataset, ForceDataset):
         raise TypeError("reconstruct() requires a ForceDataset")
@@ -82,7 +93,30 @@ def reconstruct_force_constants(
         coefficients.append(
             np.linalg.solve(orbit.observation_matrix, np.asarray(observed, dtype=np.float64))
         )
-    return ForceConstants(space, {order: np.concatenate(coefficients)})
+    physical = np.concatenate(coefficients)
+    coordinates = space.acoustic_coordinates(order)
+    if coordinates is not None:
+        # Project the reconstructed physical parameters onto the acoustic subspace.
+        if coordinates.dimension:
+            operator = LinearOperator(
+                (coordinates.width, coordinates.dimension),
+                matvec=coordinates.lift,
+                rmatvec=coordinates.adjoint,
+            )
+            solution = lsmr(
+                operator,
+                physical,
+                atol=1e-12,
+                btol=1e-12,
+                maxiter=max(1000, 2 * coordinates.dimension),
+            )
+            if solution[1] not in (0, 1, 2, 4, 5):
+                raise RuntimeError("acoustic constraint projection did not converge")
+            physical = coordinates.lift(solution[0])
+        else:
+            # A zero-dimensional subspace contains only the zero parameter vector.
+            physical = np.zeros(coordinates.width)
+    return ForceConstants(space, {order: physical})
 
 
 __all__ = ["reconstruct_force_constants"]
