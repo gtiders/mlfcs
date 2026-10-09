@@ -102,13 +102,7 @@ MLFCS requires Python 3.12 or newer. Install and run it with uv:
 uv sync
 ```
 
-Runnable API examples are available in [`examples/`](examples/):
-
-- [`basic_fc2.py`](examples/basic_fc2.py) runs FC2 directly with ASE's built-in EMT calculator;
-- [`vasp_external_fc3.py`](examples/vasp_external_fc3.py) implements a complete external VASP
-  `sow` / force collection / `reap` workflow;
-- [`nep89_orders.py`](examples/nep89_orders.py) evaluates one or more orders with a user-supplied
-  NEP89 model through calorine's ASE calculator.
+The Quick start section below demonstrates the core force-constant workflow.
 
 Install the optional SSCHA dependencies when needed:
 
@@ -196,10 +190,9 @@ and `read()` formats and provide that program's required input parameters. The s
 is unchanged. Positional `reap()` needs no metadata when file names and returned forces preserve
 the exact sow order. File formats such as POSCAR do not preserve the Python `atoms.info` metadata,
 so a manifest containing the filename-to-configuration-ID relation and plan hash is recommended
-for out-of-order jobs, restarts, long-term archives, and accidental-dataset detection. The complete
-[`vasp_external_fc3.py`](examples/vasp_external_fc3.py) example implements this optional safety
-layer, force collection, missing-result checks, and final export; see the
-[external VASP workflow guide](docs/EXTERNAL_VASP_WORKFLOW.md).
+for out-of-order jobs, restarts, long-term archives, and accidental-dataset detection. These
+steps illustrate the positional `sow()` / `reap()` contract. MLFCS does not launch or configure
+external calculators.
 
 The force array must have shape:
 
@@ -446,7 +439,6 @@ calculation. See the [SSCHA guide](docs/SSCHA.md) for details.
 ## Documentation
 
 - [Documentation index](docs/README.md) ([中文](docs/README_ZH.md))
-- [External VASP workflow](docs/EXTERNAL_VASP_WORKFLOW.md)
 - [Technical overview](docs/TECHNICAL_OVERVIEW.md)
 - [Numerical validation and CI](docs/VALIDATION.md)
 - [SSCHA guide](docs/SSCHA.md)

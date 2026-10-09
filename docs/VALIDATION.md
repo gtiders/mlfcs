@@ -2,6 +2,10 @@
 
 English | [中文](VALIDATION_ZH.md)
 
+The numerical values below document earlier independent comparisons. Their large input and reference
+fixtures are no longer bundled in this repository, so these comparisons cannot be rerun from this
+checkout alone.
+
 ## Validation goals
 
 The suite independently checks the finite-difference reconstruction, atom and translation
@@ -36,8 +40,7 @@ A separate FC3 test compares strict MLFCS ASR with phono3py
 
 ## CI layers
 
-- `unit-and-api`: Ruff, formatting, and all non-reference tests on Python 3.12 and 3.13;
-- `scientific-reference`: provenance checks and independent FC2/FC3 comparisons, run serially;
+- `unit-and-api`: Ruff, formatting, and the retained tests on Python 3.12 and 3.13;
 - `package`: source-distribution and wheel builds.
 
 BLAS, OpenMP, and the JAX CPU backend are restricted to one thread in CI to keep memory use
@@ -46,7 +49,6 @@ See [`tests/README.md`](../tests/README.md) for commands and fixture organizatio
 
 ## Provenance and regeneration
 
-Pinned upstream commits, licenses, hashes, versions, and regeneration commands are stored beside
-each fixture under [`tests/reference`](../tests/reference/). The scripts in
-[`reference_tools`](../reference_tools/README.md) regenerate those fixtures; MLFCS does not depend
-on hiphive, phonopy, phono3py, pypolymlp, or symfc at base-package runtime.
+The original upstream provenance and regeneration instructions were removed with the fixture tree.
+Maintainer scripts remain under [`reference_tools`](../reference_tools/README.md). MLFCS does not
+depend on hiphive, phonopy, phono3py, pypolymlp, or symfc at base-package runtime.

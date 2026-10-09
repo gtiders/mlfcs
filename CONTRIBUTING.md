@@ -27,21 +27,13 @@ uv sync --locked --dev
 The public API and fast suite must pass before a pull request:
 
 ```bash
-uv run ruff check src tests reference_tools examples
-uv run ruff format --check src tests reference_tools examples
+uv run ruff check src tests reference_tools
+uv run ruff format --check src tests reference_tools
 uv run pytest -m "not reference"
 uv build
 ```
 
-Reference tests are intentionally serial and may be expensive. The pypolymlp comparison also
-requires Eigen headers and the dedicated dependency group:
-
-```bash
-uv sync --locked --dev --group reference
-uv run pytest tests/reference/analytic/Morse_FCC_FC4/test_morse_fc4.py
-```
-
-Run only the reference affected by a change locally; CI performs the complete sequence.
+The repository no longer bundles the external scientific-reference fixtures.
 
 ## Test expectations
 

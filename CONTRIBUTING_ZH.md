@@ -27,20 +27,13 @@ uv sync --locked --dev
 提交前应通过：
 
 ```bash
-uv run ruff check src tests reference_tools examples
-uv run ruff format --check src tests reference_tools examples
+uv run ruff check src tests reference_tools
+uv run ruff format --check src tests reference_tools
 uv run pytest -m "not reference"
 uv build
 ```
 
-科学参考必须串行执行，并可能耗时较长。pypolymlp 比较还需要 Eigen 头文件及专用依赖组：
-
-```bash
-uv sync --locked --dev --group reference
-uv run pytest tests/reference/analytic/Morse_FCC_FC4/test_morse_fc4.py
-```
-
-本地只运行与改动相关的参考测试，完整序列由 CI 执行。
+仓库不再捆绑外部科学参考夹具。
 
 ## 测试要求
 

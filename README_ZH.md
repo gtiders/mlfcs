@@ -94,13 +94,7 @@ MLFCS 要求 Python 3.12 或更高版本，使用 uv 安装和运行：
 uv sync
 ```
 
-[`examples/`](examples/) 提供可执行的 API 示例：
-
-- [`basic_fc2.py`](examples/basic_fc2.py) 使用 ASE 自带 EMT calculator 直接计算 FC2；
-- [`vasp_external_fc3.py`](examples/vasp_external_fc3.py) 给出完整的外部 VASP
-  `sow`、力收集和 `reap` 工作流；
-- [`nep89_orders.py`](examples/nep89_orders.py) 通过 calorine ASE calculator，使用用户提供的
-  NEP89 模型计算一个或多个阶数。
+下面的快速开始部分演示了力常数计算的基本流程。
 
 需要 SSCHA 时安装可选依赖：
 
@@ -184,10 +178,8 @@ fc3.write("fc3.h5", format="hdf5")
 `read()` 所使用的格式，并补充该程序需要的输入参数；`sow/reap` 契约不变。若文件名和
 返回的力严格保持 sow 顺序，位置式 `reap()` 不需要任何额外元数据。POSCAR 这类文件
 不会保存 Python 中的 `atoms.info`，因此对于任务乱序、断点续算、长期归档或防止混入
-其他数据集的情况，建议用 manifest 保存文件名—构型 ID 对应关系和计划哈希。完整的
-[`vasp_external_fc3.py`](examples/vasp_external_fc3.py) 示例把 manifest 作为可选安全层，
-并实现力收集、缺失结果检查和最终导出，详见
-[外部 VASP 工作流](docs/EXTERNAL_VASP_WORKFLOW_ZH.md)。
+其他数据集的情况，建议用 manifest 保存文件名—构型 ID 对应关系和计划哈希。这些步骤说明
+了按位置顺序调用 `sow()` / `reap()` 的契约。MLFCS 不会启动或配置外部计算程序。
 
 力数组的形状必须为：
 
@@ -422,7 +414,6 @@ DOS 和热力学性质。
 ## 文档
 
 - [文档索引](docs/README_ZH.md)（[English](docs/README.md)）
-- [外部 VASP 工作流](docs/EXTERNAL_VASP_WORKFLOW_ZH.md)
 - [技术总览](docs/TECHNICAL_OVERVIEW_ZH.md)
 - [数值验证与持续集成](docs/VALIDATION_ZH.md)
 - [SSCHA 使用说明](docs/SSCHA_ZH.md)

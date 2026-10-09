@@ -2,6 +2,8 @@
 
 [English](VALIDATION.md) | 中文
 
+以下数值记录此前完成的独立比较。相应的大型输入和参考夹具已不再随仓库提供，因此仅凭当前检出内容无法重跑这些比较。
+
 ## 验证目标
 
 测试需要分别回答三个问题，不能仅用“文件能够写出”代替数值验证：
@@ -73,22 +75,15 @@ hiphive 仅属于开发依赖和独立验证工具，不参与 MLFCS 的计算�
 
 GitHub Actions 分为三个相互独立的任务：
 
-- `unit-and-api`：在 Python 3.12 和 3.13 上运行 Ruff、格式检查以及所有非参考测试；
-- `scientific-reference`：在 Python 3.12 上依次独立运行 hiphive 适配器、训练材料
-  SHA-256 溯源、AlN FC2，以及无 ASR 和有 ASR 的 AlN FC3；
+- `unit-and-api`：在 Python 3.12 和 3.13 上运行 Ruff、格式检查及仓库保留的测试；
 - `package`：构建 Python sdist 和 wheel。
 
 BLAS、OpenMP 和 JAX CPU 后端均限制为单线程，避免小型 CI 任务因嵌套并行产生不稳定
 内存峰值。官方 AlN 势函数的重新训练是维护者基准，不属于每次 push 的 CI。
 
-完整目录约定和执行命令见 `tests/README.md`。
+当前保留测试的运行方式见 `tests/README.md`。
 
 ## 数据来源和再生成
 
-夹具的固定上游提交、许可证、软件版本与生成命令记录在
-`tests/reference/phono3py/AlN_FC3/data/README.md`。生成程序为
-`reference_tools/generate_AlN_phono3py_fixture.py`。
-
-同一目录的 `data/training/` 还保存 phono3py 官方 200 结构 AlN 训练数据和本次实际
-使用的 `polymlp.yaml`。普通 CI 只读取 `reference.npz`，维护者可以完全使用仓库内
-文件重新生成该夹具，无需再次下载或训练势函数。
+参考夹具及其训练数据已从 Git 历史中移除。`reference_tools/` 中的维护脚本仍保留，
+可在具备相应上游数据和依赖时重新生成夹具。
