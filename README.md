@@ -17,7 +17,9 @@ MLFCS 从 ASE 结构和原子力构造原胞力常数。公共工作流由三个
 
 ## 选择工作流
 
-[理论与概念](docs/theory/index.md)从周期晶体中的高阶力常数出发，解释对称参数化、ASR、超胞可辨识性、数据恢复和晶格动力学。包含统一数学符号、理论依赖图，以及精确线性代数与 SCPH 进阶章节。
+第一次使用时，建议先阅读[核心概念](docs/core-concepts.md)：从原胞出发，依次建立模型空间、参考超胞映射和位移—力数据集。
+
+[理论与概念](docs/theory/index.md)从周期晶体中的高阶力常数出发，解释对称参数化、ASR、超胞可辨识性、数据恢复和晶格动力学。各章给出定义、算法和工程对应；精确线性代数与 SCPH 放在进阶章节。
 
 - [有限差分](docs/finite-difference-api.md)：生成有序位移结构，调用 ASE calculator，并重建一个阶次。
 - [力拟合](docs/fitting-api.md)：将带有已存储原子力的 ASE 结构流式写入可复用拟合系统，并联合求解多个阶次。
@@ -44,6 +46,8 @@ mapping = ClusterMap(space, supercell_atoms, supercell_matrix=np.diag([3, 3, 3])
 ## 范围
 
 每个 `FiniteDifference` 对象处理一个阶次；一个 `FitSystem` 可以处理同一 `ClusterSpace` 中的所有阶次。力常数属于原胞模型；超胞 realization 和外部文件格式都是派生操作。
+
+当前数值支持范围与对象生命周期见[开发参考](docs/development/numerical-contracts.md)。尚未实现的长程动力学接入方案单列于[设计说明](docs/development/long-range-dynamics.md)，不作为现有 API。
 
 <!-- END GENERATED: docs/index.md -->
 
