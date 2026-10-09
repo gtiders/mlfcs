@@ -1,4 +1,4 @@
-"""Physical force-fitting equations in raw or normal representation."""
+"""Force least-squares equations in unscaled fitting coordinates."""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ logger = get_logger(__name__)
 
 
 def _readonly(values: object, shape: tuple[int, ...]) -> np.ndarray:
-    """Copy physical equation data into finite, shape-checked readonly C-contiguous float64 storage."""
+    """Capture finite equation data with the required shape."""
     require_allocation("fit buffer", shape)
     result = np.array(values, dtype=np.float64, copy=True, order="C")
     if result.shape != shape or not np.all(np.isfinite(result)):
@@ -32,7 +32,13 @@ def _readonly(values: object, shape: tuple[int, ...]) -> np.ndarray:
 
 @dataclass(frozen=True, slots=True, init=False)
 class FitSystem:
-    """Immutable physical force-fitting equations in one of two representations.
+    """Force least-squares problem for one mapped periodic supercell.
+
+    Raw equations retain the force design and target forces. Normal equations
+    retain the quadratic objective's sufficient statistics. Both use unscaled
+    fitting coordinates: canonical physical parameters without ASR, or free
+    acoustic coordinates when ASR is enabled. ``solve`` returns a model in
+    canonical physical parameter coordinates.
 
     Parameters
     ----------
@@ -50,7 +56,7 @@ class FitSystem:
     are atom-major x/y/z in eV/angstrom; columns follow canonical primitive
     parameters unless ASR preparation is enabled, in which case they follow the
     order-local free acoustic coordinates. ForceDesign includes force signs, Taylor
-    factorials and images.
+    factorials and translated orbit images.
     Construction does not evaluate calculators, subtract mean forces, weight
     samples or normalize columns. Public arrays are readonly and unscaled.
     Solving normalizes temporary data and returns physical coefficients.
@@ -84,7 +90,7 @@ class FitSystem:
     n_structures: int
 
     def __init__(self, dataset: ForceDataset, *, representation="normal"):
-        """Initialize unscaled physical equations from a prepared force dataset."""
+        """Construct the force-fitting equations from displacement-force samples."""
         if not isinstance(dataset, ForceDataset):
             raise TypeError("dataset must be a ForceDataset")
         cluster_map = dataset.cluster_map
@@ -180,25 +186,25 @@ class FitSystem:
 
     @property
     def design_matrix(self):
-        """Readonly unscaled A, shape (n_equations, n_parameters); raw only, otherwise ValueError."""
+        """Unscaled force-design matrix in fitting coordinates, available for raw systems."""
         self._require_representation("raw")
         return self._matrix
 
     @property
     def forces(self):
-        """Readonly unscaled force vector f, shape (n_equations,); raw only, otherwise ValueError."""
+        """Target force vector in atom-major Cartesian order, available for raw systems."""
         self._require_representation("raw")
         return self._rhs
 
     @property
     def normal_matrix(self):
-        """Readonly H = A.T @ A, shape (n_parameters, n_parameters); normal only."""
+        """Quadratic force-objective matrix ``H = A.T @ A`` for normal systems."""
         self._require_representation("normal")
         return self._matrix
 
     @property
     def normal_rhs(self):
-        """Readonly g = A.T @ f, shape (n_parameters,); normal only."""
+        """Force-objective vector ``g = A.T @ f`` for normal systems."""
         self._require_representation("normal")
         return self._rhs
 
@@ -288,7 +294,7 @@ class FitSystem:
         return model
 
     def _parameters(self, values):
-        """Extract a finite physical vector of the fitted length and order set.
+        """Extract unscaled fitting coordinates from a vector or complete model.
 
         The caller must supply coefficients in this system's parameter layout;
         cross-model geometry and basis compatibility are not checked.
@@ -339,9 +345,11 @@ class FitSystem:
         return ForceConstants(self.cluster_space, coefficients)
 
     def residual(self, model_or_parameters):
-        """Return ||A @ theta - f|| in physical force units for a model or vector.
+        """Return the force residual norm for a model or fitting-coordinate vector.
 
-        Normal data uses theta.T @ H @ theta - 2*theta.T @ g + f.T @ f; roundoff
+        For unscaled fitting coordinates ``eta``, the residual is
+        ``||A @ eta - f||``. Normal data uses
+        ``eta.T @ H @ eta - 2*eta.T @ g + f.T @ f``; roundoff
         cancellation near zero is clipped. Negative squared residual beyond that
         roundoff bound raises ValueError, as do incompatible or nonfinite values.
         """
@@ -381,7 +389,7 @@ class FitSystem:
         return 0.0
 
     def relative_error(self, model_or_parameters):
-        """Return ||A @ theta - f|| / ||f|| for physical parameters.
+        """Return the force residual norm relative to the target force norm.
 
         For zero reference force norm, return zero for exact zero residual and
         infinity otherwise. Input compatibility follows residual.
@@ -392,9 +400,9 @@ class FitSystem:
         return 0.0 if residual == 0.0 else float("inf")
 
     def to_normal(self):
-        """Return normal statistics of raw physical equations; a normal system returns itself.
+        """Return the normal statistics of the same force-fitting problem.
 
-        Conversion allocates H and g but preserves counts and force_squared_norm.
+        A normal system returns itself. Conversion preserves counts and force_squared_norm.
         It loses row-level data; the raw source remains unchanged.
         """
         if self.representation == "normal":

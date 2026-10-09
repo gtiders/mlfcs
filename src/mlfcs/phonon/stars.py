@@ -20,7 +20,7 @@ from mlfcs.phonon.grid import QStars
 
 
 @njit(cache=True, nogil=True)
-def _transform(
+def _transform_star_matrix(
     source: np.ndarray,
     permutation: np.ndarray,
     rotation: np.ndarray,
@@ -113,7 +113,7 @@ class StarPlan:
         if not np.all(np.isfinite(source)):
             raise ValueError("representative matrix must be finite")
         operation = int(self.stars.operations[member])
-        return _transform(
+        return _transform_star_matrix(
             np.ascontiguousarray(source),
             self.stars.symmetry.site_permutations[operation],
             self.stars.symmetry.cartesian_rotations[operation],

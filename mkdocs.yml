@@ -14,16 +14,21 @@ exclude_docs: |
   /overrides/
   /scripts/
   /notebooks/data/
+  /archive/
+
+hooks:
+  - docs/scripts/notebook_links.py
 
 nav:
-  - 概览: index.md
-  - 有限差分: finite-difference-api.md
-  - 拟合: fitting-api.md
-  - 数据集与 Ewald: dataset-api.md
-  - 谐波声子: harmonic-api.md
-  - SCPH: scph.md
-  - 日志: logging.md
-  - Q&A: Q&A.md
+  - 总览: index.md
+  - API:
+      - 核心概念: core-concepts.md
+      - 有限差分: finite-difference-api.md
+      - 拟合: fitting-api.md
+      - 长程力与 Ewald: ewald-api.md
+      - 谐波声子: harmonic-api.md
+      - SCPH: scph.md
+      - Q&A: Q&A.md
   - 教程:
       - 教程总览: notebooks/index.md
       - NaCl：长程力扣除与 FC2 拟合: notebooks/nacl-long-range.ipynb
@@ -32,12 +37,26 @@ nav:
       - Ba8Ga16Ge30：FC2+FC3 拟合与声子谱: notebooks/ba8ga16ge30.ipynb
       - Si：FC2–FC5 联合拟合与热导率: notebooks/si-fitting.ipynb
       - K4As4Pt2：FC2–FC4 拟合、热导率与 SCPH: notebooks/k4as4pt2.ipynb
-  - 整数核与开发者参考:
-      - Numba 迁移前数学审查: numba-integer-audit.md
-      - 本地整数契约与清理规则: local-integer-contracts.md
-      - 统一 Numba 后端: unified-numba-backend.md
-      - 超胞平移商与商标签约定: supercell-quotient.md
-      - 版本 6 域与执行契约: domain-v6.md
+  - 开发者参考:
+      - 数值契约与对象生命周期: development/numerical-contracts.md
+      - 长程动力学待实现设计: development/long-range-dynamics.md
+  - 理论与概念:
+      - 阅读路线: theory/index.md
+      - 周期晶体中的高阶力常数: theory/periodic-force-constants.md
+      - 对称性与独立参数: theory/symmetry-parameterization.md
+      - 平移与旋转不变性: theory/invariance-constraints.md
+      - 超胞、折叠与可辨识性: theory/supercells-identifiability.md
+      - 从原子力恢复力常数: theory/reconstruction.md
+      - 谐波晶格动力学: theory/harmonic-dynamics.md
+      - 有限 q 网格与倒空间对称性: theory/reciprocal-symmetry.md
+      - 长程 dipole 作用: theory/long-range-electrostatics.md
+      - 进阶:
+          - 精确线性代数认证: theory/advanced/exact-linear-algebra.md
+          - 自洽声子: theory/advanced/self-consistent-phonons.md
+      - 查阅:
+          - 符号与坐标约定: theory/notation.md
+          - 术语索引: theory/glossary.md
+          - 范围与限制: theory/limitations.md
 
 theme:
   name: material
@@ -47,7 +66,6 @@ theme:
   favicon: assets/images/logo.png
   features:
     - navigation.indexes
-    - navigation.sections
     - navigation.top
     - navigation.tracking
     - search.suggest
@@ -89,7 +107,11 @@ markdown_extensions:
   - pymdownx.details
   - pymdownx.highlight
   - pymdownx.inlinehilite
-  - pymdownx.superfences
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
   - pymdownx.tabbed
   - tables
 

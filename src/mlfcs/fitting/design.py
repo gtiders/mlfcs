@@ -1,4 +1,4 @@
-"""Compiled Cartesian force designs and caller-owned workspace."""
+"""Taylor force designs in physical and free acoustic parameter coordinates."""
 
 from __future__ import annotations
 
@@ -19,13 +19,18 @@ logger = get_logger(__name__)
 
 @dataclass(frozen=True, slots=True)
 class OrderDesign:
-    """Readonly ragged Cartesian design buffers for one tensor order.
+    """Cartesian tensor actions defining one order's Taylor force contribution.
 
+    Rotated orbit bases and supercell translations determine how each physical
+    parameter contributes to atomic forces. The Taylor energy factor is
+    ``1/p!``; differentiating every tensor slot includes repeated coordinates.
+
+    Compiled representation
+    -----------------------
     components is (3**p, p) in C-order direction enumeration. Orbit offsets
     index image ranges; parameter starts refer to the global ClusterSpace.
     image_atoms is (images, translations, p); flattened image_basis stores
     (3**p, orbit_dimension) blocks delimited by image_basis_offsets.
-    factor is 1/p!, with differentiation over every tensor index in the kernel.
     """
 
     factor: float
@@ -122,7 +127,11 @@ def _compile_order(
 
 
 class ForceDesign:
-    """Reusable force-design metadata for every order in one ClusterMap.
+    """Linear Taylor force model for a mapped periodic supercell.
+
+    ``matrix`` maps canonical physical parameters to Cartesian forces for one
+    displacement frame. ``iter_fit_blocks`` expresses the same observations in
+    free acoustic coordinates when ASR is enabled.
 
     Parameters
     ----------
@@ -132,15 +141,14 @@ class ForceDesign:
 
     Notes
     -----
-    Construction compiles translated atom indices and rotated float64 bases.
-    Rows are atom-major x/y/z forces; columns follow ClusterSpace parameters.
+    Rows are atom-major x/y/z forces; physical columns follow ClusterSpace parameters.
     Workspace is caller-owned and mutable, separate from readonly design data.
     """
 
     __slots__ = ("cluster_map", "orders", "rows")
 
     def __init__(self, cluster_map: ClusterMap):
-        """Require full structural rank and compile readonly per-order force-design buffers."""
+        """Construct the force model for a structurally identifiable supercell."""
         started = perf_counter()
         logger.info(
             "Force-design compilation started: supercell_atoms=%d orders=%s parameters=%d",

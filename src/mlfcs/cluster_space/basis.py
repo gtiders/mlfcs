@@ -21,12 +21,11 @@ from mlfcs.foundation.tensors import apply_tensor_action, tensor_dimension, vali
 
 
 def _label_symmetric_basis(labels: Sequence[object]) -> np.ndarray:
-    """Build the label-symmetric tensor basis for one representative cluster.
+    """Return the tensor basis imposed by repeated periodic sites.
 
     Tensor slots carrying equal lattice-site labels are interchangeable:
-    Cartesian components related only by permutations among equal slots
-    share one independent component. The construction is delegated to
-    :func:`label_basis`.
+    Tensor components related only by permutations among equal slots share
+    one independent component.
     """
     dimension = tensor_dimension(len(labels))
     require_allocation("label basis", (dimension, dimension))
@@ -42,13 +41,13 @@ def compute_invariant_basis(
 ) -> np.ndarray:
     """Construct the exact tensor basis invariant under the cluster stabilizer.
 
-    Let ``p = len(labels)`` and let ``L`` denote the label-symmetric tensor
+    Let ``p = len(labels)`` and let ``E`` denote the repeated-site tensor
     basis induced by repeated lattice sites. For every stabilizer operation
     ``g`` with lattice rotation ``R_g`` and tensor-axis permutation ``P_g``,
     the allowed tensors satisfy ``T_g Phi = Phi``, where ``T_g`` is the
-    corresponding rank-``p`` tensor action. In the coordinates of ``L``, the
+    corresponding order-``p`` tensor action. In the coordinates of ``E``, the
     invariant subspace is therefore the integer kernel of the stacked
-    constraints ``(T_g - I) L c = 0`` over all stabilizer operations.
+    constraints ``(T_g - I) E c = 0`` over all stabilizer operations.
 
     Parameters
     ----------
@@ -77,7 +76,7 @@ def compute_invariant_basis(
         If a rotation's tensor-action bound or the stacked constraint array
         cannot be represented or allocated.
     """
-    label_basis = _label_symmetric_basis(labels)
+    repeated_site_basis = _label_symmetric_basis(labels)
     if stabilizers:
         rotations = as_int64_array([rotation for rotation, _ in stabilizers])
         permutations = as_int64_array([permutation for _, permutation in stabilizers])
@@ -91,16 +90,16 @@ def compute_invariant_basis(
         for rotation in rotations:
             validate_tensor_action(rotation, len(labels), subtraction=1)
         require_allocation(
-            "invariant constraints", (len(stabilizers) * label_basis.shape[0], label_basis.shape[1])
+            "invariant constraints", (len(stabilizers) * repeated_site_basis.shape[0], repeated_site_basis.shape[1])
         )
-        constraints = invariant_constraints(label_basis, rotations, permutations)
+        constraints = invariant_constraints(repeated_site_basis, rotations, permutations)
     else:
-        constraints = np.empty((0, label_basis.shape[1]), dtype=np.int64)
+        constraints = np.empty((0, repeated_site_basis.shape[1]), dtype=np.int64)
     constraints = np.unique(constraints, axis=0)
     kernel = integer_kernel_basis(constraints)
-    # Each label-basis row selects exactly one column; this avoids an
+    # Each repeated-site basis row selects exactly one column; this avoids an
     # unnecessary integer dot product and its coefficient-growth bound.
-    result = kernel[np.argmax(label_basis, axis=1)]
+    result = kernel[np.argmax(repeated_site_basis, axis=1)]
     return result
 
 

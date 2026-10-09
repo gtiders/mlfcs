@@ -88,7 +88,7 @@ def test_external_calculation_and_extxyz_reconstruct_the_same_fc2(tmp_path) -> N
     fd = FiniteDifference(mapping, order=2, disps=(0.01,))
     calculator = HarmonicCalculator(supercell_atoms.positions)
     evaluated = []
-    for atoms in fd.displacements():
+    for atoms in fd.sow():
         calculator.calculate(atoms, properties=["forces"], system_changes=all_changes)
         atoms.calc = SinglePointCalculator(atoms, forces=calculator.results["forces"])
         evaluated.append(atoms)
@@ -96,8 +96,8 @@ def test_external_calculation_and_extxyz_reconstruct_the_same_fc2(tmp_path) -> N
     assert all(isinstance(atoms.calc, SinglePointCalculator) for atoms in evaluated)
     write(tmp_path / "forces.extxyz", evaluated)
     restored = tuple(read(tmp_path / "forces.extxyz", ":"))
-    first = fd.reconstruct(ForceDataset(mapping, evaluated))
-    second = fd.reconstruct(ForceDataset(mapping, restored))
+    first = fd.reap(ForceDataset(mapping, evaluated))
+    second = fd.reap(ForceDataset(mapping, restored))
     np.testing.assert_array_equal(second.coefficients[2], first.coefficients[2])
     block = first.cluster_space.block(2)
     tensors = representative_tensors(first, 2)
@@ -116,10 +116,10 @@ def test_finite_difference_reconstructs_stored_forces() -> None:
     """Verify finite difference reconstructs stored forces."""
     mapping, supercell_atoms = ar_mapping(3)
     fd = FiniteDifference(mapping, order=2)
-    structures = tuple(fd.displacements())
+    structures = tuple(fd.sow())
     forces = [-(atoms.positions - supercell_atoms.positions) for atoms in structures]
     evaluated = stored(structures, forces)
-    model = fd.reconstruct(ForceDataset(mapping, evaluated))
+    model = fd.reap(ForceDataset(mapping, evaluated))
     assert model.orders == (2,)
 
 
@@ -129,12 +129,12 @@ def test_multiple_disps_remove_the_leading_even_difference_error() -> None:
     stiffness = 2.5
     cubic_error = 7.0
     fd = FiniteDifference(mapping, order=2, disps=(0.02, 0.01))
-    structures = tuple(fd.displacements())
+    structures = tuple(fd.sow())
     forces = []
     for atoms in structures:
         displacement = atoms.positions - supercell_atoms.positions
         forces.append(-stiffness * displacement - cubic_error * displacement**3)
-    model = fd.reconstruct(ForceDataset(mapping, stored(structures, forces)))
+    model = fd.reap(ForceDataset(mapping, stored(structures, forces)))
     tensors = representative_tensors(model, 2)
     assert len(tensors) == 1
     np.testing.assert_allclose(tensors[0], stiffness * np.eye(3), atol=1e-12, rtol=0.0)
@@ -156,12 +156,12 @@ def test_fc3_reconstruction_uses_atoms_and_the_orbit_basis() -> None:
         disps=(0.001,),
     )
     diagonal = np.asarray([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
-    structures = tuple(fd.displacements())
+    structures = tuple(fd.sow())
     forces = []
     for displaced in structures:
         movement = displaced.positions - atoms.positions
         forces.append(-0.5 * diagonal * movement**2)
-    model = fd.reconstruct(ForceDataset(fd.cluster_map, stored(structures, forces)))
+    model = fd.reap(ForceDataset(fd.cluster_map, stored(structures, forces)))
     tensors = representative_tensors(model, 3)
     expected = np.zeros((2, 3, 3, 3))
     for atom in range(2):
@@ -176,10 +176,10 @@ def test_fc4_reconstruction_consumes_the_shared_force_dataset():
     space = ClusterSpace(atoms, cutoffs={4: 0.1})
     mapping = ClusterMap(space, atoms)
     fd = FiniteDifference(mapping, order=4, disps=0.001)
-    structures = tuple(fd.displacements())
+    structures = tuple(fd.sow())
     stiffness = 2.5
     forces = [-stiffness / 6 * (sample.positions - atoms.positions) ** 3 for sample in structures]
-    model = fd.reconstruct(ForceDataset(mapping, stored(structures, forces)))
+    model = fd.reap(ForceDataset(mapping, stored(structures, forces)))
     expected = np.zeros((3, 3, 3, 3))
     for axis in range(3):
         expected[axis, axis, axis, axis] = stiffness

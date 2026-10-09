@@ -1,4 +1,4 @@
-"""Physical raw and normal force-fitting systems."""
+"""Raw and normal least-squares systems for fitting atomic forces."""
 
 from mlfcs.fitting.system import FitSystem
 

@@ -169,11 +169,11 @@ def test_task_summaries_cover_difference_projection_phonons_and_output(package_l
 
         samples = []
         calculator = Spring()
-        for sample in difference.displacements():
+        for sample in difference.sow():
             calculator.calculate(sample, properties=["forces"], system_changes=all_changes)
             sample.calc = SinglePointCalculator(sample, forces=calculator.results["forces"])
             samples.append(sample)
-        difference.reconstruct(ForceDataset(mapping, samples))
+        difference.reap(ForceDataset(mapping, samples))
     text = output.getvalue()
     for required in (
         "Rotation projection complete",

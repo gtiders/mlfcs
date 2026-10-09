@@ -14,10 +14,11 @@ from mlfcs.foundation.tensors import rotate_basis, rotate_tensor
 class LatticeForceConstants:
     """Cartesian tensors expanded onto anchored primitive-lattice labels.
 
-    For order p, sites contains p primitive indices per image, translations
-    contains only the last p-1 integer shifts (the first is zero), and tensors
-    contains newly evaluated arrays of shape (3,) repeated p times. These arrays
-    are not marked readonly; dataclass freezing only freezes field assignment.
+    Each entry represents an energy-derivative tensor at periodic motif sites,
+    with the first site anchored at zero lattice translation. ``translations``
+    records the remaining sites' lattice shifts; tensor components remain
+    Cartesian, in eV/angstrom**p for order ``p``. They contain neither mass
+    weighting nor Taylor factorials.
     """
 
     sites: tuple[tuple[int, ...], ...]

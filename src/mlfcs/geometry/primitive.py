@@ -1,24 +1,22 @@
-"""Primitive-cell geometry and periodic lattice-site addresses."""
+"""Reference-cell geometry and periodic lattice-site addresses."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
 import numpy as np
-import spglib
 from ase import Atoms
 
 from mlfcs.foundation.arrays import as_int64_array, readonly
 
 
 def validate_primitive_arrays(cell, scaled_positions, atomic_numbers, symprec):
-    """Validate a primitive periodic structure without changing its representation.
+    """Validate a periodic reference structure without changing its cell basis.
 
     The structure is defined by row lattice vectors ``cell``, wrapped
-    fractional motif coordinates, and atomic species. The supplied structure
-    must already be primitive at the Cartesian tolerance ``symprec``; no
-    standardization or primitive-cell reduction is performed. spglib is used
-    only to detect whether a smaller primitive motif exists.
+    fractional motif coordinates, and atomic species. The supplied cell
+    defines the reference lattice, whether or not a smaller primitive cell
+    exists. No primitiveness check, reduction or standardization is performed.
 
     Parameters
     ----------
@@ -30,7 +28,7 @@ def validate_primitive_arrays(cell, scaled_positions, atomic_numbers, symprec):
     atomic_numbers
         Atomic numbers of shape ``(n_atoms,)``.
     symprec
-        Positive Cartesian tolerance in angstrom used to verify primitiveness.
+        Positive Cartesian tolerance in angstrom for subsequent symmetry matching.
 
     Returns
     -------
@@ -48,8 +46,7 @@ def validate_primitive_arrays(cell, scaled_positions, atomic_numbers, symprec):
     TypeError
         If atomic numbers are not represented by integers.
     ValueError
-        If the geometry is invalid, coordinates are not wrapped, or the
-        supplied structure is not primitive at ``symprec``.
+        If the geometry is invalid or fractional coordinates are not wrapped.
     OverflowError
         If atomic numbers cannot enter the integer interface required by
         spglib.
@@ -79,28 +76,14 @@ def validate_primitive_arrays(cell, scaled_positions, atomic_numbers, symprec):
         raise OverflowError("primitive atomic numbers exceed the spglib int32 interface")
     if np.any(positions < 0.0) or np.any(positions >= 1.0):
         raise ValueError("primitive scaled positions must be wrapped into [0, 1)")
-    found = spglib.find_primitive(
-        (cell, positions, numbers.astype(np.int32, copy=False)),
-        symprec=symprec,
-    )
-    if found is None:
-        raise ValueError(
-            f"spglib could not certify a primitive cell at symprec {symprec:g} angstrom"
-        )
-    if len(found[2]) != len(numbers):
-        raise ValueError(
-            f"input contains {len(numbers)} atoms but its primitive cell contains "
-            f"{len(found[2])} atoms at symprec {symprec:g} angstrom"
-        )
-
     return cell, readonly(positions, np.float64), numbers, symprec
 
 
 def primitive_data(atoms, symprec):
-    """Extract the validated primitive-cell representation from an ASE structure.
+    """Extract the periodic reference-cell representation from an ASE structure.
 
-    The structure must be fully periodic in three dimensions and primitive at
-    ``symprec``. Fractional coordinates are wrapped into the reference cell,
+    The structure must be fully periodic in three dimensions. Its cell need
+    not be primitive. Fractional coordinates are wrapped into the reference cell,
     while the original lattice basis and atom order are preserved. Atomic
     masses are returned in atomic mass units and must be positive and finite.
     The input ``Atoms`` object is neither retained nor modified.

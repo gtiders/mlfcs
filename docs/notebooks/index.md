@@ -1,51 +1,46 @@
 # 教程总览
 
-本站的教程以 Jupyter notebook 形式维护：文档即教程，教程即文档。每个 notebook
-既讲解一段工作流，又包含**真实执行过的完整输出**——图、拟合指标与收敛历史都由
-notebook 在本仓库环境中运行生成，并随源码一起提交。改代码、改文字、改数据都
-发生在同一个地方。
+这些案例从真实材料的结构和原子力出发，把模型、超胞和数据集串成可执行的工作流。每份 notebook 都保存了从干净 kernel 顺序执行的输出，包括力误差、图和结果表。
 
-## 教程列表
+如果第一次使用 MLFCS，先读 [核心概念](../core-concepts.md)，了解应该把参考结构、超胞和带力样本分别交给哪个对象。随后按数据来源选择案例：已有力文件可以直接拟合，需要自己生成位移则从 Si 有限差分开始。
 
-| Notebook | 内容 | 涉及的 API |
-|---|---|---|
-| [石墨烯与 MoS₂：转动求和规则](rotational-sum-rules.ipynb) | 同一 FC2 拟合在 ASR 与 ASR + Born–Huang + Huang ASR 自由坐标拟合及旋转修正下的声子谱对比 | `ClusterSpace`、`ClusterMap`、`FitSystem`、初始化 `asr=True`、`enforce_rotation` |
-| [Si：有限差分与外推](si-finite-difference.ipynb) | 用 ASE Tersoff 势做多步位移的 FC2/FC3 有限差分与外推，并计算声子谱与热导率 | `FiniteDifference`、初始化 `asr=True`、导出 API |
-| [Ba8Ga16Ge30：FC2+FC3 拟合与声子谱](ba8ga16ge30.ipynb) | 54 原子笼形化合物从 300 K NVE 快照拟合有效 FC2+FC3，再画谐波声子谱 | `FitSystem`、初始化 `asr=True`、`Harmonic` |
-| [Si：FC2–FC5 联合拟合与热导率](si-fitting.ipynb) | 四阶联合拟合、壳截断语义、`EstimateCutoff` 工具与 phono3py 热导率 | `FitSystem`、`EstimateCutoff`、`rank_info` |
-| [K4As4Pt2：FC2–FC4 拟合、热导率与 SCPH](k4as4pt2.ipynb) | FC2–FC4 联合拟合、RTA 热导率与温度相关的 SCPH 声子谱 | `FitSystem`、`SCPH`、`Harmonic` |
-| [NaCl：短程拟合与 NAC 声子谱](nacl-long-range.ipynb) | 长程力扣除、短程拟合、总 FC2 导出，再用 Phonopy NAC 比较声子谱 | `ForceDataset`、`DipoleEwald`、`CompactForceConstants`、`FitSystem` |
+## 案例与阅读顺序
 
-API 各页（[有限差分](../finite-difference-api.md)、[拟合](../fitting-api.md)、
-[谐波声子](../harmonic-api.md)、[SCPH](../scph.md)）给出精确的接口契约；教程
-负责把这些接口串成完整工作流。整数核与开发者参考见
-[整数核与开发者参考](../numba-integer-audit.md)一节。
+| Notebook | 最后得到什么 |
+|---|---|
+| [NaCl：长程力与 NAC](nacl-long-range.ipynb) | 扣除长程力、拟合短程 FC2、回加后用 Phonopy 比较 NAC 声子谱 |
+| [石墨烯与 MoS₂：转动求和规则](rotational-sum-rules.ipynb) | 每种材料拟合一次 FC2，比较旋转修正前后的误差与声子谱 |
+| [Si：有限差分与外推](si-finite-difference.ipynb) | 生成位移、用 Tersoff 计算力、恢复 FC2 和 FC3，再检查声子与 300 K RTA 热导率 |
+| [Ba8Ga16Ge30：轨迹拟合](ba8ga16ge30.ipynb) | 从 300 K 分子动力学快照联合拟合 FC2、FC3，并画有效二阶模型的声子谱 |
+| [Si：FC2–FC5 联合拟合](si-fitting.ipynb) | 用一套带力样本联合恢复多阶力常数，再计算固定模型的 RTA 热导率 |
+| [K4As4Pt2：热导率与 SCPH](k4as4pt2.ipynb) | 拟合 FC2–FC4，计算 RTA 热导率，并比较四个温度的 SCPH 有效声子谱 |
 
-## 运行环境
+## 运行准备
 
-教程依赖 `tutorial` 依赖组（phonopy、phono3py、matplotlib 以及
-notebook 执行工具）：
+在仓库根目录安装教程与文档依赖：
 
 ```bash
 uv sync --group docs --group tutorial
 ```
 
-逐个执行 notebook（保持串行，一次只跑一个，部分拟合任务的内存峰值较高）：
+然后打开 `docs/notebooks/` 下的 notebook，选择对应环境的 Python kernel，从第一格依次运行。数据路径兼容 notebook 目录与仓库根目录。全部输入文件随仓库提供，不需要另行下载或手工生成；需要外部力的替换方法在各案例中说明。
+
+也可以从仓库根目录逐份执行：
 
 ```bash
+OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 NUMBA_NUM_THREADS=4 \
 uv run --group docs --group tutorial jupyter nbconvert --to notebook \
-    --execute --inplace docs/notebooks/<name>.ipynb
+    --execute --inplace --ExecutePreprocessor.timeout=7200 \
+    docs/notebooks/nacl-long-range.ipynb
 ```
 
-## 数据与约定
+更换命令末尾的文件名即可运行其他案例。保持串行，一次只运行一个 notebook；大模型的初始化、拟合与外部 FC3 数组都可能占用较多内存。命令中将 BLAS 与 OpenMP 限制为单线程，Numba 使用 4 线程，控制线程竞争并保留力方程构造的并行能力。这是运行资源设置，不改变模型定义；按自己的机器调整线程数时，仍应保持 notebook 串行。
 
-- 训练数据与结构文件在 `docs/notebooks/data/` 下，按案例分目录，随仓库提交，
-  因此所有 notebook 都可以直接重跑。
-- notebook 演示中的导出文件（`.mlfcs`、HDF5、FORCE_CONSTANTS 文本）写入临时
-  目录，不污染文档树；正式工作流中把 `SCRATCH` 换成你的工作目录即可。
-- 数据来源与归属：Si 训练集与截断壳语义来自远程 SI 布局；Ba8Ga16Ge30 的
-  300 K 快照取自 hiPhive 的笼形热导率示例（沿用其归属与许可条款）；
-  K4As4Pt2 的位移数据由 ALAMODE 生成。
+## 数据与结果
 
-整数核的安全性契约（教学案例为什么可以放心跑大体系）见
-[本地整数契约与清理规则](../local-integer-contracts.md)。
+- 数据目录是 `docs/notebooks/data/`，按材料分开。Si 使用配套 Tersoff 势与已有训练样本；Ba8Ga16Ge30 轨迹沿用 hiPhive 笼形材料示例；K4As4Pt2 使用 ALAMODE 位移样本。NaCl 的来源与许可证见仓库中的 `docs/notebooks/data/nacl/README.md`。重用数据时保留原有归属与许可。
+- 预计算力由 `ForceDataset` 读取，MLFCS 不会隐式调用 calculator。Si 有限差分案例则明确使用 ASE Tersoff 计算并保存每帧力。
+- 中间 HDF5 文件写入临时目录，完整结果保存在 notebook 输出中。正式研究可将 `SCRATCH` 换成持久工作目录；保存参数模型使用 `ForceConstants.save()`。
+- 教学截断、倒空间网格与误差表不等于材料性质已经收敛。每份教程说明了换材料时应修改的输入和继续检查的方向。
+
+接口选项见 [有限差分](../finite-difference-api.md)、[拟合](../fitting-api.md)、[长程力](../ewald-api.md)、[谐波声子](../harmonic-api.md)与 [SCPH](../scph.md)。数学背景见 [Theory](../theory/index.md)，资源范围见[数值契约](../development/numerical-contracts.md)。

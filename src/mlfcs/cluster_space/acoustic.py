@@ -16,6 +16,7 @@ from dataclasses import dataclass
 import numpy as np
 from numba import njit
 from scipy import sparse
+from scipy.sparse.linalg import LinearOperator, lsmr
 
 from mlfcs.cluster_space.acoustic_factorization import (
     checked_add,
@@ -46,7 +47,9 @@ def lattice_acoustic_equations(
     """Express one order's acoustic sum rule in lattice tensor coordinates.
 
     Each equation sums over the final atomic position and its periodic images,
-    holding the preceding positions and Cartesian tensor directions fixed.
+    holding the preceding positions and lattice tensor components fixed.
+    The common invertible tensor frame makes these equations equivalent to
+    the Cartesian acoustic sum rule.
     ``matrix`` acts on lattice tensor coefficients ``c``; the accompanying
     orbit maps ``W`` convert them to canonical Cartesian parameters
     ``theta = W c``. The equation and mapped parameters use the same orbit
@@ -208,6 +211,37 @@ class AcousticCoordinates:
             raise ValueError("model coefficients do not belong to the prepared acoustic subspace")
         return free
 
+    def project(self, coefficients: object) -> np.ndarray:
+        """Project physical coefficients onto the prepared acoustic subspace.
+
+        Minimize ``||lift(z) - coefficients||_2`` in canonical physical
+        parameter coordinates and return ``lift(z)``. The finite input must
+        have shape ``(width,)``. Only lift and adjoint actions are used; no
+        dense nullspace is formed. Invalid input raises ``ValueError`` and
+        failure of the least-squares iteration raises ``RuntimeError``.
+        """
+        coefficients = np.asarray(coefficients, dtype=float)
+        if coefficients.shape != (self.width,) or not np.all(np.isfinite(coefficients)):
+            raise ValueError("invalid canonical coefficient vector")
+        if not self.dimension:
+            return np.zeros(self.width)
+        operator = LinearOperator(
+            (self.width, self.dimension),
+            matvec=self.lift,
+            rmatvec=self.adjoint,
+            dtype=np.float64,
+        )
+        solution = lsmr(
+            operator,
+            coefficients,
+            atol=1e-12,
+            btol=1e-12,
+            maxiter=max(1000, 2 * self.dimension),
+        )
+        if solution[1] not in (0, 1, 2, 4, 5):
+            raise RuntimeError("acoustic constraint projection did not converge")
+        return self.lift(solution[0])
+
     def adjoint(self, vector: object) -> np.ndarray:
         """Map a physical parameter vector through the adjoint of ``lift``."""
         return self.restrict_rows(np.asarray(vector).reshape(1, -1))[0]
@@ -236,8 +270,8 @@ class AcousticCoordinates:
         return result
 
 
-def _pack(upper, pivots, maps, width):
-    """Mark nonpivot lattice coefficients as free and attach their physical maps."""
+def _pack_acoustic_coordinates(upper, pivots, maps, width):
+    """Assemble free acoustic coordinates and their physical parameter maps."""
     free_mask = np.ones(width, dtype=bool)
     free_mask[pivots] = False
     free = np.flatnonzero(free_mask)
@@ -259,7 +293,7 @@ def prepare_coordinates(
     coefficient layout.
     """
     upper, pivots = factor_acoustic_equations(matrix)
-    return _pack(upper, pivots, physical_maps, matrix.shape[1])
+    return _pack_acoustic_coordinates(upper, pivots, physical_maps, matrix.shape[1])
 
 
 def prepare_acoustic_coordinates(space):

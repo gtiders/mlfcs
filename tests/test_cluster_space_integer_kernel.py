@@ -7,10 +7,10 @@ import pytest
 
 from mlfcs.cluster_space.integer_kernel import (
     _verify_integer_kernel,
-    common_denominator,
     congruence_preimage,
     integer_kernel_basis,
-    reconstruct,
+    reconstruct_rationals,
+    scale_to_common_denominator,
 )
 from mlfcs.foundation.arrays import as_int64_array
 from mlfcs.foundation.integer import RANK_PRIMES
@@ -157,14 +157,14 @@ def test_rational_reconstruction_recovers_fractions(denominator_bound, sign):
         np.array([[sign * numerator * pow(denominator, -1, prime) % prime]], dtype=np.int64)
         for prime in RANK_PRIMES
     ]
-    n, d, ok = reconstruct(*residues, denominator_bound)
+    n, d, ok = reconstruct_rationals(*residues, denominator_bound)
     assert ok
     assert (int(n[0, 0]), int(d[0, 0])) == (sign * numerator, denominator)
 
 
 def test_common_denominator_preserves_fractions():
     """Represent 1/2 and -1/3 using a shared denominator of six."""
-    f, delta, ok = common_denominator(
+    f, delta, ok = scale_to_common_denominator(
         np.array([[1, -1]], dtype=np.int64), np.array([[2, 3]], dtype=np.int64)
     )
     assert ok

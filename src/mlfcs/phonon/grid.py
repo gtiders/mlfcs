@@ -176,7 +176,8 @@ class QGrid:
 
         ``matrix`` is either three positive diagonal mesh sizes or a nonsingular
         integer matrix with ``cell_super = matrix @ cell_primitive``. The grid
-        contains ``abs(det(matrix))`` labels in the matrix's reciprocal basis.
+        contains ``abs(det(matrix))`` labels representing fractional reciprocal
+        coordinates in the primitive cell basis.
         """
         values = _normalize_mesh_matrix(matrix)
         denominator = abs(determinant_3x3(values))

@@ -17,7 +17,7 @@ import numpy as np
 from numba import njit, types
 from numba.typed import Dict, List
 
-from mlfcs.cluster_space.integer_kernel import common_denominator, reconstruct
+from mlfcs.cluster_space.integer_kernel import reconstruct_rationals, scale_to_common_denominator
 from mlfcs.foundation.integer import RANK_PRIMES, modular_power
 
 LIMIT = np.int64(9223372036854775807)
@@ -195,10 +195,10 @@ def _reconstruct_row(first, second, row, bound):
             left += 1
             right += 1
         count += 1
-    numerator, denominator, ok = reconstruct(left_values[:, :count], right_values[:, :count], bound)
+    numerator, denominator, ok = reconstruct_rationals(left_values[:, :count], right_values[:, :count], bound)
     if not ok:
         raise OverflowError("ASR rational factor reconstruction failed")
-    scaled, common, ok = common_denominator(numerator, denominator)
+    scaled, common, ok = scale_to_common_denominator(numerator, denominator)
     if not ok:
         raise OverflowError("ASR rational factor denominator exceeds word domain")
     return columns[:count], scaled[0], common

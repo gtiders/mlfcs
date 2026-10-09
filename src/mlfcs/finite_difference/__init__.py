@@ -1,4 +1,4 @@
-"""Generate finite-difference force samples and recover force constants."""
+"""Generate finite-difference sampling structures and recover force constants."""
 
 from mlfcs.finite_difference.sampling import FiniteDifference
 

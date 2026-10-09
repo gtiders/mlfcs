@@ -1,4 +1,4 @@
-"""Shared Cartesian tensor dimensions and symmetry actions."""
+"""Shared tensor dimensions, lattice symmetry actions, and Cartesian rotations."""
 
 import numpy as np
 from numba import njit

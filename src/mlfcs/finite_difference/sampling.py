@@ -1,4 +1,4 @@
-"""Define ordered finite-difference structures and reconstruct their force derivatives."""
+"""Generate ordered finite-difference structures and recover force constants."""
 
 from __future__ import annotations
 
@@ -18,7 +18,9 @@ from mlfcs.mapping import ClusterMap
 logger = get_logger(__name__)
 
 
-def _keys(cluster_map: ClusterMap, order: int) -> tuple[tuple[tuple[int, int], ...], ...]:
+def _displacement_keys(
+    cluster_map: ClusterMap, order: int
+) -> tuple[tuple[tuple[int, int], ...], ...]:
     """Return the displacement coordinates required by representative observations.
 
     Each key contains the ``order - 1`` atomic Cartesian coordinates with
@@ -28,11 +30,16 @@ def _keys(cluster_map: ClusterMap, order: int) -> tuple[tuple[tuple[int, int], .
     keys: set[tuple[tuple[int, int], ...]] = set()
     for orbit_index in range(block.orbits.start, block.orbits.stop):
         orbit = cluster_map.cluster_space.orbits[orbit_index]
-        image = orbit.clusters.index(orbit.representative)
-        atoms = tuple(int(value) for value in cluster_map.image_atom_indices[orbit_index][image])
+        representative_image = orbit.clusters.index(orbit.representative)
+        atom_indices = tuple(
+            int(value)
+            for value in cluster_map.image_atom_indices[orbit_index][representative_image]
+        )
         for row in orbit.observation_rows:
             directions = np.unravel_index(int(row), (3,) * order)
-            keys.add(tuple((atoms[axis], int(directions[axis])) for axis in range(order - 1)))
+            keys.add(
+                tuple((atom_indices[axis], int(directions[axis])) for axis in range(order - 1))
+            )
     return tuple(sorted(keys))
 
 
@@ -61,7 +68,8 @@ class FiniteDifference:
     combined by extrapolating the even finite-difference error to zero step.
 
     The selected order must be structurally identifiable in the mapped
-    supercell.
+    supercell. Acoustic constraints are prepared by ``ClusterSpace(asr=True)``
+    and applied during ``reap()`` without changing the sampling sequence.
 
     Raises
     ------
@@ -71,7 +79,7 @@ class FiniteDifference:
         Supercell folding loses required parameters.
     """
 
-    __slots__ = ("_keys", "_signs", "cluster_map", "disps", "order")
+    __slots__ = ("_displacement_keys", "_sign_combinations", "cluster_map", "disps", "order")
 
     def __init__(
         self,
@@ -85,44 +93,48 @@ class FiniteDifference:
         if order < 2:
             raise ValueError("force-constant order must be at least 2")
         source = (disps,) if np.isscalar(disps) else disps
-        values = tuple(sorted(float(disp) for disp in source))
-        if not values:
+        step_lengths = tuple(sorted(float(step_length) for step_length in source))
+        if not step_lengths:
             raise ValueError("finite differences require at least one step")
-        if any(not np.isfinite(disp) or disp <= 0.0 for disp in values):
-            raise ValueError("finite-difference displacements must be positive finite lengths")
-        if len(set(values)) != len(values):
-            raise ValueError("finite-difference displacements must be distinct")
+        if any(not np.isfinite(step_length) or step_length <= 0.0 for step_length in step_lengths):
+            raise ValueError("finite-difference step lengths must be positive finite lengths")
+        if len(set(step_lengths)) != len(step_lengths):
+            raise ValueError("finite-difference step lengths must be distinct")
         cluster_map.cluster_space.block(order)
         cluster_map.rank_info(order).require_full()
         self.cluster_map = cluster_map
         self.order = order
-        self.disps = values
-        self._keys = _keys(cluster_map, order)
-        self._signs = np.asarray(list(product((-1, 1), repeat=order - 1)), dtype=np.int8)
-        self._signs.setflags(write=False)
+        self.disps = step_lengths
+        self._displacement_keys = _displacement_keys(cluster_map, order)
+        self._sign_combinations = np.asarray(
+            list(product((-1, 1), repeat=order - 1)), dtype=np.int8
+        )
+        self._sign_combinations.setflags(write=False)
         logger.info(
-            "Prepared FC%d finite difference: %d configurations at displacements %s Å",
+            "Prepared FC%d finite difference: %d configurations at step lengths %s Å",
             order,
             self.n_configurations,
-            ", ".join(f"{disp:.10g}" for disp in self.disps),
+            ", ".join(f"{step_length:.10g}" for step_length in self.disps),
         )
 
     @property
     def n_configurations(self) -> int:
         """Number of displaced structures in the canonical sampling sequence."""
-        return len(self._keys) * len(self.disps) * len(self._signs)
+        return len(self._displacement_keys) * len(self.disps) * len(self._sign_combinations)
 
-    def displacements(self) -> Sequence[Atoms]:
-        """Return the lazy sequence of structures in canonical sampling order."""
-        return Displacements(self)
+    def sow(self) -> Sequence[Atoms]:
+        """Generate displaced ASE structures lazily in canonical sampling order."""
+        return _DisplacedStructures(self)
 
-    def reconstruct(self, dataset: ForceDataset) -> ForceConstants:
+    def reap(self, dataset: ForceDataset) -> ForceConstants:
         """Reconstruct this force-constant order from an ordered force dataset.
 
-        Frames must correspond one-to-one with ``displacements()`` in canonical
+        Frames must correspond one-to-one with ``sow()`` in canonical
         sampling order. Reconstruction uses the stored forces and does not use
-        frame geometry or metadata to infer or repair their order. The returned
-        ``ForceConstants`` contains only this order.
+        frame geometry or metadata to infer or repair their order. If the mapped
+        ``ClusterSpace`` has acoustic coordinates for this order, reconstructed
+        physical parameters are projected onto that subspace by least squares.
+        The returned ``ForceConstants`` contains only this order.
         """
         started = perf_counter()
         logger.info(
@@ -141,7 +153,7 @@ class FiniteDifference:
         return model
 
 
-class Displacements(Sequence[Atoms]):
+class _DisplacedStructures(Sequence[Atoms]):
     """Lazy sequence of displaced structures defined by a finite-difference plan."""
 
     __slots__ = ("_finite_difference",)
@@ -167,19 +179,19 @@ class Displacements(Sequence[Atoms]):
         if position < 0:
             position += len(self)
         if not 0 <= position < len(self):
-            raise IndexError("displacement index is outside the finite difference")
-        difference = self._finite_difference
-        sign_count = len(difference._signs)
-        disp_count = len(difference.disps)
-        key_index, remainder = divmod(position, disp_count * sign_count)
-        disp_index, sign_index = divmod(remainder, sign_count)
-        key = difference._keys[key_index]
-        disp = difference.disps[disp_index]
-        delta = np.zeros((len(difference.cluster_map.atomic_numbers), 3))
-        for sign, (atom, axis) in zip(difference._signs[sign_index], key, strict=True):
-            delta[int(atom), int(axis)] += int(sign) * disp
-        atoms = difference.cluster_map.supercell_atoms
-        atoms.positions += delta
+            raise IndexError("structure index is outside the finite-difference sampling sequence")
+        plan = self._finite_difference
+        sign_count = len(plan._sign_combinations)
+        step_count = len(plan.disps)
+        key_index, remainder = divmod(position, step_count * sign_count)
+        step_index, sign_index = divmod(remainder, sign_count)
+        key = plan._displacement_keys[key_index]
+        step_length = plan.disps[step_index]
+        displacements = np.zeros((len(plan.cluster_map.atomic_numbers), 3))
+        for sign, (atom, axis) in zip(plan._sign_combinations[sign_index], key, strict=True):
+            displacements[int(atom), int(axis)] += int(sign) * step_length
+        atoms = plan.cluster_map.supercell_atoms
+        atoms.positions += displacements
         return atoms
 
     def __iter__(self) -> Iterator[Atoms]:

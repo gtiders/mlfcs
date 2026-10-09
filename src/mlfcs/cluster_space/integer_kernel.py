@@ -139,7 +139,7 @@ def gcd(a, b):
 
 
 @njit(cache=True)
-def chart(matrix, rank, prime):
+def modular_pivot_chart(matrix, rank, prime):
     """Construct the free-column block of a fixed modular pivot chart.
 
     The input columns are ordered so that the first ``rank`` columns are the
@@ -163,27 +163,18 @@ def chart(matrix, rank, prime):
 
 
 @njit(cache=True)
-def reconstruct(first, second, denominator_bound):
-    """Reconstruct rational chart entries from residues at two primes.
+def reconstruct_rationals(first, second, denominator_bound):
+    """Reconstruct reduced rational entries from residues at two primes.
 
     Residues modulo the two fixed reconstruction primes are first combined by
     the Chinese remainder theorem. Each resulting residue is then interpreted
     as a reduced rational number ``a / b`` satisfying the prescribed
     denominator bound and the corresponding uniqueness bound on ``|a|``.
 
-    Parameters
-    ----------
-    first, second
-        Residue matrices of identical shape over the two reconstruction primes.
-    denominator_bound
-        Positive upper bound on reconstructed denominators.
-
-    Returns
-    -------
-    numerators, denominators
-        Reconstructed reduced fractions entrywise.
-    ok
-        ``False`` if any entry has no unique admissible reconstruction.
+    The residue matrices must have identical shapes. Return numerators,
+    positive denominators, and a success flag; the flag is false if any entry
+    has no admissible reduced reconstruction. Reconstruction proposes values;
+    callers certify the resulting characteristic-zero identities separately.
     """
     p1, p2 = RANK_PRIMES
     modulus = CRT_MODULUS
@@ -213,22 +204,15 @@ def reconstruct(first, second, denominator_bound):
 
 
 @njit(cache=True)
-def common_denominator(numerators, denominators):
+def scale_to_common_denominator(numerators, denominators):
     """Convert reconstructed rational entries to a common denominator.
 
     Given entrywise reduced fractions ``N_ij / D_ij``, construct a positive
     common denominator ``delta`` and integer matrix ``F`` such that
     ``N_ij / D_ij = F_ij / delta`` for every entry.
 
-    Returns
-    -------
-    F
-        Integer scaled chart.
-    delta
-        Positive common denominator.
-    ok
-        ``False`` if the required denominator or scaled entries exceed the
-        supported integer domain.
+    Return ``(F, delta, ok)``. The success flag is false if the common
+    denominator or scaled numerators exceed the supported arithmetic domain.
     """
     delta = 1
     for value in denominators.flat:
@@ -282,7 +266,7 @@ def bezout(a, b):
 
 
 @njit(cache=True)
-def reduce_column(h, column, delta):
+def reduce_hnf_column(h, column, delta):
     """Reduce one triangular lattice-basis column to column-HNF residue form.
 
     Earlier pivot columns are assumed already reduced. The selected column is
@@ -298,7 +282,7 @@ def reduce_column(h, column, delta):
 
 
 @njit(cache=True)
-def row_preimage(w, delta):
+def congruence_row_preimage(w, delta):
     """Construct a column-HNF basis of one modular kernel preimage.
 
     The returned columns generate the integer lattice
@@ -333,7 +317,7 @@ def row_preimage(w, delta):
         h[j, j] = pivot
         for i in range(j):
             h[i, j] = b[i] * multiple % delta
-        reduce_column(h, j, delta)
+        reduce_hnf_column(h, j, delta)
         for i in range(j):
             b[i] = (s * b[i]) % delta
         b[j] = t % delta
@@ -379,20 +363,20 @@ def congruence_preimage(f, delta):
                 w[j] = (w[j] + (f[row, k] % delta) * (h[k, j] % delta)) % delta
         if not np.any(w):
             continue
-        t = row_preimage(w, delta)
+        t = congruence_row_preimage(w, delta)
         next_h = np.zeros((d, d), dtype=np.int64)
         for j in range(d):
             next_h[j, j] = h[j, j] * t[j, j]
             for i in range(j):
                 for k in range(i, j + 1):
                     next_h[i, j] = (next_h[i, j] + (h[i, k] % delta) * (t[k, j] % delta)) % delta
-            reduce_column(next_h, j, delta)
+            reduce_hnf_column(next_h, j, delta)
         h = next_h
     return h
 
 
 @njit(cache=True)
-def lift_kernel(f, delta, h):
+def lift_congruence_kernel(f, delta, h):
     """Lift free-coordinate lattice vectors to exact kernel vectors.
 
     Suppose the reconstructed rational pivot chart is ``x_pivot = -(F /
@@ -552,7 +536,7 @@ def integer_kernel_basis(matrix, *, expected_nullity=None):
     # A single pivot chart must work at both reconstruction primes; choosing
     # separate pivot coordinates would make the residues incomparable.
     selected = np.ascontiguousarray(a[rows][:, order])
-    charts = [chart(selected, rank, p) for p in RANK_PRIMES]
+    charts = [modular_pivot_chart(selected, rank, p) for p in RANK_PRIMES]
     if not all(ok for _, ok in charts):
         raise RankError("fixed chart pivot minor is singular at a reconstruction prime")
     d = len(free)
@@ -563,10 +547,10 @@ def integer_kernel_basis(matrix, *, expected_nullity=None):
     require_allocation("kernel basis", (n, d))
     require_allocation("congruence workspace", (d, d))
     for exponent in range(31):
-        numerators, denominators, ok = reconstruct(charts[0][0], charts[1][0], 1 << exponent)
+        numerators, denominators, ok = reconstruct_rationals(charts[0][0], charts[1][0], 1 << exponent)
         if not ok:
             continue
-        f, delta, ok = common_denominator(numerators, denominators)
+        f, delta, ok = scale_to_common_denominator(numerators, denominators)
         if not ok:
             continue
         chart_bound = max((abs(int(v)) for v in f.flat), default=0)
@@ -583,7 +567,7 @@ def integer_kernel_basis(matrix, *, expected_nullity=None):
         # Clearing denominators alone gives a possibly proper sublattice.
         # The congruence preimage recovers every admissible integer free vector.
         h = congruence_preimage(f, delta)
-        lifted = lift_kernel(f, delta, h)
+        lifted = lift_congruence_kernel(f, delta, h)
         result = np.empty((n, d), dtype=np.int64)
         result[order] = lifted
         _verify_integer_kernel(a, result)

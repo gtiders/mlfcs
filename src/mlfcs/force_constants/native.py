@@ -24,8 +24,8 @@ def _array(group, name, kind, ndim):
 
     ``group`` is an HDF5 group, ``name`` a required dataset, ``kind`` is
     'i' for signed int64 or 'f' for float64, and ``ndim`` is its required
-    rank. Return a NumPy array preserving shape and entries. Raise ValueError
-    for missing datasets or incompatible dtype/rank; floating entries must be
+    dimensionality. Return a NumPy array preserving shape and entries. Raise ValueError
+    for incompatible dtype or dimensionality; floating entries must be
     finite. Mathematical shape constraints are checked by the model constructors.
     """
     dataset = group[name]
@@ -33,7 +33,7 @@ def _array(group, name, kind, ndim):
         raise TypeError(f"{name} must be a dataset")
     if dataset.dtype.kind != kind or dataset.dtype.itemsize != 8 or dataset.ndim != ndim:
         raise ValueError(
-            f"{name} must be a rank-{ndim} {'int64' if kind == 'i' else 'float64'} dataset"
+            f"{name} must be a {ndim}-dimensional {'int64' if kind == 'i' else 'float64'} dataset"
         )
     values = dataset[...]
     if kind == "f" and not np.all(np.isfinite(values)):

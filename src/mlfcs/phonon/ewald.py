@@ -229,7 +229,8 @@ def _local_correction(space, raw_rows, rtol, atol):
     The correction uses non-onsite FC2 orbit parameters already present in the
     cluster space. It cancels the antisymmetric part of the raw dipole row sums
     while minimizing the Frobenius norm of the expanded Cartesian correction.
-    The onsite term is then fixed by the acoustic sum rule.
+    The onsite ASR term is determined separately and is not included in this
+    local correction norm.
     """
     records = []
     columns = []
@@ -237,55 +238,55 @@ def _local_correction(space, raw_rows, rtol, atol):
     for orbit in space.orbits[space.block(2).orbits]:
         if orbit.representative.body_order == 1 or orbit.dimension == 0:
             continue
-        row_basis = np.zeros((space.n_atoms, 3, 3, orbit.dimension))
-        metric = np.zeros((orbit.dimension, orbit.dimension))
-        images = []
+        row_sum_basis = np.zeros((space.n_atoms, 3, 3, orbit.dimension))
+        tensor_metric = np.zeros((orbit.dimension, orbit.dimension))
+        orbit_images = []
         for image, cluster in enumerate(orbit.clusters):
             rotation = space.symmetry.cartesian_rotations[orbit.operations[image]].T
-            basis = rotate_basis(orbit.component_basis, rotation, orbit.permutations[image])
-            shaped = basis.reshape(3, 3, orbit.dimension)
-            row_basis[cluster.sites[0].site] += shaped
-            metric += basis.T @ basis
-            images.append((cluster, shaped))
+            image_basis = rotate_basis(orbit.component_basis, rotation, orbit.permutations[image])
+            shaped = image_basis.reshape(3, 3, orbit.dimension)
+            row_sum_basis[cluster.sites[0].site] += shaped
+            tensor_metric += image_basis.T @ image_basis
+            orbit_images.append((cluster, shaped))
         # Whitening makes the Euclidean coordinate norm equal the expanded-tensor norm.
-        whitener = np.linalg.solve(np.linalg.cholesky(metric).T, np.eye(orbit.dimension))
+        whitener = np.linalg.solve(np.linalg.cholesky(tensor_metric).T, np.eye(orbit.dimension))
         antisymmetric = np.stack(
             (
-                row_basis[:, 0, 1] - row_basis[:, 1, 0],
-                row_basis[:, 0, 2] - row_basis[:, 2, 0],
-                row_basis[:, 1, 2] - row_basis[:, 2, 1],
+                row_sum_basis[:, 0, 1] - row_sum_basis[:, 1, 0],
+                row_sum_basis[:, 0, 2] - row_sum_basis[:, 2, 0],
+                row_sum_basis[:, 1, 2] - row_sum_basis[:, 2, 1],
             ),
             axis=1,
         )
         columns.append(antisymmetric.reshape(3 * space.n_atoms, orbit.dimension) @ whitener)
         whiteners.append(whitener)
-        records.append(images)
+        records.append(orbit_images)
     target = -_antisymmetric(raw_rows)
     tolerance = atol + rtol * float(np.max(np.abs(raw_rows), initial=0))
     matrix = np.concatenate(columns, axis=1) if columns else np.zeros((len(target), 0))
     if matrix.shape[1]:
-        coordinates = lstsq(matrix, target, lapack_driver="gelsd")[0]
+        whitened_coordinates = lstsq(matrix, target, lapack_driver="gelsd")[0]
     else:
-        coordinates = np.empty(0)
-    if np.max(np.abs(matrix @ coordinates - target), initial=0) > tolerance:
+        whitened_coordinates = np.empty(0)
+    if np.max(np.abs(matrix @ whitened_coordinates - target), initial=0) > tolerance:
         raise ConstraintProjectionError(
             "FC2 cutoff provides insufficient non-onsite space for the Ewald local correction"
         )
     result = []
     correction_rows = np.zeros_like(raw_rows)
     offset = 0
-    for images, whitener in zip(records, whiteners, strict=True):
+    for orbit_images, whitener in zip(records, whiteners, strict=True):
         size = whitener.shape[0]
-        parameters = whitener @ coordinates[offset : offset + size]
+        local_parameters = whitener @ whitened_coordinates[offset : offset + size]
         offset += size
-        for cluster, basis in images:
-            tensor = basis @ parameters
+        for cluster, image_basis in orbit_images:
+            tensor = image_basis @ local_parameters
             correction_rows[cluster.sites[0].site] += tensor
             result.append((cluster, _freeze(tensor)))
     onsite = -(raw_rows + correction_rows)
     if np.max(np.abs(onsite - onsite.transpose(0, 2, 1)), initial=0) > tolerance:
         raise ConstraintProjectionError("Ewald local correction failed onsite symmetry")
-    return tuple(result), onsite, float(np.linalg.norm(coordinates))
+    return tuple(result), onsite, float(np.linalg.norm(whitened_coordinates))
 
 
 def _supercell_tensors(mapping, born, epsilon, alpha, correction, onsite, rtol, atol):
@@ -363,7 +364,8 @@ class DipoleEwald:
     ``atol`` is in eV/angstrom**2. Successive cutoff expansions are a numerical
     convergence check, not a rigorous tail certificate. Insufficient local
     correction support raises ``ConstraintProjectionError``. ``correction_norm``
-    is the Frobenius norm of the expanded local correction, and
+    is the Frobenius norm of the expanded non-onsite local correction,
+    excluding the separately determined onsite ASR term, and
     ``asr_residual`` is the maximum absolute row-sum residual of the folded FC2.
     """
 

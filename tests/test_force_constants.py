@@ -132,7 +132,7 @@ def test_force_constants_combine_disjoint_orders_only() -> None:
 def mapped_model(orders: tuple[int, ...], *, repeats: int = 2) -> tuple[ForceConstants, ClusterMap]:
     """Construct a cubic Ar force-constant model and repeated supercell map.
 
-    orders selects tensor ranks, and repeats is the repetition on each axis.
+    orders selects force-constant orders, and repeats is the repetition on each axis.
     Coefficients span 0.5e-8 to 2e-8 in the corresponding physical units."""
     atoms = bulk("Ar", "sc", a=1.0)
     primitive = atoms

@@ -30,8 +30,9 @@ class FitSolver:
     """Internal solver for a FitSystem; representation fixes the algorithm.
 
     Normal systems use diagonally scaled MINRES; raw systems use column-scaled
-    dense least squares. Scaling is temporary, public physical equations are
-    unchanged, and the returned vector is restored to physical coordinates.
+    dense least squares. Scaling is temporary and public equations remain
+    unchanged. The returned vector uses unscaled fitting coordinates: canonical
+    physical parameters without ASR, or free acoustic coordinates with ASR.
     """
 
     __slots__ = ("system",)
@@ -41,11 +42,11 @@ class FitSolver:
         self.system = system
 
     def solve(self, **options) -> np.ndarray:
-        """Return physical parameters using the representation's sole built-in algorithm.
+        """Return unscaled fitting coordinates using the representation's algorithm.
 
         Reject completely unobserved columns with UnobservedParameterError. Options
         are forwarded only to the selected algorithm; incompatible names raise
-        TypeError. Nonconvergence raises RuntimeError and nonfinite physical output
+        TypeError. Nonconvergence raises RuntimeError and nonfinite output
         raises ValueError. The system's readonly arrays remain unchanged.
         """
         if self.system.n_parameters == 0:
@@ -74,15 +75,15 @@ class FitSolver:
                 "FitSystem. Regularization cannot recover a parameter absent from the design."
             )
         if self.system.representation == "normal":
-            parameters = self._normal(**options)
+            fitting_coordinates = self._normal(**options)
         else:
-            parameters = self._raw(**options)
-        if not np.all(np.isfinite(parameters)):
-            raise ValueError("physical fitted parameters are not finite")
-        return parameters
+            fitting_coordinates = self._raw(**options)
+        if not np.all(np.isfinite(fitting_coordinates)):
+            raise ValueError("fitted coordinates are not finite")
+        return fitting_coordinates
 
     def _normal(self, *, rtol=1e-8, maxiter=1000):
-        """Solve S H S z = S g by MINRES and return S z in physical coordinates.
+        """Solve S H S y = S g by MINRES and return S y in fitting coordinates.
 
         S = diag(1/sqrt(diag(H))). rtol is positive, maxiter a positive integer.
         Scaled equations are temporary; stopping uses SciPy MINRES's relative rule,
@@ -112,7 +113,7 @@ class FitSolver:
             nonlocal iterations
             iterations += 1
 
-        scaled, info = minres(
+        scaled_coordinates, info = minres(
             normal,
             scaled_rhs,
             x0=np.zeros(len(rhs)),
@@ -121,10 +122,10 @@ class FitSolver:
             callback=callback,
             check=True,
         )
-        parameters = scale * scaled
-        residual = float(np.linalg.norm(matrix @ parameters - rhs))
+        fitting_coordinates = scale * scaled_coordinates
+        residual = float(np.linalg.norm(matrix @ fitting_coordinates - rhs))
         logger.info(
-            "Solver finished: algorithm=MINRES iterations=%d stop_code=%d physical_normal_residual=%.10e",
+            "Solver finished: algorithm=MINRES iterations=%d stop_code=%d unscaled_normal_residual=%.10e",
             iterations,
             info,
             residual,
@@ -132,9 +133,9 @@ class FitSolver:
         if info != 0:
             raise RuntimeError(
                 f"MINRES did not converge in {iterations} steps: stop code {info}, "
-                f"physical normal residual {residual:.10e}"
+                f"unscaled normal residual {residual:.10e}"
             )
-        return parameters
+        return fitting_coordinates
 
     def _raw(self):
         """Solve the column-scaled raw equations by dense least squares.
@@ -147,7 +148,7 @@ class FitSolver:
         logger.info("Solver started: algorithm=least_squares normalization=unit_column_norm")
         matrix, forces = self.system.design_matrix, self.system.forces
         # Scale by each maximum before computing norms to avoid squaring large
-        # physical coefficients while normalizing columns from different orders.
+        # design coefficients while normalizing columns from different orders.
         maxima = np.max(np.abs(matrix), axis=0)
         normalized = np.array(matrix, dtype=np.float64, order="F", copy=True)
         normalized /= maxima[None, :]
@@ -157,9 +158,9 @@ class FitSolver:
             scale = (1.0 / norms) / maxima
         if not np.all(np.isfinite(scale)) or np.any(scale <= 0.0):
             raise ValueError(
-                "raw column normalization cannot represent the physical parameter scale"
+                "raw column normalization cannot represent the fitting-coordinate scale"
             )
-        scaled, _, rank, singular_values = lstsq(
+        scaled_coordinates, _, rank, singular_values = lstsq(
             normalized,
             forces,
             cond=None,
@@ -176,4 +177,4 @@ class FitSolver:
             matrix.shape[1],
             condition,
         )
-        return scale * scaled
+        return scale * scaled_coordinates

@@ -21,7 +21,7 @@ logger = get_logger(__name__)
 
 
 def _axis_permutations(order: int) -> tuple[tuple[tuple[int, ...], ...], np.ndarray]:
-    """Return all p! tensor-axis permutations and their int64 buffer after allocation checks."""
+    """Return all tensor-index permutations for the requested order."""
     require_allocation("axis permutations", (1, order))
     count = 1
     for factor in range(2, order + 1):
@@ -32,10 +32,10 @@ def _axis_permutations(order: int) -> tuple[tuple[tuple[int, ...], ...], np.ndar
 
 
 def _tensor_frame(cell: np.ndarray, order: int) -> np.ndarray:
-    """Build the (3**p, 3**p) lattice-to-Cartesian frame as cell.T Kronecker powers.
+    """Return the lattice-to-Cartesian tensor frame for the requested order.
 
     The cell holds lattice vectors as rows. Each tensor index receives the same
-    frame; flattened components follow C order. Return a new float64 matrix.
+    frame ``cell.T``; flattened components follow C order.
     """
     dimension = tensor_dimension(order)
     require_allocation("tensor frame", (dimension, dimension))

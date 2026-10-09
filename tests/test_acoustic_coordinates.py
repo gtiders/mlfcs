@@ -103,13 +103,13 @@ def test_extrapolated_finite_difference_uses_acoustic_subspace(acoustic_mapping,
     design = ForceDesign(mapping)
     sampling = FiniteDifference(mapping, order=order, disps=(0.03, 0.05))
     structures = []
-    for sample in sampling.displacements():
+    for sample in sampling.sow():
         displacement = sample.positions - mapping.supercell_atoms.positions
         sample.calc = SinglePointCalculator(
             sample, forces=(design.matrix(displacement) @ theta).reshape(-1, 3)
         )
         structures.append(sample)
-    model = sampling.reconstruct(ForceDataset(mapping, structures))
+    model = sampling.reap(ForceDataset(mapping, structures))
     np.testing.assert_allclose(model.coefficients[order], expected, rtol=1e-8, atol=1e-8)
 
 

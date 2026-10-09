@@ -213,6 +213,11 @@ class SCPH:
     valued covariances are transformed to full-grid members before the real-
     space quartic contraction.
 
+    When the cluster space has prepared acoustic coordinates, bare FC2,
+    initial FC2 and every quartic-loop target are projected onto that subspace
+    in the physical parameter Euclidean metric before mixing. The projection
+    uses lift and adjoint actions without forming a dense nullspace.
+
     Parameters
     ----------
     model : ForceConstants
@@ -251,7 +256,8 @@ class SCPH:
         self.plan = StarPlan(stars, model.cluster_space)
         self._points = grid.points
         self.statistics = statistics
-        self._bare = np.asarray(model.coefficients[2])
+        self._acoustic_coordinates = model.cluster_space.acoustic_coordinates(2)
+        self._bare = self._constrain_fc2(np.asarray(model.coefficients[2]))
         self._masses = model.cluster_space.masses
         self._dynamical_terms, _ = prepare_dynamical_terms(self._fc2(self._bare))
         self._gamma = next(
@@ -331,6 +337,12 @@ class SCPH:
         """Construct an FC2-only model from the current parameter vector."""
         return ForceConstants(self.model.cluster_space, {2: parameters})
 
+    def _constrain_fc2(self, parameters: np.ndarray) -> np.ndarray:
+        """Project an FC2 target into the prepared acoustic subspace when enabled."""
+        if self._acoustic_coordinates is None:
+            return parameters
+        return self._acoustic_coordinates.project(parameters)
+
     def _matrices(self, parameters: np.ndarray) -> np.ndarray:
         """Evaluate effective FC2 dynamical matrices only at irreducible star representatives."""
         return accumulate_dynamical_matrices(
@@ -370,8 +382,9 @@ class SCPH:
         irreducible mesh. Transform the matrix-valued covariances to full-grid
         members, Fourier transform them to the real-space pairs required by
         FC4, and contract ``Delta Phi2 = 1/2 * Phi4 : <u u>``. Convert the
-        resulting FC2 tensors back to the physical parameter coordinates of
-        the original cluster space.
+        representative FC2 observation components to the physical parameter
+        coordinates of the original cluster space. This component selection
+        is not a global Frobenius projection of the correction tensors.
         """
         matrices = self._matrices(parameters)
         covariance = np.asarray(
@@ -438,6 +451,10 @@ class SCPH:
         phonon frequencies falls below ``tolerance``. The result is returned
         even when ``max_iterations`` is reached; inspect ``result.converged``.
 
+        If the model's cluster space enables ASR, the initial FC2 and each
+        target ``Phi2_bare + Delta Phi2`` are projected into its acoustic
+        subspace before mixing. Projection failure raises ``RuntimeError``.
+
         Parameters
         ----------
         temperature : float
@@ -479,6 +496,7 @@ class SCPH:
             current = np.asarray(start.coefficients[2]).copy()
             if current.shape != self._bare.shape:
                 raise ValueError(f"start FC2 parameters must have shape {self._bare.shape}")
+            current = self._constrain_fc2(current)
         run_started = perf_counter()
         logger.info(
             "SCPH run started: temperature=%.6g K statistics=%s mixing=%.6g "
@@ -496,7 +514,8 @@ class SCPH:
         for iteration in range(1, max_iterations + 1):
             started = perf_counter()
             correction = self._correction(current, temperature)
-            target = self._bare + correction
+            # With ASR enabled, both endpoints and their linear mixture satisfy ASR.
+            target = self._constrain_fc2(self._bare + correction)
             current = (1.0 - mixing) * current + mixing * target
             frequencies = self._frequencies(current)
             delta = frequencies - previous

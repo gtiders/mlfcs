@@ -39,9 +39,10 @@ def _matrix_rank(matrix: object) -> int:
 
     For each tested prime ``p``, the rank over ``F_p`` gives a lower bound on
     the rational rank. If a full-rank modular witness is found, the rank is
-    settled immediately. Otherwise, once the product of tested primes exceeds
-    a Hadamard bound for all maximal minors, no unobserved nonzero integer
-    minor can remain, and the best modular rank is exact.
+    settled immediately. Otherwise, a product of row-norm bounds, each at
+    least one, bounds every minor up to the maximum possible order. Once the
+    product of tested primes exceeds this bound, every minor larger than the
+    best modular rank must be zero over the integers, certifying that rank.
 
     Returns
     -------

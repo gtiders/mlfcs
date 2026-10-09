@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import numpy as np
-from scipy.sparse.linalg import LinearOperator, lsmr
 
 from mlfcs.dataset import ForceDataset
 from mlfcs.force_constants import ForceConstants
@@ -48,75 +47,64 @@ def reconstruct_force_constants(
     The returned ``ForceConstants`` contains only the selected order.
     """
     if not isinstance(dataset, ForceDataset):
-        raise TypeError("reconstruct() requires a ForceDataset")
+        raise TypeError("reap() requires a ForceDataset")
     expected = (finite_difference.n_configurations, finite_difference.cluster_map.n_atoms, 3)
-    values = dataset.forces
-    if values.shape != expected or not np.all(np.isfinite(values)):
+    forces = dataset.forces
+    if forces.shape != expected or not np.all(np.isfinite(forces)):
         raise ValueError(f"finite-difference forces must be finite with shape {expected}")
     order = finite_difference.order
-    signs = np.asarray(finite_difference._signs, dtype=np.float64)
+    sign_combinations = np.asarray(finite_difference._sign_combinations, dtype=np.float64)
     # The sign product forms the mixed central stencil; the leading minus maps
     # force derivatives to energy derivatives.
-    sign_weights = np.prod(signs, axis=1)
-    disp_weights = _extrapolation_weights(finite_difference.disps)
-    sign_count = len(signs)
-    disp_count = len(finite_difference.disps)
-    derivatives: dict[tuple[tuple[int, int], ...], np.ndarray] = {}
-    for key_index, key in enumerate(finite_difference._keys):
+    sign_weights = np.prod(sign_combinations, axis=1)
+    step_weights = _extrapolation_weights(finite_difference.disps)
+    sign_count = len(sign_combinations)
+    step_count = len(finite_difference.disps)
+    force_constant_estimates: dict[tuple[tuple[int, int], ...], np.ndarray] = {}
+    for key_index, key in enumerate(finite_difference._displacement_keys):
         estimates = []
-        base = key_index * disp_count * sign_count
-        for disp_index, disp in enumerate(finite_difference.disps):
-            begin = base + disp_index * sign_count
+        base = key_index * step_count * sign_count
+        for step_index, step_length in enumerate(finite_difference.disps):
+            begin = base + step_index * sign_count
             estimates.append(
                 -np.tensordot(
                     sign_weights,
-                    values[begin : begin + sign_count],
+                    forces[begin : begin + sign_count],
                     axes=(0, 0),
                 )
-                / (2.0 * disp) ** (order - 1)
+                / (2.0 * step_length) ** (order - 1)
             )
-        derivatives[key] = np.tensordot(disp_weights, estimates, axes=(0, 0))
+        force_constant_estimates[key] = np.tensordot(step_weights, estimates, axes=(0, 0))
 
     cluster_map = finite_difference.cluster_map
     space = cluster_map.cluster_space
     block = space.block(order)
-    coefficients = []
+    orbit_parameters = []
     for orbit_index in range(block.orbits.start, block.orbits.stop):
         orbit = space.orbits[orbit_index]
-        image = orbit.clusters.index(orbit.representative)
-        atoms = tuple(int(value) for value in cluster_map.image_atom_indices[orbit_index][image])
-        observed = []
+        representative_image = orbit.clusters.index(orbit.representative)
+        atom_indices = tuple(
+            int(value)
+            for value in cluster_map.image_atom_indices[orbit_index][representative_image]
+        )
+        observation_components = []
         for row in orbit.observation_rows:
             directions = np.unravel_index(int(row), (3,) * order)
-            key = tuple((atoms[axis], int(directions[axis])) for axis in range(order - 1))
-            observed.append(derivatives[key][atoms[-1], int(directions[-1])])
-        coefficients.append(
-            np.linalg.solve(orbit.observation_matrix, np.asarray(observed, dtype=np.float64))
+            key = tuple((atom_indices[axis], int(directions[axis])) for axis in range(order - 1))
+            observation_components.append(
+                force_constant_estimates[key][atom_indices[-1], int(directions[-1])]
+            )
+        orbit_parameters.append(
+            np.linalg.solve(
+                orbit.observation_matrix, np.asarray(observation_components, dtype=np.float64)
+            )
         )
-    physical = np.concatenate(coefficients)
-    coordinates = space.acoustic_coordinates(order)
-    if coordinates is not None:
+    physical_parameters = np.concatenate(orbit_parameters)
+    acoustic_coordinates = space.acoustic_coordinates(order)
+    if acoustic_coordinates is not None:
         # Project the reconstructed physical parameters onto the acoustic subspace.
-        if coordinates.dimension:
-            operator = LinearOperator(
-                (coordinates.width, coordinates.dimension),
-                matvec=coordinates.lift,
-                rmatvec=coordinates.adjoint,
-            )
-            solution = lsmr(
-                operator,
-                physical,
-                atol=1e-12,
-                btol=1e-12,
-                maxiter=max(1000, 2 * coordinates.dimension),
-            )
-            if solution[1] not in (0, 1, 2, 4, 5):
-                raise RuntimeError("acoustic constraint projection did not converge")
-            physical = coordinates.lift(solution[0])
-        else:
-            # A zero-dimensional subspace contains only the zero parameter vector.
-            physical = np.zeros(coordinates.width)
-    return ForceConstants(space, {order: physical})
+        physical_parameters = acoustic_coordinates.project(physical_parameters)
+    return ForceConstants(space, {order: physical_parameters})
 
 
 __all__ = ["reconstruct_force_constants"]

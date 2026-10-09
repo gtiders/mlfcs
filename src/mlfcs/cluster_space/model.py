@@ -222,7 +222,7 @@ logger = get_logger(__name__)
 
 @dataclass(frozen=True, slots=True, init=False)
 class ClusterSpace:
-    """Symmetry-reduced force-constant model space built from a primitive cell.
+    """Symmetry-reduced force-constant model space built from a periodic reference cell.
 
     The primitive structure and truncation rules define the candidate
     force-constant clusters. Crystal symmetry groups equivalent clusters into
@@ -236,12 +236,13 @@ class ClusterSpace:
     Parameters
     ----------
     primitive_atoms : ase.Atoms
-        Fully periodic primitive reference structure. Atom order and cell basis
-        are retained; geometry and masses are captured independently of the input.
+        Fully periodic reference structure, which need not be a minimal primitive
+        cell. Its atom order and cell basis define the model lattice and are
+        retained; geometry and masses are captured independently of the input.
     cutoffs : mapping of int to float
         Pairwise distance cutoff for each included force-constant order, in
-        angstrom. Every pair of sites in a retained cluster must lie within
-        the corresponding cutoff.
+        angstrom. Every pair distance in a retained cluster must be strictly
+        below the corresponding cutoff.
     max_body_orders : mapping of int to int, optional
         Maximum number of distinct atomic positions allowed at each order.
         Must cover the same orders as ``cutoffs``; omitted values default to
@@ -321,7 +322,7 @@ class ClusterSpace:
 
     @property
     def primitive_atoms(self) -> Atoms:
-        """Detached ASE representation of the primitive reference structure."""
+        """Detached ASE representation of the supplied model reference cell."""
         return Atoms(
             numbers=self.atomic_numbers,
             scaled_positions=self.scaled_positions,

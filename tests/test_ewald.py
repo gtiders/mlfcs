@@ -316,12 +316,12 @@ def test_finite_difference_extrapolation_after_long_range_subtraction():
     fd = FiniteDifference(mapping, order=2, disps=(0.01, 0.02))
     frames = []
     stiffness = 2.5
-    for sample in fd.displacements():
+    for sample in fd.sow():
         u = sample.positions - mapping.supercell_atoms.positions
         force = -stiffness * u - 7 * u**3 + long.harmonic_forces(u)
         sample.calc = SinglePointCalculator(sample, forces=force)
         frames.append(sample)
     data = ForceDataset(mapping, frames)
     residual = data.subtract_forces(long.harmonic_forces(data.displacements))
-    model = fd.reconstruct(residual)
+    model = fd.reap(residual)
     np.testing.assert_allclose(model.coefficients[2], stiffness, atol=1e-11, rtol=0)

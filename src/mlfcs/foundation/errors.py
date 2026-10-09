@@ -14,10 +14,10 @@ class AliasingError(MLFCSError):
 
 
 class UnobservedParameterError(MLFCSError):
-    """The supplied training data do not identify all model parameters.
+    """At least one fitting coordinate is absent from the training equations.
 
-    At least one parameter direction is unobserved or linearly dependent in
-    the available displacement-force data.
+    This signals a completely unobserved column, not a general test for
+    linear dependence or numerical rank deficiency.
     """
 
 
