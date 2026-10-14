@@ -5,7 +5,6 @@ description = "ASE-first symmetry-reduced force constants from second to arbitra
 readme = "README.md"
 requires-python = ">=3.12"
 license = "GPL-3.0-or-later"
-license-files = ["LICENSE"]
 authors = [{ name = "Yibo Gao", email = "242211044@csu.edu.cn" }]
 keywords = [
     "anharmonicity",
@@ -17,18 +16,24 @@ keywords = [
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering :: Physics",
 ]
+# Bounds are the oldest releases that install and pass the suite on the supported
+# interpreters, not the versions this checkout happens to run. numpy 1.26 is the
+# first with 3.12 wheels; ase 3.22 the first that imports on 3.12 (older ones pull
+# the removed distutils); numba 0.59 the first with 3.12 wheels; scipy 1.12 the
+# first whose minres accepts rtol; spglib 2.5 the first returning the symmetry
+# dataset as an object with attributes; h5py 3.11 the first with NumPy 2
+# compatible wheels (3.10 fails on NumPy 2 with a dtype size mismatch).
 dependencies = [
-    "ase>=3.23",
-    "h5py>=3.10",
-    "numba>=0.67.0",
+    "ase>=3.22",
+    "h5py>=3.11",
+    "numba>=0.59",
     "numpy>=1.26",
-    "scipy>=1.11",
+    "scipy>=1.12",
     "spglib>=2.5",
 ]
 
@@ -43,30 +48,40 @@ dev = [
     "ruff>=0.9",
 ]
 # Independent exact-algebra reference dependency; tutorial integrations are separate.
+# sympy 1.14 is the first release that both provides Smith normal decomposition
+# and builds a matrix from a zero-column nest such as Matrix([[], []]).
 reference = [
-    "sympy>=1.13",
+    "sympy>=1.14",
 ]
 # Dependencies for executing the documentation tutorial notebooks; run them
-# serially, one notebook at a time.
+# serially, one notebook at a time. ase is raised here because the finite-difference
+# tutorial imports ase.calculators.tersoff, which ASE 3.22-3.24 do not ship, while the
+# package itself imports cleanly from 3.22. phonopy and phono3py are paired through
+# phono3py's own bound; both entries are the first releases with 3.12 wheels.
 tutorial = [
-    "phonopy>=2.20",
-    "phono3py>=3.0",
-    "matplotlib",
-    "seekpath",
-    "nbclient",
-    "ipykernel",
+    "phonopy>=2.34.1",
+    "phono3py>=3.11.1",
+    "ase>=3.25",
+    "matplotlib>=3.9",
+    "seekpath>=2.1",
+    "nbclient>=0.10",
+    "ipykernel>=6.29",
 ]
 docs = [
     "mkdocs-material>=9.5",
     "mkdocs-jupyter>=0.25",
 ]
 
+# CI runners must resolve from public PyPI: the local USTC mirror times out there.
+# The mirror stays a user-level preference for local work.
 [[tool.uv.index]]
 url = "https://pypi.org/simple"
 default = true
 
 [build-system]
-requires = ["hatchling"]
+# 1.27 is the first hatchling that writes the PEP 639 License-Expression and
+# License-File metadata implied by the license field above; older ones drop both.
+requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]

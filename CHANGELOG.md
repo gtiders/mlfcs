@@ -4,6 +4,10 @@
 
 All notable changes are documented here. Releases follow semantic versioning.
 
+## Unreleased
+
+- Lower the runtime dependency bounds to the oldest releases that install and pass the suite on Python 3.12+ instead of the versions this checkout happens to run: `ase>=3.22`, `h5py>=3.11`, `numba>=0.59`, `numpy>=1.26`, `scipy>=1.12`, `spglib>=2.5`. Raise the reference group to `sympy>=1.14`, require `hatchling>=1.27` so the wheel carries the PEP 639 license expression, and drop the license classifier that expression supersedes. Complete the optional groups with lower bounds for every entry, including the notebook stack, and keep the CI index pin.
+
 ## 5.0.0 — 2026-10-10
 
 - Project acoustic sum rules through the matrix-free `AcousticSumRuleOperator` instead of assembling an explicit COO/CSR constraint matrix: rows follow the sparse builder's first-encounter order, rotated bases are tabulated per (orbit, operation) pair, and per-image permutations apply as index arithmetic. `enforce_asr` keeps its minimum-norm correction, tolerance semantics and report fields; the sparse builder remains for the rotational projection and as the standing test oracle. The Si FC5 projection no longer builds ~88 million scatter entries, removing the memory spike.
