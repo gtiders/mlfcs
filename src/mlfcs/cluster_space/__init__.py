@@ -1,5 +1,10 @@
-"""Primitive-only cluster spaces and their immutable records."""
+"""Primitive-only cluster spaces.
 
-from mlfcs.cluster_space.records import Cluster, ClusterSpace
+The package surface is ``ClusterSpace`` alone; the immutable records that make
+it up live in :mod:`mlfcs.cluster_space.records`, and the assembly, search and
+exact-arithmetic stages in their own modules.
+"""
 
-__all__ = ["Cluster", "ClusterSpace"]
+from mlfcs.cluster_space.records import ClusterSpace
+
+__all__ = ["ClusterSpace"]

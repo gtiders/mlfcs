@@ -6,8 +6,8 @@ from ase.build import bulk
 from oracles.candidates_reference import iter_candidates as reference_candidates
 
 from mlfcs import ClusterSpace
-from mlfcs.cluster_space import Cluster
 from mlfcs.cluster_space.candidates import enumerate_candidate_labels
+from mlfcs.cluster_space.records import Cluster
 
 
 @pytest.mark.parametrize("order", (2, 3, 4, 5), ids=("FC2", "FC3", "FC4", "FC5"))

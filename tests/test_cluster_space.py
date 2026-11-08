@@ -10,10 +10,11 @@ import pytest
 from ase import Atoms
 from ase.build import bulk
 
-from mlfcs.cluster_space import Cluster, ClusterSpace
+from mlfcs.cluster_space import ClusterSpace
 from mlfcs.cluster_space.assembly import _axis_permutations
 from mlfcs.cluster_space.candidates import enumerate_candidate_labels
 from mlfcs.cluster_space.orbits import compute_orbit_actions
+from mlfcs.cluster_space.records import Cluster
 from mlfcs.geometry.symmetry import discover_symmetry
 
 
