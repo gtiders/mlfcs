@@ -40,6 +40,8 @@ nav:
   - 开发者参考:
       - 数值契约与对象生命周期: development/numerical-contracts.md
       - 长程动力学待实现设计: development/long-range-dynamics.md
+      - 重计算核心 Rust 化调查: development/rust-heavy-computation-study.md
+      - cluster_space 结构审查: development/cluster-space-architecture-review.md
   - 理论与概念:
       - 阅读路线: theory/index.md
       - 周期晶体中的高阶力常数: theory/periodic-force-constants.md
