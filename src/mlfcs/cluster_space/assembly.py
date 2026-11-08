@@ -24,24 +24,26 @@ _PROGRESS_SECONDS = 15.0
 def _independent_sites(symmetry: PrimitiveSymmetry) -> int:
     """Count motif-site equivalence classes under the discovered operations.
 
-    This is the number of crystallographically distinct sites, so a distorted
-    input that loses symmetry shows up as a count close to the atom count.
+    ``site_permutations[operation, site]`` is the image of one site, so each
+    operation contributes the pairs it identifies; the classes are the orbits of
+    the resulting relation. This is the number of crystallographically distinct
+    sites, so a distorted input that has lost symmetry shows up as a much larger
+    count than the ideal structure.
     """
     count = symmetry.site_permutations.shape[1]
     parent = list(range(count))
 
     def find(index: int) -> int:
-        """Return the representative of one site''s equivalence class."""
+        """Return the representative of one site's equivalence class."""
         while parent[index] != index:
             parent[index] = parent[parent[index]]
             index = parent[index]
         return index
 
     for images in symmetry.site_permutations.tolist():
-        root = find(images[0])
-        for target in images[1:]:
-            other = find(target)
-            if other != root:
+        for site, image in enumerate(images):
+            root, other = find(site), find(image)
+            if root != other:
                 parent[other] = root
     return len({find(index) for index in range(count)})
 
