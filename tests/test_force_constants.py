@@ -52,9 +52,10 @@ def assert_model_arrays_equal(left, right):
         assert not getattr(b.symmetry, name).flags.writeable
     for x, y in zip(a.orbits, b.orbits, strict=True):
         assert x.representative == y.representative
-        assert x.clusters == y.clusters
+        assert x.representative_index == y.representative_index
         assert x.observation_condition == y.observation_condition
         for name in (
+            "labels",
             "lattice_basis",
             "component_basis",
             "observation_rows",

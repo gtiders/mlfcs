@@ -11,8 +11,8 @@ from ase import Atoms
 from ase.build import bulk
 
 from mlfcs.cluster_space import Cluster, ClusterSpace
+from mlfcs.cluster_space.assembly import _axis_permutations
 from mlfcs.cluster_space.candidates import enumerate_candidate_labels
-from mlfcs.cluster_space.construction import _axis_permutations
 from mlfcs.cluster_space.orbits import compute_orbit_actions
 from mlfcs.geometry.symmetry import discover_symmetry
 
@@ -29,12 +29,12 @@ def test_orbit_actions_produce_distinct_cluster_images() -> None:
         )[0]
     )
     values, array = _axis_permutations(3)
-    representative, clusters, _operations, _permutations, stabilizers = compute_orbit_actions(
+    representative, labels, _operations, _permutations, stabilizers = compute_orbit_actions(
         candidate, symmetry, values, array
     )
     assert representative == candidate
-    assert candidate in clusters
-    keys = tuple(tuple(value for row in cluster.labels for value in row) for cluster in clusters)
+    assert any(np.array_equal(row, np.asarray(candidate.labels)) for row in labels)
+    keys = tuple(row.tobytes() for row in labels)
     assert len(keys) == len(set(keys))
     assert stabilizers
 
@@ -153,7 +153,7 @@ def test_orbits_match_saved_symmetry_reference(reference):
     for index, orbit in enumerate(space.orbits):
         old = reference["orbits"][index]
         np.testing.assert_array_equal(orbit.representative.labels, old["representative"])
-        np.testing.assert_array_equal([c.labels for c in orbit.clusters], old["images"])
+        np.testing.assert_array_equal(orbit.labels, old["images"])
         np.testing.assert_array_equal(orbit.operations, old["operations"])
         np.testing.assert_array_equal(orbit.permutations, old["permutations"])
         assert hermite_normal_form(

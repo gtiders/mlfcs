@@ -1,19 +1,17 @@
-"""Immutable cluster-space, cluster, orbit, and order models."""
+"""Immutable cluster-space records and their validation."""
 
 from __future__ import annotations
 
 import math
 import operator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 from ase import Atoms
 
-from mlfcs.cluster_space.acoustic import prepare_acoustic_coordinates
 from mlfcs.foundation.arrays import as_int64_array, require_bound
-from mlfcs.foundation.log import get_logger
 from mlfcs.foundation.tensors import tensor_dimension
-from mlfcs.geometry.primitive import LatticeSite, primitive_data
+from mlfcs.geometry.lattice import LatticeSite
 from mlfcs.geometry.symmetry import PrimitiveSymmetry
 
 
@@ -76,9 +74,19 @@ class Cluster:
 class Orbit:
     """Symmetry orbit of a force-constant cluster.
 
-    ``representative`` defines the reference cluster. ``clusters`` contains
-    all symmetry-equivalent images generated from it, together with the
-    corresponding symmetry operations and tensor-index permutations.
+    ``representative`` defines the reference cluster and ``labels`` stores every
+    distinct symmetry-equivalent image generated from it. ``labels[i]`` is the
+    ``(order, 4)`` block of lattice-site labels of image ``i``, row ``j`` being
+    ``(site, tx, ty, tz)`` in tensor index order, so the array shape is
+    ``(n_images, order, 4)``. Every image is anchored at its first tensor slot,
+    and row ``representative_index`` of ``labels`` reproduces the
+    representative labels exactly.
+
+    ``operations[i]`` is an index into ``symmetry.rotations``: the operation
+    that generated image ``i``. ``permutations[i]`` is the tensor-axis action
+    itself, the slot assigned to each tensor index, not an index into a list of
+    permutations. ``labels``, ``operations`` and ``permutations`` share their
+    image order.
 
     ``component_basis`` spans the symmetry-allowed Cartesian tensor space.
     Its columns define the independent force-constant parameters, named by
@@ -86,16 +94,18 @@ class Orbit:
     """
 
     representative: Cluster
+    labels: np.ndarray
     lattice_basis: np.ndarray
     component_basis: np.ndarray
     observation_rows: np.ndarray
     observation_condition: float
-    clusters: tuple[Cluster, ...]
     operations: np.ndarray
     permutations: np.ndarray
+    representative_index: int = field(init=False)
 
     def __post_init__(self) -> None:
         """Validate the symmetry orbit and freeze its array data."""
+        labels = as_int64_array(self.labels, name="orbit labels")
         lattice_basis = as_int64_array(
             self.lattice_basis,
             name="orbit lattice basis",
@@ -128,11 +138,20 @@ class Orbit:
         if observation_rows.shape != (component_basis.shape[1],):
             raise ValueError("observation rows must select one row per parameter")
 
-        if operations.shape != (len(self.clusters),):
+        if labels.ndim != 3 or labels.shape[2] != 4:
+            raise ValueError("orbit labels must have shape (images, order, 4)")
+
+        if labels.shape[1] != self.representative.order:
+            raise ValueError("orbit labels differ from the representative order")
+
+        if np.any(labels[:, 0, 1:]):
+            raise ValueError("orbit labels must be anchored at the first tensor slot")
+
+        if operations.shape != (len(labels),):
             raise ValueError("orbit operations must have one entry per cluster")
 
         if permutations.shape != (
-            len(self.clusters),
+            len(labels),
             self.representative.order,
         ):
             raise ValueError("orbit permutations have an inconsistent shape")
@@ -156,7 +175,14 @@ class Orbit:
         ):
             raise ValueError("orbit axis actions must be permutations")
 
+        representative_labels = np.asarray(self.representative.labels, dtype=np.int64)
+        matches = np.flatnonzero(np.all(labels == representative_labels, axis=(1, 2)))
+        if not len(matches):
+            raise ValueError("orbit images must contain the representative cluster")
+        object.__setattr__(self, "representative_index", int(matches[0]))
+
         for values in (
+            labels,
             lattice_basis,
             component_basis,
             observation_rows,
@@ -165,6 +191,7 @@ class Orbit:
         ):
             values.setflags(write=False)
 
+        object.__setattr__(self, "labels", labels)
         object.__setattr__(self, "lattice_basis", lattice_basis)
         object.__setattr__(self, "component_basis", component_basis)
         object.__setattr__(self, "observation_rows", observation_rows)
@@ -217,7 +244,17 @@ class OrderBlock:
         object.__setattr__(self, "cutoff", cutoff)
 
 
-logger = get_logger(__name__)
+_PARTS = (
+    ("cell", "cell"),
+    ("scaled_positions", "scaled_positions"),
+    ("atomic_numbers", "atomic_numbers"),
+    ("symprec", "symprec"),
+    ("symmetry", "symmetry"),
+    ("blocks", "blocks"),
+    ("orbits", "orbits"),
+    ("masses", "_masses"),
+    ("acoustic_coordinates", "_acoustic_coordinates"),
+)
 
 
 @dataclass(frozen=True, slots=True, init=False)
@@ -283,11 +320,8 @@ class ClusterSpace:
         self, primitive_atoms: Atoms, *, cutoffs, max_body_orders=None, symprec=1e-5, asr=False
     ):
         """Construct the symmetry-reduced force-constant space."""
-        from mlfcs.cluster_space.construction import construct_space
-
         if not isinstance(asr, (bool, np.bool_)):
             raise TypeError("asr must be boolean")
-        geometry = primitive_data(primitive_atoms, symprec)
         cutoffs = {operator.index(order): float(cutoff) for order, cutoff in cutoffs.items()}
         bodies = (
             {order: order for order in cutoffs}
@@ -297,28 +331,37 @@ class ClusterSpace:
                 for order, body in max_body_orders.items()
             }
         )
-        symmetry, blocks, orbits = construct_space(
-            geometry["cell"],
-            geometry["scaled_positions"],
-            geometry["atomic_numbers"],
-            geometry["symprec"],
-            cutoffs=cutoffs,
-            max_body_orders=bodies,
+        from mlfcs.cluster_space.assembly import assemble_parts
+
+        self._install(
+            assemble_parts(
+                primitive_atoms,
+                cutoffs=cutoffs,
+                max_body_orders=bodies,
+                symprec=symprec,
+            )
         )
-        for name in ("cell", "scaled_positions", "atomic_numbers", "symprec"):
-            object.__setattr__(self, name, geometry[name])
-        object.__setattr__(self, "_masses", geometry["masses"])
-        for name, value in (
-            ("symmetry", symmetry),
-            ("blocks", blocks),
-            ("orbits", orbits),
-        ):
-            object.__setattr__(self, name, value)
-        self.__post_init__()
-        coordinates = None
         if asr:
-            coordinates = prepare_acoustic_coordinates(self)
-        object.__setattr__(self, "_acoustic_coordinates", coordinates)
+            from mlfcs.cluster_space.asr import prepare_acoustic_coordinates
+
+            object.__setattr__(self, "_acoustic_coordinates", prepare_acoustic_coordinates(self))
+
+    def _install(self, parts) -> None:
+        """Install record parts and run the assembly invariant checks."""
+        for public, attribute in _PARTS:
+            object.__setattr__(self, attribute, parts[public])
+        self.__post_init__()
+
+    @classmethod
+    def _from_parts(cls, parts):
+        """Build an instance from already computed parts without re-deriving them."""
+        result = object.__new__(cls)
+        result._install(parts)
+        return result
+
+    def _parts(self):
+        """Return the current record parts keyed by the public part names."""
+        return {public: getattr(self, attribute) for public, attribute in _PARTS}
 
     @property
     def primitive_atoms(self) -> Atoms:
@@ -350,20 +393,9 @@ class ClusterSpace:
         if np.any(values <= 0.0):
             raise ValueError("masses must be strictly positive")
         values.setflags(write=False)
-        result = object.__new__(type(self))
-        for name in (
-            "cell",
-            "scaled_positions",
-            "atomic_numbers",
-            "symprec",
-            "symmetry",
-            "blocks",
-            "orbits",
-            "_acoustic_coordinates",
-        ):
-            object.__setattr__(result, name, getattr(self, name))
-        object.__setattr__(result, "_masses", values)
-        return result
+        parts = self._parts()
+        parts["masses"] = values
+        return type(self)._from_parts(parts)
 
     @property
     def asr(self) -> bool:
@@ -411,11 +443,7 @@ class ClusterSpace:
                     raise ValueError("orbit order differs from its block")
                 if np.any(orbit.operations < 0) or np.any(orbit.operations >= self.symmetry.size):
                     raise ValueError("orbit symmetry operation is outside the group")
-                if any(
-                    site.site >= self.n_atoms
-                    for cluster in orbit.clusters
-                    for site in cluster.sites
-                ):
+                if np.any(orbit.labels[:, :, 0] >= self.n_atoms):
                     raise ValueError("orbit site is outside the primitive motif")
             parameter_start += sum(orbit.dimension for orbit in self.orbits[block.orbits])
             require_bound("parameter offsets", parameter_start)

@@ -8,8 +8,8 @@ import numpy as np
 from ase.neighborlist import neighbor_list
 
 from mlfcs import ClusterSpace
-from mlfcs.cluster_space.model import Cluster
-from mlfcs.geometry.primitive import LatticeSite
+from mlfcs.cluster_space.records import Cluster
+from mlfcs.geometry.lattice import LatticeSite
 
 
 def _neighbors(primitive: ClusterSpace, cutoff: float) -> tuple[tuple[LatticeSite, ...], ...]:

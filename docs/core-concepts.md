@@ -156,7 +156,7 @@ $$
 
 ```python
 import numpy as np
-from mlfcs.geometry.primitive import LatticeSite
+from mlfcs.geometry.lattice import LatticeSite
 
 atom = mapping.atom_index(LatticeSite(0, (1, 0, 0)))
 label = mapping.quotient((1, 0, 0))

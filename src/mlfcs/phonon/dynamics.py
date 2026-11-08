@@ -59,7 +59,7 @@ def prepare_dynamical_terms(model: ForceConstants) -> tuple[DynamicalTerms, Latt
     orbit_indices = []
     image_indices = []
     for orbit_index in range(block.orbits.start, block.orbits.stop):
-        for image_index, _cluster in enumerate(model.cluster_space.orbits[orbit_index].clusters):
+        for image_index in range(len(model.cluster_space.orbits[orbit_index].labels)):
             orbit_indices.append(orbit_index)
             image_indices.append(image_index)
     if len(orbit_indices) != len(lattice.sites):
@@ -215,7 +215,6 @@ def accumulate_dynamical_matrices(points, terms, tensors, n_sites):
 
 __all__ = [
     "THZ_PER_SQRT_EV_PER_A2_AMU",
-    "DynamicalTerms",
     "accumulate_dynamical_matrices",
     "prepare_dynamical_terms",
     "prepare_fc2_bases",

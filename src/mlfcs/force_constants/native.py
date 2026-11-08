@@ -9,9 +9,9 @@ from pathlib import Path
 import h5py
 import numpy as np
 
-from mlfcs.cluster_space.model import Cluster, ClusterSpace, Orbit, OrderBlock
+from mlfcs.cluster_space.records import Cluster, ClusterSpace, Orbit, OrderBlock
 from mlfcs.foundation.arrays import readonly
-from mlfcs.geometry.primitive import validate_primitive_arrays
+from mlfcs.geometry.structure import validate_primitive_arrays
 from mlfcs.geometry.symmetry import PrimitiveSymmetry
 
 _FORMAT = "mlfcs.force_constants"
@@ -93,12 +93,7 @@ def _write_space(group, space):
         entry.create_dataset(
             "representative", data=np.array(orbit.representative.labels, dtype=np.int64)
         )
-        entry.create_dataset(
-            "clusters",
-            data=np.array([cluster.labels for cluster in orbit.clusters], dtype=np.int64).reshape(
-                -1, orbit.representative.order, 4
-            ),
-        )
+        entry.create_dataset("clusters", data=np.ascontiguousarray(orbit.labels))
         for name in (
             "lattice_basis",
             "component_basis",
@@ -119,15 +114,20 @@ def _read_space(group):
     through spglib. Raise ValueError for invalid geometry, masses or layout.
     """
     primitive = group["primitive"]
-    cell, positions, numbers, symprec = validate_primitive_arrays(
+    record = validate_primitive_arrays(
         _array(primitive, "cell", "f", 2),
         _array(primitive, "scaled_positions", "f", 2),
         _array(primitive, "atomic_numbers", "i", 1),
+        _array(primitive, "masses", "f", 1),
         primitive.attrs["symprec"],
     )
-    masses = _array(primitive, "masses", "f", 1)
-    if masses.shape != numbers.shape or np.any(masses <= 0):
-        raise ValueError("stored atomic masses must be positive and match the motif")
+    cell, positions, numbers, symprec = (
+        record.cell,
+        record.scaled_positions,
+        record.atomic_numbers,
+        record.symprec,
+    )
+    masses = record.masses
     source = group["symmetry"]
     symmetry = PrimitiveSymmetry(
         rotations=_array(source, "rotations", "i", 3),
@@ -173,26 +173,24 @@ def _read_space(group):
                 component_basis=_array(entry, "component_basis", "f", 2),
                 observation_rows=_array(entry, "observation_rows", "i", 1),
                 observation_condition=entry.attrs["observation_condition"],
-                clusters=tuple(_cluster(labels) for labels in images),
+                labels=images,
                 operations=_array(entry, "operations", "i", 1),
                 permutations=_array(entry, "permutations", "i", 2),
             )
         )
-    space = object.__new__(ClusterSpace)
-    for name, value in (
-        ("cell", cell),
-        ("scaled_positions", positions),
-        ("atomic_numbers", numbers),
-        ("symprec", symprec),
-        ("_masses", readonly(masses, np.float64)),
-        ("symmetry", symmetry),
-        ("blocks", tuple(blocks)),
-        ("orbits", tuple(orbits)),
-    ):
-        object.__setattr__(space, name, value)
-    object.__setattr__(space, "_acoustic_coordinates", None)
-    space.__post_init__()
-    return space
+    return ClusterSpace._from_parts(
+        {
+            "cell": cell,
+            "scaled_positions": positions,
+            "atomic_numbers": numbers,
+            "symprec": symprec,
+            "symmetry": symmetry,
+            "blocks": tuple(blocks),
+            "orbits": tuple(orbits),
+            "masses": readonly(masses, np.float64),
+            "acoustic_coordinates": None,
+        }
+    )
 
 
 def save(model, path):
@@ -216,7 +214,7 @@ def save(model, path):
             for order, values in model.coefficients.items():
                 coefficients.create_dataset(str(order), data=values)
             handle.flush()
-        with open(temporary, "rb") as handle:
+        with open(temporary, "rb+") as handle:
             os.fsync(handle.fileno())
         os.replace(temporary, path)
     finally:

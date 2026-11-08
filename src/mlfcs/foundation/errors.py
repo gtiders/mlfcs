@@ -46,7 +46,6 @@ __all__ = [
     "AliasingError",
     "ArithmeticRangeError",
     "ConstraintProjectionError",
-    "MLFCSError",
     "RankError",
     "UnobservedParameterError",
 ]

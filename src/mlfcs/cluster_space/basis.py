@@ -12,12 +12,28 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 import numpy as np
-from numba import njit
+from numba import njit, types
+from numba.typed import Dict, List
 from scipy.linalg import qr
 
 from mlfcs.cluster_space.integer_kernel import integer_kernel_basis
 from mlfcs.foundation.arrays import as_int64_array, require_allocation
 from mlfcs.foundation.tensors import apply_tensor_action, tensor_dimension, validate_tensor_action
+
+# Invariant bases repeat heavily across orbits: a cluster space groups thousands
+# of orbits into a few dozen distinct (repeated-site seed, stabilizer action)
+# signatures. Entries hold frozen arrays shared between callers.
+_INVARIANT_CACHE: dict[tuple[bytes, bytes], np.ndarray] = {}
+_PARAMETERIZATION_CACHE: dict[tuple[tuple[int, ...], bytes], tuple] = {}
+_CACHE_LIMIT = 256
+
+
+def _action_signature(rotations: np.ndarray, permutations: np.ndarray) -> bytes:
+    """Return an action-order-insensitive byte signature of stabilizer actions."""
+    if not len(rotations):
+        return b""
+    stacked = np.hstack((rotations.reshape(len(rotations), -1), permutations))
+    return np.ascontiguousarray(stacked[np.lexsort(stacked.T[::-1])]).tobytes()
 
 
 def _label_symmetric_basis(labels: Sequence[object]) -> np.ndarray:
@@ -63,9 +79,11 @@ def compute_invariant_basis(
     Returns
     -------
     ndarray
-        Saturated ``int64`` basis of shape ``(3**p, d)``. Its columns span
-        exactly the tensor subspace satisfying both repeated-site index
-        symmetry and all stabilizer constraints.
+        Saturated, readonly ``int64`` basis of shape ``(3**p, d)``. Its columns
+        span exactly the tensor subspace satisfying both repeated-site index
+        symmetry and all stabilizer constraints. The array may be shared with
+        other calls that receive the same repeated-site seed and the same
+        stabilizer action set, so callers must treat it as immutable.
 
     Raises
     ------
@@ -73,8 +91,15 @@ def compute_invariant_basis(
         If the stabilizer buffers have inconsistent shapes or an axis action
         is not a permutation.
     OverflowError
-        If a rotation's tensor-action bound or the stacked constraint array
-        cannot be represented or allocated.
+        If a rotation's tensor-action bound cannot be represented.
+
+    Notes
+    -----
+    Stabilizer action sets repeat across orbits, so results are memoized on the
+    ``(repeated-site seed, action set)`` signature; the action set is compared
+    without regard to order. Constraint rows are hash-deduplicated while they
+    are produced, which avoids materializing and sorting the full stack of
+    ``|stabilizers| * 3**p`` rows.
     """
     repeated_site_basis = _label_symmetric_basis(labels)
     if stabilizers:
@@ -89,17 +114,28 @@ def compute_invariant_basis(
             raise ValueError("stabilizer axes must be permutations")
         for rotation in rotations:
             validate_tensor_action(rotation, len(labels), subtraction=1)
-        require_allocation(
-            "invariant constraints", (len(stabilizers) * repeated_site_basis.shape[0], repeated_site_basis.shape[1])
-        )
-        constraints = invariant_constraints(repeated_site_basis, rotations, permutations)
+        key = (repeated_site_basis.tobytes(), _action_signature(rotations, permutations))
+        cached = _INVARIANT_CACHE.get(key)
+        if cached is not None:
+            return cached
+        constraints = unique_constraint_rows(repeated_site_basis, rotations, permutations)
     else:
+        key = (repeated_site_basis.tobytes(), b"")
+        cached = _INVARIANT_CACHE.get(key)
+        if cached is not None:
+            return cached
         constraints = np.empty((0, repeated_site_basis.shape[1]), dtype=np.int64)
+    # Row order is canonicalized before the integer kernel so that identical
+    # signatures produce identical bases regardless of stabilizer ordering.
     constraints = np.unique(constraints, axis=0)
     kernel = integer_kernel_basis(constraints)
     # Each repeated-site basis row selects exactly one column; this avoids an
     # unnecessary integer dot product and its coefficient-growth bound.
     result = kernel[np.argmax(repeated_site_basis, axis=1)]
+    result.setflags(write=False)
+    if len(_INVARIANT_CACHE) >= _CACHE_LIMIT:
+        _INVARIANT_CACHE.clear()
+    _INVARIANT_CACHE[key] = result
     return result
 
 
@@ -147,24 +183,51 @@ def label_basis(equal):
 
 
 @njit(cache=True)
-def invariant_constraints(seed, rotations, permutations):
-    """Assemble linear constraints enforcing stabilizer invariance.
+def unique_constraint_rows(seed, rotations, permutations):
+    """Collect the distinct stabilizer constraint rows without stacking them.
 
-    For each stabilizer operation ``g``, the tensor basis ``seed`` is acted
-    on by the corresponding lattice rotation and tensor-axis permutation.
-    Invariant coefficients ``c`` satisfy ``(T_g - I) seed @ c = 0``; the
-    returned matrix stacks ``(T_g - I) seed`` over all operations. Inputs
-    are preserved and not validated: allocation and rotation-bound
-    admission belong to the caller, which also removes zero and duplicate
-    rows.
+    For each stabilizer operation ``g`` the rows are ``(T_g - I) seed``; across
+    all operations the stack repeats the same rows thousands of times, so rows
+    are hash-deduplicated as they are produced instead of being materialized
+    and sorted afterwards. Inputs are preserved and not validated: allocation
+    and rotation-bound admission belong to the caller.
+
+    The returned rows are the exact row set of the stacked constraints in
+    first-occurrence order; callers canonicalize the order when the resulting
+    basis must not depend on stabilizer ordering. Hash collisions are detected
+    by comparing stored rows, so no distinct row is ever dropped.
     """
     rows, columns = seed.shape
-    result = np.empty((len(rotations) * rows, columns), dtype=np.int64)
+    table = Dict.empty(types.int64, types.int64)
+    unique = List()
+    buffer = np.empty(columns, dtype=np.int64)
     for operation in range(len(rotations)):
         transformed = apply_tensor_action(seed, rotations[operation], permutations[operation])
-        for i in range(rows):
-            for j in range(columns):
-                result[operation * rows + i, j] = transformed[i, j] - seed[i, j]
+        for row in range(rows):
+            mixed = np.int64(0)
+            for column in range(columns):
+                value = transformed[row, column] - seed[row, column]
+                buffer[column] = value
+                mixed = (mixed ^ value) * np.int64(1099511628211)
+            slot = mixed
+            duplicate = False
+            while slot in table:
+                candidate = unique[table[slot]]
+                equal = True
+                for column in range(columns):
+                    if candidate[column] != buffer[column]:
+                        equal = False
+                        break
+                if equal:
+                    duplicate = True
+                    break
+                slot += np.int64(1)
+            if not duplicate:
+                table[slot] = len(unique)
+                unique.append(buffer.copy())
+    result = np.empty((len(unique), columns), dtype=np.int64)
+    for index in range(len(unique)):
+        result[index] = unique[index]
     return result
 
 
@@ -207,6 +270,11 @@ def component_parameterization(cartesian: object) -> tuple[np.ndarray, np.ndarra
     Rows are selected greedily from an orthonormal basis using modified
     Gram-Schmidt residual norms. The condition number is reported as a
     diagnostic and does not change the subspace dimension.
+
+    The result is memoized on the input bytes: within one cluster space the same
+    Cartesian subspace recurs once per symmetry-equivalent orbit. Returned
+    arrays are readonly and may be shared between calls, so callers must not
+    mutate them.
     """
     values = np.asarray(cartesian, dtype=np.float64)
     if values.ndim != 2 or not np.all(np.isfinite(values)):
@@ -214,6 +282,10 @@ def component_parameterization(cartesian: object) -> tuple[np.ndarray, np.ndarra
     rows, dimension = values.shape
     if dimension == 0:
         return np.empty((rows, 0)), np.empty(0, dtype=np.int64), 1.0
+    key = (values.shape, values.tobytes())
+    cached = _PARAMETERIZATION_CACHE.get(key)
+    if cached is not None:
+        return cached
     orthonormal, _ = qr(values, mode="economic", check_finite=False)
     selected = select_observation_rows(orthonormal)
     observed = orthonormal[selected]
@@ -221,7 +293,11 @@ def component_parameterization(cartesian: object) -> tuple[np.ndarray, np.ndarra
     condition = float(np.linalg.cond(observed, 2))
     basis.setflags(write=False)
     selected.setflags(write=False)
-    return basis, selected, condition
+    if len(_PARAMETERIZATION_CACHE) >= _CACHE_LIMIT:
+        _PARAMETERIZATION_CACHE.clear()
+    result = (basis, selected, condition)
+    _PARAMETERIZATION_CACHE[key] = result
+    return result
 
 
 @njit(cache=True)

@@ -30,7 +30,7 @@ def _displacement_keys(
     keys: set[tuple[tuple[int, int], ...]] = set()
     for orbit_index in range(block.orbits.start, block.orbits.stop):
         orbit = cluster_map.cluster_space.orbits[orbit_index]
-        representative_image = orbit.clusters.index(orbit.representative)
+        representative_image = orbit.representative_index
         atom_indices = tuple(
             int(value)
             for value in cluster_map.image_atom_indices[orbit_index][representative_image]

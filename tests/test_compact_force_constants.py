@@ -7,7 +7,7 @@ from ase.build import bulk, make_supercell
 
 from mlfcs import ClusterMap, ClusterSpace, CompactForceConstants, ForceConstants
 from mlfcs.force_constants.expansion import expand_lattice_tensors
-from mlfcs.geometry.primitive import LatticeSite
+from mlfcs.geometry.lattice import LatticeSite
 
 
 @pytest.fixture(scope="module")

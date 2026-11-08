@@ -77,9 +77,9 @@ def _compile_order(
     block = space.block(order)
     parameter_offsets = space.parameter_offsets
     orbit_indices = range(block.orbits.start, block.orbits.stop)
-    image_count = sum(len(space.orbits[i].clusters) for i in orbit_indices)
+    image_count = sum(len(space.orbits[i].labels) for i in orbit_indices)
     basis_count = sum(
-        len(space.orbits[i].clusters) * 3**order * space.orbits[i].dimension for i in orbit_indices
+        len(space.orbits[i].labels) * 3**order * space.orbits[i].dimension for i in orbit_indices
     )
     require_allocation("image atoms", (image_count, len(translations), order))
     require_allocation("image basis", (basis_count,))
@@ -98,9 +98,8 @@ def _compile_order(
         dimension = orbit.dimension
         parameter_starts.append(int(parameter_offsets[orbit_index]))
         dimensions.append(dimension)
-        for image, cluster in enumerate(orbit.clusters):
-            labels = np.asarray(cluster.labels, dtype=np.int64)
-            atoms = cluster_map.map_labels(labels, translations).T.copy()
+        for image in range(len(orbit.labels)):
+            atoms = cluster_map.map_labels(orbit.labels[image], translations).T.copy()
             image_atoms.append(atoms)
             rotation = space.symmetry.cartesian_rotations[orbit.operations[image]].T
             basis = rotate_basis(orbit.component_basis, rotation, orbit.permutations[image])

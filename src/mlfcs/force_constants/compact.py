@@ -15,7 +15,7 @@ from mlfcs.force_constants.expansion import image_tensor
 from mlfcs.force_constants.model import ForceConstants
 from mlfcs.foundation.arrays import as_int64_array, readonly, require_allocation
 from mlfcs.foundation.tensors import tensor_dimension
-from mlfcs.geometry.primitive import LatticeSite
+from mlfcs.geometry.lattice import LatticeSite
 from mlfcs.mapping import ClusterMap
 
 DEFAULT_BLOCK_BYTES = 8 * 1024**2
@@ -191,10 +191,11 @@ class CompactForceConstants:
             offset = 0
             for orbit in model.cluster_space.orbits[model.cluster_space.block(order).orbits]:
                 stop = offset + orbit.dimension
-                for image, cluster in enumerate(orbit.clusters):
+                for image in range(len(orbit.labels)):
+                    row = orbit.labels[image]
                     label = (
-                        tuple(site.site for site in cluster.sites),
-                        tuple(site.translation for site in cluster.sites[1:]),
+                        tuple(int(value) for value in row[:, 0]),
+                        tuple(tuple(int(value) for value in slot) for slot in row[1:, 1:]),
                     )
                     if label in indices:
                         raise RuntimeError(

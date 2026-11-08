@@ -23,7 +23,7 @@ from mlfcs.force_constants import CompactForceConstants
 from mlfcs.foundation.arrays import as_int64_array, require_allocation
 from mlfcs.foundation.errors import ConstraintProjectionError
 from mlfcs.foundation.tensors import rotate_basis
-from mlfcs.geometry.primitive import LatticeSite
+from mlfcs.geometry.lattice import LatticeSite
 from mlfcs.mapping import ClusterMap
 
 # ASE defines this conversion from its own consistent physical constants.
@@ -241,13 +241,14 @@ def _local_correction(space, raw_rows, rtol, atol):
         row_sum_basis = np.zeros((space.n_atoms, 3, 3, orbit.dimension))
         tensor_metric = np.zeros((orbit.dimension, orbit.dimension))
         orbit_images = []
-        for image, cluster in enumerate(orbit.clusters):
+        for image in range(len(orbit.labels)):
             rotation = space.symmetry.cartesian_rotations[orbit.operations[image]].T
             image_basis = rotate_basis(orbit.component_basis, rotation, orbit.permutations[image])
             shaped = image_basis.reshape(3, 3, orbit.dimension)
-            row_sum_basis[cluster.sites[0].site] += shaped
+            row = orbit.labels[image]
+            row_sum_basis[int(row[0, 0])] += shaped
             tensor_metric += image_basis.T @ image_basis
-            orbit_images.append((cluster, shaped))
+            orbit_images.append((row, shaped))
         # Whitening makes the Euclidean coordinate norm equal the expanded-tensor norm.
         whitener = np.linalg.solve(np.linalg.cholesky(tensor_metric).T, np.eye(orbit.dimension))
         antisymmetric = np.stack(
@@ -279,10 +280,10 @@ def _local_correction(space, raw_rows, rtol, atol):
         size = whitener.shape[0]
         local_parameters = whitener @ whitened_coordinates[offset : offset + size]
         offset += size
-        for cluster, image_basis in orbit_images:
+        for row, image_basis in orbit_images:
             tensor = image_basis @ local_parameters
-            correction_rows[cluster.sites[0].site] += tensor
-            result.append((cluster, _freeze(tensor)))
+            correction_rows[int(row[0, 0])] += tensor
+            result.append((row, _freeze(tensor)))
     onsite = -(raw_rows + correction_rows)
     if np.max(np.abs(onsite - onsite.transpose(0, 2, 1)), initial=0) > tolerance:
         raise ConstraintProjectionError("Ewald local correction failed onsite symmetry")
@@ -310,9 +311,11 @@ def _supercell_tensors(mapping, born, epsilon, alpha, correction, onsite, rtol, 
         rtol,
         atol,
     )
-    for cluster, tensor in correction:
-        target = mapping.atom_index(cluster.sites[1])
-        compact[cluster.sites[0].site, target] += tensor
+    for row, tensor in correction:
+        target = mapping.atom_index(
+            LatticeSite(int(row[1, 0]), tuple(int(value) for value in row[1, 1:]))
+        )
+        compact[int(row[0, 0]), target] += tensor
     for site, anchor in enumerate(anchors):
         compact[site, anchor] += onsite[site]
     scale = float(np.max(np.abs(compact), initial=0))

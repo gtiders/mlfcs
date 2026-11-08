@@ -116,18 +116,19 @@ def _fc2_moment_matrices(
     cell = space.cell
     for local_orbit, orbit_index in enumerate(range(block.orbits.start, block.orbits.stop)):
         orbit = space.orbits[orbit_index]
-        for image, cluster in enumerate(orbit.clusters):
-            first, second = cluster.sites
+        for image in range(len(orbit.labels)):
+            row = orbit.labels[image]
+            first, second = row[0], row[1]
             vector = (
-                positions[second.site]
-                - positions[first.site]
-                + np.asarray(second.translation, dtype=np.float64) @ cell
+                positions[int(second[0])]
+                - positions[int(first[0])]
+                + np.asarray(second[1:], dtype=np.float64) @ cell
             )
-            if second != first:
+            if not np.array_equal(second, first):
                 lengths.append(float(np.linalg.norm(vector)))
             rotation = space.symmetry.cartesian_rotations[orbit.operations[image]].T
             basis = rotate_basis(orbit.component_basis, rotation, orbit.permutations[image])
-            images.append((first.site, vector, int(offsets[local_orbit]), basis))
+            images.append((int(first[0]), vector, int(offsets[local_orbit]), basis))
     if not lengths:
         raise ValueError("rotational invariance requires at least one non-onsite FC2 pair")
     length_scale = float(np.median(lengths))

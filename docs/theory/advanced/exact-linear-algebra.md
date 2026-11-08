@@ -129,7 +129,7 @@ $$
 
 随后以浮点三角求解实现自由声学坐标的提升映射及其伴随。精确认证的是结构、秩和零空间；应用坐标映射仍有浮点误差。这里不需要显式生成全局饱和整数 ASR 基，也不物化全局稠密零空间。
 
-这些方法分别位于 `cluster_space/integer_kernel.py`、`cluster_space/acoustic_factorization.py` 和 `mapping/folding.py`。当前算术范围、分配和工作区约定见[数值契约](../../development/numerical-contracts.md)。
+这些方法分别位于 `cluster_space/integer_kernel.py`、`cluster_space/asr.py` 和 `mapping/folding.py`。当前算术范围、分配和工作区约定见[数值契约](../../development/numerical-contracts.md)。
 
 ## 可复现的同余格构造
 
@@ -217,8 +217,8 @@ ASR 不需要饱和整数格，但需要一个与原方程同核的三角因子�
 | 有理自由变量关系 | `modular_pivot_chart`、`reconstruct_rationals` |
 | 单行及多行同余预像 | `congruence_row_preimage`、`congruence_preimage` |
 | 完整核与乘积认证 | `integer_kernel_basis`、`_verify_integer_kernel` |
-| ASR 候选模因子 | `acoustic_factorization._factor` |
-| 清分母因子恒等式与秩见证 | `acoustic_factorization._certify` |
+| ASR 候选模因子 | `asr._factor` |
+| 清分母因子恒等式与秩见证 | `asr._certify` |
 | 被认证的三角约束及主元 | `factor_acoustic_equations` 返回值 |
 
 哈希表、临时消元矩阵和内存工作区不改变上述数学对象，也不构成额外参数空间。

@@ -10,8 +10,8 @@ import pytest
 from ase.build import bulk
 
 from mlfcs import ClusterMap, ClusterSpace
-from mlfcs.geometry.primitive import LatticeSite
-from mlfcs.mapping.periodic import PeriodicIndex, map_labels
+from mlfcs.geometry.lattice import LatticeSite
+from mlfcs.geometry.structure import PeriodicIndex
 
 
 def test_cluster_space_maps_to_multiple_supercells():
@@ -116,7 +116,7 @@ def test_mapped_labels_maps_large_cancelling_coordinates() -> None:
     translations = np.asarray(
         [[magnitude, -magnitude, 0], [-magnitude, magnitude, 0]], dtype=np.int64
     )
-    np.testing.assert_array_equal(map_labels(labels, translations, prepared), 0)
+    np.testing.assert_array_equal(prepared.lookup(labels, translations), 0)
 
 
 def test_supercell_matrix_inference_handles_skewed_primitive_cell() -> None:

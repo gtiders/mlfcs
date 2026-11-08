@@ -9,7 +9,7 @@ import numpy as np
 from ase import Atoms
 
 from mlfcs.foundation.arrays import require_allocation
-from mlfcs.geometry.periodic import PeriodicGeometry
+from mlfcs.geometry.lattice import Lattice
 from mlfcs.mapping import ClusterMap
 
 
@@ -35,7 +35,7 @@ class ForceDataset:
             raise TypeError("cluster_map must be a ClusterMap")
         if isinstance(structures, (Atoms, np.ndarray)):
             raise TypeError("structures must be an iterable of ASE Atoms")
-        geometry = PeriodicGeometry(cluster_map.cell)
+        geometry = Lattice(cluster_map.cell)
         positions = cluster_map.supercell_atoms.positions
         displacements, forces = [], []
         for index, atoms in enumerate(structures):

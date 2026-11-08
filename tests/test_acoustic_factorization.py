@@ -4,8 +4,7 @@ import numpy as np
 import pytest
 from scipy import sparse
 
-from mlfcs.cluster_space.acoustic import prepare_coordinates
-from mlfcs.cluster_space.acoustic_factorization import checked_add, checked_multiply
+from mlfcs.cluster_space.asr import checked_add, checked_multiply, prepare_coordinates
 
 
 @pytest.mark.parametrize(
@@ -76,7 +75,7 @@ def test_modular_zero_does_not_drop_an_integer_coefficient():
 
 def test_certificate_rejects_a_corrupted_compressed_factor():
     """The characteristic-zero identity must reject an incorrect reconstructed entry."""
-    from mlfcs.cluster_space.acoustic_factorization import _certify
+    from mlfcs.cluster_space.asr import _certify
 
     matrix = sparse.csr_matrix(np.array([[2, 3, 1], [4, 6, 2]], dtype=np.int64))
     upper = (np.array([0, 3]), np.array([0, 1, 2]), np.array([2, 3, 1]))

@@ -82,7 +82,7 @@ def reconstruct_force_constants(
     orbit_parameters = []
     for orbit_index in range(block.orbits.start, block.orbits.stop):
         orbit = space.orbits[orbit_index]
-        representative_image = orbit.clusters.index(orbit.representative)
+        representative_image = orbit.representative_index
         atom_indices = tuple(
             int(value)
             for value in cluster_map.image_atom_indices[orbit_index][representative_image]

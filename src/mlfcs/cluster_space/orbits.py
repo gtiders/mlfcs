@@ -9,7 +9,7 @@ while actions that return the representative define its stabilizer.
 import numpy as np
 from numba import njit
 
-from mlfcs.cluster_space.model import Cluster
+from mlfcs.cluster_space.records import Cluster
 from mlfcs.foundation.arrays import as_int64_array, require_allocation
 from mlfcs.geometry.symmetry import PrimitiveSymmetry
 
@@ -231,7 +231,7 @@ def compute_orbit_actions(
     permutation_array: np.ndarray,
 ) -> tuple[
     Cluster,
-    tuple[Cluster, ...],
+    np.ndarray,
     np.ndarray,
     np.ndarray,
     tuple[tuple[np.ndarray, tuple[int, ...]], ...],
@@ -263,8 +263,10 @@ def compute_orbit_actions(
     -------
     representative
         The input cluster, unchanged.
-    clusters
-        Distinct symmetry-equivalent cluster images.
+    labels
+        ``int64`` array of shape ``(n_images, order, 4)`` holding the lattice
+        label of each distinct image, in the same row order as ``operations``
+        and ``permutations``.
     operations
         Primitive symmetry-operation index associated with each retained image.
     permutations
@@ -295,7 +297,6 @@ def compute_orbit_actions(
     )
     indices, stabilizer_indices = distinct_orbit_actions(transformed, labels)
     permutation_count = len(permutation_values)
-    clusters = tuple(Cluster.from_labels(transformed[index]) for index in indices)
     operations = np.asarray(indices // permutation_count, dtype=np.int64)
     permutations = permutation_array[indices % permutation_count]
     stabilizers = tuple(
@@ -307,4 +308,4 @@ def compute_orbit_actions(
     )
     if not stabilizers:
         raise RuntimeError("the primitive symmetry group does not contain the identity action")
-    return representative, clusters, operations, permutations, stabilizers
+    return representative, transformed[indices], operations, permutations, stabilizers

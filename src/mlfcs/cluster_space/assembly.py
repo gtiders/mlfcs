@@ -1,4 +1,4 @@
-"""Construction of a primitive-only cluster space."""
+"""Assembly of primitive cluster-space records from symmetry and invariants."""
 
 from __future__ import annotations
 
@@ -10,11 +10,12 @@ import numpy as np
 
 from mlfcs.cluster_space.basis import component_parameterization, compute_invariant_basis
 from mlfcs.cluster_space.candidates import enumerate_candidate_labels
-from mlfcs.cluster_space.model import Cluster, Orbit, OrderBlock
 from mlfcs.cluster_space.orbits import ClusterRegistry, compute_orbit_actions
+from mlfcs.cluster_space.records import Cluster, Orbit, OrderBlock
 from mlfcs.foundation.arrays import require_allocation
 from mlfcs.foundation.log import get_logger
 from mlfcs.foundation.tensors import tensor_dimension
+from mlfcs.geometry.structure import primitive_data
 from mlfcs.geometry.symmetry import PrimitiveSymmetry, discover_symmetry
 
 logger = get_logger(__name__)
@@ -78,15 +79,13 @@ def _build_order(
         if covered.contains(candidate_array):
             continue
         candidate = Cluster.from_labels(candidate_array)
-        representative, clusters, operations, axis_permutations, stabilizers = (
-            compute_orbit_actions(
-                candidate,
-                symmetry,
-                permutation_values,
-                permutation_array,
-            )
+        representative, labels, operations, axis_permutations, stabilizers = compute_orbit_actions(
+            candidate,
+            symmetry,
+            permutation_values,
+            permutation_array,
         )
-        covered.update(np.asarray([cluster.labels for cluster in clusters], dtype=np.int64))
+        covered.update(labels)
         lattice_basis = compute_invariant_basis(
             representative.sites,
             tuple((np.asarray(rotation), permutation) for rotation, permutation in stabilizers),
@@ -102,11 +101,11 @@ def _build_order(
         generated.append(
             Orbit(
                 representative=representative,
+                labels=labels,
                 lattice_basis=lattice_basis,
                 component_basis=component_basis,
                 observation_rows=rows,
                 observation_condition=condition,
-                clusters=clusters,
                 operations=operations,
                 permutations=axis_permutations,
             )
@@ -191,3 +190,32 @@ def construct_space(
         perf_counter() - started,
     )
     return symmetry, tuple(blocks), tuple(all_orbits)
+
+
+def assemble_parts(primitive_atoms, *, cutoffs, max_body_orders, symprec):
+    """Derive validated record parts for a primitive cluster space.
+
+    ``cutoffs`` and ``max_body_orders`` are already normalized integer-keyed
+    mappings with identical key sets. Acoustic preparation is not performed
+    here; the record constructor requests it separately.
+    """
+    primitive = primitive_data(primitive_atoms, symprec)
+    symmetry, blocks, orbits = construct_space(
+        primitive.cell,
+        primitive.scaled_positions,
+        primitive.atomic_numbers,
+        primitive.symprec,
+        cutoffs=cutoffs,
+        max_body_orders=max_body_orders,
+    )
+    return {
+        "cell": primitive.cell,
+        "scaled_positions": primitive.scaled_positions,
+        "atomic_numbers": primitive.atomic_numbers,
+        "symprec": primitive.symprec,
+        "symmetry": symmetry,
+        "blocks": blocks,
+        "orbits": orbits,
+        "masses": primitive.masses,
+        "acoustic_coordinates": None,
+    }

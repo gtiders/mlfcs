@@ -1,7 +1,8 @@
-"""Minimum-image and tolerance searches in fully periodic three-dimensional lattices."""
+"""Lattice sites and periodic-image geometry in three dimensions."""
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from itertools import product
 from math import prod
 
@@ -11,8 +12,105 @@ from ase.geometry import minkowski_reduce
 from mlfcs.foundation.arrays import require_allocation
 
 
-class PeriodicGeometry:
-    """Periodic-image geometry for a fixed three-dimensional lattice.
+@dataclass(frozen=True, order=True, slots=True)
+class LatticeSite:
+    """Unique address for one atom in an infinitely periodic crystal.
+
+    A lattice site is specified by ``(site, translation)``:
+    - ``site``: index of the atom inside the primitive unit cell (i)
+    - ``translation``: integer lattice vector ``n = (tx, ty, tz)``,
+      counting how many primitive cell steps to translate.
+
+    With row-wise lattice basis vectors, its Cartesian position is:
+        r(i, n) = (s_i + n) @ cell
+    where s_i is the fractional coordinate of atom i inside the primitive cell.
+
+    Important: ``translation`` is an integer lattice offset, **not**
+    a Cartesian displacement in real space.
+    """
+
+    site: int
+    translation: tuple[int, int, int] = (0, 0, 0)
+
+    def __post_init__(self) -> None:
+        """Validate and normalize lattice-site address."""
+        if self.site < 0:
+            raise ValueError("primitive site must be non-negative")
+        if len(self.translation) != 3 or any(
+            not isinstance(value, (int, np.integer)) for value in self.translation
+        ):
+            raise TypeError("lattice translation must contain exactly three integers")
+        object.__setattr__(self, "site", int(self.site))
+        object.__setattr__(self, "translation", tuple(int(value) for value in self.translation))
+
+
+def match_primitive_site(
+    cell,
+    scaled_positions,
+    atomic_numbers,
+    position,
+    species,
+    *,
+    tolerance,
+    geometry=None,
+    context="",
+):
+    """Locate the unique motif site that a fractional position belongs to.
+
+    Return ``(site, translation)`` satisfying
+
+        position = scaled_positions[site] + translation
+
+    where ``translation`` is the integer lattice shift **added to the motif
+    position**, i.e. the ``LatticeSite`` convention. ``position`` is a
+    fractional row coordinate that need not lie inside the reference cell;
+    only motif sites carrying ``species`` are candidates. This function owns
+    both the uniqueness rule and the sign convention, so callers never negate
+    a periodic-image shift themselves.
+
+    Parameters
+    ----------
+    cell
+        Lattice vectors as rows, shape ``(3, 3)``, in angstrom.
+    scaled_positions
+        Fractional motif coordinates of shape ``(n_atoms, 3)``.
+    atomic_numbers
+        Motif species, one entry per row of ``scaled_positions``.
+    position
+        Fractional row coordinate of shape ``(3,)``.
+    species
+        Species the matched motif site must carry.
+    tolerance
+        Positive Cartesian matching radius in angstrom.
+    geometry
+        Optional prepared ``Lattice`` for ``cell``; supplying it avoids
+        rebuilding the Minkowski reduction at every call.
+    context
+        Optional label prefixed to the raised message.
+
+    Raises
+    ------
+    ValueError
+        If no candidate of ``species`` exists, or if the position matches no
+        candidate or more than one within ``tolerance``.
+    """
+    geometry = Lattice(cell) if geometry is None else geometry
+    candidates = np.flatnonzero(np.asarray(atomic_numbers) == species)
+    prefix = f"{context}: " if context else ""
+    if not len(candidates):
+        raise ValueError(f"{prefix}no primitive site carries species {species}")
+    differences = (np.asarray(position, dtype=np.float64) - scaled_positions[candidates]) @ cell
+    matches, shifts = geometry.matching_images(differences, tolerance=tolerance)
+    if len(matches) != 1:
+        raise ValueError(
+            f"{prefix}position matches {len(matches)} primitive sites "
+            f"within tolerance {tolerance:g} angstrom"
+        )
+    return int(candidates[matches[0]]), tuple(-int(value) for value in shifts[0])
+
+
+class Lattice:
+    """Periodic-image geometry of a fixed three-dimensional lattice.
 
     Cartesian displacement vectors are compared modulo lattice translations.
     The class provides minimum-image reduction and exhaustive periodic-image
@@ -178,6 +276,42 @@ class PeriodicGeometry:
             matched_shifts, dtype=np.int64
         ).reshape(-1, 3)
 
+    def lattice_combination(
+        self, vector: object, *, tolerance: float, context: str = ""
+    ) -> tuple[int, int, int]:
+        """Return the integer lattice combination that realizes a Cartesian vector.
+
+        For row lattice vectors, ``vector = n @ cell`` with integer ``n``. The
+        unique admissible combination is returned as a plain integer tuple; it
+        is the inverse of the periodic-image convention used by
+        :meth:`matching_images`, so this method is the single owner of that sign.
+
+        Parameters
+        ----------
+        vector
+            Cartesian row vector of shape ``(3,)``.
+        tolerance
+            Positive Cartesian matching radius in the cell's length unit.
+        context
+            Optional label prefixed to the error message by the caller.
+
+        Raises
+        ------
+        ValueError
+            If the vector matches no lattice point, or more than one, within
+            ``tolerance``.
+        """
+        matches, shifts = self.matching_images(
+            np.atleast_2d(np.asarray(vector, dtype=np.float64)), tolerance=tolerance
+        )
+        if len(matches) != 1:
+            prefix = f"{context}: " if context else ""
+            raise ValueError(
+                f"{prefix}lattice vector matches {len(matches)} lattice points "
+                f"within tolerance {tolerance:g}"
+            )
+        return tuple(-int(value) for value in shifts[0])
+
 
 def _require_int64_values(values: np.ndarray, name: str) -> None:
     """Require floating shift bounds to be safely representable as int64."""
@@ -225,4 +359,4 @@ def _transform_image_shifts(left: np.ndarray, right: np.ndarray) -> np.ndarray:
     return result
 
 
-__all__ = ["PeriodicGeometry"]
+__all__ = ["Lattice", "LatticeSite", "match_primitive_site"]

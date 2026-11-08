@@ -318,4 +318,4 @@ class Harmonic:
         )
 
 
-__all__ = ["Harmonic", "HarmonicBandResult", "HarmonicMeshResult"]
+__all__ = ["Harmonic"]

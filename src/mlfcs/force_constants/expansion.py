@@ -7,7 +7,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from mlfcs.force_constants.model import ForceConstants
-from mlfcs.foundation.tensors import rotate_basis, rotate_tensor
+from mlfcs.foundation.tensors import rotate_tensor
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,10 +42,11 @@ def iter_lattice_tensors(model: ForceConstants, order: int):
         representative = (orbit.component_basis @ model.coefficients[order][offset:stop]).reshape(
             (3,) * order
         )
-        for image, cluster in enumerate(orbit.clusters):
+        for image in range(len(orbit.labels)):
+            row = orbit.labels[image]
             yield (
-                tuple(site.site for site in cluster.sites),
-                tuple(site.translation for site in cluster.sites[1:]),
+                tuple(int(value) for value in row[:, 0]),
+                tuple(tuple(int(value) for value in slot) for slot in row[1:, 1:]),
                 image_tensor(model, orbit, representative, image),
             )
         offset = stop
@@ -71,4 +72,4 @@ def expand_lattice_tensors(model: ForceConstants, order: int) -> LatticeForceCon
     return LatticeForceConstants(tuple(sites), tuple(translations), tuple(tensors))
 
 
-__all__ = ["LatticeForceConstants", "expand_lattice_tensors", "rotate_basis", "rotate_tensor"]
+__all__ = ["LatticeForceConstants", "expand_lattice_tensors"]

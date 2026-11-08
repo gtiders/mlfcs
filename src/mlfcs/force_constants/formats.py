@@ -12,7 +12,7 @@ import numpy as np
 from numba import njit
 
 from mlfcs.foundation.log import get_logger
-from mlfcs.geometry.primitive import LatticeSite
+from mlfcs.geometry.lattice import LatticeSite
 
 logger = get_logger(__name__)
 DEFAULT_THRESHOLD = 1e-8

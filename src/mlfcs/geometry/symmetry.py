@@ -8,8 +8,7 @@ import numpy as np
 import spglib
 
 from mlfcs.foundation.arrays import as_int64_array, require_bound
-from mlfcs.geometry.periodic import PeriodicGeometry
-from mlfcs.geometry.primitive import LatticeSite
+from mlfcs.geometry.lattice import Lattice, LatticeSite, match_primitive_site
 
 
 def _readonly(values: object, *, dtype: object) -> np.ndarray:
@@ -221,25 +220,23 @@ def discover_symmetry(cell, scaled_positions, atomic_numbers, symprec) -> Primit
     cartesian = np.asarray([inverse_cell @ rotation.T @ cell for rotation in rotations])
     permutations = np.empty((len(rotations), len(atomic_numbers)), dtype=np.int64)
     shifts = np.empty((len(rotations), len(atomic_numbers), 3), dtype=np.int64)
-    geometry = PeriodicGeometry(cell)
+    geometry = Lattice(cell)
 
     for operation, (rotation, translation) in enumerate(zip(rotations, translations, strict=True)):
         transformed = scaled_positions @ rotation.T + translation
         for site, position in enumerate(transformed):
-            candidates = np.flatnonzero(atomic_numbers == atomic_numbers[site])
-            cartesian_differences = (position - scaled_positions[candidates]) @ cell
-            matches, image_shifts = geometry.matching_images(
-                cartesian_differences, tolerance=symprec
+            matched, shift = match_primitive_site(
+                cell,
+                scaled_positions,
+                atomic_numbers,
+                position,
+                atomic_numbers[site],
+                tolerance=symprec,
+                geometry=geometry,
+                context=f"operation {operation} maps primitive site {site}",
             )
-            if len(matches) != 1:
-                raise ValueError(
-                    f"operation {operation} maps primitive site {site} to "
-                    f"{len(matches)} sites within symprec {symprec:g} angstrom"
-                )
-            permutations[operation, site] = int(candidates[matches[0]])
-            # matching_images returns a shift added to the difference; the affine
-            # site address needs the opposite shift on the mapped motif position.
-            shifts[operation, site] = -image_shifts[0]
+            permutations[operation, site] = matched
+            shifts[operation, site] = shift
 
     return PrimitiveSymmetry(
         rotations=_readonly_int64(rotations, name="primitive rotations"),

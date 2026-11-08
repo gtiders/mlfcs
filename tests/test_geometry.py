@@ -8,7 +8,7 @@ from ase.build import bulk
 
 from mlfcs import ClusterSpace
 from mlfcs.foundation.tensors import apply_tensor_action
-from mlfcs.geometry.primitive import LatticeSite
+from mlfcs.geometry.lattice import LatticeSite
 from mlfcs.geometry.symmetry import discover_symmetry
 
 
@@ -51,9 +51,9 @@ def test_primitive_symmetry_is_a_closed_action_on_the_motif() -> None:
 
 def test_periodic_matching_enumerates_all_images_inside_tolerance():
     """Verify periodic matching enumerates all images inside tolerance."""
-    from mlfcs.geometry.periodic import PeriodicGeometry
+    from mlfcs.geometry.lattice import Lattice
 
-    geometry = PeriodicGeometry(np.eye(3))
+    geometry = Lattice(np.eye(3))
     candidates, shifts = geometry.matching_images(
         np.asarray([[0.5, 0.0, 0.0], [0.0, 0.0, 0.0]]), tolerance=0.6
     )
@@ -64,9 +64,9 @@ def test_periodic_matching_enumerates_all_images_inside_tolerance():
 
 def test_periodic_matching_uses_strict_radius_and_handles_no_candidates():
     """Verify periodic matching uses strict radius and handles no candidates."""
-    from mlfcs.geometry.periodic import PeriodicGeometry
+    from mlfcs.geometry.lattice import Lattice
 
-    geometry = PeriodicGeometry(np.eye(3))
+    geometry = Lattice(np.eye(3))
     for vectors in (np.empty((0, 3)), np.asarray([[0.5, 0.0, 0.0]])):
         candidates, shifts = geometry.matching_images(vectors, tolerance=0.5)
         assert candidates.shape == (0,)
