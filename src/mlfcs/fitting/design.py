@@ -16,6 +16,10 @@ from mlfcs.mapping import ClusterMap
 
 logger = get_logger(__name__)
 
+# Translations per accumulation block: small enough that one thread's
+# (block, 3, dimension) buffer stays in L1.
+_TRANSLATION_BLOCK = 16
+
 
 @dataclass(frozen=True, slots=True)
 class OrderDesign:
@@ -189,13 +193,12 @@ class ForceDesign:
         Do not share the returned workspace between concurrent calls. Its thread
         capacity is captured from the current Numba thread count.
         """
-        workspace = allocate_design_workspace(
-            self.rows, tuple(order.max_dimension for order in self.orders)
-        )
+        workspace = allocate_design_workspace(tuple(order.max_dimension for order in self.orders))
         logger.debug(
-            "Design workspace allocated: threads=%d scratch_bytes=%d",
+            "Design workspace allocated: threads=%d block=%d accumulator_bytes=%d",
             workspace.threads,
-            sum(array.nbytes for array in workspace.scratch),
+            workspace.block_length,
+            sum(array.nbytes for array in workspace.accumulator),
         )
         return workspace
 
@@ -228,9 +231,9 @@ class ForceDesign:
             raise ValueError("displacement must be finite")
         if workspace is None:
             workspace = self.allocate_workspace()
-        workspace.validate(self.rows, tuple(order.max_dimension for order in self.orders))
+        workspace.validate(tuple(order.max_dimension for order in self.orders))
         result = np.zeros((self.rows, self.n_parameters), dtype=np.float64)
-        for order, scratch in zip(self.orders, workspace.scratch, strict=True):
+        for order, accumulator in zip(self.orders, workspace.accumulator, strict=True):
             accumulate_design(
                 values,
                 result,
@@ -242,7 +245,8 @@ class ForceDesign:
                 order.image_basis_offsets,
                 order.components,
                 order.factor,
-                scratch,
+                accumulator,
+                workspace.block_length,
             )
         return result
 
@@ -259,13 +263,11 @@ class ForceDesign:
         if rows_per_block < 1:
             raise ValueError("rows_per_block must be positive")
         space = self.cluster_map.cluster_space
-        scratch = allocate_design_workspace(
-            min(rows_per_block, self.rows), tuple(order.max_dimension for order in self.orders)
-        )
+        workspace = allocate_design_workspace(tuple(order.max_dimension for order in self.orders))
         for start in range(0, self.rows, rows_per_block):
             count = min(rows_per_block, self.rows - start)
             canonical = np.zeros((count, self.n_parameters))
-            for order, work in zip(self.orders, scratch.scratch, strict=True):
+            for order, work in zip(self.orders, workspace.accumulator, strict=True):
                 accumulate_design(
                     values,
                     canonical,
@@ -278,6 +280,7 @@ class ForceDesign:
                     order.components,
                     order.factor,
                     work,
+                    workspace.block_length,
                     start,
                 )
             reduced = np.empty((count, space.n_free_parameters))
@@ -305,7 +308,8 @@ def accumulate_design(
     image_basis_offsets,
     components,
     factor,
-    scratch,
+    accumulator,
+    translation_block,
     row_start=0,
 ):
     """Accumulate one order into a physical force-design matrix in place.
@@ -313,96 +317,116 @@ def accumulate_design(
     Displacement is atom-major Cartesian float64; out has shape (rows, total
     parameters). Compiled ragged offsets delimit images and flattened bases.
     Each tensor index contributes -1/p! times the product of all other index
-    displacements. scratch has one (rows, max_orbit_dimension) block per thread.
-    Orbits write disjoint parameter columns, so prange needs no atomics; each
-    thread clears its scratch before use. Validated metadata admits all indices.
+    displacements.
+
+    Contributions are grouped per image and tensor axis so that one translated
+    basis block is read once per translation block and each output row is
+    written once per image and axis, instead of once per component. Accumulator
+    holds one flat ``(translation block, 3, dimension)`` region per thread: the
+    kernel accumulates into it while sweeping components, then adds the
+    finished rows to ``out``. ``translation_block`` is the block length that
+    region was allocated for. Orbits write disjoint parameter columns, so prange
+    needs no atomics. Validated metadata admits all indices.
     """
     orbit_count = orbit_dimensions.size
     translation_count = image_atoms.shape[1]
     order = image_atoms.shape[2]
     component_count = components.shape[0]
     rows = out.shape[0]
-    # Orbit columns are disjoint even when their images share force rows.
-    # Each thread therefore accumulates privately, then writes its own columns.
+    block_length = translation_block
     for orbit in prange(orbit_count):
-        local = scratch[get_thread_id()]
+        block = accumulator[get_thread_id()]
         dimension_count = orbit_dimensions[orbit]
         parameter_start = orbit_parameter_starts[orbit]
-        for row in range(rows):
-            for dimension in range(dimension_count):
-                local[row, dimension] = 0.0
         for image in range(orbit_image_offsets[orbit], orbit_image_offsets[orbit + 1]):
             basis_start = image_basis_offsets[image]
-            for translation in range(translation_count):
-                for component in range(component_count):
-                    for axis in range(order):
-                        row = (
-                            3 * image_atoms[image, translation, axis] + components[component, axis]
-                        )
-                        row -= row_start
-                        if row < 0 or row >= rows:
-                            continue
-                        monomial = 1.0
-                        for other in range(order):
-                            if other != axis:
-                                monomial *= displacement[
-                                    3 * image_atoms[image, translation, other]
-                                    + components[component, other]
-                                ]
-                        # Differentiate every index of the energy term: repeated
-                        # coordinates contribute once per index, with the force sign.
-                        value = -factor * monomial
+            # One axis at a time: every component contributes to exactly one of
+            # the three force rows of that slot, so the row can be summed before
+            # it is written.
+            for axis in range(order):
+                for start in range(0, translation_count, block_length):
+                    stop = min(start + block_length, translation_count)
+                    width = stop - start
+                    for entry in range(width * 3 * dimension_count):
+                        block[entry] = 0.0
+                    for component in range(component_count):
                         basis_row = basis_start + component * dimension_count
-                        for dimension in range(dimension_count):
-                            local[row, dimension] += value * image_basis[basis_row + dimension]
-        for row in range(rows):
-            for dimension in range(dimension_count):
-                out[row, parameter_start + dimension] += local[row, dimension]
+                        direction = components[component, axis]
+                        for local in range(width):
+                            translation = start + local
+                            monomial = 1.0
+                            for other in range(order):
+                                if other != axis:
+                                    monomial *= displacement[
+                                        3 * image_atoms[image, translation, other]
+                                        + components[component, other]
+                                    ]
+                            value = -factor * monomial
+                            target = (local * 3 + direction) * dimension_count
+                            for dimension in range(dimension_count):
+                                block[target + dimension] += (
+                                    value * image_basis[basis_row + dimension]
+                                )
+                    for local in range(width):
+                        translation = start + local
+                        atom = image_atoms[image, translation, axis]
+                        for direction in range(3):
+                            row = 3 * atom + direction - row_start
+                            if row < 0 or row >= rows:
+                                continue
+                            target = (local * 3 + direction) * dimension_count
+                            for dimension in range(dimension_count):
+                                out[row, parameter_start + dimension] += block[target + dimension]
 
 
 @dataclass(slots=True)
 class DesignWorkspace:
-    """Mutable per-order/thread scratch owned by one force-design caller.
+    """Mutable per-order/thread accumulation buffer owned by one design caller.
 
-    scratch[i] has shape (threads, rows, dimensions[i]). Reuse serially;
-    sharing an instance across concurrent calls is unsafe.
+    Orbits of one order receive a flat ``(threads, translation block * 3 *
+    dimension)`` buffer; the kernel streams one translated basis block through
+    it and writes finished force rows. A flat layout keeps the accumulation
+    loop address arithmetic simple enough to vectorize. Reuse serially; sharing
+    an instance across concurrent calls is unsafe.
     """
 
-    rows: int
     dimensions: tuple[int, ...]
     threads: int
-    scratch: tuple[np.ndarray, ...]
+    block_length: int
+    accumulator: tuple[np.ndarray, ...]
 
-    def validate(self, rows, dimensions):
-        """Require matching dimensions, writable contiguous float64 buffers and sufficient thread
-        slots.
-        """
-        if (rows, dimensions) != (self.rows, self.dimensions):
+    def validate(self, dimensions):
+        """Require matching dimensions, writable contiguous float64 buffers and enough slots."""
+        if dimensions != self.dimensions:
             raise ValueError("design workspace belongs to different dimensions")
-        if len(self.scratch) != len(dimensions):
-            raise ValueError("design workspace has inconsistent scratch buffers")
-        for array, dimension in zip(self.scratch, dimensions, strict=True):
+        if len(self.accumulator) != len(dimensions):
+            raise ValueError("design workspace has inconsistent accumulator buffers")
+        for array, dimension in zip(self.accumulator, dimensions, strict=True):
             if (
-                array.shape != (self.threads, rows, dimension)
+                array.shape != (self.threads, self.block_length * 3 * dimension)
                 or array.dtype != np.float64
                 or not array.flags.c_contiguous
                 or not array.flags.writeable
             ):
-                raise ValueError("design workspace scratch has invalid shape, dtype or storage")
+                raise ValueError("design workspace has invalid shape, dtype or storage")
         if get_num_threads() > self.threads:
             raise ValueError("design workspace has fewer slots than active Numba threads")
 
 
-def allocate_design_workspace(rows, dimensions):
-    """Allocate zeroed scratch buffers after checking each per-thread array size."""
+def allocate_design_workspace(dimensions):
+    """Allocate zeroed accumulation buffers after checking each per-thread array size."""
     threads = get_num_threads()
+    block_length = _TRANSLATION_BLOCK
     for dimension in dimensions:
-        require_allocation("design scratch", (threads, rows, dimension))
+        require_allocation("design accumulator", (threads, block_length * 3 * dimension))
     return DesignWorkspace(
-        rows,
         dimensions,
         threads,
-        tuple(np.zeros((threads, rows, dimension), dtype=np.float64) for dimension in dimensions),
+        block_length,
+        tuple(
+            np.zeros((threads, block_length * 3 * dimension), dtype=np.float64)
+            for dimension in dimensions
+        ),
     )
 
 
