@@ -342,9 +342,23 @@ class ClusterSpace:
             )
         )
         if asr:
+            from time import perf_counter
+
             from mlfcs.cluster_space.asr import prepare_acoustic_coordinates
 
-            object.__setattr__(self, "_acoustic_coordinates", prepare_acoustic_coordinates(self))
+            started = perf_counter()
+            coordinates = prepare_acoustic_coordinates(self)
+            object.__setattr__(self, "_acoustic_coordinates", coordinates)
+            per_order = ", ".join(
+                f"FC{block.order} "
+                f"{block.parameters.stop - block.parameters.start} -> {entry.dimension}"
+                for block, entry in zip(self.blocks, coordinates, strict=True)
+            )
+            print(
+                f"Acoustic sum rule: parameters {self.n_parameters} -> "
+                f"{self.n_free_parameters} free ({per_order}), "
+                f"{perf_counter() - started:.2f} s"
+            )
 
     def _install(self, parts) -> None:
         """Install record parts and run the assembly invariant checks."""

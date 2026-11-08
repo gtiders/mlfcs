@@ -17,7 +17,6 @@ import numpy as np
 from numba import njit
 
 from mlfcs.foundation.arrays import require_allocation
-from mlfcs.foundation.errors import RankError
 from mlfcs.foundation.integer import RANK_PRIMES, as_int64_matrix, echelon, prime_stream
 
 CRT_MODULUS = RANK_PRIMES[0] * RANK_PRIMES[1]
@@ -452,7 +451,7 @@ def _verify_integer_kernel(matrix, basis):
         product *= prime
         if product > bound:
             return
-    raise RankError("prime stream exhausted before verifying matrix @ basis == 0")
+    raise ArithmeticError("prime stream exhausted before verifying matrix @ basis == 0")
 
 
 def integer_kernel_basis(matrix, *, expected_nullity=None):
@@ -488,9 +487,10 @@ def integer_kernel_basis(matrix, *, expected_nullity=None):
     ValueError
         If the input is invalid or the signed-component fast path has a
         dimension inconsistent with ``expected_nullity``.
-    RankError
+    ArithmeticError
         If the selected modular pivot chart does not realize the required rank
-        at the reconstruction primes.
+        at the reconstruction primes, or if the prime stream is exhausted
+        before a certification completes.
     OverflowError
         If exact reconstruction or lattice recovery exceeds the supported
         ``int64`` arithmetic domain.
@@ -529,7 +529,7 @@ def integer_kernel_basis(matrix, *, expected_nullity=None):
     chosen = max(choices, key=lambda choice: len(choice[1]))
     rank, pivots, rows = len(chosen[1]), chosen[1], chosen[2]
     if expected_nullity is not None and n - rank != expected_nullity:
-        raise RankError("selected chart does not attain the expected rank")
+        raise ArithmeticError("selected chart does not attain the expected rank")
     pivot_set = {int(j) for j in pivots}
     free = np.asarray([j for j in range(n) if j not in pivot_set], dtype=np.int64)
     order = np.concatenate((pivots, free))
@@ -538,7 +538,7 @@ def integer_kernel_basis(matrix, *, expected_nullity=None):
     selected = np.ascontiguousarray(a[rows][:, order])
     charts = [modular_pivot_chart(selected, rank, p) for p in RANK_PRIMES]
     if not all(ok for _, ok in charts):
-        raise RankError("fixed chart pivot minor is singular at a reconstruction prime")
+        raise ArithmeticError("fixed chart pivot minor is singular at a reconstruction prime")
     d = len(free)
     if d == 0:
         result = np.empty((n, 0), dtype=np.int64)
@@ -547,7 +547,9 @@ def integer_kernel_basis(matrix, *, expected_nullity=None):
     require_allocation("kernel basis", (n, d))
     require_allocation("congruence workspace", (d, d))
     for exponent in range(31):
-        numerators, denominators, ok = reconstruct_rationals(charts[0][0], charts[1][0], 1 << exponent)
+        numerators, denominators, ok = reconstruct_rationals(
+            charts[0][0], charts[1][0], 1 << exponent
+        )
         if not ok:
             continue
         f, delta, ok = scale_to_common_denominator(numerators, denominators)

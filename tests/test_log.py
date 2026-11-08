@@ -105,9 +105,10 @@ def test_fit_logs_progress_quality_and_preserves_results(package_log, representa
     assert consumed == list(range(12))
     text = output.getvalue()
     for required in (
-        "Cluster-space construction started",
-        "Primitive symmetry ready",
-        "Candidates ready",
+        "Build ClusterSpace:",
+        "Symmetry:",
+        "candidates ",
+        "Total: orbits ",
         "Mapping complete",
         "Folded rank complete",
         "Force-design compilation complete",

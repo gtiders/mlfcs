@@ -16,3 +16,6 @@ uv.lock
 .zcode/
 .omo
 .omp
+
+# Local reference checkouts used for comparison, never vendored.
+hiphive/

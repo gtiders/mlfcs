@@ -13,12 +13,37 @@ from mlfcs.cluster_space.candidates import enumerate_candidate_labels
 from mlfcs.cluster_space.orbits import ClusterRegistry, compute_orbit_actions
 from mlfcs.cluster_space.records import Cluster, Orbit, OrderBlock
 from mlfcs.foundation.arrays import require_allocation
-from mlfcs.foundation.log import get_logger
 from mlfcs.foundation.tensors import tensor_dimension
 from mlfcs.geometry.structure import primitive_data
 from mlfcs.geometry.symmetry import PrimitiveSymmetry, discover_symmetry
 
-logger = get_logger(__name__)
+_PHASE_REPORT_SECONDS = 0.25
+_PROGRESS_SECONDS = 15.0
+
+
+def _independent_sites(symmetry: PrimitiveSymmetry) -> int:
+    """Count motif-site equivalence classes under the discovered operations.
+
+    This is the number of crystallographically distinct sites, so a distorted
+    input that loses symmetry shows up as a count close to the atom count.
+    """
+    count = symmetry.site_permutations.shape[1]
+    parent = list(range(count))
+
+    def find(index: int) -> int:
+        """Return the representative of one site''s equivalence class."""
+        while parent[index] != index:
+            parent[index] = parent[parent[index]]
+            index = parent[index]
+        return index
+
+    for images in symmetry.site_permutations.tolist():
+        root = find(images[0])
+        for target in images[1:]:
+            other = find(target)
+            if other != root:
+                parent[other] = root
+    return len({find(index) for index in range(count)})
 
 
 def _axis_permutations(order: int) -> tuple[tuple[tuple[int, ...], ...], np.ndarray]:
@@ -54,14 +79,21 @@ def _build_order(
     order: int,
     cutoff: float,
     max_body_order: int,
-) -> tuple[Orbit, ...]:
-    """Enumerate one order, deduplicate its orbits and parameterize nonzero invariants.
+) -> tuple[tuple[Orbit, ...], dict]:
+    """Enumerate one order and parameterize its nonzero invariants.
 
-    Input geometry uses fractional positions and row lattice vectors in angstrom.
-    Candidates obey pairwise cutoff and distinct-site body order. Each orbit
-    gets a saturated lattice basis, its Cartesian frame conversion and selected
-    physical component parameters; zero-dimensional orbits are omitted.
+    Input geometry uses fractional positions and row lattice vectors in
+    angstrom. Candidates obey pairwise cutoff and distinct-site body order.
+    Each orbit gets a saturated lattice basis, its Cartesian frame conversion
+    and selected physical component parameters; zero-dimensional orbits are
+    dropped and counted.
+
+    Returns the orbits together with a report of the enumeration: candidate,
+    orbit, image, dropped and parameter counts plus phase timings, so the
+    caller can print one progress line per order. This function prints its own
+    throttle-limited progress line while a single order runs long.
     """
+    started = perf_counter()
     candidate_labels = enumerate_candidate_labels(
         cell,
         scaled_positions,
@@ -69,16 +101,30 @@ def _build_order(
         cutoff=cutoff,
         max_body_order=max_body_order,
     )
-    logger.info("Candidates ready: order=%d candidates=%d", order, len(candidate_labels))
+    candidates_seconds = perf_counter() - started
     frame = _tensor_frame(cell, order)
     permutation_values, permutation_array = _axis_permutations(order)
     covered = ClusterRegistry(order)
     generated: list[Orbit] = []
+    images = 0
+    dropped = 0
+    actions_seconds = 0.0
+    basis_seconds = 0.0
+    parameter_seconds = 0.0
+    next_report = started + _PROGRESS_SECONDS
 
-    for candidate_array in candidate_labels:
+    for processed, candidate_array in enumerate(candidate_labels, start=1):
+        progress = perf_counter()
+        if progress >= next_report:
+            print(
+                f"  FC{order}  progress: candidates {processed}/{len(candidate_labels)}, "
+                f"orbits {len(generated)}, {progress - started:.0f} s elapsed"
+            )
+            next_report = progress + _PROGRESS_SECONDS
         if covered.contains(candidate_array):
             continue
         candidate = Cluster.from_labels(candidate_array)
+        phase = perf_counter()
         representative, labels, operations, axis_permutations, stabilizers = compute_orbit_actions(
             candidate,
             symmetry,
@@ -86,12 +132,18 @@ def _build_order(
             permutation_array,
         )
         covered.update(labels)
+        images += len(labels)
+        actions_seconds += perf_counter() - phase
+        phase = perf_counter()
         lattice_basis = compute_invariant_basis(
             representative.sites,
             tuple((np.asarray(rotation), permutation) for rotation, permutation in stabilizers),
         )
+        basis_seconds += perf_counter() - phase
         if lattice_basis.shape[1] == 0:
+            dropped += 1
             continue
+        phase = perf_counter()
         basis_values = np.asarray(lattice_basis, dtype=np.float64)
         # Lattice generators determine the invariant subspace; selected Cartesian
         # component rows determine the public, physically named coordinates.
@@ -110,8 +162,21 @@ def _build_order(
                 permutations=axis_permutations,
             )
         )
+        parameter_seconds += perf_counter() - phase
 
-    return tuple(generated)
+    report = {
+        "candidates": len(candidate_labels),
+        "orbits": len(generated),
+        "images": images,
+        "dropped": dropped,
+        "parameters": sum(orbit.dimension for orbit in generated),
+        "elapsed": perf_counter() - started,
+        "candidates_s": candidates_seconds,
+        "actions_s": actions_seconds,
+        "invariants_s": basis_seconds,
+        "parameters_s": parameter_seconds,
+    }
+    return tuple(generated), report
 
 
 def construct_space(
@@ -133,28 +198,25 @@ def construct_space(
     if not orders or set(orders) != {int(order) for order in max_body_orders}:
         raise ValueError("cutoffs and max_body_orders must define the same nonempty orders")
     started = perf_counter()
-    logger.info(
-        "Cluster-space construction started: primitive_atoms=%d orders=%s symprec=%.6g",
-        len(atomic_numbers),
-        orders,
-        symprec,
+    volume = abs(float(np.linalg.det(np.asarray(cell, dtype=np.float64))))
+    species = len({int(number) for number in atomic_numbers})
+    print(
+        f"Build ClusterSpace: atoms {len(atomic_numbers)}, species {species}, "
+        f"cell volume {volume:.3f} A^3, symprec {float(symprec):.1e} A"
     )
     symmetry = discover_symmetry(cell, scaled_positions, atomic_numbers, symprec)
-    logger.info("Primitive symmetry ready: operations=%d symbol=%s", symmetry.size, symmetry.symbol)
+    print(
+        f"Symmetry: {symmetry.symbol}, operations {symmetry.size}, "
+        f"independent sites {_independent_sites(symmetry)}"
+    )
+    print("Orders: " + ", ".join(f"FC{order}" for order in orders))
 
     all_orbits: list[Orbit] = []
     blocks: list[OrderBlock] = []
     parameter_start = 0
     for order in orders:
-        order_started = perf_counter()
-        logger.info(
-            "Order construction started: order=%d cutoff_angstrom=%.10g max_body_order=%d",
-            order,
-            cutoffs[order],
-            max_body_orders[order],
-        )
         orbit_start = len(all_orbits)
-        orbits = _build_order(
+        orbits, report = _build_order(
             cell,
             scaled_positions,
             symmetry,
@@ -173,21 +235,33 @@ def construct_space(
                 parameters=slice(parameter_start, parameter_stop),
             )
         )
-        logger.info(
-            "Order complete: order=%d orbits=%d parameters=%d elapsed_s=%.2f",
-            order,
-            len(orbits),
-            parameter_stop - parameter_start,
-            perf_counter() - order_started,
+        dropped = f" ({report['dropped']} dropped)" if report["dropped"] else ""
+        print(
+            f"  FC{order}  cutoff {float(cutoffs[order]):g} A  "
+            f"body {int(max_body_orders[order])}  "
+            f"candidates {report['candidates']}  "
+            f"orbits {report['orbits']}{dropped}  "
+            f"images {report['images']}  "
+            f"parameters {parameter_stop - parameter_start}  "
+            f"{report['elapsed']:.2f} s"
         )
+        if report["elapsed"] >= _PHASE_REPORT_SECONDS:
+            print(
+                f"        phases: candidates {report['candidates_s']:.2f} s, "
+                f"orbit actions {report['actions_s']:.2f} s, "
+                f"invariants {report['invariants_s']:.2f} s, "
+                f"parameters {report['parameters_s']:.2f} s"
+            )
+        if not report["orbits"]:
+            print(
+                f"  warning: FC{order} has no symmetry-allowed orbit at cutoff "
+                f"{float(cutoffs[order]):g} A with body order {int(max_body_orders[order])}"
+            )
         parameter_start = parameter_stop
 
-    logger.info(
-        "Cluster-space construction complete: orders=%s orbits=%d parameters=%d elapsed_s=%.2f",
-        orders,
-        len(all_orbits),
-        parameter_start,
-        perf_counter() - started,
+    print(
+        f"Total: orbits {len(all_orbits)}, parameters {parameter_start}, "
+        f"{perf_counter() - started:.2f} s"
     )
     return symmetry, tuple(blocks), tuple(all_orbits)
 
