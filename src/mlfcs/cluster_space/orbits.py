@@ -215,9 +215,14 @@ def _prepare_cluster_labels(
     from mlfcs.geometry.symmetry import validate_site_actions
 
     if array.ndim != 2 or array.shape[1] != 4 or not len(array):
-        raise ValueError("cluster labels must have shape (order,4) with positive order")
+        raise ValueError(
+            f"cluster labels must have shape (order, 4) with positive order: got {array.shape}"
+        )
     if np.any(array[:, 0] < 0) or np.any(array[:, 0] >= symmetry.site_permutations.shape[1]):
-        raise ValueError("cluster label site lies outside primitive motif")
+        raise ValueError(
+            f"cluster label site {int(array[:, 0].max())} lies outside the primitive motif of "
+            f"{symmetry.site_permutations.shape[1]} sites"
+        )
     validate_site_actions(
         array[:, 1:], symmetry.rotations, symmetry.site_shifts[:, array[:, 0], :], reanchor=True
     )

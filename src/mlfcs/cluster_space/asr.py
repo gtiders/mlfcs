@@ -551,6 +551,20 @@ def factor_acoustic_equations(matrix):
     raise OverflowError("ASR factor reconstruction or exact identity exceeds int64 domain")
 
 
+def _finite_vector(values, shape: tuple[int, ...], label: str) -> np.ndarray:
+    """Return ``values`` as a finite float64 array with the required shape.
+
+    Raise ``ValueError`` naming the expected shape when it differs, or the
+    presence of non-finite entries, so callers see which contract failed.
+    """
+    array = np.asarray(values, dtype=float)
+    if array.shape != shape:
+        raise ValueError(f"{label} must have shape {shape}: got {array.shape}")
+    if not np.all(np.isfinite(array)):
+        raise ValueError(f"{label} must be finite: got non-finite entries")
+    return array
+
+
 @dataclass(frozen=True, slots=True)
 class AcousticCoordinates:
     """Coordinates of the force-constant subspace satisfying the acoustic sum rule.
@@ -592,9 +606,9 @@ class AcousticCoordinates:
         equations by construction. ``free_coordinates`` contains the chosen
         nonpivot lattice coefficients, not canonical Cartesian parameters.
         """
-        free_coordinates = np.asarray(free_coordinates, dtype=float)
-        if free_coordinates.shape != (self.dimension,) or not np.all(np.isfinite(free_coordinates)):
-            raise ValueError("invalid acoustic free coordinates")
+        free_coordinates = _finite_vector(
+            free_coordinates, (self.dimension,), "acoustic free coordinates"
+        )
         coordinates = lift_lattice_coordinates(
             free_coordinates,
             self.width,
@@ -652,9 +666,7 @@ class AcousticCoordinates:
         A vector outside the prepared acoustic subspace raises ``ValueError``;
         this operation does not project an arbitrary force-constant model.
         """
-        coefficients = np.asarray(coefficients, dtype=float)
-        if coefficients.shape != (self.width,) or not np.all(np.isfinite(coefficients)):
-            raise ValueError("invalid canonical coefficient vector")
+        coefficients = _finite_vector(coefficients, (self.width,), "canonical coefficient vector")
         coordinates = np.empty(self.width)
         offset = 0
         for block in self.physical_maps:
@@ -677,9 +689,7 @@ class AcousticCoordinates:
         dense nullspace is formed. Invalid input raises ``ValueError`` and
         failure of the least-squares iteration raises ``RuntimeError``.
         """
-        coefficients = np.asarray(coefficients, dtype=float)
-        if coefficients.shape != (self.width,) or not np.all(np.isfinite(coefficients)):
-            raise ValueError("invalid canonical coefficient vector")
+        coefficients = _finite_vector(coefficients, (self.width,), "canonical coefficient vector")
         if not self.dimension:
             return np.zeros(self.width)
         operator = LinearOperator(
@@ -712,7 +722,10 @@ class AcousticCoordinates:
         """
         physical_rows = np.asarray(physical_rows, dtype=float)
         if physical_rows.ndim != 2 or physical_rows.shape[1] != self.width:
-            raise ValueError("invalid acoustic observation rows")
+            raise ValueError(
+                f"acoustic observation rows must have shape (n, {self.width}): "
+                f"got {physical_rows.shape}"
+            )
         rows = np.empty_like(physical_rows)
         offset = 0
         for block in self.physical_maps:

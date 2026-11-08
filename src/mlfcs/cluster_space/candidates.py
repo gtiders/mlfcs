@@ -24,7 +24,9 @@ def neighbor_translation_bounds(cell, cutoff):
     """
     radii = cutoff * np.linalg.norm(np.linalg.inv(cell), axis=0) + 1.0
     if not np.all(np.isfinite(radii)):
-        raise OverflowError("neighbor translation bounds are not finite")
+        raise OverflowError(
+            f"neighbor translation bounds are not finite: cell norm inverse {radii}"
+        )
     bounds = tuple(math.ceil(float(v)) for v in radii)
     for value in bounds:
         require_bound("neighbor traversal width", 2 * value + 1)
@@ -44,19 +46,25 @@ def enumerate_candidate_labels(cell, scaled_positions, *, order, cutoff, max_bod
     order, max_body_order = operator.index(order), operator.index(max_body_order)
     cutoff = float(cutoff)
     if order < 2 or not 1 <= max_body_order <= order:
-        raise ValueError("order must be >= 2 and max_body_order must lie in 1..order")
+        raise ValueError(
+            f"order must be >= 2 and max_body_order must lie in 1..order: "
+            f"got order {order}, max_body_order {max_body_order}"
+        )
     if not math.isfinite(cutoff) or cutoff <= 0:
-        raise ValueError("cutoff must be a positive finite distance")
+        raise ValueError(f"cutoff must be a positive finite distance: got {cutoff:g}")
     cell = readonly(cell, np.float64)
     scaled_positions = readonly(scaled_positions, np.float64)
     if cell.shape != (3, 3) or not np.all(np.isfinite(cell)):
-        raise ValueError("cell must be a finite 3x3 matrix")
+        raise ValueError(f"cell must be a finite 3x3 matrix: got shape {cell.shape}")
     if scaled_positions.ndim != 2 or scaled_positions.shape[1] != 3:
-        raise ValueError("scaled positions must have shape (N, 3)")
+        raise ValueError(f"scaled positions must have shape (N, 3): got {scaled_positions.shape}")
     if not np.all(np.isfinite(scaled_positions)) or np.any(
         (scaled_positions < 0) | (scaled_positions >= 1)
     ):
-        raise ValueError("scaled positions must be finite and wrapped into [0, 1)")
+        raise ValueError(
+            f"scaled positions must be finite and wrapped into [0, 1): range "
+            f"[{float(np.nanmin(scaled_positions)):g}, {float(np.nanmax(scaled_positions)):g}]"
+        )
     require_allocation("candidate stack", (order - 1,))
     bounds = np.asarray(neighbor_translation_bounds(cell, cutoff), dtype=np.int64)
     require_allocation("neighbor offsets", (len(scaled_positions) + 1,))

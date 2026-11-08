@@ -65,7 +65,10 @@ class Cluster:
         rows = tuple(tuple(int(value) for value in row) for row in labels)
 
         if any(len(row) != 4 for row in rows):
-            raise ValueError("cluster labels must have shape (order, 4)")
+            lengths = sorted({len(row) for row in rows})
+            raise ValueError(
+                f"cluster labels must have shape (order, 4): got row lengths {lengths}"
+            )
 
         return cls(tuple(LatticeSite(row[0], row[1:]) for row in rows))
 
@@ -130,40 +133,72 @@ class Orbit:
         )
 
         if lattice_basis.ndim != 2 or component_basis.ndim != 2:
-            raise ValueError("orbit bases must be matrices")
+            raise ValueError(
+                f"orbit bases must be matrices: lattice {lattice_basis.shape}, "
+                f"Cartesian {component_basis.shape}"
+            )
 
         if lattice_basis.shape != component_basis.shape:
-            raise ValueError("lattice and Cartesian orbit bases have inconsistent shapes")
+            raise ValueError(
+                f"orbit basis shapes differ: lattice {lattice_basis.shape}, "
+                f"Cartesian {component_basis.shape}"
+            )
 
         if observation_rows.shape != (component_basis.shape[1],):
-            raise ValueError("observation rows must select one row per parameter")
+            raise ValueError(
+                f"observation rows must select one row per parameter: "
+                f"{observation_rows.size} rows for {component_basis.shape[1]} parameters"
+            )
 
         if labels.ndim != 3 or labels.shape[2] != 4:
-            raise ValueError("orbit labels must have shape (images, order, 4)")
+            raise ValueError(f"orbit labels must have shape (images, order, 4): got {labels.shape}")
 
         if labels.shape[1] != self.representative.order:
-            raise ValueError("orbit labels differ from the representative order")
+            raise ValueError(
+                f"orbit labels have order {labels.shape[1]}, "
+                f"representative has order {self.representative.order}"
+            )
 
         if np.any(labels[:, 0, 1:]):
-            raise ValueError("orbit labels must be anchored at the first tensor slot")
+            image = int(np.argmax(np.any(labels[:, 0, 1:], axis=1)))
+            raise ValueError(
+                f"orbit labels are not anchored at their first tensor slot: image {image} "
+                f"starts at {labels[image, 0].tolist()}"
+            )
 
         if operations.shape != (len(labels),):
-            raise ValueError("orbit operations must have one entry per cluster")
+            raise ValueError(
+                f"orbit operations must have one entry per image: {operations.size} operations, "
+                f"{len(labels)} images"
+            )
 
         if permutations.shape != (
             len(labels),
             self.representative.order,
         ):
-            raise ValueError("orbit permutations have an inconsistent shape")
+            raise ValueError(
+                f"orbit permutations must have shape ({len(labels)}, "
+                f"{self.representative.order}): got {permutations.shape}"
+            )
 
         if lattice_basis.shape[0] != tensor_dimension(self.representative.order):
-            raise ValueError("orbit basis does not have the declared Cartesian tensor dimension")
+            raise ValueError(
+                f"orbit basis has {lattice_basis.shape[0]} rows, expected "
+                f"{tensor_dimension(self.representative.order)} for order "
+                f"{self.representative.order}"
+            )
 
         if np.any(observation_rows < 0) or np.any(observation_rows >= component_basis.shape[0]):
-            raise ValueError("observation row is outside the tensor")
+            raise ValueError(
+                f"observation rows lie outside the {component_basis.shape[0]}-row tensor: "
+                f"range [{int(observation_rows.min())}, {int(observation_rows.max())}]"
+            )
 
         if len(np.unique(observation_rows)) != len(observation_rows):
-            raise ValueError("observation rows must be distinct")
+            raise ValueError(
+                f"observation rows repeat: {len(observation_rows)} rows, "
+                f"{len(np.unique(observation_rows))} distinct"
+            )
 
         if not np.all(np.isfinite(component_basis)):
             raise ValueError("Cartesian orbit basis must be finite")
@@ -173,12 +208,18 @@ class Orbit:
             np.sort(permutations, axis=1),
             np.broadcast_to(expected, permutations.shape),
         ):
-            raise ValueError("orbit axis actions must be permutations")
+            raise ValueError(
+                f"orbit axis actions must be permutations of range("
+                f"{self.representative.order}): got row {permutations[0].tolist()}"
+            )
 
         representative_labels = np.asarray(self.representative.labels, dtype=np.int64)
         matches = np.flatnonzero(np.all(labels == representative_labels, axis=(1, 2)))
         if not len(matches):
-            raise ValueError("orbit images must contain the representative cluster")
+            raise ValueError(
+                f"orbit images do not contain the representative cluster: "
+                f"{len(labels)} images of order {self.representative.order}"
+            )
         object.__setattr__(self, "representative_index", int(matches[0]))
 
         for values in (
@@ -234,10 +275,15 @@ class OrderBlock:
         cutoff = float(self.cutoff)
 
         if order < 2 or not 1 <= body <= order:
-            raise ValueError("order must be >= 2 and max_body_order must lie in 1..order")
+            raise ValueError(
+                f"order must be >= 2 and max_body_order must lie in 1..order: "
+                f"got order {order}, max_body_order {body}"
+            )
 
         if not math.isfinite(cutoff) or cutoff <= 0:
-            raise ValueError("cutoff must be a positive finite distance")
+            raise ValueError(
+                f"cutoff must be a positive finite distance: got {cutoff:g} for order {order}"
+            )
 
         object.__setattr__(self, "order", order)
         object.__setattr__(self, "max_body_order", body)
@@ -403,9 +449,12 @@ class ClusterSpace:
         """
         values = np.array(masses, dtype=np.float64, copy=True, order="C")
         if values.shape != (self.n_atoms,) or not np.all(np.isfinite(values)):
-            raise ValueError("masses must be finite and have shape (n_atoms,)")
+            raise ValueError(
+                f"masses must be finite with shape ({self.n_atoms},): got {values.shape}"
+                + ("" if np.all(np.isfinite(values)) else " with non-finite entries")
+            )
         if np.any(values <= 0.0):
-            raise ValueError("masses must be strictly positive")
+            raise ValueError(f"masses must be strictly positive: minimum {float(values.min()):g}")
         values.setflags(write=False)
         parts = self._parts()
         parts["masses"] = values
@@ -443,29 +492,49 @@ class ClusterSpace:
         """Validate the consistency of the assembled force-constant space."""
         orders = tuple(block.order for block in self.blocks)
         if not orders or orders != tuple(sorted(set(orders))):
-            raise ValueError("cluster-space orders must be nonempty, unique and ascending")
+            raise ValueError(
+                f"cluster-space orders must be nonempty, unique and ascending: got {orders}"
+            )
         orbit_start = parameter_start = 0
         for block in self.blocks:
             if block.orbits.start != orbit_start or block.parameters.start != parameter_start:
                 raise ValueError(
-                    "cluster-space blocks must have contiguous orbit and parameter slices"
+                    f"block for order {block.order} starts at orbit {block.orbits.start} and "
+                    f"parameter {block.parameters.start}, expected {orbit_start} and "
+                    f"{parameter_start}"
                 )
             if not orbit_start <= block.orbits.stop <= len(self.orbits):
-                raise ValueError("cluster-space orbit slice is outside the model")
+                raise ValueError(
+                    f"orbit slice {block.orbits.start}:{block.orbits.stop} is outside the model "
+                    f"of {len(self.orbits)} orbits"
+                )
             for orbit in self.orbits[block.orbits]:
                 if orbit.representative.order != block.order:
-                    raise ValueError("orbit order differs from its block")
+                    raise ValueError(
+                        f"orbit order {orbit.representative.order} differs from block order "
+                        f"{block.order}"
+                    )
                 if np.any(orbit.operations < 0) or np.any(orbit.operations >= self.symmetry.size):
-                    raise ValueError("orbit symmetry operation is outside the group")
+                    raise ValueError(
+                        f"orbit operations span [{int(orbit.operations.min())}, "
+                        f"{int(orbit.operations.max())}] outside the group of "
+                        f"{self.symmetry.size} operations"
+                    )
                 if np.any(orbit.labels[:, :, 0] >= self.n_atoms):
-                    raise ValueError("orbit site is outside the primitive motif")
+                    raise ValueError(
+                        f"orbit site {int(orbit.labels[:, :, 0].max())} is outside the primitive "
+                        f"motif of {self.n_atoms} atoms"
+                    )
             parameter_start += sum(orbit.dimension for orbit in self.orbits[block.orbits])
             require_bound("parameter offsets", parameter_start)
             if block.parameters.stop != parameter_start:
-                raise ValueError("parameter slice differs from orbit dimensions")
+                raise ValueError(
+                    f"parameter slice stops at {block.parameters.stop}, orbit dimensions give "
+                    f"{parameter_start}"
+                )
             orbit_start = block.orbits.stop
         if orbit_start != len(self.orbits):
-            raise ValueError("every orbit must belong to one block")
+            raise ValueError(f"orbit {orbit_start} of {len(self.orbits)} belongs to no block")
 
     @property
     def orders(self) -> tuple[int, ...]:
@@ -480,7 +549,9 @@ class ClusterSpace:
         for block in self.blocks:
             if block.order == order:
                 return block
-        raise KeyError(f"cluster space does not contain order {order}")
+        raise KeyError(
+            f"cluster space does not contain order {order}: available orders {self.orders}"
+        )
 
     @property
     def n_parameters(self) -> int:
@@ -496,7 +567,7 @@ class ClusterSpace:
         """
         parameter = int(parameter)
         if not 0 <= parameter < self.n_parameters:
-            raise IndexError("parameter is outside the cluster space")
+            raise IndexError(f"parameter {parameter} is outside [0, {self.n_parameters})")
         offsets = self.parameter_offsets
         orbit_index = int(np.searchsorted(offsets, parameter, side="right") - 1)
         component = parameter - int(offsets[orbit_index])

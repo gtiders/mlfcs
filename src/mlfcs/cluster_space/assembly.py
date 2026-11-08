@@ -198,7 +198,11 @@ def construct_space(
     """
     orders = tuple(sorted(int(order) for order in cutoffs))
     if not orders or set(orders) != {int(order) for order in max_body_orders}:
-        raise ValueError("cutoffs and max_body_orders must define the same nonempty orders")
+        raise ValueError(
+            f"cutoffs {tuple(sorted(int(k) for k in cutoffs))} and max_body_orders "
+            f"{tuple(sorted(int(k) for k in max_body_orders))} must define the same "
+            f"nonempty orders"
+        )
     started = perf_counter()
     volume = abs(float(np.linalg.det(np.asarray(cell, dtype=np.float64))))
     species = len({int(number) for number in atomic_numbers})

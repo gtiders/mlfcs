@@ -423,7 +423,9 @@ def lift_congruence_kernel(f, delta, h):
                 quotient += remainder // delta
                 remainder %= delta
             if remainder:
-                raise ValueError("congruence preimage lift is not integral")
+                raise ValueError(
+                    f"congruence preimage lift is not integral at pivot {i}, free column {j}"
+                )
             result[i, j] = -quotient
     return result
 
@@ -440,14 +442,16 @@ def _verify_integer_kernel(matrix, basis):
     """
     a, b = as_int64_matrix(matrix), as_int64_matrix(basis, name="kernel basis")
     if a.shape[1] != b.shape[0]:
-        raise ValueError("kernel basis has incompatible row count")
+        raise ValueError(
+            f"kernel basis has {b.shape[0]} rows but the matrix has {a.shape[1]} columns"
+        )
     maximum_a = max((abs(int(v)) for v in a.flat), default=0)
     maximum_b = max((abs(int(v)) for v in b.flat), default=0)
     bound = a.shape[1] * maximum_a * maximum_b
     product = 1
     for prime in prime_stream():
         if not product_is_zero_mod(a, b, prime):
-            raise ValueError("matrix @ basis is nonzero modulo the tested prime")
+            raise ValueError(f"matrix @ basis is nonzero modulo the tested prime {prime}")
         product *= prime
         if product > bound:
             return
@@ -522,14 +526,18 @@ def integer_kernel_basis(matrix, *, expected_nullity=None):
         require_allocation("signed kernel basis", (n, dimension))
         signed = component_basis(parent, signs, dead, columns, dimension)
         if expected_nullity is not None and expected_nullity != dimension:
-            raise ValueError("expected nullity differs from signed-component dimension")
+            raise ValueError(
+                f"expected nullity {expected_nullity}, signed components give {dimension}"
+            )
         signed.setflags(write=False)
         return signed
     choices = [echelon(a, p) for p in RANK_PRIMES]
     chosen = max(choices, key=lambda choice: len(choice[1]))
     rank, pivots, rows = len(chosen[1]), chosen[1], chosen[2]
     if expected_nullity is not None and n - rank != expected_nullity:
-        raise ArithmeticError("selected chart does not attain the expected rank")
+        raise ArithmeticError(
+            f"selected chart gives nullity {n - rank}, expected {expected_nullity}"
+        )
     pivot_set = {int(j) for j in pivots}
     free = np.asarray([j for j in range(n) if j not in pivot_set], dtype=np.int64)
     order = np.concatenate((pivots, free))

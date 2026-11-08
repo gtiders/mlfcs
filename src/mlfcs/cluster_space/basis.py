@@ -109,9 +109,12 @@ def compute_invariant_basis(
             len(stabilizers),
             len(labels),
         ):
-            raise ValueError("stabilizer buffers have inconsistent shapes")
+            raise ValueError(
+                f"stabilizer buffers have inconsistent shapes: rotations {rotations.shape}, "
+                f"permutations {permutations.shape} for {len(labels)} slots"
+            )
         if not np.all(np.sort(permutations, axis=1) == np.arange(len(labels))):
-            raise ValueError("stabilizer axes must be permutations")
+            raise ValueError(f"stabilizer axes must be permutations of range({len(labels)})")
         for rotation in rotations:
             validate_tensor_action(rotation, len(labels), subtraction=1)
         key = (repeated_site_basis.tobytes(), _action_signature(rotations, permutations))
@@ -278,7 +281,10 @@ def component_parameterization(cartesian: object) -> tuple[np.ndarray, np.ndarra
     """
     values = np.asarray(cartesian, dtype=np.float64)
     if values.ndim != 2 or not np.all(np.isfinite(values)):
-        raise ValueError("Cartesian basis must be a finite two-dimensional array")
+        raise ValueError(
+            f"Cartesian basis must be a finite two-dimensional array: "
+            f"ndim {np.asarray(cartesian).ndim}, shape {np.shape(cartesian)}"
+        )
     rows, dimension = values.shape
     if dimension == 0:
         return np.empty((rows, 0)), np.empty(0, dtype=np.int64), 1.0
@@ -328,7 +334,10 @@ def select_observation_rows(orthonormal: np.ndarray) -> np.ndarray:
                 best_score = score
                 best_row = row
         if best_row < 0 or not best_score > 0.0:
-            raise ValueError("Cartesian invariant subspace lost its expected dimension")
+            raise ValueError(
+                f"Cartesian invariant subspace lost its expected dimension after "
+                f"{column} of {dimension} columns"
+            )
         selected[column] = best_row
         available[best_row] = 0
         inverse_norm = 1.0 / np.sqrt(best_score)
