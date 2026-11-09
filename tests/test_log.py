@@ -54,7 +54,6 @@ def test_fit_prints_progress_quality_and_returns_a_finite_model(representation, 
         "Symmetry:",
         "Total: orbits ",
         "Mapping complete",
-        "Folded rank:",
         "Force design ready:",
         "Fit system:",
         "Fit accumulation: structures 1,",
@@ -73,6 +72,8 @@ def test_task_summaries_cover_difference_projection_phonons_and_output(tmp_path)
     with redirect_stdout(output):
         atoms = bulk("Ar", "sc", a=1.0)
         space = ClusterSpace(atoms, cutoffs={2: 1.1, 4: 0.1}, asr=True)
+        supercell = atoms.repeat((2, 2, 2))
+        supercell_matrix = 2 * np.eye(3, dtype=np.int64)
         coefficients = []
         for orbit in space.orbits[space.block(2).orbits]:
             tensor = (
@@ -93,7 +94,10 @@ def test_task_summaries_cover_difference_projection_phonons_and_output(tmp_path)
         result = SCPH(model, (2, 2, 2)).run(100, max_iterations=2)
         assert result.converged
         model.write(
-            tmp_path / "FORCE_CONSTANTS", ClusterMap(space, atoms), format="phonopy", order=2
+            tmp_path / "FORCE_CONSTANTS",
+            ClusterMap(space, supercell, supercell_matrix=supercell_matrix),
+            format="phonopy",
+            order=2,
         )
         ForceConstants.load(model.save(tmp_path / "fc.mlfcs"))
         onsite = ClusterSpace(atoms, cutoffs={2: 0.1})

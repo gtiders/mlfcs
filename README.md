@@ -41,7 +41,7 @@ supercell_atoms = primitive_atoms.repeat((3, 3, 3))
 mapping = ClusterMap(space, supercell_atoms, supercell_matrix=np.diag([3, 3, 3]))
 ```
 
-参考超胞是明确的数据输入；MLFCS 不会静默选择或扩展它。拟合与有限差分的入口会自动检查它能否辨识所需模型；`mapping.rank_info()` 用于在生成昂贵的力之前单独查看，或逐阶诊断。有限差分和拟合路径分别见对应 API 文档。
+参考超胞是明确的数据输入；MLFCS 不会静默选择或扩展它。`ClusterMap` 构造时会检查超胞能否区分模型的所有参数，不能时立即抛出 `ValueError`，因此拟合与有限差分路径拿到的映射都满足可辨识性。有限差分和拟合路径分别见对应 API 文档。
 
 ## 范围
 

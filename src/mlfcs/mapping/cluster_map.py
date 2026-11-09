@@ -17,7 +17,7 @@ from mlfcs.geometry.structure import (
     infer_supercell_matrix,
     supercell_data,
 )
-from mlfcs.mapping.folding import RankInfo, folded_rank, group_folded_images
+from mlfcs.mapping.folding import folded_rank
 
 _PARTS = (
     ("supercell_matrix", "matrix"),
@@ -42,9 +42,10 @@ class ClusterMap:
     orbit images to concrete supercell atom indices.
 
     For each orbit, ``image_atom_indices`` stores the ordered atom tuple of
-    every symmetry image after supercell folding. This mapping provides the
-    structural basis for parameter-identifiability checks and other
-    supercell-based force-constant operations.
+    every symmetry image after supercell folding. The constructor requires the
+    supercell to distinguish every model parameter: folding that makes distinct
+    parameter directions indistinguishable is rejected, so every constructed
+    mapping supports fitting and finite-difference reconstruction.
 
     Parameters
     ----------
@@ -62,7 +63,8 @@ class ClusterMap:
     Raises
     ------
     ValueError
-        Geometry, species, atom count or periodic matching is inconsistent.
+        Geometry, species, atom count or periodic matching is inconsistent, or
+        the supercell cannot distinguish all model parameters.
     OverflowError
         Exact quotient operations or array sizes exceed the admitted domain.
     """
@@ -83,7 +85,7 @@ class ClusterMap:
     def __init__(
         self, cluster_space: ClusterSpace, supercell_atoms: Atoms, *, supercell_matrix=None
     ):
-        """Validate the supercell realization and construct all periodic atom mappings."""
+        """Validate the supercell, require parameter identifiability, and build the atom maps."""
         if not isinstance(cluster_space, ClusterSpace):
             raise TypeError("cluster_space must be a ClusterSpace")
         started = perf_counter()
@@ -118,6 +120,14 @@ class ClusterMap:
             values.setflags(write=False)
             folded.append(values)
         object.__setattr__(self, "image_atom_indices", tuple(folded))
+        identifiability = folded_rank(cluster_space, self.image_atom_indices)
+        if not identifiability.full:
+            raise ValueError(
+                f"supercell cannot distinguish all parameters: rank "
+                f"{identifiability.rank} for {identifiability.parameters} parameters, "
+                f"{identifiability.nullity} directions folded away; enlarge the supercell "
+                f"or shorten the cutoffs"
+            )
         print(
             f"Mapping complete: orbits {len(folded)}, "
             f"images {sum(len(values) for values in folded)}, "
@@ -139,28 +149,6 @@ class ClusterMap:
     def n_atoms(self):
         """Number of atoms in this reference supercell, not in the primitive motif."""
         return len(self.atomic_numbers)
-
-    def rank_info(self, order=None) -> RankInfo:
-        """Return structural parameter identifiability after supercell folding.
-
-        The folded orbit bases define a linear map from primitive force-constant
-        parameters to tensor components in this supercell. Its rank measures how
-        many primitive parameter directions remain distinguishable purely from
-        the supercell geometry, independently of displacement or training data.
-
-        If ``order`` is omitted, results are combined over all included
-        force-constant orders. Missing orders raise KeyError.
-        """
-        started = perf_counter()
-
-        result = folded_rank(self.cluster_space, self.image_atom_indices, order)
-        print(
-            f"Folded rank: order {order if order is not None else 'all'}, "
-            f"parameters {result.parameters}, rank {result.rank}, "
-            f"nullity {result.nullity}, aliases {result.aliases}, "
-            f"{perf_counter() - started:.2f} s"
-        )
-        return result
 
     def quotient(self, translation: tuple[int, int, int]) -> tuple[int, int, int]:
         """Return the quotient label of a primitive translation modulo the supercell lattice."""
@@ -223,11 +211,3 @@ class ClusterMap:
             orders.
         """
         return self._index.lookup(labels, translations)
-
-    def aliases(self, order: int) -> tuple[tuple[tuple[int, int], ...], ...]:
-        """Return groups of primitive orbit images that fold onto the same atom tuple."""
-        block = self.cluster_space.block(order)
-        groups = group_folded_images(
-            self.image_atom_indices, range(block.orbits.start, block.orbits.stop)
-        )
-        return tuple(tuple(group) for _, group in sorted(groups.items()) if len(group) > 1)

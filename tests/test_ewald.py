@@ -166,7 +166,7 @@ def test_cubic_space_group_preserves_born_action_and_fc2():
         cell=[[0, 2.8, 2.8], [2.8, 0, 2.8], [2.8, 2.8, 0]],
         pbc=True,
     )
-    mapping = ClusterMap(ClusterSpace(atoms, cutoffs={2: 3.0}), atoms)
+    mapping = ClusterMap(ClusterSpace(atoms, cutoffs={2: 2.0}), atoms)
     born = np.array([np.eye(3), -np.eye(3)])
     model = DipoleEwald(mapping, born_charges=born, dielectric=2.5 * np.eye(3))
     full = model.force_constants().full_array(2)
@@ -254,16 +254,29 @@ def test_dipole_kernel_matches_independent_green_function_derivatives(polar_mode
     np.testing.assert_allclose(result[0, 1], expected, atol=1e-7, rtol=1e-6)
 
 
-def test_correction_support_changes_partition_but_preserves_constraints(
-    polar_model, ewald, long_fc
-):
+def test_correction_support_changes_partition_but_preserves_constraints(polar_model):
     """A different local cutoff changes the partition, not the required Hessian invariants."""
     mapping, born, epsilon = polar_model
-    larger_space = ClusterSpace(mapping.cluster_space.primitive_atoms, cutoffs={2: 4.0})
-    larger_map = ClusterMap(larger_space, mapping.supercell_atoms)
-    larger = DipoleEwald(larger_map, born_charges=born, dielectric=epsilon)
-    assert abs(larger.correction_norm - ewald.correction_norm) > 1e-4
-    assert np.max(np.abs(larger.force_constants().full_array(2) - long_fc.full_array(2))) > 1e-4
+    primitive = mapping.cluster_space.primitive_atoms
+    atoms = primitive.repeat((2, 2, 2))
+    matrix = 2 * np.eye(3, dtype=np.int64)
+    small = DipoleEwald(
+        ClusterMap(ClusterSpace(primitive, cutoffs={2: 3.0}), atoms, supercell_matrix=matrix),
+        born_charges=born,
+        dielectric=epsilon,
+    )
+    larger = DipoleEwald(
+        ClusterMap(ClusterSpace(primitive, cutoffs={2: 4.0}), atoms, supercell_matrix=matrix),
+        born_charges=born,
+        dielectric=epsilon,
+    )
+    assert abs(larger.correction_norm - small.correction_norm) > 1e-4
+    assert (
+        np.max(
+            np.abs(larger.force_constants().full_array(2) - small.force_constants().full_array(2))
+        )
+        > 1e-4
+    )
     full = larger.force_constants().full_array(2)
     np.testing.assert_allclose(full, full.transpose(1, 0, 3, 2), atol=1e-12)
     np.testing.assert_allclose(full.sum(axis=1), 0, atol=1e-12)

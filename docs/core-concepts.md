@@ -103,9 +103,14 @@ from mlfcs import ClusterMap
 
 supercell_atoms = space.primitive_atoms.repeat((3, 3, 3))
 mapping = ClusterMap(space, supercell_atoms)
+```
 
-info = mapping.rank_info(order=2)
-print(info.parameters, info.rank, info.nullity)
+构造成功即表示这个超胞能区分模型的所有参数。若不能，构造会失败：
+
+```python
+ClusterMap(space, space.primitive_atoms)
+# ValueError: supercell cannot distinguish all parameters: rank 3 for 5
+# parameters, 2 directions folded away; enlarge the supercell or shorten the cutoffs
 ```
 
 ### 晶胞关系与原子顺序
@@ -124,20 +129,17 @@ $$
 
 缺原子、多原子、错误元素、非周期结构、不相容晶胞，或不能唯一匹配的参考位置会抛出 `ValueError`。输入类型不对会抛出 `TypeError`；不支持的整数与数组范围会显式失败。程序不会自动扩大超胞，也不会把位移后的结构还原成参考超胞。
 
-### 为什么必须检查可辨识性
+### 可辨识性由构造强制执行
 
 超胞的周期边界可能把不同原胞相互作用落到同一组超胞原子上。计算看到的是这些贡献的和，这叫折叠（folding）。如果不同参数的效果因此无法区分，就发生参数混叠（aliasing）。
 
-`mapping.rank_info(order=None)` 检查的是**超胞结构本身**保留了多少参数方向。指定 `order` 时检查一阶，省略时汇总所有包含的阶数；未包含的阶数抛出 `KeyError`。它返回 `RankInfo`：
+`ClusterMap` 在构造时就把模型的全部参数折叠到超胞，比较折叠前后的秩；只要有一个参数方向被折叠掉，就抛出 `ValueError`，并在消息中给出秩、参数数与丢失的方向数：
 
-- `parameters`：折叠前的标准原胞参数数；即使开启 ASR，这也不是自由声学坐标数。
-- `rank`：折叠后仍能区分的参数方向数。
-- `nullity`：`parameters - rank`，即超胞看不到的参数方向数。
-- `full`：是否保留全部方向。
-- `aliases`：重复折叠像的计数诊断，不能直接当作丢失参数数。
-- `require_full()`：完整时返回 `None`；不完整时抛出 `ValueError`。
+- 秩：折叠后仍能区分的参数方向数；
+- 参数数：折叠前的标准原胞参数数；即使开启 ASR，这也不是自由声学坐标数；
+- 丢失方向数：两者之差。
 
-创建 mapping 本身不会因为秩不足而拒绝它：`ForceDesign` 与 `FiniteDifference` 的构造会自动要求完整可辨识性并抛出 `ValueError`，所以拟合和有限差分路径不需要手动检查。`rank_info()` 留给两种场合：在生成昂贵的力之前单独查看，以及需要逐阶诊断或允许混叠时（例如只做势函数计算）。发生混叠时，应更换超胞大小或形状，或重新考虑模型范围；增加同一个超胞的训练帧无法补回结构上丢失的信息。满秩也不保证后续训练数据足够丰富，它只排除了这类结构性损失。
+因此不存在"未检查"或"允许混叠"的 mapping，也不需要额外的检查调用；`ForceDesign`、`FiniteDifference` 等消费者拿到的 mapping 一定可辨识。发生混叠时，应更换超胞大小或形状，或缩短模型截断；增加同一个超胞的训练帧无法补回结构上丢失的信息。可辨识也不保证后续训练数据足够丰富，它只排除了这类结构性损失。
 
 ### 查看对应关系与周期地址
 
@@ -168,8 +170,6 @@ indices = mapping.map_labels(
 `atom_index(site)` 返回一个周期位点对应的超胞原子编号。`site` 含原胞位点和整数平移，合法地址会按超胞周期折叠；位点必须存在于原胞。`quotient(translation)` 接受长度为 3 的整数平移，返回其周期类别标签。不要将标签当作实际晶格矢量。
 
 `map_labels(labels, translations)` 批量执行类似查询：`labels` 是 `(n, 4)` 的 `(site, tx, ty, tz)` 地址，`translations` 是 `(m, 3)` 的额外整数平移；返回 `(n, m)` 原子编号，保留两份输入的顺序。无效形状或非整数地址会被拒绝。
-
-`mapping.aliases(order)` 返回同一阶中折叠到相同有序原子组的像分组，每项是若干 `(全局 orbit 索引, 像索引)`。它可用于定位重叠，但是否丢失参数仍应由 `rank_info()` 判断。
 
 ## 3. 把已经计算好的结构与力收集起来
 

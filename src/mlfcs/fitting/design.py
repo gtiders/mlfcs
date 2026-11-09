@@ -198,8 +198,8 @@ class ForceDesign:
     Parameters
     ----------
     cluster_map : ClusterMap
-        Supercell relation retained by reference. Its folded rank must
-        preserve all primitive parameters, otherwise ValueError is raised.
+        Supercell relation retained by reference. The map already guarantees
+        that the supercell distinguishes all primitive parameters.
 
     Notes
     -----
@@ -213,7 +213,6 @@ class ForceDesign:
         """Construct the force model for a structurally identifiable supercell."""
         started = perf_counter()
 
-        cluster_map.rank_info().require_full()
         self.cluster_map = cluster_map
         self.rows = 3 * len(cluster_map.atomic_numbers)
         require_allocation("force design", (self.rows, self.n_parameters))

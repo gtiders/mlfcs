@@ -98,7 +98,6 @@ class FiniteDifference:
         if len(set(step_lengths)) != len(step_lengths):
             raise ValueError("finite-difference step lengths must be distinct")
         cluster_map.cluster_space.block(order)
-        cluster_map.rank_info(order).require_full()
         self.cluster_map = cluster_map
         self.order = order
         self.disps = step_lengths

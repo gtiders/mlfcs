@@ -12,7 +12,7 @@ from mlfcs.geometry.lattice import LatticeSite
 
 @pytest.fixture(scope="module")
 def mapped_tensors():
-    """Prepare FC2/3/4 on a shuffled non-diagonal supercell with folded aliases."""
+    """Prepare FC2/3/4 on a shuffled supercell that distinguishes every parameter."""
     atoms = bulk("Ar", "sc", a=1.0)
     space = ClusterSpace(atoms, cutoffs={2: 1.1, 3: 1.1, 4: 0.1})
     model = ForceConstants(
@@ -24,7 +24,7 @@ def mapped_tensors():
             for p in (2, 3, 4)
         },
     )
-    supercell = make_supercell(atoms, [[2, 1, 0], [0, 1, 0], [0, 0, 1]])[::-1]
+    supercell = make_supercell(atoms, 3 * np.eye(3, dtype=np.int64))[::-1]
     mapping = ClusterMap(space, supercell)
     return model, mapping, CompactForceConstants(model, mapping)
 

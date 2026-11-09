@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
-
 import numpy as np
 import pytest
 from ase.build import bulk
@@ -14,16 +11,15 @@ from mlfcs.geometry.lattice import LatticeSite
 from mlfcs.geometry.structure import PeriodicIndex
 
 
-def test_cluster_space_maps_to_multiple_supercells():
-    """Verify cluster space maps to multiple supercells."""
+def test_cluster_space_rejects_a_supercell_that_cannot_distinguish_parameters():
+    """Verify cluster space maps identifiable supercells and rejects folded ones."""
     atoms = bulk("Ar", "sc", a=1)
     space = ClusterSpace(atoms, symprec=1e-05, cutoffs={2: 1.1}, max_body_orders={2: 2})
-    small = ClusterMap(space, atoms, supercell_matrix=np.eye(3, dtype=np.int64))
+    with pytest.raises(ValueError, match="cannot distinguish"):
+        ClusterMap(space, atoms, supercell_matrix=np.eye(3, dtype=np.int64))
     large = ClusterMap(
         space, atoms.repeat((3,) * 3), supercell_matrix=3 * np.eye(3, dtype=np.int64)
     )
-    assert small.rank_info().nullity > 0
-    assert large.rank_info().full
     assert not space.scaled_positions.flags.writeable
     assert not space.symmetry.rotations.flags.writeable
     assert not large.image_atom_indices[0].flags.writeable
@@ -86,17 +82,15 @@ def test_supercell_quotients_identify_periodic_sites() -> None:
     )
 
 
-def test_cluster_map_reports_supercell_aliasing_and_rank() -> None:
-    """Verify cluster map reports supercell aliasing and rank."""
+def test_cluster_map_rejection_reports_the_folded_directions() -> None:
+    """Verify the aliasing rejection names the rank loss of a folded supercell."""
     atoms = bulk("Ar", "sc", a=1.0)
     primitive = atoms
     space = ClusterSpace(primitive, cutoffs={2: 1.1}, max_body_orders={2: 2}, symprec=1e-05)
-    small_map = ClusterMap(space, atoms, supercell_matrix=np.eye(3, dtype=np.int64))
+    with pytest.raises(ValueError, match=r"rank \d+ for \d+ parameters"):
+        ClusterMap(space, atoms, supercell_matrix=np.eye(3, dtype=np.int64))
     large_map = ClusterMap(space, atoms.repeat((3, 3, 3)), supercell_matrix=np.diag([3, 3, 3]))
-    assert small_map.rank_info(2).nullity > 0
-    assert large_map.rank_info(2).full
-    large_map.rank_info(2).require_full()
-    assert len(small_map.aliases(2)) > len(large_map.aliases(2))
+    assert large_map.n_atoms == 27
 
 
 def test_mapped_labels_maps_large_cancelling_coordinates() -> None:
@@ -130,26 +124,3 @@ def test_supercell_matrix_inference_handles_skewed_primitive_cell() -> None:
     supercell_atoms.set_cell(cell)
     mapped = ClusterMap(space, supercell_atoms)
     np.testing.assert_array_equal(mapped.supercell_matrix, np.eye(3, dtype=np.int64))
-
-
-@pytest.mark.parametrize(
-    "reference",
-    json.loads((Path(__file__).parent / "data" / "symmetry_reference.json").read_text()),
-    ids=lambda record: f"{record['material']}-FC{record['order']}",
-)
-def test_folded_rank_matches_saved_symmetry_reference(reference):
-    """Verify folded rank matches saved symmetry reference."""
-    material, order, cutoff = (reference["material"], reference["order"], reference["cutoff"])
-    atoms = bulk("Si", "diamond", a=5.43) if material == "Si" else bulk("Mg", "hcp", a=3.2, c=5.2)
-    primitive = atoms
-    space = ClusterSpace(
-        primitive, cutoffs={order: cutoff}, max_body_orders={order: order}, symprec=1e-05
-    )
-    for folded_reference in reference["folded_ranks"]:
-        repeat = folded_reference["repeat"]
-        mapping = ClusterMap(
-            space, atoms.repeat((repeat,) * 3), supercell_matrix=np.eye(3, dtype=np.int64) * repeat
-        )
-        parameters, rank, aliases = folded_reference["values"]
-        info = mapping.rank_info(order)
-        assert (info.parameters, info.rank, info.aliases) == (parameters, rank, aliases)

@@ -94,14 +94,6 @@ class RankInfo:
         """Whether folding preserves every primitive parameter direction."""
         return self.rank == self.parameters
 
-    def require_full(self) -> None:
-        """Require the supercell to preserve all primitive parameter directions."""
-        if not self.full:
-            raise ValueError(
-                f"supercell cannot distinguish all parameters: rank {self.rank} for "
-                f"{self.parameters} parameters, {self.nullity} directions folded away"
-            )
-
 
 def group_folded_images(image_atom_indices, orbit_indices):
     """Group cluster images that fold onto the same ordered supercell atom tuple.
