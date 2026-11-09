@@ -186,9 +186,7 @@ def standard_conventional(atoms: Atoms, *, symprec: float = 1e-5) -> Standardize
     return _standardized(atoms, to_primitive=False, symprec=symprec)
 
 
-def _standardized(
-    atoms: Atoms, *, to_primitive: bool, symprec: float
-) -> StandardizedCell:
+def _standardized(atoms: Atoms, *, to_primitive: bool, symprec: float) -> StandardizedCell:
     """Standardize a periodic structure and retain its basis transformation."""
     if not isinstance(atoms, Atoms):
         raise TypeError("atoms must be an ASE Atoms object")

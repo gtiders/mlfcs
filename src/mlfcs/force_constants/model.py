@@ -13,9 +13,6 @@ from typing import TYPE_CHECKING, Literal
 import numpy as np
 
 from mlfcs.cluster_space import ClusterSpace
-from mlfcs.foundation.log import get_logger
-
-logger = get_logger(__name__)
 
 if TYPE_CHECKING:
     from mlfcs.force_constants.rotation import RotationResult
@@ -130,9 +127,9 @@ class ForceConstants:
 
         path = Path(file).resolve()
         started = perf_counter()
-        logger.info("Native save started: path=%s orders=%s", path, self.orders)
+
         result = _native.save(self, path)
-        logger.info("Native save complete: path=%s elapsed_s=%.2f", path, perf_counter() - started)
+        print(f"Saved model {path}: orders {self.orders}, {perf_counter() - started:.2f} s")
         return result
 
     @classmethod
@@ -148,14 +145,9 @@ class ForceConstants:
 
         path = Path(file).resolve()
         started = perf_counter()
-        logger.info("Native load started: path=%s", path)
+
         model = _native.load(path)
-        logger.info(
-            "Native load complete: path=%s orders=%s elapsed_s=%.2f",
-            path,
-            model.orders,
-            perf_counter() - started,
-        )
+        print(f"Loaded model {path}: orders {model.orders}, {perf_counter() - started:.2f} s")
         return model
 
     def write(

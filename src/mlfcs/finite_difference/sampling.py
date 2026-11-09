@@ -12,10 +12,7 @@ from ase import Atoms
 from mlfcs.dataset import ForceDataset
 from mlfcs.finite_difference.reconstruction import reconstruct_force_constants
 from mlfcs.force_constants import ForceConstants
-from mlfcs.foundation.log import get_logger
 from mlfcs.mapping import ClusterMap
-
-logger = get_logger(__name__)
 
 
 def _displacement_keys(
@@ -110,11 +107,9 @@ class FiniteDifference:
             list(product((-1, 1), repeat=order - 1)), dtype=np.int8
         )
         self._sign_combinations.setflags(write=False)
-        logger.info(
-            "Prepared FC%d finite difference: %d configurations at step lengths %s Å",
-            order,
-            self.n_configurations,
-            ", ".join(f"{step_length:.10g}" for step_length in self.disps),
+        print(
+            f"Finite difference plan: FC{order}, configurations {self.n_configurations}, "
+            f"steps {self.disps} A"
         )
 
     @property
@@ -137,18 +132,13 @@ class FiniteDifference:
         The returned ``ForceConstants`` contains only this order.
         """
         started = perf_counter()
-        logger.info(
-            "Finite-difference reconstruction started: order=%d configurations=%d steps_angstrom=%s",
-            self.order,
-            self.n_configurations,
-            self.disps,
-        )
+
         model = reconstruct_force_constants(self, dataset)
-        logger.info(
-            "Finite-difference reconstruction complete: order=%d parameters=%d elapsed_s=%.2f",
-            self.order,
-            len(model.coefficients[self.order]),
-            perf_counter() - started,
+        print(
+            f"Finite difference reconstruction: FC{self.order}, "
+            f"configurations {self.n_configurations}, "
+            f"parameters {len(model.coefficients[self.order])}, "
+            f"{perf_counter() - started:.2f} s"
         )
         return model
 

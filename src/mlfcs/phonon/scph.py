@@ -12,7 +12,6 @@ from scipy.constants import Boltzmann, angstrom, atomic_mass, electron_volt, hba
 
 from mlfcs.force_constants import ForceConstants
 from mlfcs.force_constants.expansion import expand_lattice_tensors
-from mlfcs.foundation.log import get_logger
 from mlfcs.phonon.dynamics import (
     THZ_PER_SQRT_EV_PER_A2_AMU,
     accumulate_dynamical_matrices,
@@ -25,7 +24,6 @@ from mlfcs.phonon.stars import StarPlan
 
 _OMEGA = np.sqrt(electron_volt / (angstrom**2 * atomic_mass))
 _VARIANCE = hbar / (2.0 * atomic_mass * angstrom**2 * _OMEGA)
-logger = get_logger(__name__)
 
 
 @njit(cache=True, nogil=True)
@@ -322,15 +320,11 @@ class SCPH:
             ],
             dtype=np.int32,
         )
-        logger.info(
-            "SCPH prepared: mesh=%s qpoints=%d irreducible=%d FC2 terms=%d "
-            "FC4 terms=%d statistics=%s",
-            tuple(tuple(int(value) for value in row) for row in grid.matrix),
-            grid.size,
-            len(stars.representatives),
-            len(self._dynamical_terms.first_sites),
-            len(self._tensors),
-            statistics,
+        print(
+            f"SCPH prepared: mesh {tuple(tuple(int(value) for value in row) for row in grid.matrix)}, "
+            f"qpoints {grid.size}, irreducible {len(stars.representatives)}, "
+            f"FC2 terms {len(self._dynamical_terms.first_sites)}, "
+            f"FC4 terms {len(self._tensors)}, statistics {statistics}"
         )
 
     def _fc2(self, parameters: np.ndarray) -> ForceConstants:
@@ -498,15 +492,10 @@ class SCPH:
                 raise ValueError(f"start FC2 parameters must have shape {self._bare.shape}")
             current = self._constrain_fc2(current)
         run_started = perf_counter()
-        logger.info(
-            "SCPH run started: temperature=%.6g K statistics=%s mixing=%.6g "
-            "tolerance=%.6g THz max_iterations=%d warm_start=%s",
-            temperature,
-            self.statistics,
-            mixing,
-            tolerance,
-            max_iterations,
-            start is not None,
+        print(
+            f"SCPH run: {temperature:g} K, statistics {self.statistics}, mixing {mixing:g}, "
+            f"tolerance {tolerance:g} THz, max iterations {max_iterations}, "
+            f"warm start {start is not None}"
         )
         previous = self._frequencies(current)
         history = []
@@ -527,14 +516,9 @@ class SCPH:
             )
             history.append(SCPHStep(iteration, change, float(np.min(frequencies))))
             previous = frequencies
-            logger.info(
-                "SCPH %.6g K iteration %d: frequency_change=%.10g THz "
-                "minimum_frequency=%.10g THz elapsed=%.2f s",
-                temperature,
-                iteration,
-                change,
-                float(np.min(frequencies)),
-                perf_counter() - started,
+            print(
+                f"SCPH {temperature:g} K iteration {iteration}: change {change:.3g} THz, "
+                f"minimum {float(np.min(frequencies)):.3g} THz, {perf_counter() - started:.2f} s"
             )
             if change < tolerance:
                 converged = True
@@ -548,14 +532,11 @@ class SCPH:
             converged,
             self._minimum_mode(current),
         )
-        logger.info(
-            "SCPH run complete: temperature=%.6g K iterations=%d converged=%s "
-            "minimum_internal_mode=%.10g THz elapsed_s=%.2f",
-            result.temperature,
-            result.iterations,
-            result.converged,
-            result.minimum_mode_thz if result.minimum_mode_thz is not None else float("nan"),
-            perf_counter() - run_started,
+        print(
+            f"SCPH complete: {result.temperature:g} K, iterations {result.iterations}, "
+            f"converged {result.converged}, minimum mode "
+            f"{result.minimum_mode_thz if result.minimum_mode_thz is not None else float('nan'):.4g} THz, "
+            f"{perf_counter() - run_started:.2f} s"
         )
         return result
 
@@ -575,7 +556,7 @@ class SCPH:
             raise TypeError("run_many manages the start from the previous temperature")
         results = []
         start = None
-        logger.info("SCPH temperature schedule: %s K (high to low execution)", tuple(values))
+        print(f"SCPH temperature schedule: {tuple(values)} K (high to low)")
         for temperature in values[::-1]:
             result = self.run(float(temperature), start=start, **kwargs)
             results.append(result)

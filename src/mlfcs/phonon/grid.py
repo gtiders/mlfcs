@@ -22,10 +22,7 @@ from mlfcs.foundation.integer import (
     determinant_3x3,
     to_python_rows,
 )
-from mlfcs.foundation.log import get_logger
 from mlfcs.geometry.symmetry import PrimitiveSymmetry
-
-logger = get_logger(__name__)
 
 
 def _unimodular_inverse(matrix: object) -> np.ndarray:
@@ -206,11 +203,9 @@ class QGrid:
         object.__setattr__(self, "matrix", values)
         object.__setattr__(self, "labels", ordered)
         object.__setattr__(self, "denominator", denominator)
-        logger.info(
-            "Reciprocal grid built: matrix=%s determinant=%d qpoints=%d",
-            values.tolist(),
-            denominator,
-            self.size,
+        print(
+            f"Reciprocal grid: matrix {values.tolist()}, determinant {denominator}, "
+            f"qpoints {self.size}"
         )
 
     @property
@@ -368,14 +363,10 @@ class QStars:
         ):
             object.__setattr__(self, name, value)
         object.__setattr__(self, "time_reversal", bool(time_reversal))
-        logger.info(
-            "Reciprocal stars: grid=%d irreducible=%d reduction=%.3fx "
-            "time_reversal=%s symmetry_operations=%d",
-            n,
-            len(self.representatives),
-            n / len(self.representatives),
-            time_reversal,
-            len(compatible),
+        print(
+            f"Reciprocal stars: grid {n}, irreducible {len(self.representatives)}, "
+            f"reduction {n / len(self.representatives):.3g}x, "
+            f"time reversal {time_reversal}, operations {len(compatible)}"
         )
 
     @property

@@ -10,7 +10,6 @@ from ase import Atoms
 
 from mlfcs.cluster_space import ClusterSpace
 from mlfcs.foundation.arrays import require_allocation
-from mlfcs.foundation.log import get_logger
 from mlfcs.geometry.lattice import LatticeSite
 from mlfcs.geometry.structure import (
     PeriodicIndex,
@@ -19,8 +18,6 @@ from mlfcs.geometry.structure import (
     supercell_data,
 )
 from mlfcs.mapping.folding import RankInfo, folded_rank, group_folded_images
-
-logger = get_logger(__name__)
 
 _PARTS = (
     ("supercell_matrix", "matrix"),
@@ -90,10 +87,9 @@ class ClusterMap:
         if not isinstance(cluster_space, ClusterSpace):
             raise TypeError("cluster_space must be a ClusterSpace")
         started = perf_counter()
-        logger.info(
-            "Mapping started: primitive_atoms=%d matrix_source=%s",
-            cluster_space.n_atoms,
-            "inferred" if supercell_matrix is None else "explicit",
+        print(
+            f"Mapping: primitive atoms {cluster_space.n_atoms}, "
+            f"matrix {'inferred' if supercell_matrix is None else 'explicit'}"
         )
         primitive = PrimitiveCell(
             cell=cluster_space.cell,
@@ -104,13 +100,9 @@ class ClusterMap:
         )
         if supercell_matrix is None:
             supercell_matrix = infer_supercell_matrix(primitive, supercell_atoms)
-            logger.info("Supercell matrix inferred: %s", supercell_matrix.tolist())
+            print(f"Mapping: supercell matrix {supercell_matrix.tolist()}")
         supercell = supercell_data(primitive, supercell_atoms, supercell_matrix)
-        logger.info(
-            "Supercell validated: supercell_atoms=%d matrix=%s",
-            supercell.n_atoms,
-            supercell.matrix.tolist(),
-        )
+        print(f"Mapping: supercell atoms {supercell.n_atoms}")
         object.__setattr__(self, "cluster_space", cluster_space)
         for public, attribute in _PARTS:
             object.__setattr__(self, public, getattr(supercell, attribute))
@@ -126,11 +118,10 @@ class ClusterMap:
             values.setflags(write=False)
             folded.append(values)
         object.__setattr__(self, "image_atom_indices", tuple(folded))
-        logger.info(
-            "Mapping complete: orbits=%d images=%d elapsed_s=%.2f",
-            len(folded),
-            sum(len(values) for values in folded),
-            perf_counter() - started,
+        print(
+            f"Mapping complete: orbits {len(folded)}, "
+            f"images {sum(len(values) for values in folded)}, "
+            f"{perf_counter() - started:.2f} s"
         )
 
     @property
@@ -161,15 +152,13 @@ class ClusterMap:
         force-constant orders. Missing orders raise KeyError.
         """
         started = perf_counter()
-        logger.info("Folded rank started: order=%s", order if order is not None else "all")
+
         result = folded_rank(self.cluster_space, self.image_atom_indices, order)
-        logger.info(
-            "Folded rank complete: parameters=%d rank=%d nullity=%d aliases=%d elapsed_s=%.2f",
-            result.parameters,
-            result.rank,
-            result.nullity,
-            result.aliases,
-            perf_counter() - started,
+        print(
+            f"Folded rank: order {order if order is not None else 'all'}, "
+            f"parameters {result.parameters}, rank {result.rank}, "
+            f"nullity {result.nullity}, aliases {result.aliases}, "
+            f"{perf_counter() - started:.2f} s"
         )
         return result
 

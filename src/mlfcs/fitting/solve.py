@@ -10,12 +10,9 @@ from scipy.linalg import lstsq
 from scipy.sparse.linalg import minres
 
 from mlfcs.foundation.errors import UnobservedParameterError
-from mlfcs.foundation.log import get_logger
 
 if TYPE_CHECKING:
     from mlfcs.fitting.system import FitSystem
-
-logger = get_logger(__name__)
 
 
 def _maxiter(value):
@@ -92,12 +89,7 @@ class FitSolver:
         if not np.isfinite(rtol) or rtol <= 0.0:
             raise ValueError("rtol must be positive and finite")
         maxiter = _maxiter(maxiter)
-        logger.info(
-            "Solver started: algorithm=MINRES normalization=inverse_column_norm "
-            "rtol=%.3g maxiter=%d",
-            rtol,
-            maxiter,
-        )
+        print(f"Solver: MINRES, rtol {rtol:g}, maxiter {maxiter}")
         matrix, rhs = self.system.normal_matrix, self.system.normal_rhs
         if len(rhs) == 0:
             return np.empty(0, dtype=float)
@@ -124,11 +116,9 @@ class FitSolver:
         )
         fitting_coordinates = scale * scaled_coordinates
         residual = float(np.linalg.norm(matrix @ fitting_coordinates - rhs))
-        logger.info(
-            "Solver finished: algorithm=MINRES iterations=%d stop_code=%d unscaled_normal_residual=%.10e",
-            iterations,
-            info,
-            residual,
+        print(
+            f"Solver: MINRES, iterations {iterations}, stop code {info}, "
+            f"unscaled residual {residual:.3e}"
         )
         if info != 0:
             raise RuntimeError(
@@ -145,7 +135,7 @@ class FitSolver:
         tolerance or condition limit is exposed. Rank-deficient systems return
         the minimum-norm solution in scaled parameter coordinates.
         """
-        logger.info("Solver started: algorithm=least_squares normalization=unit_column_norm")
+        print("Solver: least squares, unit column normalization")
         matrix, forces = self.system.design_matrix, self.system.forces
         # Scale by each maximum before computing norms to avoid squaring large
         # design coefficients while normalizing columns from different orders.
@@ -171,10 +161,8 @@ class FitSolver:
         condition = (
             float(singular_values[0] / singular_values[rank - 1]) if rank > 0 else float("inf")
         )
-        logger.info(
-            "Solver finished: algorithm=least_squares rank=%d/%d scaled_condition_estimate=%.10e",
-            rank,
-            matrix.shape[1],
-            condition,
+        print(
+            f"Solver: least squares, rank {rank}/{matrix.shape[1]}, "
+            f"scaled condition {condition:.3e}"
         )
         return scale * scaled_coordinates

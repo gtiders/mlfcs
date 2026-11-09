@@ -11,10 +11,8 @@ import h5py
 import numpy as np
 from numba import njit
 
-from mlfcs.foundation.log import get_logger
 from mlfcs.geometry.lattice import LatticeSite
 
-logger = get_logger(__name__)
 DEFAULT_THRESHOLD = 1e-8
 
 
@@ -64,26 +62,16 @@ def write(tensors, file, *, format, order, storage=None, threshold=DEFAULT_THRES
     path = Path(file).resolve()
     path.parent.mkdir(parents=True, exist_ok=True)
     started = perf_counter()
-    logger.info(
-        "Export started: path=%s format=%s order=%d storage=%s threshold=%.6g",
-        path,
-        format,
-        order,
-        storage or "default",
-        threshold,
-    )
+
     if format == "phonopy" and storage != "hdf5":
         _write_phonopy_text(path, tensors, threshold)
     elif format in {"phonopy", "phono3py"}:
         _write_hdf5(path, tensors, order, threshold)
     else:
         _write_shengbte(path, tensors, order, threshold)
-    logger.info(
-        "Export complete: path=%s format=%s order=%d elapsed_s=%.2f",
-        path,
-        format,
-        order,
-        perf_counter() - started,
+    print(
+        f"Exported {path}: format {format}, order {order}, storage {storage or 'default'}, "
+        f"{perf_counter() - started:.2f} s"
     )
     return path
 

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass
 from time import perf_counter
 
@@ -15,9 +14,6 @@ from mlfcs.fitting.design import ForceDesign
 from mlfcs.fitting.solve import FitSolver
 from mlfcs.force_constants import ForceConstants
 from mlfcs.foundation.arrays import require_allocation
-from mlfcs.foundation.log import get_logger
-
-logger = get_logger(__name__)
 
 
 def _readonly(values: object, shape: tuple[int, ...]) -> np.ndarray:
@@ -99,16 +95,12 @@ class FitSystem:
         started = perf_counter()
         arrays = _build_equations(dataset, representation)
         self._initialize(cluster_map.cluster_space, representation, *arrays)
-        logger.info(
-            "Fit-system complete: representation=%s structures=%d equations=%d "
-            "parameters=%d shape=%s equation_bytes=%d elapsed_s=%.2f",
-            self.representation,
-            self.n_structures,
-            self.n_equations,
-            self.n_parameters,
-            self._matrix.shape,
-            self._matrix.nbytes + self._rhs.nbytes,
-            perf_counter() - started,
+        print(
+            f"Fit system ready: representation {self.representation}, "
+            f"structures {self.n_structures}, equations {self.n_equations}, "
+            f"parameters {self.n_parameters}, shape {self._matrix.shape}, "
+            f"{(self._matrix.nbytes + self._rhs.nbytes) / 2**20:.1f} MiB, "
+            f"{perf_counter() - started:.2f} s"
         )
 
     def _initialize(
@@ -256,41 +248,32 @@ class FitSystem:
         There is no algorithm selector, regularization or automatic solver fallback.
         """
         started = perf_counter()
-        logger.info(
-            "Fit solve started: representation=%s structures=%d equations=%d "
-            "parameters=%d orders=%s",
-            self.representation,
-            self.n_structures,
-            self.n_equations,
-            self.n_parameters,
-            self.cluster_space.orders,
+        print(
+            f"Fit solve: representation {self.representation}, structures {self.n_structures}, "
+            f"equations {self.n_equations}, parameters {self.n_parameters}, "
+            f"orders {self.cluster_space.orders}"
         )
         model = self.force_constants(FitSolver(self).solve(**options))
-        if logger.isEnabledFor(logging.INFO):
-            try:
-                residual = self.residual(model)
-                if not self.n_equations:
-                    raise ValueError("no training equations for RMSE")
-                rmse = residual / np.sqrt(self.n_equations)
-                relative = (
-                    residual / np.sqrt(self.force_squared_norm)
-                    if self.force_squared_norm
-                    else (0.0 if residual == 0.0 else float("inf"))
-                )
-                logger.info(
-                    "Fit complete: training_force_rmse=%.12g eV/angstrom "
-                    "training_relative_force_error=%.8g elapsed_s=%.2f",
-                    rmse,
-                    relative,
-                    perf_counter() - started,
-                )
-            except ValueError as error:
-                # Diagnostics must not turn a successful solve into a failure.
-                logger.warning(
-                    "Fit complete: quality_summary_unavailable=%s elapsed_s=%.2f",
-                    error,
-                    perf_counter() - started,
-                )
+        try:
+            residual = self.residual(model)
+            if not self.n_equations:
+                raise ValueError("no training equations for RMSE")
+            rmse = residual / np.sqrt(self.n_equations)
+            relative = (
+                residual / np.sqrt(self.force_squared_norm)
+                if self.force_squared_norm
+                else (0.0 if residual == 0.0 else float("inf"))
+            )
+            print(
+                f"Fit complete: RMSE {rmse:.6f} eV/A, relative error {relative:.3%}, "
+                f"{perf_counter() - started:.2f} s"
+            )
+        except ValueError as error:
+            # Diagnostics must not turn a successful solve into a failure.
+            print(
+                f"warning: fit quality summary unavailable ({error}), "
+                f"{perf_counter() - started:.2f} s"
+            )
         return model
 
     def _parameters(self, values):
@@ -473,14 +456,11 @@ def _build_equations(dataset, representation):
     """
     cluster_map = dataset.cluster_map
     started = perf_counter()
-    logger.info(
-        "Fit-system construction started: representation=%s supercell_atoms=%d "
-        "orders=%s parameters=%d equations_per_structure=%d",
-        representation,
-        cluster_map.n_atoms,
-        cluster_map.cluster_space.orders,
-        cluster_map.cluster_space.n_parameters,
-        3 * cluster_map.n_atoms,
+    print(
+        f"Fit system: representation {representation}, supercell atoms {cluster_map.n_atoms}, "
+        f"orders {cluster_map.cluster_space.orders}, "
+        f"parameters {cluster_map.cluster_space.n_parameters}, "
+        f"equations per structure {3 * cluster_map.n_atoms}"
     )
     design = ForceDesign(cluster_map)
     workspace = None if cluster_map.cluster_space.asr else design.allocate_workspace()
@@ -517,13 +497,9 @@ def _build_equations(dataset, representation):
         force_squared_norm += float(flattened @ flattened)
         if count == 1 or count % 10 == 0:
             elapsed = perf_counter() - started
-            logger.info(
-                "Fit-system accumulation: structures=%d equations=%d elapsed_s=%.2f "
-                "structures_per_s=%.3g",
-                count,
-                count * design.rows,
-                elapsed,
-                count / elapsed if elapsed else float("inf"),
+            print(
+                f"Fit accumulation: structures {count}, equations {count * design.rows}, "
+                f"{elapsed:.2f} s, {count / elapsed if elapsed else float('inf'):.3g} structures/s"
             )
     if count == 0:
         raise ValueError("at least one training structure is required")
@@ -531,12 +507,9 @@ def _build_equations(dataset, representation):
         matrix = _symmetrize(matrix)
     else:
         matrix, rhs = np.concatenate(matrices), np.concatenate(force_vectors)
-    logger.info(
-        "Fit equations accumulated: representation=%s parameters=%d structures=%d elapsed_s=%.2f",
-        representation,
-        parameters,
-        count,
-        perf_counter() - started,
+    print(
+        f"Fit equations: representation {representation}, parameters {parameters}, "
+        f"structures {count}, {perf_counter() - started:.2f} s"
     )
     return matrix, rhs, force_squared_norm, count * design.rows, count
 

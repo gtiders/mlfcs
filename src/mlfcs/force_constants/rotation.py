@@ -15,10 +15,7 @@ import numpy as np
 from scipy import sparse
 
 from mlfcs.force_constants.model import ForceConstants
-from mlfcs.foundation.log import get_logger
 from mlfcs.foundation.tensors import rotate_basis
-
-logger = get_logger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -289,11 +286,9 @@ def enforce_rotation(
     if 2 not in model.coefficients:
         raise ValueError("rotational invariance requires FC2")
     started = perf_counter()
-    logger.info(
-        "Rotation projection started: born_huang=%s huang=%s rank_rtol=%s",
-        born_huang,
-        huang,
-        rank_rtol if rank_rtol is not None else "automatic",
+    print(
+        f"Rotation projection: born_huang {born_huang}, huang {huang}, "
+        f"rank_rtol {rank_rtol if rank_rtol is not None else 'automatic'}"
     )
     coordinates = model.cluster_space.acoustic_coordinates(2)
     if coordinates is None:
@@ -367,16 +362,11 @@ def enforce_rotation(
         geometry_residual=geometry_residual,
         orthogonality_residual=orthogonality_residual,
     )
-    logger.info(
-        "Rotation projection complete: retained_rank=%d rank_cutoff=%.6g "
-        "relative_before=%.6g relative_after=%.6g correction_norm=%.6g "
-        "elapsed_s=%.2f",
-        report.retained_rank,
-        report.rank_cutoff,
-        report.relative_before,
-        report.relative_after,
-        report.correction_norm,
-        perf_counter() - started,
+    print(
+        f"Rotation projection complete: retained rank {report.retained_rank}, "
+        f"cutoff {report.rank_cutoff:.3g}, relative {report.relative_before:.3g} -> "
+        f"{report.relative_after:.3g}, correction {report.correction_norm:.3g}, "
+        f"{perf_counter() - started:.2f} s"
     )
     return report
 

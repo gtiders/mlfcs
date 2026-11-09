@@ -11,15 +11,12 @@ from ase.dft.kpoints import BandPath, parse_path_string
 
 from mlfcs.force_constants import ForceConstants
 from mlfcs.foundation.arrays import readonly
-from mlfcs.foundation.log import get_logger
 from mlfcs.phonon.dynamics import (
     THZ_PER_SQRT_EV_PER_A2_AMU,
     accumulate_dynamical_matrices,
     prepare_dynamical_terms,
 )
 from mlfcs.phonon.grid import QStars, as_qgrid, mass_preserving_symmetry
-
-logger = get_logger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -159,7 +156,7 @@ class Harmonic:
         if not isinstance(model, ForceConstants) or 2 not in model.coefficients:
             raise ValueError("harmonic frequencies require ForceConstants containing FC2")
         started = perf_counter()
-        logger.info("Harmonic preparation started: primitive_atoms=%d", model.cluster_space.n_atoms)
+
         space = model.cluster_space
         masses = space.masses
         terms, lattice = prepare_dynamical_terms(model)
@@ -168,10 +165,9 @@ class Harmonic:
         self._masses = masses
         self._terms = terms
         self._tensors = tensors
-        logger.info(
-            "Harmonic preparation complete: terms=%d elapsed_s=%.2f",
-            len(terms.first_sites),
-            perf_counter() - started,
+        print(
+            f"Harmonic prepared: primitive atoms {model.cluster_space.n_atoms}, "
+            f"terms {len(terms.first_sites)}, {perf_counter() - started:.2f} s"
         )
 
     @property
@@ -229,15 +225,11 @@ class Harmonic:
             np.sign(eigenvalues) * np.sqrt(np.abs(eigenvalues)) * THZ_PER_SQRT_EV_PER_A2_AMU
         )
         n_qpoints = len(frequencies) if frequencies.ndim == 2 else 1
-        logger.info(
-            "Harmonic frequencies: qpoints=%d modes_per_q=%d imaginary_modes=%d "
-            "range=[%.8g, %.8g] THz elapsed=%.2f s",
-            n_qpoints,
-            frequencies.shape[-1],
-            int(np.count_nonzero(frequencies < 0.0)),
-            float(np.min(frequencies)),
-            float(np.max(frequencies)),
-            perf_counter() - started,
+        print(
+            f"Harmonic frequencies: qpoints {n_qpoints}, modes per q {frequencies.shape[-1]}, "
+            f"imaginary {int(np.count_nonzero(frequencies < 0.0))}, "
+            f"range [{float(np.min(frequencies)):.4g}, {float(np.max(frequencies)):.4g}] THz, "
+            f"{perf_counter() - started:.2f} s"
         )
         return frequencies
 
@@ -253,23 +245,17 @@ class Harmonic:
         started = perf_counter()
         grid = as_qgrid(mesh)
         symmetry = mass_preserving_symmetry(self.model.cluster_space.symmetry, self.masses)
-        logger.info(
-            "Harmonic mesh started: qpoints=%d mass_preserving_operations=%d time_reversal=%s",
-            grid.size,
-            symmetry.size,
-            time_reversal,
-        )
+
         stars = QStars(
             grid,
             symmetry,
             time_reversal=time_reversal,
         )
         result = HarmonicMeshResult(self.frequencies(stars), stars)
-        logger.info(
-            "Harmonic mesh complete: full_qpoints=%d irreducible_qpoints=%d elapsed_s=%.2f",
-            grid.size,
-            len(result.qpoints),
-            perf_counter() - started,
+        print(
+            f"Harmonic mesh: full qpoints {grid.size}, "
+            f"irreducible {len(result.qpoints)}, time reversal {time_reversal}, "
+            f"operations {symmetry.size}, {perf_counter() - started:.2f} s"
         )
         return result
 

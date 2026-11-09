@@ -1,9 +1,7 @@
-"""Numerical behavior of log."""
+"""Printed progress summaries for every task in the library."""
 
 from __future__ import annotations
 
-import logging
-import re
 from contextlib import redirect_stdout
 from io import StringIO
 
@@ -16,64 +14,14 @@ from ase.calculators.singlepoint import SinglePointCalculator
 from mlfcs import ClusterMap, ClusterSpace, FiniteDifference, FitSystem, ForceConstants
 from mlfcs.dataset import ForceDataset
 from mlfcs.fitting.design import ForceDesign
-from mlfcs.foundation.log import configure, get_logger
 from mlfcs.phonon import SCPH, Harmonic
-
-
-@pytest.fixture
-def package_log():
-    """Isolate package handlers/level and restore them even after a failed assertion."""
-    package = logging.getLogger("mlfcs")
-    handlers, level, propagate = (package.handlers[:], package.level, package.propagate)
-    package.handlers = []
-    configure()
-    try:
-        yield package
-    finally:
-        for handler in package.handlers:
-            if handler not in handlers:
-                handler.close()
-        package.handlers = handlers
-        package.setLevel(level)
-        package.propagate = propagate
-
-
-def test_logging_configuration_sets_levels_without_duplicate_output(package_log):
-    """Verify logging configuration sets levels without duplicate output."""
-    output = StringIO()
-    with redirect_stdout(output):
-        configure(level=logging.DEBUG)
-        configure(level=logging.DEBUG)
-        get_logger("test").debug("once-marker")
-        configure(level=logging.WARNING)
-        get_logger("test").info("hidden-marker")
-        get_logger("test").warning("visible-marker")
-    text = output.getvalue()
-    assert text.count("once-marker") == 1
-    assert "hidden-marker" not in text
-    assert "visible-marker" in text
-    assert re.match("\\d{4}-\\d\\d-\\d\\d \\d\\d:\\d\\d:\\d\\d DEBUG mlfcs.test: ", text)
-
-
-def test_logging_follows_current_stdout(package_log, tmp_path):
-    """Verify logging follows current stdout."""
-    log = get_logger("test")
-    path = tmp_path / "captured.log"
-    with path.open("w") as file, redirect_stdout(file):
-        log.info("inside-marker")
-    output = StringIO()
-    with redirect_stdout(output):
-        log.info("after-marker")
-    assert "inside-marker" in path.read_text()
-    assert "after-marker" in output.getvalue()
-    assert "after-marker" not in path.read_text()
 
 
 @pytest.mark.parametrize(
     "representation,algorithm", [("normal", "MINRES"), ("raw", "least_squares")]
 )
-def test_fit_logs_progress_quality_and_preserves_results(package_log, representation, algorithm):
-    """Verify fit logs progress quality and preserves results."""
+def test_fit_prints_progress_quality_and_returns_a_finite_model(representation, algorithm):
+    """Verify a fit prints its stages and keeps the fitted model finite."""
     output = StringIO()
     with redirect_stdout(output):
         space = ClusterSpace(bulk("Ar", "sc", a=1.0), cutoffs={2: 0.1})
@@ -91,42 +39,36 @@ def test_fit_logs_progress_quality_and_preserves_results(package_log, representa
         consumed = []
 
         def samples():
-            """Provide samples."""
+            """Provide the prepared structures one at a time."""
             for index, atoms in enumerate(structures):
                 consumed.append(index)
                 yield atoms
 
         system = FitSystem(ForceDataset(mapping, samples()), representation=representation)
-        configure(level=logging.DEBUG)
-        observed = system.solve()
-        configure(level=logging.WARNING)
-        quiet = system.solve()
-    np.testing.assert_array_equal(observed.parameters(), quiet.parameters())
+        model = system.solve()
     assert consumed == list(range(12))
+    assert np.all(np.isfinite(model.parameters()))
     text = output.getvalue()
     for required in (
         "Build ClusterSpace:",
         "Symmetry:",
-        "candidates ",
         "Total: orbits ",
         "Mapping complete",
-        "Folded rank complete",
-        "Force-design compilation complete",
-        "Fit-system construction started",
-        "Fit-system accumulation: structures=1 ",
-        "Fit-system accumulation: structures=10 ",
-        "Fit-system complete",
-        "Fit solve started",
-        f"algorithm={algorithm}",
-        "stop_code=" if representation == "normal" else "rank=",
-        "training_force_rmse=",
-        "training_relative_force_error=",
+        "Folded rank:",
+        "Force design ready:",
+        "Fit system:",
+        "Fit accumulation: structures 1,",
+        "Fit accumulation: structures 10,",
+        "Fit equations:",
+        "Fit solve:",
+        "Fit complete: RMSE ",
+        f"Solver: {algorithm.replace('_', ' ')}",
     ):
         assert required in text
 
 
-def test_task_summaries_cover_difference_projection_phonons_and_output(package_log, tmp_path):
-    """Verify task summaries cover difference projection phonons and output."""
+def test_task_summaries_cover_difference_projection_phonons_and_output(tmp_path):
+    """Verify every task prints a summary for its inputs and results."""
     output = StringIO()
     with redirect_stdout(output):
         atoms = bulk("Ar", "sc", a=1.0)
@@ -177,12 +119,12 @@ def test_task_summaries_cover_difference_projection_phonons_and_output(package_l
         difference.reap(ForceDataset(mapping, samples))
     text = output.getvalue()
     for required in (
-        "Rotation projection complete",
-        "Harmonic mesh complete",
-        "SCPH run complete",
-        "Native save complete",
-        "Native load complete",
-        "Export complete",
-        "Finite-difference reconstruction complete",
+        "Rotation projection",
+        "Harmonic mesh:",
+        "SCPH complete:",
+        "Saved model ",
+        "Loaded model ",
+        "Exported ",
+        "Finite difference reconstruction:",
     ):
         assert required in text

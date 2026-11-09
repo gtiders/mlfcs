@@ -10,11 +10,8 @@ import numpy as np
 from numba import get_num_threads, get_thread_id, njit, prange
 
 from mlfcs.foundation.arrays import as_int64_array, readonly, require_allocation
-from mlfcs.foundation.log import get_logger
 from mlfcs.foundation.tensors import rotate_basis
 from mlfcs.mapping import ClusterMap
-
-logger = get_logger(__name__)
 
 # Translations per accumulation block: small enough that one thread's
 # (block, 3, dimension) buffer stays in L1.
@@ -153,12 +150,7 @@ class ForceDesign:
     def __init__(self, cluster_map: ClusterMap):
         """Construct the force model for a structurally identifiable supercell."""
         started = perf_counter()
-        logger.info(
-            "Force-design compilation started: supercell_atoms=%d orders=%s parameters=%d",
-            cluster_map.n_atoms,
-            cluster_map.cluster_space.orders,
-            cluster_map.cluster_space.n_parameters,
-        )
+
         cluster_map.rank_info().require_full()
         self.cluster_map = cluster_map
         self.rows = 3 * len(cluster_map.atomic_numbers)
@@ -169,17 +161,14 @@ class ForceDesign:
             for order in cluster_map.cluster_space.orders
         )
         for order, compiled in zip(cluster_map.cluster_space.orders, self.orders, strict=True):
-            logger.info(
-                "Force-design order ready: order=%d images=%d basis_bytes=%d",
-                order,
-                len(compiled.image_atoms),
-                compiled.image_basis.nbytes,
+            print(
+                f"Force design FC{order}: images {len(compiled.image_atoms)}, "
+                f"basis {compiled.image_basis.nbytes / 2**20:.2f} MiB"
             )
-        logger.info(
-            "Force-design compilation complete: rows=%d columns=%d elapsed_s=%.2f",
-            self.rows,
-            self.n_parameters,
-            perf_counter() - started,
+        print(
+            f"Force design ready: rows {self.rows}, columns {self.n_parameters}, "
+            f"supercell atoms {cluster_map.n_atoms}, orders {cluster_map.cluster_space.orders}, "
+            f"{perf_counter() - started:.2f} s"
         )
 
     @property
@@ -194,12 +183,7 @@ class ForceDesign:
         capacity is captured from the current Numba thread count.
         """
         workspace = allocate_design_workspace(tuple(order.max_dimension for order in self.orders))
-        logger.debug(
-            "Design workspace allocated: threads=%d block=%d accumulator_bytes=%d",
-            workspace.threads,
-            workspace.block_length,
-            sum(array.nbytes for array in workspace.accumulator),
-        )
+
         return workspace
 
     def matrix(self, displacement: np.ndarray, *, workspace=None) -> np.ndarray:

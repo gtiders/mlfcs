@@ -1,8 +1,5 @@
 """Symmetry-reduced force constants in primitive-cell coordinates."""
 
-from mlfcs.foundation.log import configure
-
-configure()
 from mlfcs.cluster_space import ClusterSpace
 from mlfcs.dataset import ForceDataset
 from mlfcs.finite_difference import FiniteDifference
