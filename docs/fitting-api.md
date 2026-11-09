@@ -251,7 +251,6 @@ space = ClusterSpace(
     asr=True,
 )
 mapping = ClusterMap(space, space.primitive_atoms.repeat((3, 3, 3)))
-mapping.rank_info().require_full()
 
 structures = []
 for seed in range(24):

@@ -106,7 +106,6 @@ mapping = ClusterMap(space, supercell_atoms)
 
 info = mapping.rank_info(order=2)
 print(info.parameters, info.rank, info.nullity)
-info.require_full()
 ```
 
 ### 晶胞关系与原子顺序
@@ -138,7 +137,7 @@ $$
 - `aliases`：重复折叠像的计数诊断，不能直接当作丢失参数数。
 - `require_full()`：完整时返回 `None`；不完整时抛出 `ValueError`。
 
-创建 mapping 本身不会因为秩不足而拒绝它。有限差分和拟合的入口会要求完整可辨识性，因此建议在昂贵的力计算之前主动检查。发生混叠时，应更换超胞大小或形状，或重新考虑模型范围；增加同一个超胞的训练帧无法补回结构上丢失的信息。满秩也不保证后续训练数据足够丰富，它只排除了这类结构性损失。
+创建 mapping 本身不会因为秩不足而拒绝它：`ForceDesign` 与 `FiniteDifference` 的构造会自动要求完整可辨识性并抛出 `ValueError`，所以拟合和有限差分路径不需要手动检查。`rank_info()` 留给两种场合：在生成昂贵的力之前单独查看，以及需要逐阶诊断或允许混叠时（例如只做势函数计算）。发生混叠时，应更换超胞大小或形状，或重新考虑模型范围；增加同一个超胞的训练帧无法补回结构上丢失的信息。满秩也不保证后续训练数据足够丰富，它只排除了这类结构性损失。
 
 ### 查看对应关系与周期地址
 
@@ -251,7 +250,6 @@ space = ClusterSpace(
 
 supercell = space.primitive_atoms.repeat((3, 3, 3))
 mapping = ClusterMap(space, supercell, supercell_matrix=np.diag([3, 3, 3]))
-mapping.rank_info().require_full()
 
 structures = []
 for seed in range(4):

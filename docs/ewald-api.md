@@ -198,7 +198,6 @@ space = ClusterSpace(
     asr=True,
 )
 mapping = ClusterMap(space, read("SPOSCAR"))
-mapping.rank_info().require_full()
 dataset = ForceDataset(mapping, iread("train.extxyz", index=":"))
 
 ewald = DipoleEwald(
