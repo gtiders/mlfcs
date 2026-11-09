@@ -24,14 +24,16 @@ classifiers = [
 # Bounds are the oldest releases that install and pass the suite on the supported
 # interpreters, not the versions this checkout happens to run. numpy 1.26 is the
 # first with 3.12 wheels; ase 3.22 the first that imports on 3.12 (older ones pull
-# the removed distutils); numba 0.59 the first with 3.12 wheels; scipy 1.12 the
-# first whose minres accepts rtol; spglib 2.5 the first returning the symmetry
+# the removed distutils); numba 0.61 the first with llvmlite 0.44, whose IR
+# builder exposes explicit load/store pointee types, GEP element types and
+# opaque-pointer queries used by the vectorized force-design kernel; scipy 1.12
+# the first whose minres accepts rtol; spglib 2.5 the first returning the symmetry
 # dataset as an object with attributes; h5py 3.11 the first with NumPy 2
 # compatible wheels (3.10 fails on NumPy 2 with a dtype size mismatch).
 dependencies = [
     "ase>=3.22",
     "h5py>=3.11",
-    "numba>=0.59",
+    "numba>=0.61",
     "numpy>=1.26",
     "scipy>=1.12",
     "spglib>=2.5",

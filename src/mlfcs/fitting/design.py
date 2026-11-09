@@ -8,8 +8,7 @@ from time import perf_counter
 
 import numpy as np
 from llvmlite import ir
-from numba import get_num_threads, get_thread_id, njit, prange
-from numba.core import cgutils, types
+from numba import get_num_threads, get_thread_id, njit, prange, types
 from numba.extending import intrinsic
 
 from mlfcs.foundation.arrays import as_int64_array, readonly, require_allocation
@@ -29,47 +28,54 @@ _LANES = 8
 
 
 @intrinsic
-def _axpy4(typingctx, target, offset, source, source_offset, value):
-    """Emit one four-lane fused multiply-add into ``target``.
+def _axpy8(typingctx, target, offset, source, source_offset, value):
+    """Emit one eight-lane fused multiply-add into ``target``.
 
     Writes ``target[offset + i] += value * source[source_offset + i]`` for
-    ``i`` in ``0, 1, 2, 3`` as a single ``<4 x double>`` load, broadcast,
-    ``llvm.fma`` and store. Alignment is declared as one double because the
-    offsets are arbitrary; an aligned declaration would fault on the JIT.
+    ``i`` in ``0, ..., 7`` as one ``<8 x double>`` load, broadcast, fused
+    multiply-add and store. The data pointers come from Numba's array model and
+    the GEP carries the element type explicitly, so no integer/pointer round
+    trip occurs and both typed and opaque pointer IR are supported. Alignment
+    is declared as one double because the offsets are arbitrary; an aligned
+    declaration would fault on the JIT.
     """
     signature = types.void(target, offset, source, source_offset, value)
 
     def codegen(context, builder, sig, args):
+        """Emit one unaligned eight-double load, fused multiply-add and store."""
         target_array, target_offset, source_array, source_offset, scalar = args
-        double = context.get_value_type(types.float64)
+        double = ir.DoubleType()
         vector = ir.VectorType(double, _LANES)
-        target_base = cgutils.create_struct_proxy(sig.args[0])(
+        target_ptr = context.make_array(sig.args[0])(
             context, builder, value=target_array
         ).data
-        source_base = cgutils.create_struct_proxy(sig.args[2])(
+        source_ptr = context.make_array(sig.args[2])(
             context, builder, value=source_array
         ).data
-        target_ptr = builder.bitcast(
-            builder.gep(target_base, [target_offset]), ir.PointerType(vector)
-        )
-        source_ptr = builder.bitcast(
-            builder.gep(source_base, [source_offset]), ir.PointerType(vector)
-        )
-        accumulated = builder.load(target_ptr, align=8)
-        factor = ir.Constant(vector, None)
+        target_ptr = builder.gep(target_ptr, [target_offset], source_etype=double)
+        source_ptr = builder.gep(source_ptr, [source_offset], source_etype=double)
+        if not target_ptr.type.is_opaque:
+            target_ptr = builder.bitcast(target_ptr, ir.PointerType(vector))
+            source_ptr = builder.bitcast(source_ptr, ir.PointerType(vector))
+        accumulated = builder.load(target_ptr, typ=vector, align=8)
+        factor = ir.Constant(vector, ir.Undefined)
         for lane in range(_LANES):
-            factor = builder.insert_element(factor, scalar, context.get_constant(types.int32, lane))
+            factor = builder.insert_element(
+                factor, scalar, ir.Constant(ir.IntType(32), lane)
+            )
         name = f"llvm.fma.v{_LANES}f64"
         fused = builder.module.globals.get(name)
         if fused is None:
             fused = ir.Function(
                 builder.module,
                 ir.FunctionType(vector, [vector, vector, vector]),
-                name,
+                name=name,
             )
-        product = builder.call(fused, [factor, builder.load(source_ptr, align=8), accumulated])
+        product = builder.call(
+            fused,
+            [factor, builder.load(source_ptr, typ=vector, align=8), accumulated],
+        )
         builder.store(product, target_ptr, align=8)
-        return context.get_dummy_value()
 
     return signature, codegen
 
@@ -406,7 +412,7 @@ def accumulate_design(
                             value = -factor * monomial
                             target = (local * 3 + direction) * dimension_count
                             for dimension in range(0, dimension_count - (_LANES - 1), _LANES):
-                                _axpy4(
+                                _axpy8(
                                     block,
                                     target + dimension,
                                     image_basis,
