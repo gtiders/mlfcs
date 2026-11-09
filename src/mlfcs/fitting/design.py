@@ -7,7 +7,10 @@ from math import factorial
 from time import perf_counter
 
 import numpy as np
+from llvmlite import ir
 from numba import get_num_threads, get_thread_id, njit, prange
+from numba.core import cgutils, types
+from numba.extending import intrinsic
 
 from mlfcs.foundation.arrays import as_int64_array, readonly, require_allocation
 from mlfcs.foundation.tensors import rotate_basis
@@ -16,6 +19,57 @@ from mlfcs.mapping import ClusterMap
 # Translations per accumulation block: small enough that one thread's
 # (block, 3, dimension) buffer stays in L1.
 _TRANSLATION_BLOCK = 16
+
+# Vector width of the accumulation kernel. Numba's loop vectorizer cannot pack
+# ``block[target + d] += value * basis[base + d]`` because the target index is a
+# runtime value, so the lane group is emitted as explicit LLVM IR instead.
+_LANES = 4
+
+
+@intrinsic
+def _axpy4(typingctx, target, offset, source, source_offset, value):
+    """Emit one four-lane fused multiply-add into ``target``.
+
+    Writes ``target[offset + i] += value * source[source_offset + i]`` for
+    ``i`` in ``0, 1, 2, 3`` as a single ``<4 x double>`` load, broadcast,
+    ``llvm.fma`` and store. Alignment is declared as one double because the
+    offsets are arbitrary; an aligned declaration would fault on the JIT.
+    """
+    signature = types.void(target, offset, source, source_offset, value)
+
+    def codegen(context, builder, sig, args):
+        target_array, target_offset, source_array, source_offset, scalar = args
+        double = context.get_value_type(types.float64)
+        vector = ir.VectorType(double, _LANES)
+        target_base = cgutils.create_struct_proxy(sig.args[0])(
+            context, builder, value=target_array
+        ).data
+        source_base = cgutils.create_struct_proxy(sig.args[2])(
+            context, builder, value=source_array
+        ).data
+        target_ptr = builder.bitcast(
+            builder.gep(target_base, [target_offset]), ir.PointerType(vector)
+        )
+        source_ptr = builder.bitcast(
+            builder.gep(source_base, [source_offset]), ir.PointerType(vector)
+        )
+        accumulated = builder.load(target_ptr, align=8)
+        factor = ir.Constant(vector, None)
+        for lane in range(_LANES):
+            factor = builder.insert_element(factor, scalar, context.get_constant(types.int32, lane))
+        name = f"llvm.fma.v{_LANES}f64"
+        fused = builder.module.globals.get(name)
+        if fused is None:
+            fused = ir.Function(
+                builder.module,
+                ir.FunctionType(vector, [vector, vector, vector]),
+                name,
+            )
+        product = builder.call(fused, [factor, builder.load(source_ptr, align=8), accumulated])
+        builder.store(product, target_ptr, align=8)
+        return context.get_dummy_value()
+
+    return signature, codegen
 
 
 @dataclass(frozen=True, slots=True)
@@ -347,7 +401,17 @@ def accumulate_design(
                                     ]
                             value = -factor * monomial
                             target = (local * 3 + direction) * dimension_count
-                            for dimension in range(dimension_count):
+                            for dimension in range(0, dimension_count - (_LANES - 1), _LANES):
+                                _axpy4(
+                                    block,
+                                    target + dimension,
+                                    image_basis,
+                                    basis_row + dimension,
+                                    value,
+                                )
+                            for dimension in range(
+                                dimension_count - dimension_count % _LANES, dimension_count
+                            ):
                                 block[target + dimension] += (
                                     value * image_basis[basis_row + dimension]
                                 )
