@@ -8,6 +8,7 @@ build/
 dist/
 wheels/
 .venv/
+.python-version
 
 # 构建与本地工具输出
 site/
