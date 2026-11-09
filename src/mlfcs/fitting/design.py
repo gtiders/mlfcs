@@ -22,8 +22,10 @@ _TRANSLATION_BLOCK = 16
 
 # Vector width of the accumulation kernel. Numba's loop vectorizer cannot pack
 # ``block[target + d] += value * basis[base + d]`` because the target index is a
-# runtime value, so the lane group is emitted as explicit LLVM IR instead.
-_LANES = 4
+# runtime value, so the lane group is emitted as explicit LLVM IR instead. Eight
+# lanes map to one AVX-512 register; hosts without AVX-512 legalize the same IR
+# into two 256-bit halves.
+_LANES = 8
 
 
 @intrinsic
