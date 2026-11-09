@@ -41,7 +41,7 @@ supercell_atoms = primitive_atoms.repeat((3, 3, 3))
 mapping = ClusterMap(space, supercell_atoms, supercell_matrix=np.diag([3, 3, 3]))
 ```
 
-参考超胞是明确的数据输入；MLFCS 不会静默选择或扩展它。在生成昂贵的力之前，应通过 `mapping.rank_info()` 检查它能否辨识所需模型。有限差分和拟合路径分别见对应 API 文档。
+参考超胞是明确的数据输入；MLFCS 不会静默选择或扩展它。拟合与有限差分的入口会自动检查它能否辨识所需模型；`mapping.rank_info()` 用于在生成昂贵的力之前单独查看，或逐阶诊断。有限差分和拟合路径分别见对应 API 文档。
 
 ## 范围
 
@@ -56,13 +56,9 @@ mapping = ClusterMap(space, supercell_atoms, supercell_matrix=np.diag([3, 3, 3])
 阅读[文档站](https://gtiders.github.io/mlfcs/)。源文件位于 [docs](docs/)，教程
 notebook 位于 [docs/notebooks](docs/notebooks/)。
 
-## 引用
-
-若 MLFCS 对发表工作有所贡献，请使用 [CITATION.cff](CITATION.cff) 中的软件引用信息。
-
 ## 贡献
 
-参见 [CONTRIBUTING_ZH.md](CONTRIBUTING_ZH.md) 和[问题追踪](https://github.com/gtiders/mlfcs/issues)。
+问题与建议请提交到[问题追踪](https://github.com/gtiders/mlfcs/issues)。
 
 ## 许可证
 
