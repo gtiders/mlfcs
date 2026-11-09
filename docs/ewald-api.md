@@ -68,7 +68,7 @@ Ewald 偶极尾没有被 cluster cutoff 截断。cutoff 限制的是一份额外
 
 因此，改变 FC2 cutoff 会改变局域支持与长短程分解，onsite 也会随之变化；远距离偶极尾保持。每次改变这份分解，都应重新扣除、拟合和回加，比较总结果，而不是只比较短程系数。
 
-局域支持不足以恢复所需条件时抛出 `ConstraintProjectionError`，不会自动扩大 cutoff 或返回未经修正的版本。初始化还检查最终超胞 FC2 的 ASR 和交换对称性。这里不施加 Born–Huang 旋转约束。
+局域支持不足以恢复所需条件时抛出 `ValueError`，对称性检查失败时抛出 `RuntimeError`，都不会自动扩大 cutoff 或返回未经修正的版本。初始化还检查最终超胞 FC2 的 ASR 和交换对称性。这里不施加 Born–Huang 旋转约束。
 
 Ewald 自身的局域与 onsite 修正不依赖 `ClusterSpace.asr` 开关，长程 FC2 会单独满足 ASR。若总力来自平移不变的模型，短程恢复通常也使用 `ClusterSpace(..., asr=True)`；该开关约束短程拟合或差分，不是启动 Ewald 求和的开关。
 

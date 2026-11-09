@@ -21,7 +21,6 @@ from scipy.linalg import lstsq
 from mlfcs.cluster_space import ClusterSpace
 from mlfcs.force_constants import CompactForceConstants
 from mlfcs.foundation.arrays import as_int64_array, require_allocation
-from mlfcs.foundation.errors import ConstraintProjectionError
 from mlfcs.foundation.tensors import rotate_basis
 from mlfcs.geometry.lattice import LatticeSite
 from mlfcs.mapping import ClusterMap
@@ -270,7 +269,7 @@ def _local_correction(space, raw_rows, rtol, atol):
     else:
         whitened_coordinates = np.empty(0)
     if np.max(np.abs(matrix @ whitened_coordinates - target), initial=0) > tolerance:
-        raise ConstraintProjectionError(
+        raise ValueError(
             "FC2 cutoff provides insufficient non-onsite space for the Ewald local correction"
         )
     result = []
@@ -286,7 +285,7 @@ def _local_correction(space, raw_rows, rtol, atol):
             result.append((row, _freeze(tensor)))
     onsite = -(raw_rows + correction_rows)
     if np.max(np.abs(onsite - onsite.transpose(0, 2, 1)), initial=0) > tolerance:
-        raise ConstraintProjectionError("Ewald local correction failed onsite symmetry")
+        raise RuntimeError("Ewald local correction failed onsite symmetry")
     return tuple(result), onsite, float(np.linalg.norm(whitened_coordinates))
 
 
@@ -321,7 +320,7 @@ def _supercell_tensors(mapping, born, epsilon, alpha, correction, onsite, rtol, 
     scale = float(np.max(np.abs(compact), initial=0))
     asr = float(np.max(np.abs(compact.sum(axis=1)), initial=0))
     if asr > atol + rtol * scale:
-        raise ConstraintProjectionError("corrected Ewald supercell FC2 failed ASR")
+        raise RuntimeError("corrected Ewald supercell FC2 failed ASR")
     anchor_labels = np.column_stack(
         (np.arange(space.n_atoms), np.zeros((space.n_atoms, 3), dtype=np.int64))
     )
@@ -333,7 +332,7 @@ def _supercell_tensors(mapping, born, epsilon, alpha, correction, onsite, rtol, 
         counterparts = mapping.map_labels(anchor_labels, translation)[:, 0]
         difference = compact[:, atom] - compact[site, counterparts].transpose(0, 2, 1)
         if np.max(np.abs(difference), initial=0) > atol + rtol * scale:
-            raise ConstraintProjectionError("corrected Ewald FC2 failed exchange symmetry")
+            raise RuntimeError("corrected Ewald FC2 failed exchange symmetry")
     return CompactForceConstants({2: _freeze(compact)}, mapping), asr
 
 
@@ -341,35 +340,36 @@ def _supercell_tensors(mapping, born, epsilon, alpha, correction, onsite, rtol, 
 class DipoleEwald:
     """Long-range harmonic dipole model for a fixed periodic supercell.
 
-    The model evaluates screened dipole-dipole FC2 from primitive Born
-    effective charges and the electronic dielectric tensor using three-
-    dimensional Ewald summation. Omitting the reciprocal zero vector imposes
-    zero macroscopic electric field. Born charges use primitive-site order,
-    polarization then displacement axes, and elementary-charge units. The
-    dielectric tensor is expressed in Cartesian coordinates.
+        The model evaluates screened dipole-dipole FC2 from primitive Born
+        effective charges and the electronic dielectric tensor using three-
+        dimensional Ewald summation. Omitting the reciprocal zero vector imposes
+        zero macroscopic electric field. Born charges use primitive-site order,
+        polarization then displacement axes, and elementary-charge units. The
+        dielectric tensor is expressed in Cartesian coordinates.
 
-    A finite local correction is constructed from non-onsite FC2 orbits in the
-    associated ``ClusterSpace``. Its coefficients minimize the Frobenius norm
-    of the expanded Cartesian correction while restoring onsite symmetry; the
-    onsite term then enforces the acoustic sum rule. The correction support
-    depends on the FC2 cutoff, but the infinite dipole tail is not truncated.
-    Exchange and space-group symmetry are preserved; Born-Huang rotational
-    constraints are not imposed.
+        A finite local correction is constructed from non-onsite FC2 orbits in the
+        associated ``ClusterSpace``. Its coefficients minimize the Frobenius norm
+        of the expanded Cartesian correction while restoring onsite symmetry; the
+        onsite term then enforces the acoustic sum rule. The correction support
+        depends on the FC2 cutoff, but the infinite dipole tail is not truncated.
+        Exchange and space-group symmetry are preserved; Born-Huang rotational
+        constraints are not imposed.
 
-    The corrected interaction is folded into the selected supercell and stored
-    as compact FC2. It can evaluate harmonic forces and be exported for that
-    supercell, but the folded result alone does not define arbitrary-q long-range
-    response. Born charges, dielectric response, and interaction centers remain
-    fixed at the reference geometry, so this is not a nonlinear point-charge
-    potential. A different supercell requires another model.
+        The corrected interaction is folded into the selected supercell and stored
+        as compact FC2. It can evaluate harmonic forces and be exported for that
+        supercell, but the folded result alone does not define arbitrary-q long-range
+        response. Born charges, dielectric response, and interaction centers remain
+        fixed at the reference geometry, so this is not a nonlinear point-charge
+        potential. A different supercell requires another model.
 
-    ``rtol`` and ``atol`` control summation convergence and residual checks;
-    ``atol`` is in eV/angstrom**2. Successive cutoff expansions are a numerical
-    convergence check, not a rigorous tail certificate. Insufficient local
-    correction support raises ``ConstraintProjectionError``. ``correction_norm``
-    is the Frobenius norm of the expanded non-onsite local correction,
-    excluding the separately determined onsite ASR term, and
-    ``asr_residual`` is the maximum absolute row-sum residual of the folded FC2.
+        ``rtol`` and ``atol`` control summation convergence and residual checks;
+        ``atol`` is in eV/angstrom**2. Successive cutoff expansions are a numerical
+        convergence check, not a rigorous tail certificate. Insufficient local
+        correction support raises ``ValueError``, and a failed symmetry check raises
+    ``RuntimeError``. ``correction_norm``
+        is the Frobenius norm of the expanded non-onsite local correction,
+        excluding the separately determined onsite ASR term, and
+        ``asr_residual`` is the maximum absolute row-sum residual of the folded FC2.
     """
 
     cluster_map: ClusterMap

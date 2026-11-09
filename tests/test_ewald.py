@@ -8,7 +8,6 @@ from ase.calculators.singlepoint import SinglePointCalculator
 
 from mlfcs import ClusterMap, ClusterSpace, DipoleEwald, FitSystem, ForceDataset
 from mlfcs.fitting.design import ForceDesign
-from mlfcs.foundation.errors import ConstraintProjectionError
 from mlfcs.phonon.ewald import _raw_fc2
 
 
@@ -117,7 +116,7 @@ def test_insufficient_local_support_fails_without_fallback(polar_model):
     mapping, born, epsilon = polar_model
     atoms = mapping.cluster_space.primitive_atoms
     small = ClusterMap(ClusterSpace(atoms, cutoffs={2: 0.01}), atoms)
-    with pytest.raises(ConstraintProjectionError, match="insufficient"):
+    with pytest.raises(ValueError, match="insufficient"):
         DipoleEwald(small, born_charges=born, dielectric=epsilon)
 
 

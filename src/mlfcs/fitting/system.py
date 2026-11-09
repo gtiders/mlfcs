@@ -65,7 +65,7 @@ class FitSystem:
         Samples, representation or stored force values are inconsistent.
     TypeError
         The input is not a ForceDataset.
-    AliasingError
+    ValueError
         The supercell cannot distinguish all primitive parameters.
     OverflowError
         An actual equation/workspace allocation exceeds representable capacity.
@@ -235,7 +235,7 @@ class FitSystem:
 
         Raises
         ------
-        UnobservedParameterError
+        ValueError
             One or more parameter columns are identically zero.
         RuntimeError
             The selected algorithm fails its stopping conditions.

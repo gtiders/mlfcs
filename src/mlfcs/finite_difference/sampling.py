@@ -72,7 +72,7 @@ class FiniteDifference:
     ------
     ValueError
         Steps or order are invalid.
-    AliasingError
+    ValueError
         Supercell folding loses required parameters.
     """
 

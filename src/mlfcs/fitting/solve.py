@@ -9,8 +9,6 @@ import numpy as np
 from scipy.linalg import lstsq
 from scipy.sparse.linalg import minres
 
-from mlfcs.foundation.errors import UnobservedParameterError
-
 if TYPE_CHECKING:
     from mlfcs.fitting.system import FitSystem
 
@@ -41,7 +39,7 @@ class FitSolver:
     def solve(self, **options) -> np.ndarray:
         """Return unscaled fitting coordinates using the representation's algorithm.
 
-        Reject completely unobserved columns with UnobservedParameterError. Options
+        Reject completely unobserved columns with ValueError. Options
         are forwarded only to the selected algorithm; incompatible names raise
         TypeError. Nonconvergence raises RuntimeError and nonfinite output
         raises ValueError. The system's readonly arrays remain unchanged.
@@ -66,10 +64,8 @@ class FitSolver:
                 for index in missing[:12]
             )
             remainder = "" if len(missing) <= 12 else f", and {len(missing) - 12} more"
-            raise UnobservedParameterError(
-                f"{len(missing)} parameters are absent from the training design: "
-                f"{shown}{remainder}. Add structurally different displacements or merge another "
-                "FitSystem. Regularization cannot recover a parameter absent from the design."
+            raise ValueError(
+                f"{len(missing)} parameters are absent from the training design: {shown}{remainder}"
             )
         if self.system.representation == "normal":
             fitting_coordinates = self._normal(**options)

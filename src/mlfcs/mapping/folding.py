@@ -14,7 +14,6 @@ import numpy as np
 from numba import njit
 
 from mlfcs.foundation.arrays import require_allocation, require_bound
-from mlfcs.foundation.errors import AliasingError, RankError
 from mlfcs.foundation.integer import as_int64_matrix, echelon, prime_stream, to_python_rows
 from mlfcs.foundation.tensors import apply_tensor_action, tensor_action_bound
 
@@ -51,7 +50,7 @@ def _matrix_rank(matrix: object) -> int:
 
     Raises
     ------
-    RankError
+    ArithmeticError
         If the available prime stream is exhausted before the rank can be
         certified.
     """
@@ -67,7 +66,7 @@ def _matrix_rank(matrix: object) -> int:
         prime_product *= prime
         if best_rank == target or prime_product > minor_bound:
             return best_rank
-    raise RankError("prime stream exhausted before determining folded matrix rank")
+    raise ArithmeticError("prime stream exhausted before determining folded matrix rank")
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,9 +97,9 @@ class RankInfo:
     def require_full(self) -> None:
         """Require the supercell to preserve all primitive parameter directions."""
         if not self.full:
-            raise AliasingError(
-                f"supercell realization has rank {self.rank} for {self.parameters} "
-                f"parameters (nullity {self.nullity})"
+            raise ValueError(
+                f"supercell cannot distinguish all parameters: rank {self.rank} for "
+                f"{self.parameters} parameters, {self.nullity} directions folded away"
             )
 
 

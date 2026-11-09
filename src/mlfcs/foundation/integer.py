@@ -8,7 +8,6 @@ import numpy as np
 from numba import njit
 
 from mlfcs.foundation.arrays import as_int64_array
-from mlfcs.foundation.errors import ArithmeticRangeError
 
 RANK_PRIMES = (2147483647, 2147483629)
 
@@ -80,7 +79,7 @@ def as_int64(values: object, *, context: str) -> np.ndarray:
     """Validate integer input for exact operations restricted to int64 arithmetic.
 
     Unlike general array normalization, this helper accepts only explicit
-    integer dtypes and translates range failures into ``ArithmeticRangeError``.
+    integer dtypes and translates range failures into ``OverflowError``.
     Values use the symmetric int64 domain excluding ``INT64_MIN``.
     """
     array = np.asarray(values)
@@ -89,7 +88,7 @@ def as_int64(values: object, *, context: str) -> np.ndarray:
     try:
         return as_int64_array(array, name=context)
     except OverflowError as error:
-        raise ArithmeticRangeError(f"{context} does not fit the symmetric int64 domain") from error
+        raise OverflowError(f"{context} does not fit the symmetric int64 domain") from error
 
 
 def as_int64_matrix(matrix: object, *, name: str = "matrix") -> np.ndarray:
@@ -97,7 +96,7 @@ def as_int64_matrix(matrix: object, *, name: str = "matrix") -> np.ndarray:
 
     A one-dimensional empty input is interpreted as a ``(0, 0)`` matrix.
     Other nonmatrix inputs are rejected. Range failures raise
-    ``ArithmeticRangeError``, consistent with :func:`as_int64`.
+    ``OverflowError``, consistent with :func:`as_int64`.
     """
     array = np.asarray(matrix)
     if array.ndim == 1 and array.size == 0:
@@ -107,7 +106,7 @@ def as_int64_matrix(matrix: object, *, name: str = "matrix") -> np.ndarray:
     try:
         return as_int64_array(array, name=name)
     except OverflowError as error:
-        raise ArithmeticRangeError(f"{name} does not fit the symmetric int64 domain") from error
+        raise OverflowError(f"{name} does not fit the symmetric int64 domain") from error
 
 
 def determinant_3x3(matrix: object) -> int:
@@ -144,7 +143,7 @@ def adjugate_3x3(matrix: object) -> np.ndarray:
     try:
         return as_int64_array(np.asarray(result, dtype=object), name="matrix adjugate")
     except OverflowError as error:
-        raise ArithmeticRangeError("matrix adjugate does not fit in int64") from error
+        raise OverflowError("matrix adjugate does not fit in int64") from error
 
 
 @njit(cache=True)

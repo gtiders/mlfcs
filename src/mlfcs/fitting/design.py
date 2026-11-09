@@ -193,7 +193,7 @@ class ForceDesign:
     ----------
     cluster_map : ClusterMap
         Supercell relation retained by reference. Its folded rank must
-        preserve all primitive parameters, otherwise AliasingError is raised.
+        preserve all primitive parameters, otherwise ValueError is raised.
 
     Notes
     -----
