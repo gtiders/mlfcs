@@ -302,30 +302,32 @@ class ForceDesign:
             raise ValueError("rows_per_block must be positive")
         space = self.cluster_map.cluster_space
         workspace = allocate_design_workspace(tuple(order.max_dimension for order in self.orders))
+        # Accumulate every force row once: the kernel walks all images and
+        # translations regardless of the requested row window, so splitting the
+        # accumulation per block would repeat that work for every block.
+        canonical = np.zeros((self.rows, self.n_parameters))
+        for order, work in zip(self.orders, workspace.accumulator, strict=True):
+            accumulate_design(
+                values,
+                canonical,
+                order.orbit_image_offsets,
+                order.orbit_parameter_starts,
+                order.orbit_dimensions,
+                order.image_atoms,
+                order.image_basis,
+                order.image_basis_offsets,
+                order.components,
+                order.factor,
+                work,
+                workspace.block_length,
+            )
         for start in range(0, self.rows, rows_per_block):
             count = min(rows_per_block, self.rows - start)
-            canonical = np.zeros((count, self.n_parameters))
-            for order, work in zip(self.orders, workspace.accumulator, strict=True):
-                accumulate_design(
-                    values,
-                    canonical,
-                    order.orbit_image_offsets,
-                    order.orbit_parameter_starts,
-                    order.orbit_dimensions,
-                    order.image_atoms,
-                    order.image_basis,
-                    order.image_basis_offsets,
-                    order.components,
-                    order.factor,
-                    work,
-                    workspace.block_length,
-                    start,
-                )
             reduced = np.empty((count, space.n_free_parameters))
             offset = 0
             for block in space.blocks:
                 coordinates = space.acoustic_coordinates(block.order)
-                observed = canonical[:, block.parameters]
+                observed = canonical[start : start + count, block.parameters]
                 transformed = (
                     observed if coordinates is None else coordinates.restrict_rows(observed)
                 )
