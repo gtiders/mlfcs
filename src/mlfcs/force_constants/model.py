@@ -200,32 +200,26 @@ class ForceConstants:
         *,
         born_huang: bool = True,
         huang: bool = False,
-        rank_rtol: float | None = None,
     ) -> RotationResult:
         """Correct FC2 rotational moments without changing its acoustic residual.
 
         ``born_huang`` selects first-moment rotational conditions for atoms
-        in force equilibrium. ``huang`` additionally selects zero-stress
-        second-moment conditions and is disabled by default. ``rank_rtol``
-        sets a relative singular-value cutoff between zero and one; when
-        omitted, it is estimated from the actual symmetry mismatch of the
-        geometry, with a machine-precision floor.
+        in force equilibrium; ``huang`` additionally selects zero-stress
+        second-moment conditions and is disabled by default. The reference
+        cell is projected onto exact symmetry in its own basis and atom order,
+        and the structural rank is read from the well-separated idealized
+        spectrum before it is applied to the real model's moment values.
 
         Return a RotationResult containing a new model and residual/rank
         diagnostics. The correction minimizes change in physical FC2
         parameters within resolved directions; other orders are unchanged.
         The cluster space must have been initialized with ``asr=True``.
-        Invalid selections, missing FC2 or an undefined pair length scale
-        raise ValueError.
+        Invalid selections, missing FC2, an undefined pair length scale or an
+        unresolved idealized structural rank raise ValueError.
         """
         from mlfcs.force_constants.rotation import enforce_rotation
 
-        return enforce_rotation(
-            self,
-            born_huang=born_huang,
-            huang=huang,
-            rank_rtol=rank_rtol,
-        )
+        return enforce_rotation(self, born_huang=born_huang, huang=huang)
 
 
 __all__ = ["ForceConstants"]

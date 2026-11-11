@@ -14,8 +14,16 @@ from time import perf_counter
 import numpy as np
 from scipy import sparse
 
+from mlfcs.cluster_space import ClusterSpace
 from mlfcs.force_constants.model import ForceConstants
 from mlfcs.foundation.tensors import rotate_basis
+from mlfcs.geometry.idealize import IdealizedCell, idealize_reference_cell
+
+# A structural-rank decision is accepted only when the idealized constraint
+# spectrum separates the physical directions from numerical zero by at least
+# this ratio. Below it the idealization has not resolved the rank; reduce
+# symprec or correct the reference geometry instead of trusting the gap.
+_MIN_STRUCTURAL_GAP = 1.0e3
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,14 +43,11 @@ class RotationResult:
 
     ``correction_norm`` is the Euclidean change in physical FC2 parameters;
     ``relative_correction`` divides it by their initial norm. ``retained_rank``
-    counts effective singular directions above ``rank_cutoff``. The adjacent
-    retained/discarded singular values are ``None`` when the corresponding
-    set is empty. ``automatic_rank`` indicates whether ``rank_rtol`` was
-    estimated from geometry rather than supplied by the caller.
+    is the structural rank determined from the idealized moment spectrum.
 
-    ``geometry_residual`` is the largest symmetry-related position mismatch
-    in angstrom; ``orthogonality_residual`` measures the dimensionless
-    departure of Cartesian symmetry operations from orthogonality.
+    The idealization diagnostics record the in-basis projection residuals and
+    the singular-value gap and numerical-zero bound that determine the rank.
+    The reference cell keeps its basis, origin, atom count and atom order.
     """
 
     force_constants: ForceConstants
@@ -59,13 +64,12 @@ class RotationResult:
     correction_norm: float
     relative_correction: float
     retained_rank: int
-    rank_rtol: float
-    automatic_rank: bool
-    rank_cutoff: float
-    smallest_retained_singular_value: float | None
-    largest_discarded_singular_value: float | None
-    geometry_residual: float
-    orthogonality_residual: float
+    idealization_position_residual: float
+    idealization_metric_residual: float
+    idealization_lattice_residual: float
+    idealization_symmetry_closure: float
+    structural_rank_gap: float
+    structural_rank_bound: float
 
 
 def _append(
@@ -192,35 +196,41 @@ def _maximum_residual(matrix: sparse.csr_matrix, values: np.ndarray) -> float:
     return float(np.max(np.abs(matrix @ values), initial=0.0))
 
 
-def _geometry_residuals(model: ForceConstants) -> tuple[float, float]:
-    """Measure site-symmetry mismatch and Cartesian nonorthogonality.
+def _idealized_fc2_space(space, idealized: IdealizedCell) -> ClusterSpace:
+    """Build an FC2-only reference space on the idealized cell and check its layout.
 
-    Evaluate the supplied geometry without idealizing positions or cell;
-    the symmetry-search tolerance is not itself a measured error.
+    The idealized cell preserves the input basis, origin and atom order, so the
+    FC2 orbit labels and parameter columns must match the original block. A
+    mismatch means the idealization changed the detected symmetry or its
+    canonical parameterization; the correction is then undefined.
     """
-    cell = model.cluster_space
-    symmetry = model.cluster_space.symmetry
-    positions = cell.scaled_positions
-    cell = cell.cell
-    site_residual = 0.0
-    orthogonality_residual = 0.0
-    for operation in range(symmetry.size):
-        differences = (
-            positions @ symmetry.rotations[operation].T
-            + symmetry.translations[operation]
-            - positions[symmetry.site_permutations[operation]]
-            - symmetry.site_shifts[operation]
-        )
-        site_residual = max(
-            site_residual,
-            float(np.max(np.linalg.norm(differences @ cell, axis=1), initial=0.0)),
-        )
-        rotation = symmetry.cartesian_rotations[operation]
-        orthogonality_residual = max(
-            orthogonality_residual,
-            float(np.linalg.norm(rotation.T @ rotation - np.eye(3), ord=2)),
-        )
-    return site_residual, orthogonality_residual
+    block = space.block(2)
+    atoms = space.cell_atoms.copy()
+    atoms.set_cell(idealized.cell, scale_atoms=False)
+    atoms.set_scaled_positions(idealized.scaled_positions)
+    ideal = ClusterSpace(
+        atoms,
+        cutoffs={2: block.cutoff},
+        max_body_orders={2: block.max_body_order},
+        symprec=space.symprec,
+        asr=True,
+    )
+    ideal_block = ideal.block(2)
+    if (ideal_block.parameters.start, ideal_block.parameters.stop) != (
+        block.parameters.start,
+        block.parameters.stop,
+    ):
+        raise ValueError("idealized geometry changed the FC2 parameter layout")
+    original_orbits = space.orbits[block.orbits.start : block.orbits.stop]
+    ideal_orbits = ideal.orbits[ideal_block.orbits.start : ideal_block.orbits.stop]
+    if len(original_orbits) != len(ideal_orbits):
+        raise ValueError("idealized geometry changed the FC2 orbit count")
+    for original, candidate in zip(original_orbits, ideal_orbits, strict=True):
+        if original.dimension != candidate.dimension or not np.array_equal(
+            original.labels, candidate.labels
+        ):
+            raise ValueError("idealized geometry changed the FC2 orbit layout")
+    return ideal
 
 
 def enforce_rotation(
@@ -228,7 +238,6 @@ def enforce_rotation(
     *,
     born_huang: bool = True,
     huang: bool = False,
-    rank_rtol: float | None = None,
 ) -> RotationResult:
     """Correct FC2 rotational moments while preserving its acoustic residual.
 
@@ -237,6 +246,12 @@ def enforce_rotation(
     impose zero stress and should only be enabled for that physical setting.
     The correction minimizes the Euclidean change of physical FC2 parameters
     within the resolved constraint directions. Higher orders are retained.
+
+    The constraint rank is structural: the reference cell is first projected
+    onto exact symmetry in its own basis and atom order, and the rank is read
+    from the well-separated singular-value gap of that idealized moment matrix.
+    The correction values still come from the measured model's moment matrix;
+    no geometry-error singular-value cutoff is applied.
 
     Parameters
     ----------
@@ -247,32 +262,28 @@ def enforce_rotation(
         Enforce Born-Huang first-moment conditions; enabled by default.
     huang
         Enforce zero-stress Huang second-moment conditions; disabled by default.
-    rank_rtol
-        Relative singular-value cutoff between zero and one. By default,
-        estimate it as twice the sum of the measured position mismatch
-        divided by the median pair distance and Cartesian nonorthogonality.
-        A machine-precision floor is applied in either case. Directions below
-        the cutoff are unresolved and are not corrected.
 
     Returns
     -------
     RotationResult
-        New force constants, physical residuals, correction size and rank
-        diagnostics for the length-normalized moment equations.
+        New force constants, physical residuals, correction size, structural
+        rank and in-basis idealization diagnostics.
 
     Raises
     ------
     ValueError
-        If no condition is selected, the cutoff is invalid, FC2 is absent,
-        ASR coordinates were not prepared, or non-onsite pairs do not define
-        a positive finite length scale.
+        If no condition is selected, FC2 is absent, ASR coordinates were not
+        prepared, non-onsite pairs do not define a positive finite length
+        scale, the idealized geometry changes the FC2 parameter layout, or the
+        idealized spectrum does not separate a structural rank.
 
     Notes
     -----
     The correction lies in the initialized acoustic subspace, preserving any
-    existing ASR residual without measuring or repairing it. Actual
-    interatomic separations enter the equations, so the projection remains
-    floating-point and does not rationalize or idealize the geometry.
+    existing ASR residual without measuring or repairing it. The reference cell
+    must be consistent with its detected space group within
+    ``ClusterSpace.symprec``; the idealization residuals and structural gap are
+    reported for audit.
 
     References
     ----------
@@ -281,15 +292,10 @@ def enforce_rotation(
     """
     if not born_huang and not huang:
         raise ValueError("select born_huang=True and/or huang=True")
-    if rank_rtol is not None and (not np.isfinite(rank_rtol) or not 0 <= rank_rtol <= 1):
-        raise ValueError("rank_rtol must be finite and between zero and one")
     if 2 not in model.coefficients:
         raise ValueError("rotational invariance requires FC2")
     started = perf_counter()
-    print(
-        f"Rotation projection: born_huang {born_huang}, huang {huang}, "
-        f"rank_rtol {rank_rtol if rank_rtol is not None else 'automatic'}"
-    )
+    print(f"Rotation projection: born_huang {born_huang}, huang {huang}")
     coordinates = model.cluster_space.acoustic_coordinates(2)
     if coordinates is None:
         raise ValueError("rotational correction requires ClusterSpace(..., asr=True)")
@@ -306,18 +312,47 @@ def enforce_rotation(
     # Free lattice coordinates are not an orthonormal parameterization.
     normals = coordinates.normal_basis()
     rotation_array = constraints.toarray()
+    idealization = idealize_reference_cell(
+        model.cluster_space.cell,
+        model.cluster_space.scaled_positions,
+        model.cluster_space.atomic_numbers,
+        symprec=model.cluster_space.symprec,
+    )
+    ideal_space = _idealized_fc2_space(model.cluster_space, idealization)
+    ideal_born, ideal_second, _ = _fc2_moment_matrices(ideal_space)
+    ideal_selected = []
+    if born_huang:
+        ideal_selected.append(ideal_born)
+    if huang:
+        ideal_selected.append(ideal_second)
+    ideal_array = sparse.vstack(ideal_selected, format="csr").toarray()
+    ideal_normals = ideal_space.acoustic_coordinates(2).normal_basis()
+    ideal_effective = ideal_array - (ideal_array @ ideal_normals) @ ideal_normals.T
+    ideal_singular = np.linalg.svd(ideal_effective, compute_uv=False)
+    largest_ideal = float(ideal_singular[0] if ideal_singular.size else 0.0)
+    structural_bound = float(np.finfo(float).eps * max(ideal_effective.shape) * largest_ideal)
+    rank = int(np.count_nonzero(ideal_singular > structural_bound))
+    structural_gap = (
+        float(ideal_singular[rank - 1] / ideal_singular[rank])
+        if 0 < rank < len(ideal_singular) and ideal_singular[rank] > 0.0
+        else float("inf")
+    )
+    if structural_gap < _MIN_STRUCTURAL_GAP:
+        raise ValueError(
+            "idealized moment equations do not separate a structural rank: "
+            f"gap {structural_gap:.3g} < {_MIN_STRUCTURAL_GAP:g}; "
+            "reduce symprec or correct the reference geometry"
+        )
+    # Rank-only: take the structural rank from the idealized geometry, but
+    # keep the measured model's moment values in the correction.
     effective = rotation_array - (rotation_array @ normals) @ normals.T
     left, singular, right = np.linalg.svd(effective, full_matrices=False)
     largest = float(singular[0] if singular.size else 0.0)
-    geometry_residual, orthogonality_residual = _geometry_residuals(model)
-    geometry_rtol = 2.0 * (geometry_residual / length_scale + orthogonality_residual)
-    relative_cutoff = geometry_rtol if rank_rtol is None else float(rank_rtol)
-    cutoff = largest * max(
-        relative_cutoff,
-        np.finfo(float).eps * max(effective.shape),
-    )
-    retained = singular > cutoff
-    rank = int(np.count_nonzero(retained))
+    real_bound = float(np.finfo(float).eps * max(effective.shape) * largest)
+    if rank and singular[rank - 1] <= real_bound:
+        raise ValueError("real moment matrix does not resolve the idealized structural rank")
+    retained = np.zeros(len(singular), dtype=bool)
+    retained[:rank] = True
     if rank:
         correction = right[retained].T @ (
             (left[:, retained].T @ (rotation_array @ initial)) / singular[retained]
@@ -354,19 +389,18 @@ def enforce_rotation(
         correction_norm=correction_norm,
         relative_correction=correction_norm / initial_norm if initial_norm else 0.0,
         retained_rank=rank,
-        rank_rtol=relative_cutoff,
-        automatic_rank=rank_rtol is None,
-        rank_cutoff=cutoff,
-        smallest_retained_singular_value=(float(singular[rank - 1]) if rank else None),
-        largest_discarded_singular_value=(float(singular[rank]) if rank < len(singular) else None),
-        geometry_residual=geometry_residual,
-        orthogonality_residual=orthogonality_residual,
+        idealization_position_residual=idealization.position_residual,
+        idealization_metric_residual=idealization.metric_residual,
+        idealization_lattice_residual=idealization.lattice_residual,
+        idealization_symmetry_closure=idealization.symmetry_closure,
+        structural_rank_gap=structural_gap,
+        structural_rank_bound=structural_bound,
     )
     print(
         f"Rotation projection complete: retained rank {report.retained_rank}, "
-        f"cutoff {report.rank_cutoff:.3g}, relative {report.relative_before:.3g} -> "
-        f"{report.relative_after:.3g}, correction {report.correction_norm:.3g}, "
-        f"{perf_counter() - started:.2f} s"
+        f"structural gap {report.structural_rank_gap:.3g}, "
+        f"relative {report.relative_before:.3g} -> {report.relative_after:.3g}, "
+        f"correction {report.correction_norm:.3g}, {perf_counter() - started:.2f} s"
     )
     return report
 

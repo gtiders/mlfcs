@@ -10,7 +10,6 @@ from ase.build import bulk
 from mlfcs.cluster_space import ClusterSpace
 from mlfcs.force_constants import ForceConstants
 from mlfcs.force_constants.expansion import expand_lattice_tensors
-from mlfcs.force_constants.rotation import _fc2_moment_matrices
 
 
 def physical_fc2_moments(model: ForceConstants) -> tuple[float, float]:
@@ -75,7 +74,8 @@ def test_rotational_projection_preserves_higher_orders() -> None:
     assert result.huang_after <= result.length_scale**2 * 1e-09
     np.testing.assert_array_equal(result.force_constants.coefficients[3], model.coefficients[3])
     assert result.retained_rank >= 0
-    assert result.rank_cutoff >= 0.0
+    assert result.structural_rank_gap > 1e3
+    assert result.structural_rank_bound >= 0.0
     physical = physical_fc2_moments(result.force_constants)
     assert physical[0] == pytest.approx(result.born_huang_after)
     assert physical[1] == pytest.approx(result.huang_after)
@@ -91,23 +91,22 @@ def test_rotational_projection_preserves_higher_orders() -> None:
 def test_rotation_defaults_to_born_huang() -> None:
     """Verify rotation defaults to born huang."""
     cell = bulk("Ar", "sc", a=1.0)
-    space = ClusterSpace(
-        cell, cutoffs={2: 1.1}, max_body_orders={2: 2}, symprec=1e-05, asr=True
-    )
+    space = ClusterSpace(cell, cutoffs={2: 1.1}, max_body_orders={2: 2}, symprec=1e-05, asr=True)
     model = ForceConstants(space, {2: np.ones(space.n_parameters)})
     born_only = model.enforce_rotation()
     assert born_only.born_huang
     assert not born_only.huang
+    assert born_only.structural_rank_gap > 1e3
 
 
 @pytest.mark.parametrize(
     "cell_error,site_error,symprec",
     [(3e-07, 1e-07, 1e-05), (0.0, 0.0, 0.01), (0.001, 0.0001, 0.01)],
 )
-def test_rotational_rank_uses_measured_geometry_not_symprec(
+def test_rotational_rank_is_structural_for_perturbed_cells(
     cell_error: float, site_error: float, symprec: float
 ) -> None:
-    """Verify rotational rank uses measured geometry not symprec."""
+    """Verify perturbed cells keep the idealized structural rank."""
     a = 3.14879776
     cell = np.array([[a, 0.0, 0.0], [-a / 2, np.sqrt(3) * a / 2, 0.0], [0.0, 0.0, 27.14312451]])
     positions = np.array(
@@ -116,9 +115,9 @@ def test_rotational_rank_uses_measured_geometry_not_symprec(
     cell[1, 1] -= cell_error
     positions[0, 1] -= 2 * site_error
     positions[1:, 0] -= site_error
-    cell = Atoms(numbers=[42, 16, 16], cell=cell, scaled_positions=positions, pbc=True)
+    cell_atoms = Atoms(numbers=[42, 16, 16], cell=cell, scaled_positions=positions, pbc=True)
     space = ClusterSpace(
-        cell, cutoffs={2: 8.0}, max_body_orders={2: 2}, symprec=symprec, asr=True
+        cell_atoms, cutoffs={2: 8.0}, max_body_orders={2: 2}, symprec=symprec, asr=True
     )
     coordinates = space.acoustic_coordinates(2)
     # Match the physical coefficient scale of the measured-geometry fixture;
@@ -127,26 +126,12 @@ def test_rotational_rank_uses_measured_geometry_not_symprec(
     observations = np.random.default_rng(0).normal(size=space.n_parameters)
     free = np.linalg.lstsq(basis, observations, rcond=None)[0]
     acoustic_model = ForceConstants(space, {2: coordinates.lift(free)})
-    huang = _fc2_moment_matrices(acoustic_model.cluster_space)[1]
-    assert huang.shape == (81, space.n_parameters)
     result = acoustic_model.enforce_rotation(huang=True)
     assert result.retained_rank == 2
-    assert result.smallest_retained_singular_value > result.rank_cutoff
-    assert result.largest_discarded_singular_value <= result.rank_cutoff
+    assert result.structural_rank_gap > 1e3
+    assert result.structural_rank_bound > 0.0
+    assert result.idealization_position_residual <= symprec
+    assert result.idealization_symmetry_closure <= 1e-10
     allowed_fraction = 0.001 if cell_error > 0.0001 else 0.0001
     assert result.born_huang_after < result.born_huang_before * allowed_fraction
     assert result.huang_after < result.huang_before * allowed_fraction
-    if cell_error:
-        assert result.geometry_residual > 1e-07
-        assert result.rank_cutoff > 1e-06
-        if cell_error > 0.0001:
-            assert result.geometry_residual > 0.0001
-            assert result.rank_cutoff > 0.001
-    else:
-        assert result.geometry_residual < 1e-12
-        assert result.rank_cutoff < 1e-10
-    disabled = acoustic_model.enforce_rotation(huang=True, rank_rtol=1.0)
-    assert disabled.retained_rank == 0
-    np.testing.assert_array_equal(
-        disabled.force_constants.coefficients[2], acoustic_model.coefficients[2]
-    )
