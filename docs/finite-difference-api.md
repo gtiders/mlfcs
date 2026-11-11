@@ -1,10 +1,10 @@
 # 有限差分：从有序位移结构恢复力常数
 
-有了原胞模型和参考超胞，接下来要决定怎样移动原子，才能测到模型中的独立力常数分量。对于二阶力常数，可以比较原子向正、负方向移动后产生的力；对更高阶力常数，则需要组合多个位移方向，得到力的混合导数。
+有了参考胞模型和参考超胞，接下来要决定怎样移动原子，才能测到模型中的独立力常数分量。对于二阶力常数，可以比较原子向正、负方向移动后产生的力；对更高阶力常数，则需要组合多个位移方向，得到力的混合导数。
 
 `FiniteDifference` 从模型所需的代表分量出发，准备这些位移构型。使用时先用 `sow()` 生成结构，在外部计算并保存力，然后把有序结果收集为 `ForceDataset`，交给 `reap()` 重建。力由什么程序计算，可以自行选择；结构与结果之间的对应顺序必须保留。
 
-如果还没有建立原胞模型和 mapping，建议先阅读[核心概念](core-concepts.md)。本章继续使用 Al 与 ASE 的 EMT 势，展示从采样到重建的完整过程。
+如果还没有建立参考胞模型和 mapping，建议先阅读[核心概念](core-concepts.md)。本章继续使用 Al 与 ASE 的 EMT 势，展示从采样到重建的完整过程。
 
 ## 1. 为一个阶数准备采样
 
@@ -14,14 +14,14 @@
 from ase.build import bulk
 from mlfcs import ClusterSpace, ClusterMap, FiniteDifference
 
-primitive = bulk("Al", "fcc", a=4.05)
+cell = bulk("Al", "fcc", a=4.05)
 space = ClusterSpace(
-    primitive,
+    cell,
     cutoffs={2: 4.0},
     max_body_orders={2: 2},
     asr=True,
 )
-mapping = ClusterMap(space, space.primitive_atoms.repeat((3, 3, 3)))
+mapping = ClusterMap(space, space.cell_atoms.repeat((3, 3, 3)))
 fd = FiniteDifference(mapping, order=2, disps=0.01)
 
 print("需要计算的构型数：", fd.n_configurations)
@@ -99,7 +99,7 @@ dataset = ForceDataset(mapping, calculated)
 
 力计算发生在 `get_forces()`，属于外部流程。`ForceDataset` 随后只读取已有结果；仅附上一个尚未计算的 calculator 不够。保存力后应保持结构不变，避免结果失效。
 
-也可以将 `sow()` 的结构写给 VASP 等程序，计算完成后通过 ASE reader 读回已有力的结构。外部工作流应保存采样索引，并据此收集结果。重新生成计划时，需要使用相同原胞模型、参考超胞原子顺序、阶数与步长；MLFCS 不会从计算结果中推断原计划。
+也可以将 `sow()` 的结构写给 VASP 等程序，计算完成后通过 ASE reader 读回已有力的结构。外部工作流应保存采样索引，并据此收集结果。重新生成计划时，需要使用相同参考胞模型、参考超胞原子顺序、阶数与步长；MLFCS 不会从计算结果中推断原计划。
 
 数据收集会检查晶胞、元素序列、三维周期性，以及力的形状和有限值。但这些检查不能识别同元素原子的交换，也不能确认帧是否对应预期的有限差分位移。完整的数据约定见[核心概念中的数据集部分](core-concepts.md)。
 
@@ -115,7 +115,7 @@ print(fc2.coefficients[2])
 
 重建先对正负位移力做中央混合差分，再组合多个步长的估计，最后恢复各对称轨道的物理参数。由于原子力是能量对位移导数的负值，输出已经转换为能量导数的符号；不需要再人为取负号。
 
-返回值是 `ForceConstants`，只包含本次 `order` 的系数，即使关联的 `ClusterSpace` 定义了多个阶数。$p$ 阶系数单位为 eV/Å$^p$；它是原胞参数化模型，不是完整的超胞张量数组。`coefficients[order]` 可用于查看所恢复的参数；这些参数对应标准物理参数布局，而非 ASR 自由坐标。
+返回值是 `ForceConstants`，只包含本次 `order` 的系数，即使关联的 `ClusterSpace` 定义了多个阶数。$p$ 阶系数单位为 eV/Å$^p$；它是参考胞参数化模型，不是完整的超胞张量数组。`coefficients[order]` 可用于查看所恢复的参数；这些参数对应标准物理参数布局，而非 ASR 自由坐标。
 
 ### 重建能检查什么
 
@@ -136,7 +136,7 @@ ASR 由构造模型空间时的 `ClusterSpace(..., asr=True)` 开启，本章示
 有时希望恢复的是扣除某种已知贡献后的力常数。应先改变数据集的目标力，再用同一个计划重建：
 
 ```python
-reference = mapping.supercell_atoms
+reference = mapping.supercell
 reference.calc = EMT()
 reference_forces = reference.get_forces()
 
@@ -166,14 +166,14 @@ from ase.calculators.emt import EMT
 from ase.calculators.singlepoint import SinglePointCalculator
 from mlfcs import ClusterSpace, ClusterMap, FiniteDifference, ForceDataset
 
-primitive = bulk("Al", "fcc", a=4.05)
+cell = bulk("Al", "fcc", a=4.05)
 space = ClusterSpace(
-    primitive,
+    cell,
     cutoffs={2: 4.0},
     max_body_orders={2: 2},
     asr=True,
 )
-mapping = ClusterMap(space, space.primitive_atoms.repeat((3, 3, 3)))
+mapping = ClusterMap(space, space.cell_atoms.repeat((3, 3, 3)))
 fd = FiniteDifference(mapping, order=2, disps=(0.01, 0.02))
 
 print("力计算次数：", fd.n_configurations)

@@ -179,7 +179,7 @@ def _candidates(labels, offsets, points, order, body_order, cutoff, counts, outp
             if not connected:
                 continue
             selected[depth] = index
-            bodies = 1  # The anchored primitive site.
+            bodies = 1  # The anchored cell site.
             for k in range(depth + 1):
                 label = labels[selected[k]]
                 unique = not (

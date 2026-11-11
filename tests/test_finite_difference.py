@@ -41,15 +41,15 @@ class HarmonicCalculator(Calculator):
 def ar_mapping(repetitions: int, cutoff: float = 1.1) -> tuple[ClusterMap, Atoms]:
     """Construct a cubic Ar FC2 model and its repeated reference supercell.
 
-    repetitions is the number of primitive cells along each axis, and cutoff
+    repetitions is the number of cells along each axis, and cutoff
     is in angstrom. Return (ClusterMap, ASE Atoms) in the same atom order."""
     atoms = bulk("Ar", "sc", a=1.0)
-    primitive = atoms
-    space = ClusterSpace(primitive, cutoffs={2: cutoff}, max_body_orders={2: 2}, symprec=1e-05)
-    supercell_atoms = atoms.repeat((repetitions,) * 3)
+    cell = atoms
+    space = ClusterSpace(cell, cutoffs={2: cutoff}, max_body_orders={2: 2}, symprec=1e-05)
+    supercell = atoms.repeat((repetitions,) * 3)
     return (
-        ClusterMap(space, supercell_atoms, supercell_matrix=np.diag([repetitions] * 3)),
-        supercell_atoms,
+        ClusterMap(space, supercell, supercell_matrix=np.diag([repetitions] * 3)),
+        supercell,
     )
 
 
@@ -84,9 +84,9 @@ def stored(structures, forces) -> tuple[Atoms, ...]:
 
 def test_external_calculation_and_extxyz_reconstruct_the_same_fc2(tmp_path) -> None:
     """Recover the same Hessian from in-memory and external stored-force samples."""
-    mapping, supercell_atoms = ar_mapping(3)
+    mapping, supercell = ar_mapping(3)
     fd = FiniteDifference(mapping, order=2, disps=(0.01,))
-    calculator = HarmonicCalculator(supercell_atoms.positions)
+    calculator = HarmonicCalculator(supercell.positions)
     evaluated = []
     for atoms in fd.sow():
         calculator.calculate(atoms, properties=["forces"], system_changes=all_changes)
@@ -114,10 +114,10 @@ def test_external_calculation_and_extxyz_reconstruct_the_same_fc2(tmp_path) -> N
 
 def test_finite_difference_reconstructs_stored_forces() -> None:
     """Verify finite difference reconstructs stored forces."""
-    mapping, supercell_atoms = ar_mapping(3)
+    mapping, supercell = ar_mapping(3)
     fd = FiniteDifference(mapping, order=2)
     structures = tuple(fd.sow())
-    forces = [-(atoms.positions - supercell_atoms.positions) for atoms in structures]
+    forces = [-(atoms.positions - supercell.positions) for atoms in structures]
     evaluated = stored(structures, forces)
     model = fd.reap(ForceDataset(mapping, evaluated))
     assert model.orders == (2,)
@@ -125,14 +125,14 @@ def test_finite_difference_reconstructs_stored_forces() -> None:
 
 def test_multiple_disps_remove_the_leading_even_difference_error() -> None:
     """Verify multiple disps remove the leading even difference error."""
-    mapping, supercell_atoms = ar_mapping(1, cutoff=0.1)
+    mapping, supercell = ar_mapping(1, cutoff=0.1)
     stiffness = 2.5
     cubic_error = 7.0
     fd = FiniteDifference(mapping, order=2, disps=(0.02, 0.01))
     structures = tuple(fd.sow())
     forces = []
     for atoms in structures:
-        displacement = atoms.positions - supercell_atoms.positions
+        displacement = atoms.positions - supercell.positions
         forces.append(-stiffness * displacement - cubic_error * displacement**3)
     model = fd.reap(ForceDataset(mapping, stored(structures, forces)))
     tensors = representative_tensors(model, 2)
@@ -148,8 +148,8 @@ def test_fc3_reconstruction_uses_atoms_and_the_orbit_basis() -> None:
         cell=[[3.1, 0.2, 0.1], [0.1, 3.7, 0.3], [0.2, 0.1, 4.2]],
         pbc=True,
     )
-    primitive = atoms
-    space = ClusterSpace(primitive, cutoffs={3: 0.01}, max_body_orders={3: 1}, symprec=1e-05)
+    cell = atoms
+    space = ClusterSpace(cell, cutoffs={3: 0.01}, max_body_orders={3: 1}, symprec=1e-05)
     fd = FiniteDifference(
         ClusterMap(space, atoms, supercell_matrix=np.eye(3, dtype=np.int64)),
         order=3,

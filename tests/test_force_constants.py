@@ -17,18 +17,18 @@ def test_native_reference_preserves_model_values():
     """Verify native reference preserves model values."""
     from mlfcs import ForceConstants
 
-    model = ForceConstants.load(Path(__file__).parent / "data" / "force_constants_v5.mlfcs")
+    model = ForceConstants.load(Path(__file__).parent / "data" / "force_constants_v6.mlfcs")
     assert model.cluster_space.orbits[0].lattice_basis.dtype == np.int64
     assert not model.cluster_space.orbits[0].lattice_basis.flags.writeable
     np.testing.assert_array_equal(model.parameters(), 1.0)
     space = model.cluster_space
     mapping = ClusterMap(
         space,
-        space.primitive_atoms.repeat((3,) * 3),
+        space.cell_atoms.repeat((3,) * 3),
         supercell_matrix=3 * np.eye(3, dtype=np.int64),
     )
     design = ForceDesign(mapping)
-    np.testing.assert_array_equal(design.matrix(np.zeros((len(mapping.supercell_atoms), 3))), 0.0)
+    np.testing.assert_array_equal(design.matrix(np.zeros((len(mapping.supercell), 3))), 0.0)
 
 
 def assert_model_arrays_equal(left, right):
@@ -73,11 +73,11 @@ def assert_model_arrays_equal(left, right):
 def space():
     """Construct a cubic Ar model with FC2 pair terms and on-site FC3 terms.
 
-    The primitive cell has one atom and lattice length one angstrom. Cutoffs
+    The cell has one atom and lattice length one angstrom. Cutoffs
     are 1.1 angstrom for FC2 and 0.1 angstrom for FC3."""
-    primitive = bulk("Ar", "sc", a=1.0)
+    cell = bulk("Ar", "sc", a=1.0)
     return ClusterSpace(
-        primitive, cutoffs={2: 1.1, 3: 0.1}, max_body_orders={2: 2, 3: 1}, symprec=1e-05
+        cell, cutoffs={2: 1.1, 3: 0.1}, max_body_orders={2: 2, 3: 1}, symprec=1e-05
     )
 
 
@@ -90,8 +90,8 @@ def values(cluster_space, order: int, value: float) -> np.ndarray:
     return np.full(block.parameters.stop - block.parameters.start, value)
 
 
-def test_force_constants_are_primitive_immutable_and_round_trip(tmp_path) -> None:
-    """Verify force constants are primitive immutable and round trip."""
+def test_force_constants_are_immutable_and_round_trip(tmp_path) -> None:
+    """Verify force constants are cell immutable and round trip."""
     cluster_space = space()
     source = values(cluster_space, 2, 2.0)
     model = ForceConstants(cluster_space, {2: source})
@@ -105,13 +105,13 @@ def test_force_constants_are_primitive_immutable_and_round_trip(tmp_path) -> Non
 
 
 def test_native_roundtrip_preserves_orders_and_masses(tmp_path):
-    """Preserve all model arrays, physical coefficients and custom masses in a v5 roundtrip."""
+    """Preserve all model arrays, physical coefficients and custom masses in a v6 roundtrip."""
     cluster_space = space().with_masses([41.0])
     model = ForceConstants(cluster_space, {p: values(cluster_space, p, p) for p in (2, 3)})
     file = model.save(tmp_path / "multi.mlfcs")
     assert_model_arrays_equal(model, ForceConstants.load(file))
     with h5py.File(file) as handle:
-        assert handle.attrs["version"] == 5
+        assert handle.attrs["version"] == 6
         assert set(handle.attrs) == {"format", "version"}
         assert set(handle["coefficients"]) == {"2", "3"}
         for orbit in handle["cluster_space/orbits"].values():
@@ -136,9 +136,9 @@ def mapped_model(orders: tuple[int, ...], *, repeats: int = 2) -> tuple[ForceCon
     orders selects force-constant orders, and repeats is the repetition on each axis.
     Coefficients span 0.5e-8 to 2e-8 in the corresponding physical units."""
     atoms = bulk("Ar", "sc", a=1.0)
-    primitive = atoms
+    cell = atoms
     cluster_space = ClusterSpace(
-        primitive,
+        cell,
         cutoffs={order: 1.1 for order in orders},
         max_body_orders={order: order for order in orders},
         symprec=1e-05,

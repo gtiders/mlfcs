@@ -22,7 +22,7 @@ from mlfcs.foundation.integer import (
     determinant_3x3,
     to_python_rows,
 )
-from mlfcs.geometry.symmetry import PrimitiveSymmetry
+from mlfcs.geometry.symmetry import CellSymmetry
 
 
 def _unimodular_inverse(matrix: object) -> np.ndarray:
@@ -132,7 +132,7 @@ def as_qgrid(mesh: object) -> QGrid:
     return mesh if isinstance(mesh, QGrid) else QGrid(mesh)
 
 
-def mass_preserving_symmetry(symmetry: PrimitiveSymmetry, masses: np.ndarray) -> PrimitiveSymmetry:
+def mass_preserving_symmetry(symmetry: CellSymmetry, masses: np.ndarray) -> CellSymmetry:
     """Return the symmetry subgroup that preserves the atomic mass assignment.
 
     Operations mapping any motif site to a site of different mass are removed.
@@ -141,7 +141,7 @@ def mass_preserving_symmetry(symmetry: PrimitiveSymmetry, masses: np.ndarray) ->
     keep = np.all(masses[symmetry.site_permutations] == masses[None, :], axis=1)
     if np.all(keep):
         return symmetry
-    return PrimitiveSymmetry(
+    return CellSymmetry(
         rotations=symmetry.rotations[keep],
         translations=symmetry.translations[keep],
         cartesian_rotations=symmetry.cartesian_rotations[keep],
@@ -172,9 +172,9 @@ class QGrid:
         """Enumerate the reciprocal grid defined by a supercell matrix.
 
         ``matrix`` is either three positive diagonal mesh sizes or a nonsingular
-        integer matrix with ``cell_super = matrix @ cell_primitive``. The grid
+        integer matrix with ``cell_super = matrix @ cell``. The grid
         contains ``abs(det(matrix))`` labels representing fractional reciprocal
-        coordinates in the primitive cell basis.
+        coordinates in the cell basis.
         """
         values = _normalize_mesh_matrix(matrix)
         denominator = abs(determinant_3x3(values))
@@ -222,7 +222,7 @@ class QGrid:
 def _compatible(
     matrix: np.ndarray, adjugate: np.ndarray, rotation: np.ndarray, denominator: int
 ) -> bool:
-    """Return whether a primitive rotation preserves the supercell lattice.
+    """Return whether a cell rotation preserves the supercell lattice.
 
     Compatibility requires ``S @ R.T @ S^-1`` to have integer entries.
     """
@@ -234,7 +234,7 @@ def _compatible(
 class QStars:
     """Irreducible symmetry stars of a finite reciprocal grid.
 
-    Grid points related by supercell-compatible primitive symmetry operations,
+    Grid points related by supercell-compatible cell symmetry operations,
     and optionally by time reversal, belong to a common star. Every full-grid
     member retains its irreducible representative, the symmetry operation
     mapping that representative to the member, and whether time reversal is
@@ -242,7 +242,7 @@ class QStars:
     """
 
     grid: QGrid
-    symmetry: PrimitiveSymmetry
+    symmetry: CellSymmetry
     representatives: np.ndarray
     star_of: np.ndarray
     operations: np.ndarray
@@ -251,17 +251,17 @@ class QStars:
     time_reversal: bool
 
     def __init__(
-        self, grid: QGrid, symmetry: PrimitiveSymmetry, *, time_reversal: bool = True
+        self, grid: QGrid, symmetry: CellSymmetry, *, time_reversal: bool = True
     ) -> None:
         """Partition a reciprocal grid into irreducible symmetry stars.
 
-        Only primitive symmetry operations that preserve the supercell lattice
+        Only cell symmetry operations that preserve the supercell lattice
         participate. If ``time_reversal`` is true, ``q`` and ``-q`` are grouped
         in the same star. Each member stores a route from its representative
         through a symmetry operation and, when needed, time reversal.
         """
-        if not isinstance(grid, QGrid) or not isinstance(symmetry, PrimitiveSymmetry):
-            raise TypeError("grid and symmetry must be QGrid and PrimitiveSymmetry")
+        if not isinstance(grid, QGrid) or not isinstance(symmetry, CellSymmetry):
+            raise TypeError("grid and symmetry must be QGrid and CellSymmetry")
         n = grid.size
         labels = grid.labels
         denominator = grid.denominator
@@ -282,7 +282,7 @@ class QStars:
             None,
         )
         if identity is None:
-            raise ValueError("primitive symmetry does not contain the identity operation")
+            raise ValueError("cell symmetry does not contain the identity operation")
         compatible = [
             index
             for index, rotation in enumerate(symmetry.rotations)
@@ -328,7 +328,7 @@ class QStars:
                     )
             members = set(routes)
             if any(star_of[member] >= 0 for member in members):
-                raise RuntimeError("primitive operations do not form closed reciprocal stars")
+                raise RuntimeError("cell operations do not form closed reciprocal stars")
             if any(
                 int(permutation[member]) not in members
                 for member in members
@@ -336,7 +336,7 @@ class QStars:
             ) or (
                 time_reversal and any(int(negatives[member]) not in members for member in members)
             ):
-                raise RuntimeError("primitive operations do not form closed reciprocal stars")
+                raise RuntimeError("cell operations do not form closed reciprocal stars")
             star = len(representatives)
             for member in members:
                 star_of[member] = star

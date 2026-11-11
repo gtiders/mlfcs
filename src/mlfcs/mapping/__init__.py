@@ -1,4 +1,4 @@
-"""Derived relationships between primitive models and explicit supercells."""
+"""Derived relationships between reference-cell models and explicit supercells."""
 
 from mlfcs.mapping.cluster_map import ClusterMap
 

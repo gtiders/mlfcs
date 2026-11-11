@@ -1,4 +1,4 @@
-"""Version-five HDF5 storage of primitive models and physical coefficients."""
+"""Version-six HDF5 storage of reference-cell models and physical coefficients."""
 
 from __future__ import annotations
 
@@ -11,11 +11,11 @@ import numpy as np
 
 from mlfcs.cluster_space.records import Cluster, ClusterSpace, Orbit, OrderBlock
 from mlfcs.foundation.arrays import readonly
-from mlfcs.geometry.structure import validate_primitive_arrays
-from mlfcs.geometry.symmetry import PrimitiveSymmetry
+from mlfcs.geometry.structure import validate_cell_arrays
+from mlfcs.geometry.symmetry import CellSymmetry
 
 _FORMAT = "mlfcs.force_constants"
-_VERSION = 5
+_VERSION = 6
 _SIGNATURE = b"\x89HDF\r\n\x1a\n"
 
 
@@ -44,7 +44,7 @@ def _array(group, name, kind, ndim):
 def _cluster(labels):
     """Decode anchored int64 labels of shape (p, 4) into a tensor-index cluster.
 
-    Each row is (primitive site, tx, ty, tz), where p >= 2 and the first
+    Each row is (cell site, tx, ty, tz), where p >= 2 and the first
     translation is zero. Raise ValueError for malformed or unanchored labels.
     """
     if labels.ndim != 2 or labels.shape[1:] != (4,) or len(labels) < 2:
@@ -62,10 +62,10 @@ def _write_space(group, space):
     tensor bases use C-order Cartesian components, and labels are integer
     lattice addresses. All ndarray datasets are int64 or float64.
     """
-    primitive = group.create_group("primitive")
+    cell = group.create_group("cell")
     for name in ("cell", "scaled_positions", "atomic_numbers", "masses"):
-        primitive.create_dataset(name, data=getattr(space, name))
-    primitive.attrs["symprec"] = space.symprec
+        cell.create_dataset(name, data=getattr(space, name))
+    cell.attrs["symprec"] = space.symprec
     symmetry = group.create_group("symmetry")
     for name in (
         "rotations",
@@ -110,16 +110,16 @@ def _read_space(group):
 
     Data follow the units, shapes and tensor-index conventions of ``_write_space``.
     Returns an immutable model without neighbor enumeration, symmetry discovery
-    or integer-kernel solving. Primitive validation still certifies the motif
+    or integer-kernel solving. Cell validation still certifies the motif
     through spglib. Raise ValueError for invalid geometry, masses or layout.
     """
-    primitive = group["primitive"]
-    record = validate_primitive_arrays(
-        _array(primitive, "cell", "f", 2),
-        _array(primitive, "scaled_positions", "f", 2),
-        _array(primitive, "atomic_numbers", "i", 1),
-        _array(primitive, "masses", "f", 1),
-        primitive.attrs["symprec"],
+    cell = group["cell"]
+    record = validate_cell_arrays(
+        _array(cell, "cell", "f", 2),
+        _array(cell, "scaled_positions", "f", 2),
+        _array(cell, "atomic_numbers", "i", 1),
+        _array(cell, "masses", "f", 1),
+        cell.attrs["symprec"],
     )
     cell, positions, numbers, symprec = (
         record.cell,
@@ -129,7 +129,7 @@ def _read_space(group):
     )
     masses = record.masses
     source = group["symmetry"]
-    symmetry = PrimitiveSymmetry(
+    symmetry = CellSymmetry(
         rotations=_array(source, "rotations", "i", 3),
         translations=_array(source, "translations", "f", 2),
         cartesian_rotations=_array(source, "cartesian_rotations", "f", 3),
@@ -139,7 +139,7 @@ def _read_space(group):
         symprec=source.attrs["symprec"],
     )
     if symmetry.symprec != symprec or symmetry.site_permutations.shape[1] != len(numbers):
-        raise ValueError("stored symmetry does not act on the declared primitive motif")
+        raise ValueError("stored symmetry does not act on the declared cell motif")
     blocks = []
     source = group["blocks"]
     for index in range(len(source)):
@@ -194,9 +194,9 @@ def _read_space(group):
 
 
 def save(model, path):
-    """Atomically save a ForceConstants model to a version-five HDF5 file.
+    """Atomically save a ForceConstants model to a version-six HDF5 file.
 
-    ``path`` is a path-like target; return its absolute Path. Store all primitive
+    ``path`` is a path-like target; return its absolute Path. Store all cell
     model arrays and each present physical coefficient vector (eV/angstrom**p).
     Flush and fsync a same-directory temporary file before replacing the target.
     I/O errors propagate and the temporary file is removed on failure.
@@ -224,9 +224,9 @@ def save(model, path):
 
 
 def load(path):
-    """Load a version-five HDF5 ForceConstants model without executable object decoding.
+    """Load a version-six HDF5 ForceConstants model without executable object decoding.
 
-    ``path`` is a path-like input. Return a model with readonly primitive arrays,
+    ``path`` is a path-like input. Return a model with readonly cell arrays,
     masses and physical coefficients. Raise ValueError for unsupported formats,
     missing fields or invalid stored model data. File-access errors propagate.
     Old pickle-native files are rejected; no legacy decoder is invoked.
@@ -235,7 +235,7 @@ def load(path):
 
     with open(path, "rb") as handle:
         if handle.read(8) != _SIGNATURE:
-            raise ValueError("unsupported force-constant file; HDF5 version 5 is required")
+            raise ValueError("unsupported force-constant file; HDF5 version 6 is required")
     with h5py.File(path, "r") as handle:
         try:
             version = handle.attrs["version"]
@@ -244,7 +244,7 @@ def load(path):
                 or not isinstance(version, (int, np.integer))
                 or version != _VERSION
             ):
-                raise ValueError("unsupported force-constant format; HDF5 version 5 is required")
+                raise ValueError("unsupported force-constant format; HDF5 version 6 is required")
             space = _read_space(handle["cluster_space"])
             source = handle["coefficients"]
             coefficients = {}

@@ -182,7 +182,7 @@ for result in results:
 ```python
 from mlfcs.phonon import Harmonic
 
-path = model.cluster_space.primitive_atoms.cell.bandpath(npoints=200)
+path = model.cluster_space.cell_atoms.cell.bandpath(npoints=200)
 bare_bands = Harmonic(model).run_band_path(path)
 if result.converged:
     effective_bands = Harmonic(result.fc2).run_band_path(path)
@@ -209,7 +209,7 @@ from mlfcs import ClusterSpace
 
 saved_space = model.cluster_space
 space = ClusterSpace(
-    saved_space.primitive_atoms,
+    saved_space.cell_atoms,
     cutoffs={block.order: block.cutoff for block in saved_space.blocks},
     max_body_orders={block.order: block.max_body_order for block in saved_space.blocks},
     symprec=saved_space.symprec,
@@ -242,7 +242,7 @@ results = scph.run_many(
     max_iterations=200,
 )
 
-path = model.cluster_space.primitive_atoms.cell.bandpath(npoints=200)
+path = model.cluster_space.cell_atoms.cell.bandpath(npoints=200)
 bare = Harmonic(model).run_band_path(path)
 fig, ax = plt.subplots()
 for index, segment in enumerate(bare.segments):

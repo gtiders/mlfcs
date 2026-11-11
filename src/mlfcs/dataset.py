@@ -18,7 +18,7 @@ class ForceDataset:
     """Displacement-force samples for one mapped periodic supercell.
 
     Each frame stores Cartesian atomic displacements relative to
-    ``cluster_map.supercell_atoms`` and the corresponding target forces.
+    ``cluster_map.supercell`` and the corresponding target forces.
     Displacements are minimum-image vectors in angstrom; forces are in
     eV/angstrom. Frame and atom ordering are preserved as supplied. The dataset
     does not interpret how structures were generated and does not evaluate
@@ -36,7 +36,7 @@ class ForceDataset:
         if isinstance(structures, (Atoms, np.ndarray)):
             raise TypeError("structures must be an iterable of ASE Atoms")
         geometry = Lattice(cluster_map.cell)
-        positions = cluster_map.supercell_atoms.positions
+        positions = cluster_map.supercell.positions
         displacements, forces = [], []
         for index, atoms in enumerate(structures):
             displacement, force = _sample(cluster_map, atoms, index, positions, geometry)
@@ -56,9 +56,9 @@ class ForceDataset:
         object.__setattr__(self, "forces", forces)
 
     @property
-    def supercell_atoms(self) -> Atoms:
+    def supercell(self) -> Atoms:
         """Reference supercell defining the displacement origin and atom order."""
-        return self.cluster_map.supercell_atoms
+        return self.cluster_map.supercell
 
     def subtract_forces(self, forces: object) -> ForceDataset:
         """Return a dataset with a force contribution removed.

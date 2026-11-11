@@ -92,7 +92,7 @@ def _fc2_moment_matrices(
     median non-onsite pair distance in angstrom. Born-Huang equations are
     antisymmetric in their displacement and moment directions; Huang
     equations compare exchanged tensor/moment axis pairs after summing over
-    primitive atoms. Columns follow the physical FC2 parameters.
+    cell atoms. Columns follow the physical FC2 parameters.
     No positive finite non-onsite length scale raises ValueError.
     """
     space = cluster_space
@@ -198,10 +198,10 @@ def _geometry_residuals(model: ForceConstants) -> tuple[float, float]:
     Evaluate the supplied geometry without idealizing positions or cell;
     the symmetry-search tolerance is not itself a measured error.
     """
-    primitive = model.cluster_space
+    cell = model.cluster_space
     symmetry = model.cluster_space.symmetry
-    positions = primitive.scaled_positions
-    cell = primitive.cell
+    positions = cell.scaled_positions
+    cell = cell.cell
     site_residual = 0.0
     orthogonality_residual = 0.0
     for operation in range(symmetry.size):
@@ -241,7 +241,7 @@ def enforce_rotation(
     Parameters
     ----------
     model
-        Primitive force constants containing FC2 and their reference geometry.
+        Reference-cell force constants containing FC2 and their reference geometry.
         Their cluster space must have been initialized with ``asr=True``.
     born_huang
         Enforce Born-Huang first-moment conditions; enabled by default.

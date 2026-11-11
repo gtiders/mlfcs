@@ -20,13 +20,13 @@ from mlfcs.geometry.symmetry import discover_symmetry
 
 def test_orbit_actions_produce_distinct_cluster_images() -> None:
     """Verify orbit actions produce distinct cluster images."""
-    primitive = ClusterSpace(bulk("Si", "diamond", a=5.43), symprec=1e-05, cutoffs={2: 0.01})
+    cell = ClusterSpace(bulk("Si", "diamond", a=5.43), symprec=1e-05, cutoffs={2: 0.01})
     symmetry = discover_symmetry(
-        primitive.cell, primitive.scaled_positions, primitive.atomic_numbers, primitive.symprec
+        cell.cell, cell.scaled_positions, cell.atomic_numbers, cell.symprec
     )
     candidate = Cluster.from_labels(
         enumerate_candidate_labels(
-            primitive.cell, primitive.scaled_positions, order=3, cutoff=4.0, max_body_order=3
+            cell.cell, cell.scaled_positions, order=3, cutoff=4.0, max_body_order=3
         )[0]
     )
     values, array = _axis_permutations(3)
@@ -53,9 +53,9 @@ def test_cluster_space_has_the_characterized_physical_dimension(
     atoms: Atoms, order: int, expected_orbits: int, expected_parameters: int
 ) -> None:
     """Verify cluster space has the characterized physical dimension."""
-    primitive = atoms
+    cell = atoms
     space = ClusterSpace(
-        primitive, cutoffs={order: 4.0}, max_body_orders={order: order}, symprec=1e-05
+        cell, cutoffs={order: 4.0}, max_body_orders={order: order}, symprec=1e-05
     )
     assert len(space.orbits) == expected_orbits
     assert space.n_parameters == expected_parameters
@@ -78,9 +78,9 @@ def test_lattice_shear_preserves_orbit_dimensions() -> None:
     )
     spaces = []
     for structure in (atoms, sheared):
-        primitive = structure
+        cell = structure
         spaces.append(
-            ClusterSpace(primitive, cutoffs={3: 4.0}, max_body_orders={3: 3}, symprec=1e-05)
+            ClusterSpace(cell, cutoffs={3: 4.0}, max_body_orders={3: 3}, symprec=1e-05)
         )
     assert [orbit.dimension for orbit in spaces[0].orbits] == [
         orbit.dimension for orbit in spaces[1].orbits
@@ -90,9 +90,9 @@ def test_lattice_shear_preserves_orbit_dimensions() -> None:
 
 def test_one_space_owns_a_stable_multi_order_parameter_layout() -> None:
     """Verify one space owns a stable multi order parameter layout."""
-    primitive = bulk("Si", "diamond", a=5.43)
+    cell = bulk("Si", "diamond", a=5.43)
     space = ClusterSpace(
-        primitive, cutoffs={3: 4.0, 2: 4.0}, max_body_orders={2: 2, 3: 3}, symprec=1e-05
+        cell, cutoffs={3: 4.0, 2: 4.0}, max_body_orders={2: 2, 3: 3}, symprec=1e-05
     )
     assert space.orders == (2, 3)
     assert space.block(2).parameters == slice(0, 7)
@@ -105,7 +105,7 @@ def test_one_space_owns_a_stable_multi_order_parameter_layout() -> None:
 @pytest.mark.parametrize(
     "fractional", [[-0.2, 1.3, 2.0], [-1e-300, 1.0, 0.5], [1.0 - 1e-15, -2.0, 0.3]]
 )
-def test_primitive_positions_use_ase_wrap_without_mutating_input(fractional):
+def test_cell_positions_use_ase_wrap_without_mutating_input(fractional):
     """Match ASE wrapping at periodic boundaries while preserving the caller's atoms."""
     atoms = bulk("Ar", "sc", a=1.0)
     atoms.set_scaled_positions([fractional])
@@ -119,17 +119,17 @@ def test_primitive_positions_use_ase_wrap_without_mutating_input(fractional):
     assert np.all(space.scaled_positions >= 0) and np.all(space.scaled_positions < 1)
 
 
-def test_primitive_snapshot_preserves_wrapped_geometry() -> None:
-    """Verify primitive snapshot preserves wrapped geometry."""
+def test_cell_snapshot_preserves_wrapped_geometry() -> None:
+    """Verify cell snapshot preserves wrapped geometry."""
     atoms = bulk("Si", "diamond", a=5.43)
     atoms.set_scaled_positions(atoms.get_scaled_positions() + [2.0, -1.0, 0.0])
-    primitive = ClusterSpace(atoms, symprec=1e-05, cutoffs={2: 0.01})
+    cell = ClusterSpace(atoms, symprec=1e-05, cutoffs={2: 0.01})
     atoms.positions[:] = 0.0
-    assert np.all((primitive.scaled_positions >= 0.0) & (primitive.scaled_positions < 1.0))
-    assert not primitive.cell.flags.writeable
-    assert not primitive.scaled_positions.flags.writeable
-    assert not primitive.atomic_numbers.flags.writeable
-    assert not np.allclose(primitive.cartesian_positions, 0.0)
+    assert np.all((cell.scaled_positions >= 0.0) & (cell.scaled_positions < 1.0))
+    assert not cell.cell.flags.writeable
+    assert not cell.scaled_positions.flags.writeable
+    assert not cell.atomic_numbers.flags.writeable
+    assert not np.allclose(cell.cartesian_positions, 0.0)
 
 
 @pytest.mark.reference
@@ -145,9 +145,9 @@ def test_orbits_match_saved_symmetry_reference(reference):
 
     material, order, cutoff = (reference["material"], reference["order"], reference["cutoff"])
     atoms = bulk("Si", "diamond", a=5.43) if material == "Si" else bulk("Mg", "hcp", a=3.2, c=5.2)
-    primitive = atoms
+    cell = atoms
     space = ClusterSpace(
-        primitive, cutoffs={order: cutoff}, max_body_orders={order: order}, symprec=1e-05
+        cell, cutoffs={order: cutoff}, max_body_orders={order: order}, symprec=1e-05
     )
     assert len(space.orbits) == len(reference["orbits"])
     assert space.n_parameters == reference["n_parameters"]

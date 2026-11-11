@@ -41,7 +41,7 @@ def _displacement_keys(
 
 
 class FiniteDifference:
-    """Finite-difference sampling plan for one primitive force-constant order.
+    """Finite-difference sampling plan for one reference-cell force-constant order.
 
     For an order-``p`` force constant, the plan generates central-difference
     structures for the ``p - 1`` Cartesian displacement coordinates required
@@ -179,7 +179,7 @@ class _DisplacedStructures(Sequence[Atoms]):
         displacements = np.zeros((len(plan.cluster_map.atomic_numbers), 3))
         for sign, (atom, axis) in zip(plan._sign_combinations[sign_index], key, strict=True):
             displacements[int(atom), int(axis)] += int(sign) * step_length
-        atoms = plan.cluster_map.supercell_atoms
+        atoms = plan.cluster_map.supercell
         atoms.positions += displacements
         return atoms
 

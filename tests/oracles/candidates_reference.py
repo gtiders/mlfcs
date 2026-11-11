@@ -1,4 +1,4 @@
-"""Primitive candidates determined only by physical geometry inputs."""
+"""Cell candidates determined only by physical geometry inputs."""
 
 from __future__ import annotations
 
@@ -12,18 +12,18 @@ from mlfcs.cluster_space.records import Cluster
 from mlfcs.geometry.lattice import LatticeSite
 
 
-def _neighbors(primitive: ClusterSpace, cutoff: float) -> tuple[tuple[LatticeSite, ...], ...]:
-    """List periodic neighbors strictly within cutoff of each primitive motif site.
+def _neighbors(cell: ClusterSpace, cutoff: float) -> tuple[tuple[LatticeSite, ...], ...]:
+    """List periodic neighbors strictly within cutoff of each cell motif site.
 
-    ``primitive`` supplies row lattice vectors and wrapped fractional positions;
+    ``cell`` supplies row lattice vectors and wrapped fractional positions;
     ``cutoff`` is a positive distance in angstrom. Return sorted LatticeSite
     tuples, one per motif atom, including the anchor's self image. ASE supplies
-    translation offsets in the primitive lattice basis.
+    translation offsets in the cell lattice basis.
     """
     first, second, shifts, distances = neighbor_list(
-        "ijSd", primitive.primitive_atoms, cutoff, self_interaction=True
+        "ijSd", cell.cell_atoms, cutoff, self_interaction=True
     )
-    result: list[set[LatticeSite]] = [set() for _ in range(primitive.n_atoms)]
+    result: list[set[LatticeSite]] = [set() for _ in range(cell.n_atoms)]
     for anchor, site, shift, distance in zip(first, second, shifts, distances, strict=True):
         if float(distance) < cutoff:
             result[int(anchor)].add(LatticeSite(int(site), tuple(int(value) for value in shift)))
@@ -31,7 +31,7 @@ def _neighbors(primitive: ClusterSpace, cutoff: float) -> tuple[tuple[LatticeSit
 
 
 def iter_candidates(
-    primitive: ClusterSpace,
+    cell: ClusterSpace,
     *,
     order: int,
     cutoff: float,
@@ -44,15 +44,15 @@ def iter_candidates(
         raise ValueError("cutoff must be a positive finite distance in angstrom")
     if not 1 <= max_body_order <= order:
         raise ValueError("max_body_order must lie between one and the cluster order")
-    neighbors = _neighbors(primitive, cutoff)
-    positions = primitive.scaled_positions
-    cell = primitive.cell
+    neighbors = _neighbors(cell, cutoff)
+    positions = cell.scaled_positions
+    lattice = cell.cell
 
     def point(label: LatticeSite) -> np.ndarray:
         """Return the addressed site's Cartesian row position, shape (3,), in angstrom."""
-        return (positions[label.site] + np.asarray(label.translation)) @ cell
+        return (positions[label.site] + np.asarray(label.translation)) @ lattice
 
-    for anchor in range(primitive.n_atoms):
+    for anchor in range(cell.n_atoms):
         choices = neighbors[anchor]
         prefix: list[LatticeSite] = []
 

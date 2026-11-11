@@ -1,4 +1,4 @@
-"""Symmetry-reduced force constants in primitive-cell coordinates."""
+"""Symmetry-reduced force constants in cell coordinates."""
 
 from mlfcs.cluster_space import ClusterSpace
 from mlfcs.dataset import ForceDataset

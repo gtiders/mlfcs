@@ -93,14 +93,14 @@ def test_full_ewald_is_independent_of_the_splitting_parameter(polar_model):
 
 
 def test_folded_nonzero_translation_images_do_not_become_onsite(polar_model, ewald, long_fc):
-    """A one-cell fold sums periodic images and retains the corrected primitive ASR."""
+    """A one-cell fold sums periodic images and retains the corrected cell ASR."""
     mapping, born, epsilon = polar_model
-    primitive_map = ClusterMap(mapping.cluster_space, mapping.cluster_space.primitive_atoms)
-    primitive = DipoleEwald(primitive_map, born_charges=born, dielectric=epsilon).force_constants()
-    folded = np.zeros_like(primitive.compact_array(2))
-    for atom, site in enumerate(mapping.primitive_site_indices):
+    cell_map = ClusterMap(mapping.cluster_space, mapping.cluster_space.cell_atoms)
+    cell = DipoleEwald(cell_map, born_charges=born, dielectric=epsilon).force_constants()
+    folded = np.zeros_like(cell.compact_array(2))
+    for atom, site in enumerate(mapping.cell_site_indices):
         folded[:, site] += long_fc.compact_array(2)[:, atom]
-    np.testing.assert_allclose(folded, primitive.compact_array(2), atol=1e-11, rtol=1e-11)
+    np.testing.assert_allclose(folded, cell.compact_array(2), atol=1e-11, rtol=1e-11)
 
 
 def test_zero_born_charges_produce_zero_fc2_and_forces(polar_model):
@@ -114,7 +114,7 @@ def test_zero_born_charges_produce_zero_fc2_and_forces(polar_model):
 def test_insufficient_local_support_fails_without_fallback(polar_model):
     """An onsite-only model cannot cancel a nonzero antisymmetric dipole row sum."""
     mapping, born, epsilon = polar_model
-    atoms = mapping.cluster_space.primitive_atoms
+    atoms = mapping.cluster_space.cell_atoms
     small = ClusterMap(ClusterSpace(atoms, cutoffs={2: 0.01}), atoms)
     with pytest.raises(ValueError, match="insufficient"):
         DipoleEwald(small, born_charges=born, dielectric=epsilon)
@@ -131,7 +131,7 @@ def test_long_range_subtraction_restores_the_same_fitting_equations(long_fc):
     frames = []
     long = long_fc.harmonic_forces(u)
     for displacement, force in zip(u, short + long, strict=True):
-        atoms = mapping.supercell_atoms
+        atoms = mapping.supercell
         atoms.positions += displacement
         atoms.calc = SinglePointCalculator(atoms, forces=force)
         frames.append(atoms)
@@ -159,7 +159,7 @@ def test_invalid_physical_inputs_are_rejected(polar_model, invalid):
 
 
 def test_cubic_space_group_preserves_born_action_and_fc2():
-    """Check a rocksalt dipole model in a high-symmetry primitive basis."""
+    """Check a rocksalt dipole model in a high-symmetry cell basis."""
     atoms = Atoms(
         numbers=[11, 17],
         scaled_positions=[[0, 0, 0], [0.5, 0.5, 0.5]],
@@ -184,11 +184,11 @@ def test_cartesian_rotation_preserves_the_local_correction(polar_model, ewald, l
     """A physical coordinate rotation rotates the final Hessian and force convention."""
     mapping, born, epsilon = polar_model
     rotation, _ = np.linalg.qr(np.random.default_rng(8).normal(size=(3, 3)))
-    atoms = mapping.cluster_space.primitive_atoms
+    atoms = mapping.cluster_space.cell_atoms
     atoms.positions[:] = atoms.positions @ rotation
     atoms.cell[:] = atoms.cell.array @ rotation
     space = ClusterSpace(atoms, cutoffs={2: 3.0})
-    supercell = mapping.supercell_atoms
+    supercell = mapping.supercell
     supercell.positions[:] = supercell.positions @ rotation
     supercell.cell[:] = supercell.cell.array @ rotation
     rotated_map = ClusterMap(space, supercell)
@@ -257,16 +257,16 @@ def test_dipole_kernel_matches_independent_green_function_derivatives(polar_mode
 def test_correction_support_changes_partition_but_preserves_constraints(polar_model):
     """A different local cutoff changes the partition, not the required Hessian invariants."""
     mapping, born, epsilon = polar_model
-    primitive = mapping.cluster_space.primitive_atoms
-    atoms = primitive.repeat((2, 2, 2))
+    cell = mapping.cluster_space.cell_atoms
+    atoms = cell.repeat((2, 2, 2))
     matrix = 2 * np.eye(3, dtype=np.int64)
     small = DipoleEwald(
-        ClusterMap(ClusterSpace(primitive, cutoffs={2: 3.0}), atoms, supercell_matrix=matrix),
+        ClusterMap(ClusterSpace(cell, cutoffs={2: 3.0}), atoms, supercell_matrix=matrix),
         born_charges=born,
         dielectric=epsilon,
     )
     larger = DipoleEwald(
-        ClusterMap(ClusterSpace(primitive, cutoffs={2: 4.0}), atoms, supercell_matrix=matrix),
+        ClusterMap(ClusterSpace(cell, cutoffs={2: 4.0}), atoms, supercell_matrix=matrix),
         born_charges=born,
         dielectric=epsilon,
     )
@@ -288,7 +288,7 @@ def test_bound_mapping_force_api_reuses_the_same_hessian(ewald, polar_model, lon
     assert ewald.force_constants() is long_fc
     u = np.random.default_rng(9).normal(scale=0.01, size=(2, mapping.n_atoms, 3))
     np.testing.assert_allclose(ewald.forces(u), long_fc.harmonic_forces(u), atol=1e-14)
-    reordered = ClusterMap(mapping.cluster_space, mapping.supercell_atoms[::-1])
+    reordered = ClusterMap(mapping.cluster_space, mapping.supercell[::-1])
     second = DipoleEwald(
         reordered, born_charges=ewald.born_charges, dielectric=ewald.dielectric
     ).force_constants()
@@ -329,7 +329,7 @@ def test_finite_difference_extrapolation_after_long_range_subtraction():
     frames = []
     stiffness = 2.5
     for sample in fd.sow():
-        u = sample.positions - mapping.supercell_atoms.positions
+        u = sample.positions - mapping.supercell.positions
         force = -stiffness * u - 7 * u**3 + long.harmonic_forces(u)
         sample.calc = SinglePointCalculator(sample, forces=force)
         frames.append(sample)

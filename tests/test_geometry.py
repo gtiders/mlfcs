@@ -29,22 +29,22 @@ def test_lattice_tensor_action_matches_numpy_contraction_and_permutation(order):
     )
 
 
-def test_primitive_symmetry_is_a_closed_action_on_the_motif() -> None:
-    """Verify primitive symmetry is a closed action on the motif."""
-    primitive = ClusterSpace(bulk("Si", "diamond", a=5.43), symprec=1e-05, cutoffs={2: 0.01})
+def test_cell_symmetry_is_a_closed_action_on_the_motif() -> None:
+    """Verify cell symmetry is a closed action on the motif."""
+    cell = ClusterSpace(bulk("Si", "diamond", a=5.43), symprec=1e-05, cutoffs={2: 0.01})
     symmetry = discover_symmetry(
-        primitive.cell, primitive.scaled_positions, primitive.atomic_numbers, primitive.symprec
+        cell.cell, cell.scaled_positions, cell.atomic_numbers, cell.symprec
     )
     assert symmetry.size > 1
     np.testing.assert_array_equal(
         np.sort(symmetry.site_permutations, axis=1),
-        np.broadcast_to(np.arange(primitive.n_atoms), symmetry.site_permutations.shape),
+        np.broadcast_to(np.arange(cell.n_atoms), symmetry.site_permutations.shape),
     )
     for operation in range(symmetry.size):
         label = LatticeSite(0, (2, -3, 1))
         mapped = symmetry.transform_site(operation, label)
-        source = primitive.scaled_positions[label.site] + label.translation
-        target = primitive.scaled_positions[mapped.site] + mapped.translation
+        source = cell.scaled_positions[label.site] + label.translation
+        target = cell.scaled_positions[mapped.site] + mapped.translation
         expected = source @ symmetry.rotations[operation].T + symmetry.translations[operation]
         np.testing.assert_allclose(target, expected, atol=1e-12, rtol=0.0)
 

@@ -1,4 +1,4 @@
-"""One primitive cluster model realized in a supercell."""
+"""One cell cluster model realized in a supercell."""
 
 from __future__ import annotations
 
@@ -12,8 +12,8 @@ from mlfcs.cluster_space import ClusterSpace
 from mlfcs.foundation.arrays import require_allocation
 from mlfcs.geometry.lattice import LatticeSite
 from mlfcs.geometry.structure import (
+    Cell,
     PeriodicIndex,
-    PrimitiveCell,
     infer_supercell_matrix,
     supercell_data,
 )
@@ -24,7 +24,7 @@ _PARTS = (
     ("cell", "cell"),
     ("scaled_positions", "scaled_positions"),
     ("atomic_numbers", "atomic_numbers"),
-    ("primitive_site_indices", "primitive_site_indices"),
+    ("cell_site_indices", "cell_site_indices"),
     ("lattice_translations", "lattice_translations"),
     ("quotient_labels", "quotient_labels"),
     ("determinant", "determinant"),
@@ -34,11 +34,11 @@ _PARTS = (
 
 @dataclass(frozen=True, slots=True, init=False)
 class ClusterMap:
-    """Realization of a primitive force-constant space in a specific supercell.
+    """Realization of a reference-cell force-constant space in a specific supercell.
 
     ``ClusterSpace`` defines force-constant clusters and symmetry orbits in
-    primitive-lattice coordinates. ``ClusterMap`` embeds that model into one
-    validated periodic supercell by assigning primitive lattice sites and
+    cell-lattice coordinates. ``ClusterMap`` embeds that model into one
+    validated periodic supercell by assigning cell lattice sites and
     orbit images to concrete supercell atom indices.
 
     For each orbit, ``image_atom_indices`` stores the ordered atom tuple of
@@ -50,13 +50,13 @@ class ClusterMap:
     Parameters
     ----------
     cluster_space
-        Primitive force-constant model space.
-    supercell_atoms
+        Reference-cell force-constant model space.
+    supercell
         Fully periodic ASE supercell.
     supercell_matrix
         Optional integer ``(3, 3)`` supercell matrix ``S`` satisfying
 
-            cell_super = S @ cell_primitive.
+            cell_super = S @ cell.
 
         If omitted, ``S`` is inferred from the two lattices.
 
@@ -74,7 +74,7 @@ class ClusterMap:
     cell: np.ndarray
     scaled_positions: np.ndarray
     atomic_numbers: np.ndarray
-    primitive_site_indices: np.ndarray
+    cell_site_indices: np.ndarray
     lattice_translations: np.ndarray
     quotient_labels: np.ndarray
     determinant: int
@@ -83,17 +83,17 @@ class ClusterMap:
     _index: PeriodicIndex
 
     def __init__(
-        self, cluster_space: ClusterSpace, supercell_atoms: Atoms, *, supercell_matrix=None
+        self, cluster_space: ClusterSpace, supercell: Atoms, *, supercell_matrix=None
     ):
         """Validate the supercell, require parameter identifiability, and build the atom maps."""
         if not isinstance(cluster_space, ClusterSpace):
             raise TypeError("cluster_space must be a ClusterSpace")
         started = perf_counter()
         print(
-            f"Mapping: primitive atoms {cluster_space.n_atoms}, "
+            f"Mapping: cell atoms {cluster_space.n_atoms}, "
             f"matrix {'inferred' if supercell_matrix is None else 'explicit'}"
         )
-        primitive = PrimitiveCell(
+        cell = Cell(
             cell=cluster_space.cell,
             scaled_positions=cluster_space.scaled_positions,
             atomic_numbers=cluster_space.atomic_numbers,
@@ -101,9 +101,9 @@ class ClusterMap:
             symprec=cluster_space.symprec,
         )
         if supercell_matrix is None:
-            supercell_matrix = infer_supercell_matrix(primitive, supercell_atoms)
+            supercell_matrix = infer_supercell_matrix(cell, supercell)
             print(f"Mapping: supercell matrix {supercell_matrix.tolist()}")
-        supercell = supercell_data(primitive, supercell_atoms, supercell_matrix)
+        supercell = supercell_data(cell, supercell, supercell_matrix)
         print(f"Mapping: supercell atoms {supercell.n_atoms}")
         object.__setattr__(self, "cluster_space", cluster_space)
         for public, attribute in _PARTS:
@@ -135,7 +135,7 @@ class ClusterMap:
         )
 
     @property
-    def supercell_atoms(self) -> Atoms:
+    def supercell(self) -> Atoms:
         """A detached ASE copy of the reference supercell."""
         return Atoms(
             numbers=self.atomic_numbers,
@@ -147,23 +147,23 @@ class ClusterMap:
 
     @property
     def n_atoms(self):
-        """Number of atoms in this reference supercell, not in the primitive motif."""
+        """Number of atoms in this reference supercell, not in the cell motif."""
         return len(self.atomic_numbers)
 
     def quotient(self, translation: tuple[int, int, int]) -> tuple[int, int, int]:
-        """Return the quotient label of a primitive translation modulo the supercell lattice."""
+        """Return the quotient label of a cell translation modulo the supercell lattice."""
         return self._index.label(translation)
 
     @property
     def translation_representatives(self) -> tuple[tuple[int, int, int], ...]:
-        """Return one primitive-lattice representative for each supercell translation class.
+        """Return one cell-lattice representative for each supercell translation class.
 
-        Representatives follow the external atom order of primitive site zero.
+        Representatives follow the external atom order of cell site zero.
         """
         seen: set[tuple[int, int, int]] = set()
         result = []
         for site, translation, quotient in zip(
-            self.primitive_site_indices,
+            self.cell_site_indices,
             self.lattice_translations,
             self.quotient_labels,
             strict=True,
@@ -179,17 +179,17 @@ class ClusterMap:
         return tuple(result)
 
     def atom_index(self, site: LatticeSite) -> int:
-        """Return the supercell atom addressed by one primitive lattice site."""
+        """Return the supercell atom addressed by one cell lattice site."""
         label = np.asarray([[site.site, *site.translation]], dtype=np.int64)
         try:
             return int(self.map_labels(label, np.zeros((1, 3), dtype=np.int64))[0, 0])
         except ValueError as error:
-            raise RuntimeError(f"primitive site {site} is absent from the supercell") from error
+            raise RuntimeError(f"cell site {site} is absent from the supercell") from error
 
     def map_labels(self, labels: object, translations: object) -> np.ndarray:
-        """Map primitive lattice labels under additional translations to supercell atoms.
+        """Map cell lattice labels under additional translations to supercell atoms.
 
-        For each primitive label ``(site, n)`` and translation offset ``t``,
+        For each cell label ``(site, n)`` and translation offset ``t``,
         return the atom index representing the periodic site
 
             (site, [n + t])
@@ -199,10 +199,10 @@ class ClusterMap:
         Parameters
         ----------
         labels
-            Primitive lattice labels of shape ``(n, 4)`` as
+            Cell lattice labels of shape ``(n, 4)`` as
             ``(site, tx, ty, tz)``.
         translations
-            Primitive lattice translations of shape ``(m, 3)``.
+            Cell lattice translations of shape ``(m, 3)``.
 
         Returns
         -------

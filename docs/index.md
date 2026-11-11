@@ -1,16 +1,16 @@
 # MLFCS
 
-MLFCS 从 ASE 结构和原子力构造原胞力常数。公共工作流由三个明确对象组成：
+MLFCS 从 ASE 结构和原子力构造参考胞力常数。公共工作流由三个明确对象组成：
 
-1. `ClusterSpace` 定义原胞基元、对称性、相互作用截断和参数空间。
-2. `ClusterMap` 将原胞模型映射到一个明确给定的参考超胞。
+1. `ClusterSpace` 定义参考胞基元、对称性、相互作用截断和参数空间。
+2. `ClusterMap` 将参考胞模型映射到一个明确给定的参考超胞。
 3. `ForceDataset` 统一收集超胞位移与力；`FiniteDifference` 重建单个阶次；`FitSystem` 构建并求解多个阶次的仅力拟合。
 
 结构长度使用 Å，能量使用 eV，力使用 eV/Å。n 阶力常数的单位是 eV/Åⁿ。
 
 ## 选择工作流
 
-第一次使用时，建议先阅读[核心概念](core-concepts.md)：从原胞出发，依次建立模型空间、参考超胞映射和位移—力数据集。
+第一次使用时，建议先阅读[核心概念](core-concepts.md)：从参考胞出发，依次建立模型空间、参考超胞映射和位移—力数据集。
 
 [理论与概念](theory/index.md)从周期晶体中的高阶力常数出发，解释对称参数化、ASR、超胞可辨识性、数据恢复和晶格动力学。各章给出定义、算法和工程对应；精确线性代数与 SCPH 放在进阶章节。
 
@@ -25,19 +25,19 @@ import numpy as np
 from ase.build import bulk
 from mlfcs import ClusterMap, ClusterSpace
 
-primitive_atoms = bulk("Al", "fcc", a=4.05)
+cell_atoms = bulk("Al", "fcc", a=4.05)
 space = ClusterSpace(
-    primitive_atoms, symprec=1e-05, cutoffs={2: 4.0, 3: 3.0}, max_body_orders={2: 2, 3: 3}
+    cell_atoms, symprec=1e-05, cutoffs={2: 4.0, 3: 3.0}, max_body_orders={2: 2, 3: 3}
 )
 
-supercell_atoms = primitive_atoms.repeat((3, 3, 3))
-mapping = ClusterMap(space, supercell_atoms, supercell_matrix=np.diag([3, 3, 3]))
+supercell = cell_atoms.repeat((3, 3, 3))
+mapping = ClusterMap(space, supercell, supercell_matrix=np.diag([3, 3, 3]))
 ```
 
 参考超胞是明确的数据输入；MLFCS 不会静默选择或扩展它。`ClusterMap` 构造时会检查超胞能否区分模型的所有参数，不能时立即抛出 `ValueError`，因此拟合与有限差分路径拿到的映射都满足可辨识性。有限差分和拟合路径分别见对应 API 文档。
 
 ## 范围
 
-每个 `FiniteDifference` 对象处理一个阶次；一个 `FitSystem` 可以处理同一 `ClusterSpace` 中的所有阶次。力常数属于原胞模型；超胞 realization 和外部文件格式都是派生操作。
+每个 `FiniteDifference` 对象处理一个阶次；一个 `FitSystem` 可以处理同一 `ClusterSpace` 中的所有阶次。力常数属于参考胞模型；超胞 realization 和外部文件格式都是派生操作。
 
 当前数值支持范围与对象生命周期见[开发参考](development/numerical-contracts.md)。尚未实现的长程动力学接入方案单列于[设计说明](development/long-range-dynamics.md)，不作为现有 API。

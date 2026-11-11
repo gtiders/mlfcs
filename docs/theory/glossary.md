@@ -8,7 +8,7 @@
 |---|---|---|
 | 力常数阶数 | force-constant order / tensor order | 能量对位移求导的次数；不指矩阵的秩 |
 | 体数 | body order | 相互作用涉及的不同周期原子位置数 |
-| 周期原子位置 | periodic lattice site / `LatticeSite` | 原胞原子编号与晶格平移共同指定的位置 |
+| 周期原子位置 | periodic lattice site / `LatticeSite` | 参考胞原子编号与晶格平移共同指定的位置 |
 | 原子簇 | cluster / `Cluster` | 按张量指标顺序排列的位置，允许重复，按共同平移等价锚定 |
 | 对称轨道 | orbit / `Orbit` | 对称作用连接的等价原子簇 |
 | 代表簇与轨道成员 | cluster representative / orbit image | 选定的代表，以及作用产生的其他等价簇 |
@@ -36,7 +36,7 @@
 
 | 中文 | 英文或代码名称 | 含义 |
 |---|---|---|
-| 超胞映射 | supercell mapping / `ClusterMap` | 原胞周期位置与给定超胞原子的关系 |
+| 超胞映射 | supercell mapping / `ClusterMap` | 参考胞周期位置与给定超胞原子的关系 |
 | 平移商类 | quotient class | 模超胞平移的等价类 |
 | 折叠 | folding | 映射到同一超胞原子组的镜像贡献相加 |
 | 混叠 | aliasing | 不同镜像落到同一有序超胞原子组 |
@@ -52,7 +52,7 @@
 | 中文 | 英文或代码名称 | 含义 |
 |---|---|---|
 | 动力学矩阵 | dynamical matrix | 质量加权的二阶力常数傅里叶矩阵 |
-| 分数倒空间坐标 | fractional reciprocal coordinates | 原胞倒格基中的 q 坐标 |
+| 分数倒空间坐标 | fractional reciprocal coordinates | 参考胞倒格基中的 q 坐标 |
 | q 网格 | q-grid / `QGrid` | 与整数超胞对应的有限倒空间网格 |
 | 不可约代表与星成员 | irreducible representative / star member | 一组对称等价 q 点中选定的代表及其他成员 |
 | 位置规范 | positional gauge | 傅里叶相位包含原子内部位置差的约定 |

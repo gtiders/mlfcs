@@ -12,7 +12,7 @@ from ase import Atoms
 from mlfcs.foundation.arrays import as_int64_array, require_bound
 from mlfcs.foundation.tensors import tensor_dimension
 from mlfcs.geometry.lattice import LatticeSite
-from mlfcs.geometry.symmetry import PrimitiveSymmetry
+from mlfcs.geometry.symmetry import CellSymmetry
 
 
 @dataclass(frozen=True, order=True, slots=True)
@@ -307,7 +307,7 @@ _PARTS = (
 class ClusterSpace:
     """Symmetry-reduced force-constant model space built from a periodic reference cell.
 
-    The primitive structure and truncation rules define the candidate
+    The reference cell and truncation rules define the candidate
     force-constant clusters. Crystal symmetry groups equivalent clusters into
     ``Orbit`` objects, whose independent Cartesian components form the global
     force-constant parameter space.
@@ -318,9 +318,9 @@ class ClusterSpace:
 
     Parameters
     ----------
-    primitive_atoms : ase.Atoms
-        Fully periodic reference structure, which need not be a minimal primitive
-        cell. Its atom order and cell basis define the model lattice and are
+    cell_atoms : ase.Atoms
+        Fully periodic reference structure, which need not be a minimal
+        primitive cell. Its atom order and cell basis define the model lattice and are
         retained; geometry and masses are captured independently of the input.
     cutoffs : mapping of int to float
         Pairwise distance cutoff for each included force-constant order, in
@@ -347,7 +347,7 @@ class ClusterSpace:
     Raises
     ------
     ValueError
-        Primitive geometry, truncation inputs or symmetry matching are invalid.
+        Cell geometry, truncation inputs or symmetry matching are invalid.
     OverflowError
         A local integer or array-size contract cannot be satisfied.
     """
@@ -357,13 +357,13 @@ class ClusterSpace:
     atomic_numbers: np.ndarray
     symprec: float
     _masses: np.ndarray
-    symmetry: PrimitiveSymmetry
+    symmetry: CellSymmetry
     blocks: tuple[OrderBlock, ...]
     orbits: tuple[Orbit, ...]
     _acoustic_coordinates: tuple | None
 
     def __init__(
-        self, primitive_atoms: Atoms, *, cutoffs, max_body_orders=None, symprec=1e-5, asr=False
+        self, cell_atoms: Atoms, *, cutoffs, max_body_orders=None, symprec=1e-5, asr=False
     ):
         """Construct the symmetry-reduced force-constant space."""
         if not isinstance(asr, (bool, np.bool_)):
@@ -381,7 +381,7 @@ class ClusterSpace:
 
         self._install(
             assemble_parts(
-                primitive_atoms,
+                cell_atoms,
                 cutoffs=cutoffs,
                 max_body_orders=bodies,
                 symprec=symprec,
@@ -424,7 +424,7 @@ class ClusterSpace:
         return {public: getattr(self, attribute) for public, attribute in _PARTS}
 
     @property
-    def primitive_atoms(self) -> Atoms:
+    def cell_atoms(self) -> Atoms:
         """Detached ASE representation of the supplied model reference cell."""
         return Atoms(
             numbers=self.atomic_numbers,
@@ -436,7 +436,7 @@ class ClusterSpace:
 
     @property
     def masses(self) -> np.ndarray:
-        """Readonly primitive-site masses, in atomic mass units."""
+        """Readonly cell-site masses, in atomic mass units."""
         return self._masses
 
     def with_masses(self, masses: object) -> ClusterSpace:
@@ -480,7 +480,7 @@ class ClusterSpace:
 
     @property
     def n_atoms(self) -> int:
-        """Number of primitive motif atoms, independent of any supercell."""
+        """Number of cell motif atoms, independent of any supercell."""
         return len(self.atomic_numbers)
 
     @property
@@ -522,7 +522,7 @@ class ClusterSpace:
                     )
                 if np.any(orbit.labels[:, :, 0] >= self.n_atoms):
                     raise ValueError(
-                        f"orbit site {int(orbit.labels[:, :, 0].max())} is outside the primitive "
+                        f"orbit site {int(orbit.labels[:, :, 0].max())} is outside the cell "
                         f"motif of {self.n_atoms} atoms"
                     )
             parameter_start += sum(orbit.dimension for orbit in self.orbits[block.orbits])

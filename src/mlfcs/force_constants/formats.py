@@ -130,7 +130,7 @@ def _write_phonopy_text(path, tensors, threshold):
 
 
 def _lattice_records(tensors, order, threshold):
-    """Yield canonical lattice labels and cleaned tensors in primitive-site order."""
+    """Yield canonical lattice labels and cleaned tensors in cell-site order."""
     for sites, translations, values in tensors.lattice_blocks(order):
         for index in range(len(values)):
             yield sites[index], translations[index], threshold_components(values[index], threshold)

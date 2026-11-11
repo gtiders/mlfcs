@@ -1,12 +1,12 @@
-# 核心概念：从原胞到位移与力
+# 核心概念：从参考胞到位移与力
 
-假设已经有一个平衡原胞，准备在超胞中计算若干位移构型的原子力，再用这些力恢复力常数。开始计算之前，需要确定两件事：希望保留哪些相互作用，以及选定的超胞能否区分它们。计算结束后，还需要把结构和力整理成下游能够直接使用的数据。
+假设已经有一个平衡参考胞，准备在超胞中计算若干位移构型的原子力，再用这些力恢复力常数。开始计算之前，需要确定两件事：希望保留哪些相互作用，以及选定的超胞能否区分它们。计算结束后，还需要把结构和力整理成下游能够直接使用的数据。
 
-MLFCS 按这个顺序使用三个对象。先把原胞和相互作用范围交给 `ClusterSpace`，再把具体的参考超胞交给 `ClusterMap`。带有力结果的构型随后与同一个 mapping 一起构成 `ForceDataset`。
+MLFCS 按这个顺序使用三个对象。先把参考胞和相互作用范围交给 `ClusterSpace`，再把具体的参考超胞交给 `ClusterMap`。带有力结果的构型随后与同一个 mapping 一起构成 `ForceDataset`。
 
 ```mermaid
 flowchart TD
-    A[原胞参考结构] --> B[ClusterSpace：选择允许的力常数模型]
+    A[参考胞结构] --> B[ClusterSpace：选择允许的力常数模型]
     B --> C[ClusterMap：落到具体参考超胞]
     C --> D[生成位移结构并在外部计算力]
     D --> E[ForceDataset：收集位移与目标力]
@@ -17,17 +17,17 @@ flowchart TD
 
 ## 1. 先决定要恢复怎样的力常数模型
 
-原胞给出了无限周期晶体的几何，但没有告诉程序要恢复二阶、三阶还是更高阶力常数，也没有决定相互作用的范围。即使只考虑二阶，相隔不同晶格平移的原子对也对应不同的相互作用。
+参考胞给出了无限周期晶体的几何，但没有告诉程序要恢复二阶、三阶还是更高阶力常数，也没有决定相互作用的范围。即使只考虑二阶，相隔不同晶格平移的原子对也对应不同的相互作用。
 
-因此，第一步是选择模型。`ClusterSpace` 根据原胞、各阶的截断和晶体对称性，建立允许存在的原胞力常数参数空间。此时还没有数值力常数，也没有训练数据。
+因此，第一步是选择模型。`ClusterSpace` 根据参考胞、各阶的截断和晶体对称性，建立允许存在的参考胞力常数参数空间。此时还没有数值力常数，也没有训练数据。
 
 ```python
 from ase.build import bulk
 from mlfcs import ClusterSpace
 
-primitive_atoms = bulk("Al", "fcc", a=4.05)
+cell_atoms = bulk("Al", "fcc", a=4.05)
 space = ClusterSpace(
-    primitive_atoms,
+    cell_atoms,
     cutoffs={2: 4.0},
     max_body_orders={2: 2},
     symprec=1e-5,
@@ -38,17 +38,17 @@ print(space.orders)
 print(space.n_parameters, space.n_free_parameters)
 ```
 
-### 原胞、对称性与容差
+### 参考胞、对称性与容差
 
-`primitive_atoms` 必须是三维全周期的 ASE `Atoms`，晶胞非奇异，位置有限。这个参数名沿用原胞命名，但输入不必是最小原胞；常规胞或其他周期参考胞也可以使用。程序直接采用你提供的晶胞和原子基元，不检查是否存在更小的原胞，也不自动约化或标准化。
+`cell_atoms` 必须是三维全周期的 ASE `Atoms`，晶胞非奇异，位置有限。它是输入参考胞；不要求是最小原胞，常规胞或其他周期参考胞也可以使用。程序直接采用你提供的晶胞和原子基元，不检查是否存在更小的原胞，也不自动约化或标准化。
 
-本章选用 fcc 单原子原胞只是为了让示例更小。若改用四原子的常规胞，模型的位点、晶格平移和后续超胞矩阵都会相对于这份四原子参考胞定义；后续必须始终使用同一套基底。
+本章选用 fcc 单原子参考胞只是为了让示例更小。若改用四原子的常规胞，模型的位点、晶格平移和后续超胞矩阵都会相对于这份四原子参考胞定义；后续必须始终使用同一套基底。
 
-原子顺序和晶胞基底会被保留。之后的原胞参数、原胞质量和 site 编号都沿用这个顺序。构造后修改输入 `Atoms` 不会改变已经建立的空间。
+原子顺序和晶胞基底会被保留。之后的参考胞参数、参考胞质量和 site 编号都沿用这个顺序。构造后修改输入 `Atoms` 不会改变已经建立的空间。
 
 `symprec` 是以 Å 为单位的正、有限几何容差，默认 `1e-5`。它用于空间群识别，也用于后续 mapping 和数据集中的几何匹配。它不是拟合误差或力的容差。对于有数值噪声的参考结构，选择容差会影响识别到的对称性；应先确认结构代表了希望使用的参考晶体。
 
-对称性由结构和元素自动识别，没有另一个 `symmetry=` 构造参数。结果保存在 `space.symmetry` 中，其中包含晶格及笛卡尔旋转、原胞位点置换等操作。初次使用时不需要自行构造这些操作。
+对称性由结构和元素自动识别，没有另一个 `symmetry=` 构造参数。结果保存在 `space.symmetry` 中，其中包含晶格及笛卡尔旋转、参考胞位点置换等操作。初次使用时不需要自行构造这些操作。
 
 ### 阶数、截断和体阶各自限制什么
 
@@ -56,7 +56,7 @@ print(space.n_parameters, space.n_free_parameters)
 
 每个保留的相互作用中，**任意两个原子位置之间的距离都必须严格小于该阶的 cutoff**。对高阶相互作用，这不只是要求每个原子靠近某个中心原子。位于截断边界上的相互作用不被保留，因此通常应将 cutoff 放在相邻邻居壳层之间。
 
-`max_body_orders` 限制相互作用涉及多少个不同的周期原子位置，称为体阶（body order）。同一原子位置可以在高阶导数中重复出现。例如，四阶导数可以只涉及两个不同位置，此时力常数阶数为 4、体阶为 2。同一种元素的不同原子，以及同一原胞位点在不同晶格平移处的原子，都算不同位置。
+`max_body_orders` 限制相互作用涉及多少个不同的周期原子位置，称为体阶（body order）。同一原子位置可以在高阶导数中重复出现。例如，四阶导数可以只涉及两个不同位置，此时力常数阶数为 4、体阶为 2。同一种元素的不同原子，以及同一参考胞位点在不同晶格平移处的原子，都算不同位置。
 
 因此，`cutoffs={2: 4.0, 3: 3.0, 4: 3.0}` 配合 `max_body_orders={2: 2, 3: 3, 4: 2}`，表示保留二阶与三阶的完整允许体阶，但将四阶限制到最多两个不同位置。它并不把四阶变成二阶。
 
@@ -68,9 +68,9 @@ print(space.n_parameters, space.n_free_parameters)
 
 ### 质量与 ASR 怎样设置
 
-质量来自 `primitive_atoms.get_masses()`，单位为原子质量单位，必须有限且严格为正。没有单独的 `masses=` 构造参数。需要特定同位素质量时，可以在构造前调用 `primitive_atoms.set_masses(...)`。
+质量来自 `cell_atoms.get_masses()`，单位为原子质量单位，必须有限且严格为正。没有单独的 `masses=` 构造参数。需要特定同位素质量时，可以在构造前调用 `cell_atoms.set_masses(...)`。
 
-也可以使用 `space.with_masses(masses)`，传入按原胞顺序排列的 `(space.n_atoms,)` 数组。它返回一个新空间，保留几何、对称性、相互作用和参数布局，原对象不变。质量不参与这里的几何对称约化；更改质量不会重新识别空间群。
+也可以使用 `space.with_masses(masses)`，传入按参考胞顺序排列的 `(space.n_atoms,)` 数组。它返回一个新空间，保留几何、对称性、相互作用和参数布局，原对象不变。质量不参与这里的几何对称约化；更改质量不会重新识别空间群。
 
 `asr` 是布尔值，默认 `False`。设为 `True` 后，初始化会准备满足平移不变性（声学求和规则，ASR）的自由坐标，供后续拟合和有限差分重建使用。它不改变各轨道的标准物理参数布局，因此 `n_parameters` 保持标准参数计数，`n_free_parameters` 给出施加 ASR 后可独立求解的坐标数量。准备 ASR 可能增加初始化时间与内存需求。
 
@@ -82,9 +82,9 @@ ASR 的开关就在这里，无需在 `ClusterMap` 或 `ForceDataset` 中再次�
 
 | 查看方式 | 怎样使用 |
 |---|---|
-| `primitive_atoms` | 返回参考原胞的独立 ASE 结构，可用于构建超胞。 |
-| `cell`、`scaled_positions`、`cartesian_positions` | 晶格矢量按行排列；分数坐标与笛卡尔位置均按原胞原子顺序。后者单位为 Å，满足 `scaled_positions @ cell`。 |
-| `atomic_numbers`、`masses`、`symprec` | 查看元素、原胞质量和所用匹配容差；质量数组只读。 |
+| `cell_atoms` | 返回参考胞的独立 ASE 结构，可用于构建超胞。 |
+| `cell`、`scaled_positions`、`cartesian_positions` | 晶格矢量按行排列；分数坐标与笛卡尔位置均按参考胞原子顺序。后者单位为 Å，满足 `scaled_positions @ cell`。 |
+| `atomic_numbers`、`masses`、`symprec` | 查看元素、参考胞质量和所用匹配容差；质量数组只读。 |
 | `orders`、`blocks`、`block(order)` | 阶数按升序排列。每个 block 给出 `order`、`cutoff`、`max_body_order`，以及对应的 `orbits` 和 `parameters` 切片；请求未包含的阶数抛出 `KeyError`。 |
 | `orbits`、`symmetry` | 查看等价相互作用组和识别到的空间群操作。每个 orbit 有代表相互作用、等价像及允许张量分量的基；具体构造留到[对称性章节](theory/symmetry-parameterization.md)。 |
 | `parameter_offsets`、`parameter_name(parameter)` | 前者是各 orbit 的累计参数边界，含最后一个端点；后者为全局参数索引生成标签，便于诊断。索引从 0 开始，越界抛出 `IndexError`。 |
@@ -94,63 +94,63 @@ ASR 的开关就在这里，无需在 `ClusterMap` 或 `ForceDataset` 中再次�
 
 ## 2. 再选择能承载这个模型的超胞
 
-到这里还没有指定在哪个超胞里计算力。相同的原胞模型可以用于不同大小、不同形状，甚至不同原子排列顺序的超胞。这种灵活性需要一份明确的对应关系：原胞中某个位点及其晶格平移，在这份超胞原子列表中到底是哪一个原子？
+到这里还没有指定在哪个超胞里计算力。相同的参考胞模型可以用于不同大小、不同形状，甚至不同原子排列顺序的超胞。这种灵活性需要一份明确的对应关系：参考胞中某个位点及其晶格平移，在这份超胞原子列表中到底是哪一个原子？
 
 `ClusterMap` 建立这份对应。第二个输入应是**未位移的参考超胞**，而不是某个已经扰动的训练构型。
 
 ```python
 from mlfcs import ClusterMap
 
-supercell_atoms = space.primitive_atoms.repeat((3, 3, 3))
-mapping = ClusterMap(space, supercell_atoms)
+supercell = space.cell_atoms.repeat((3, 3, 3))
+mapping = ClusterMap(space, supercell)
 ```
 
 构造成功即表示这个超胞能区分模型的所有参数。若不能，构造会失败：
 
 ```python
-ClusterMap(space, space.primitive_atoms)
+ClusterMap(space, space.cell_atoms)
 # ValueError: supercell cannot distinguish all parameters: rank 3 for 5
 # parameters, 2 directions folded away; enlarge the supercell or shorten the cutoffs
 ```
 
 ### 晶胞关系与原子顺序
 
-构造参数 `cluster_space` 是前面建立的空间；`supercell_atoms` 是它的三维全周期 ASE 超胞，必须包含完整的原胞复制，且元素和未位移位置能与原胞匹配。
+构造参数 `cluster_space` 是前面建立的空间；`supercell` 是它的三维全周期 ASE 超胞，必须包含完整的参考胞复制，且元素和未位移位置能与参考胞匹配。
 
 可选关键字 `supercell_matrix` 是非奇异的整数 `(3, 3)` 矩阵 $S$，采用 ASE 的行晶格约定：
 
 $$
-A_{\rm super}=S A_{\rm primitive}.
+A_{\rm super}=S A_{\rm cell}.
 $$
 
-省略时程序从两个晶胞推断并验证 $S$。对上面的重复方式，也可以显式写 `ClusterMap(space, supercell_atoms, supercell_matrix=np.diag([3, 3, 3]))`，其中先 `import numpy as np`。这里接受的是矩阵，不是 `(3, 3, 3)` 重复次数元组；矩阵也不要求对角。
+省略时程序从两个晶胞推断并验证 $S$。对上面的重复方式，也可以显式写 `ClusterMap(space, supercell, supercell_matrix=np.diag([3, 3, 3]))`，其中先 `import numpy as np`。这里接受的是矩阵，不是 `(3, 3, 3)` 重复次数元组；矩阵也不要求对角。
 
-超胞必须有 `space.n_atoms * abs(det(S))` 个原子，每个原胞位点在每个周期平移类别中恰好出现一次。`ClusterMap` 保留传入超胞的原子顺序，不要求 ASE 或 phonopy 的某一种复制顺序。之后所有位移、力和训练帧都必须沿用它。
+超胞必须有 `space.n_atoms * abs(det(S))` 个原子，每个参考胞位点在每个周期平移类别中恰好出现一次。`ClusterMap` 保留传入超胞的原子顺序，不要求 ASE 或 phonopy 的某一种复制顺序。之后所有位移、力和训练帧都必须沿用它。
 
 缺原子、多原子、错误元素、非周期结构、不相容晶胞，或不能唯一匹配的参考位置会抛出 `ValueError`。输入类型不对会抛出 `TypeError`；不支持的整数与数组范围会显式失败。程序不会自动扩大超胞，也不会把位移后的结构还原成参考超胞。
 
 ### 可辨识性由构造强制执行
 
-超胞的周期边界可能把不同原胞相互作用落到同一组超胞原子上。计算看到的是这些贡献的和，这叫折叠（folding）。如果不同参数的效果因此无法区分，就发生参数混叠（aliasing）。
+超胞的周期边界可能把不同参考胞相互作用落到同一组超胞原子上。计算看到的是这些贡献的和，这叫折叠（folding）。如果不同参数的效果因此无法区分，就发生参数混叠（aliasing）。
 
 `ClusterMap` 在构造时就把模型的全部参数折叠到超胞，比较折叠前后的秩；只要有一个参数方向被折叠掉，就抛出 `ValueError`，并在消息中给出秩、参数数与丢失的方向数：
 
 - 秩：折叠后仍能区分的参数方向数；
-- 参数数：折叠前的标准原胞参数数；即使开启 ASR，这也不是自由声学坐标数；
+- 参数数：折叠前的参考胞参数数；即使开启 ASR，这也不是自由声学坐标数；
 - 丢失方向数：两者之差。
 
 因此不存在"未检查"或"允许混叠"的 mapping，也不需要额外的检查调用；`ForceDesign`、`FiniteDifference` 等消费者拿到的 mapping 一定可辨识。发生混叠时，应更换超胞大小或形状，或缩短模型截断；增加同一个超胞的训练帧无法补回结构上丢失的信息。可辨识也不保证后续训练数据足够丰富，它只排除了这类结构性损失。
 
 ### 查看对应关系与周期地址
 
-日常工作主要使用 `mapping.supercell_atoms` 和 `mapping.n_atoms`。前者返回参考超胞的独立副本，后者是超胞原子数，而不是原胞原子数。其他公开信息可以帮助核对外部程序的原子列表：
+日常工作主要使用 `mapping.supercell` 和 `mapping.n_atoms`。前者返回参考超胞的独立副本，后者是超胞原子数，而不是参考胞原子数。其他公开信息可以帮助核对外部程序的原子列表：
 
 | 信息 | 含义 |
 |---|---|
-| `cluster_space`、`supercell_matrix`、`determinant` | 关联的原胞空间、矩阵 $S$ 及其带符号行列式；复制数取绝对值。 |
-| `cell`、`scaled_positions`、`atomic_numbers` | 参考超胞的晶胞、分数位置与元素，遵循外部原子顺序。质量可从 `supercell_atoms.get_masses()` 读取，来自参考超胞输入。 |
-| `primitive_site_indices`、`lattice_translations` | 每个超胞原子对应的原胞位点编号和整数晶格平移；平移不是 Å 单位的位移。 |
-| `quotient_labels`、`translation_representatives` | 前者标识周期边界下等价的平移类别；后者为每一类别给出一个整数平移代表，按原胞位点 0 在外部原子列表中的顺序排列。 |
+| `cluster_space`、`supercell_matrix`、`determinant` | 关联的参考胞空间、矩阵 $S$ 及其带符号行列式；复制数取绝对值。 |
+| `cell`、`scaled_positions`、`atomic_numbers` | 参考超胞的晶胞、分数位置与元素，遵循外部原子顺序。质量可从 `supercell.get_masses()` 读取，来自参考超胞输入。 |
+| `cell_site_indices`、`lattice_translations` | 每个超胞原子对应的参考胞位点编号和整数晶格平移；平移不是 Å 单位的位移。 |
+| `quotient_labels`、`translation_representatives` | 前者标识周期边界下等价的平移类别；后者为每一类别给出一个整数平移代表，按参考胞位点 0 在外部原子列表中的顺序排列。 |
 | `image_atom_indices` | 按全局 orbit 顺序保存各对称像的有序超胞原子编号；每个数组的两轴是像和张量的原子指标。 |
 
 需要查询具体周期地址时，可用以下方法。它们不改变 mapping 或原子排序：
@@ -167,7 +167,7 @@ indices = mapping.map_labels(
 )
 ```
 
-`atom_index(site)` 返回一个周期位点对应的超胞原子编号。`site` 含原胞位点和整数平移，合法地址会按超胞周期折叠；位点必须存在于原胞。`quotient(translation)` 接受长度为 3 的整数平移，返回其周期类别标签。不要将标签当作实际晶格矢量。
+`atom_index(site)` 返回一个周期位点对应的超胞原子编号。`site` 含参考胞位点和整数平移，合法地址会按超胞周期折叠；位点必须存在于参考胞。`quotient(translation)` 接受长度为 3 的整数平移，返回其周期类别标签。不要将标签当作实际晶格矢量。
 
 `map_labels(labels, translations)` 批量执行类似查询：`labels` 是 `(n, 4)` 的 `(site, tx, ty, tz)` 地址，`translations` 是 `(m, 3)` 的额外整数平移；返回 `(n, m)` 原子编号，保留两份输入的顺序。无效形状或非整数地址会被拒绝。
 
@@ -184,7 +184,7 @@ from ase.calculators.emt import EMT
 from ase.calculators.singlepoint import SinglePointCalculator
 from mlfcs import ForceDataset
 
-sample = mapping.supercell_atoms
+sample = mapping.supercell
 sample.rattle(stdev=0.01, seed=7)
 sample.calc = EMT()
 forces = sample.get_forces()
@@ -208,14 +208,14 @@ print(dataset.displacements.shape, dataset.forces.shape)
 
 ### 读取数组与扣除已知力
 
-公开属性 `dataset.cluster_map` 是对应 mapping；`dataset.supercell_atoms` 返回定义位移零点与原子顺序的参考超胞副本。`dataset.displacements` 和 `dataset.forces` 均为 `(帧数, 超胞原子数, 3)` 数组，单位分别是 Å 和 eV/Å，收集后只读。数据集不保存原始结构列表或采样 metadata。
+公开属性 `dataset.cluster_map` 是对应 mapping；`dataset.supercell` 返回定义位移零点与原子顺序的参考超胞副本。`dataset.displacements` 和 `dataset.forces` 均为 `(帧数, 超胞原子数, 3)` 数组，单位分别是 Å 和 eV/Å，收集后只读。数据集不保存原始结构列表或采样 metadata。
 
 传入迭代器可以避免先收集全部 `Atoms`，但位移与力数组仍会整体保存在内存中，两份数组约占 `48 * 帧数 * 原子数` 字节。这一点在准备大型训练集时尤其重要。
 
 有时目标力中包含已经知道的贡献，例如参考构型的残余力。这时可以显式扣除：
 
 ```python
-reference = mapping.supercell_atoms
+reference = mapping.supercell
 reference.calc = EMT()
 reference_forces = reference.get_forces()
 centered = dataset.subtract_forces(reference_forces)
@@ -239,21 +239,21 @@ from ase.calculators.emt import EMT
 from ase.calculators.singlepoint import SinglePointCalculator
 from mlfcs import ClusterSpace, ClusterMap, ForceDataset
 
-primitive = bulk("Al", "fcc", a=4.05)
+cell = bulk("Al", "fcc", a=4.05)
 space = ClusterSpace(
-    primitive,
+    cell,
     cutoffs={2: 4.0},
     max_body_orders={2: 2},
     symprec=1e-5,
     asr=True,
 )
 
-supercell = space.primitive_atoms.repeat((3, 3, 3))
+supercell = space.cell_atoms.repeat((3, 3, 3))
 mapping = ClusterMap(space, supercell, supercell_matrix=np.diag([3, 3, 3]))
 
 structures = []
 for seed in range(4):
-    sample = mapping.supercell_atoms
+    sample = mapping.supercell
     sample.rattle(stdev=0.01, seed=seed)
     sample.calc = EMT()
     forces = sample.get_forces()
@@ -261,11 +261,11 @@ for seed in range(4):
     structures.append(sample)
 
 dataset = ForceDataset(mapping, structures)
-print("原胞参数数：", space.n_parameters)
+print("参考胞参数数：", space.n_parameters)
 print("求解自由度：", space.n_free_parameters)
 print("位移与力的形状：", dataset.displacements.shape, dataset.forces.shape)
 ```
 
 这四帧只展示数据如何准备，并不证明训练集足以准确恢复模型。后续可继续阅读[有限差分](finite-difference-api.md)或[力拟合](fitting-api.md)，选择怎样从力得到力常数。
 
-回到最初的问题：原胞与相互作用选择交给 `ClusterSpace`；未位移的具体超胞交给 `ClusterMap`；在同一超胞上、保持原子顺序且已经带力的构型交给 `ForceDataset`。这样，模型允许的相互作用、超胞能承载的信息，以及实际计算得到的观测都有了明确的落点。
+回到最初的问题：参考胞与相互作用选择交给 `ClusterSpace`；未位移的具体超胞交给 `ClusterMap`；在同一超胞上、保持原子顺序且已经带力的构型交给 `ForceDataset`。这样，模型允许的相互作用、超胞能承载的信息，以及实际计算得到的观测都有了明确的落点。

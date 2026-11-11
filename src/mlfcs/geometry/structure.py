@@ -1,15 +1,15 @@
 """Validated structure records for a reference cell and its explicit supercell.
 
-``PrimitiveCell`` is the input side of a model: a fully periodic reference cell
+``Cell`` is the input side of a model: a fully periodic reference cell
 with wrapped fractional motif coordinates, species, masses and a symmetry
 tolerance. ``Supercell`` is the derived side: every supercell atom is assigned a
-primitive motif site, an integer lattice translation, and its class in the
+cell motif site, an integer lattice translation, and its class in the
 finite quotient ``Z^3 / Z^3 S`` defined by the integer supercell matrix ``S``
-with ``cell_super = S @ cell_primitive``.
+with ``cell_super = S @ cell``.
 
 Records validate their own internal consistency on construction, so downstream
 code never re-derives or re-checks the same facts. Conversion from ASE
-structures lives in ``primitive_data`` and ``supercell_data``; inference of
+structures lives in ``cell_data`` and ``supercell_data``; inference of
 ``S`` lives in ``infer_supercell_matrix``.
 """
 
@@ -29,16 +29,16 @@ from mlfcs.foundation.arrays import (
     require_bound,
 )
 from mlfcs.foundation.integer import adjugate_3x3, determinant_3x3, to_python_rows
-from mlfcs.geometry.lattice import Lattice, match_primitive_site
+from mlfcs.geometry.lattice import Lattice, match_cell_site
 
 
 @dataclass(frozen=True, slots=True)
-class PrimitiveCell:
-    """Validated reference cell of a primitive-cluster model.
+class Cell:
+    """Validated reference cell of a force-constant model.
 
     The cell defines the model lattice, whether or not a smaller primitive cell
     exists. Fractional motif coordinates are wrapped into ``[0, 1)``; no
-    primitiveness check, reduction or standardization is performed, so the
+    minimality check, reduction or standardization is performed, so the
     supplied basis and atom order are preserved.
 
     ``masses`` are in atomic mass units and ``symprec`` is a positive Cartesian
@@ -61,31 +61,31 @@ class PrimitiveCell:
         masses = np.asarray(self.masses, dtype=np.float64)
         symprec = float(self.symprec)
         if cell.shape != (3, 3):
-            raise ValueError("primitive cell must have shape (3, 3)")
+            raise ValueError("cell must have shape (3, 3)")
         if positions.ndim != 2 or positions.shape[1:] != (3,):
-            raise ValueError("primitive scaled positions must have shape (n, 3)")
+            raise ValueError("cell scaled positions must have shape (n, 3)")
         if numbers.shape != (len(positions),):
-            raise ValueError("primitive atomic numbers must have shape (n,)")
+            raise ValueError("cell atomic numbers must have shape (n,)")
         if masses.shape != (len(positions),):
             raise ValueError("atomic masses must have shape (n_atoms,)")
         if len(numbers) == 0:
-            raise ValueError("primitive cell must contain at least one atom")
+            raise ValueError("cell must contain at least one atom")
         if not np.all(np.isfinite(cell)) or not np.all(np.isfinite(positions)):
-            raise ValueError("primitive cell and positions must be finite")
+            raise ValueError("cell and positions must be finite")
         if not np.isfinite(symprec) or symprec <= 0.0:
             raise ValueError("symprec must be a positive finite length in angstrom")
         if float(np.linalg.det(cell)) == 0.0:
-            raise ValueError("primitive cell must be nonsingular")
+            raise ValueError("cell must be nonsingular")
         if not np.issubdtype(numbers.dtype, np.integer):
-            raise TypeError("primitive atomic numbers must be integers")
-        numbers = as_int64_array(numbers, name="primitive atomic numbers")
+            raise TypeError("cell atomic numbers must be integers")
+        numbers = as_int64_array(numbers, name="cell atomic numbers")
         if (
             int(numbers.min()) < np.iinfo(np.int32).min
             or int(numbers.max()) > np.iinfo(np.int32).max
         ):
-            raise OverflowError("primitive atomic numbers exceed the spglib int32 interface")
+            raise OverflowError("cell atomic numbers exceed the spglib int32 interface")
         if np.any(positions < 0.0) or np.any(positions >= 1.0):
-            raise ValueError("primitive scaled positions must be wrapped into [0, 1)")
+            raise ValueError("cell scaled positions must be wrapped into [0, 1)")
         if not np.all(np.isfinite(masses)) or np.any(masses <= 0):
             raise ValueError("atomic masses must be positive and finite")
         object.__setattr__(self, "cell", cell)
@@ -114,7 +114,7 @@ class PrimitiveCell:
         matches no motif site of ``species``, or more than one, within
         ``symprec``.
         """
-        return match_primitive_site(
+        return match_cell_site(
             self.cell,
             self.scaled_positions,
             self.atomic_numbers,
@@ -128,7 +128,7 @@ class PrimitiveCell:
 
 @njit(cache=True)
 def quotient_label(translation, adjugate, modulus):
-    """Return the periodic quotient label of a primitive lattice translation.
+    """Return the periodic quotient label of a cell lattice translation.
 
     For supercell matrix ``S``, translations that differ by a supercell lattice
     vector belong to the same class of ``Z^3 / Z^3 S``. Using
@@ -155,7 +155,7 @@ def quotient_label(translation, adjugate, modulus):
 
 @njit(cache=True)
 def _map_labels_kernel(labels, translations, adjugate, modulus, keys, atoms):
-    """Map translated primitive lattice labels to supercell atom indices.
+    """Map translated cell lattice labels to supercell atom indices.
 
     For every label ``(i, n)`` and offset ``t``, form ``(i, [n + t])``, where
     ``[n + t]`` is the class in the supercell translation quotient, and look the
@@ -200,9 +200,9 @@ def _map_labels_kernel(labels, translations, adjugate, modulus, keys, atoms):
 
 @dataclass(frozen=True, slots=True)
 class PeriodicIndex:
-    """Lookup from primitive quotient sites to supercell atom indices.
+    """Lookup from cell quotient sites to supercell atom indices.
 
-    A periodic site is identified by a primitive motif index together with a
+    A periodic site is identified by a cell motif index together with a
     translation class in the finite quotient defined by the supercell matrix.
     ``keys`` stores these ``(site, qx, qy, qz)`` identifiers in lexicographic
     order, while ``atom_indices`` maps them back to the supercell atom order.
@@ -233,16 +233,16 @@ class PeriodicIndex:
         object.__setattr__(self, "atom_indices", atom_indices)
 
     def label(self, translation: object) -> tuple[int, int, int]:
-        """Return the quotient class of one primitive lattice translation."""
+        """Return the quotient class of one cell lattice translation."""
         values = as_int64_array(translation, name="lattice translation")
         if values.shape != (3,):
             raise ValueError("lattice translation must have shape (3,)")
         return tuple(int(v) for v in quotient_label(values, self.adjugate, self.modulus))
 
     def lookup(self, labels: object, translations: object) -> np.ndarray:
-        """Map primitive lattice labels under additional translations to supercell atoms.
+        """Map cell lattice labels under additional translations to supercell atoms.
 
-        For each primitive label ``(site, n)`` and translation offset ``t``,
+        For each cell label ``(site, n)`` and translation offset ``t``,
         return the atom index of the periodic site ``(site, [n + t])`` in this
         supercell. Labels have shape ``(n, 4)`` as ``(site, tx, ty, tz)`` and
         translations shape ``(m, 3)``; the result has shape ``(n, m)``.
@@ -268,13 +268,13 @@ class PeriodicIndex:
 
 @dataclass(frozen=True, slots=True)
 class Supercell:
-    """Realization of a primitive cell in an explicit supercell.
+    """Realization of the reference cell in an explicit supercell.
 
-    ``cell_super = matrix @ cell_primitive`` with an integer ``matrix`` of
-    determinant ``determinant``. Every supercell atom carries its primitive
+    ``cell_super = matrix @ cell`` with an integer ``matrix`` of
+    determinant ``determinant``. Every supercell atom carries its reference-cell
     motif site, the integer lattice translation that reaches it, and its class
     in ``Z^3 / Z^3 S``. Atom order follows the input structure and need not be
-    any replication order; ``index`` resolves primitive labels back to atoms.
+    any replication order; ``index`` resolves cell labels back to atoms.
     """
 
     matrix: np.ndarray
@@ -283,7 +283,7 @@ class Supercell:
     scaled_positions: np.ndarray
     atomic_numbers: np.ndarray
     masses: np.ndarray
-    primitive_site_indices: np.ndarray
+    cell_site_indices: np.ndarray
     lattice_translations: np.ndarray
     quotient_labels: np.ndarray
     index: PeriodicIndex
@@ -295,7 +295,7 @@ class Supercell:
         positions = readonly(self.scaled_positions, np.float64)
         numbers = as_int64_array(self.atomic_numbers, name="supercell atomic numbers")
         masses = readonly(self.masses, np.float64)
-        sites = as_int64_array(self.primitive_site_indices, name="primitive site indices")
+        sites = as_int64_array(self.cell_site_indices, name="cell site indices")
         translations = as_int64_array(
             self.lattice_translations, name="supercell lattice translations"
         )
@@ -318,7 +318,7 @@ class Supercell:
         object.__setattr__(self, "scaled_positions", positions)
         object.__setattr__(self, "atomic_numbers", numbers)
         object.__setattr__(self, "masses", masses)
-        object.__setattr__(self, "primitive_site_indices", sites)
+        object.__setattr__(self, "cell_site_indices", sites)
         object.__setattr__(self, "lattice_translations", translations)
         object.__setattr__(self, "quotient_labels", quotients)
 
@@ -328,11 +328,11 @@ class Supercell:
         return len(self.atomic_numbers)
 
 
-def primitive_data(atoms, symprec) -> PrimitiveCell:
+def cell_data(atoms, symprec) -> Cell:
     """Extract the reference cell of a model from an ASE structure.
 
     The structure must be fully periodic in three dimensions. Its cell need
-    not be primitive; fractional coordinates are wrapped into the reference
+    not be cell; fractional coordinates are wrapped into the reference
     cell while the original lattice basis and atom order are preserved. The
     input ``Atoms`` object is neither retained nor modified.
 
@@ -347,10 +347,10 @@ def primitive_data(atoms, symprec) -> PrimitiveCell:
         If atomic numbers cannot enter the spglib integer interface.
     """
     if not isinstance(atoms, Atoms):
-        raise TypeError("primitive_atoms must be an ASE Atoms object")
+        raise TypeError("cell_atoms must be an ASE Atoms object")
     if not np.all(atoms.pbc):
-        raise ValueError("primitive cell must be periodic in all three directions")
-    return PrimitiveCell(
+        raise ValueError("cell must be periodic in all three directions")
+    return Cell(
         cell=atoms.cell.array,
         scaled_positions=atoms.get_scaled_positions(wrap=True),
         atomic_numbers=atoms.numbers,
@@ -359,14 +359,14 @@ def primitive_data(atoms, symprec) -> PrimitiveCell:
     )
 
 
-def validate_primitive_arrays(
+def validate_cell_arrays(
     cell, scaled_positions, atomic_numbers, masses, symprec
-) -> PrimitiveCell:
+) -> Cell:
     """Validate a periodic reference structure without changing its cell basis.
 
     Convenience constructor for callers that hold the raw arrays rather than an
     ASE structure, such as model files. The record performs every check; see
-    :class:`PrimitiveCell` for the accepted conventions.
+    :class:`Cell` for the accepted conventions.
 
     Raises
     ------
@@ -377,7 +377,7 @@ def validate_primitive_arrays(
     OverflowError
         If atomic numbers cannot enter the spglib integer interface.
     """
-    return PrimitiveCell(
+    return Cell(
         cell=cell,
         scaled_positions=scaled_positions,
         atomic_numbers=atomic_numbers,
@@ -386,40 +386,40 @@ def validate_primitive_arrays(
     )
 
 
-def infer_supercell_matrix(primitive: PrimitiveCell, supercell_atoms) -> np.ndarray:
-    """Infer the integer matrix relating a primitive cell to a supercell.
+def infer_supercell_matrix(cell: Cell, supercell) -> np.ndarray:
+    """Infer the integer matrix relating a cell to a supercell.
 
-    The matrix ``S`` satisfies ``cell_super = S @ cell_primitive``. Each
+    The matrix ``S`` satisfies ``cell_super = S @ cell``. Each
     supercell lattice vector must correspond to a unique integer combination of
-    primitive lattice vectors within ``primitive.symprec``.
+    cell lattice vectors within ``cell.symprec``.
 
     Raises
     ------
     TypeError
-        If ``supercell_atoms`` is not an ASE ``Atoms`` object.
+        If ``supercell`` is not an ASE ``Atoms`` object.
     ValueError
         If the supercell lattice is nonfinite or cannot be matched uniquely.
     """
-    if not isinstance(supercell_atoms, Atoms):
-        raise TypeError("supercell_atoms must be an ASE Atoms object")
-    supercell_cell = np.asarray(supercell_atoms.cell, dtype=np.float64)
+    if not isinstance(supercell, Atoms):
+        raise TypeError("supercell must be an ASE Atoms object")
+    supercell_cell = np.asarray(supercell.cell, dtype=np.float64)
     if not np.all(np.isfinite(supercell_cell)):
-        raise ValueError("supercell cell must be finite")
+        raise ValueError("supercell lattice must be finite")
     rows = [
-        primitive.lattice.lattice_combination(
-            vector, tolerance=primitive.symprec, context="supercell lattice vector"
+        cell.lattice.lattice_combination(
+            vector, tolerance=cell.symprec, context="supercell lattice vector"
         )
         for vector in supercell_cell
     ]
     return readonly(as_int64_array(rows, name="inferred supercell matrix"), np.int64)
 
 
-def supercell_data(primitive: PrimitiveCell, atoms, matrix) -> Supercell:
-    """Validate a supercell and assign every atom to a primitive lattice site.
+def supercell_data(cell: Cell, atoms, matrix) -> Supercell:
+    """Validate a supercell and assign every atom to a cell lattice site.
 
-    The atom set must contain each combination of primitive motif site and
+    The atom set must contain each combination of cell motif site and
     supercell translation class exactly once, so the atom count equals
-    ``primitive.n_atoms * abs(det(S))``. Assignment follows from species,
+    ``cell.n_atoms * abs(det(S))``. Assignment follows from species,
     geometry and the lattice quotient alone.
 
     Raises
@@ -428,12 +428,12 @@ def supercell_data(primitive: PrimitiveCell, atoms, matrix) -> Supercell:
         If ``atoms`` is not an ASE ``Atoms`` object.
     ValueError
         If the supercell geometry, lattice relation, atom count, masses,
-        periodicity, primitive-site matching or quotient uniqueness is invalid.
+        periodicity, cell-site matching or quotient uniqueness is invalid.
     OverflowError
         If integer quotient arithmetic exceeds the supported domain.
     """
     if not isinstance(atoms, Atoms):
-        raise TypeError("supercell_atoms must be an ASE Atoms object")
+        raise TypeError("supercell must be an ASE Atoms object")
     require_allocation("supercell labels", (len(atoms), 3))
     if not np.all(np.isfinite(atoms.positions)) or not np.all(np.isfinite(atoms.cell.array)):
         raise ValueError("supercell geometry must be finite")
@@ -450,28 +450,28 @@ def supercell_data(primitive: PrimitiveCell, atoms, matrix) -> Supercell:
         raise ValueError("supercell matrix must be nonsingular")
     copies = abs(determinant)
     require_bound("supercell determinant", copies)
-    if len(atoms) != primitive.n_atoms * copies:
+    if len(atoms) != cell.n_atoms * copies:
         raise ValueError(
-            f"supercell has {len(atoms)} atoms, expected {primitive.n_atoms * copies} "
+            f"supercell has {len(atoms)} atoms, expected {cell.n_atoms * copies} "
             f"from determinant {determinant}"
         )
     integer_matrix = as_int64_array(rows, name="supercell matrix")
     actual_cell = np.asarray(atoms.cell, dtype=np.float64)
-    expected_cell = np.asarray(integer_matrix, dtype=np.float64) @ primitive.cell
+    expected_cell = np.asarray(integer_matrix, dtype=np.float64) @ cell.cell
     residual = float(np.max(np.linalg.norm(expected_cell - actual_cell, axis=1)))
-    if residual >= primitive.symprec:
+    if residual >= cell.symprec:
         raise ValueError(
             f"supercell lattice residual {residual:.10g} angstrom is not below "
-            f"symprec {primitive.symprec:.10g} angstrom"
+            f"symprec {cell.symprec:.10g} angstrom"
         )
 
-    primitive_scaled = np.asarray(atoms.get_positions()) @ np.linalg.inv(primitive.cell)
+    cell_scaled = np.asarray(atoms.get_positions()) @ np.linalg.inv(cell.cell)
     numbers = as_int64_array(atoms.numbers, name="supercell atomic numbers")
     count = len(numbers)
     sites = np.empty(count, dtype=np.int64)
     translations = np.empty((count, 3), dtype=np.int64)
-    for atom, (number, position) in enumerate(zip(numbers, primitive_scaled, strict=True)):
-        sites[atom], translations[atom] = primitive.match_site(
+    for atom, (number, position) in enumerate(zip(numbers, cell_scaled, strict=True)):
+        sites[atom], translations[atom] = cell.match_site(
             position, number, context=f"supercell atom {atom}"
         )
 
@@ -484,7 +484,7 @@ def supercell_data(primitive: PrimitiveCell, atoms, matrix) -> Supercell:
     order = np.lexsort(keys[:, ::-1].T)
     sorted_keys = keys[order]
     if count > 1 and np.any(np.all(sorted_keys[1:] == sorted_keys[:-1], axis=1)):
-        raise ValueError("supercell does not contain each primitive quotient site exactly once")
+        raise ValueError("supercell does not contain each cell quotient site exactly once")
     return Supercell(
         matrix=integer_matrix,
         determinant=determinant,
@@ -492,7 +492,7 @@ def supercell_data(primitive: PrimitiveCell, atoms, matrix) -> Supercell:
         scaled_positions=atoms.get_scaled_positions(wrap=True),
         atomic_numbers=numbers,
         masses=masses,
-        primitive_site_indices=sites,
+        cell_site_indices=sites,
         lattice_translations=translations,
         quotient_labels=quotients,
         index=PeriodicIndex(
@@ -505,10 +505,10 @@ def supercell_data(primitive: PrimitiveCell, atoms, matrix) -> Supercell:
 
 
 __all__ = [
+    "Cell",
     "PeriodicIndex",
-    "PrimitiveCell",
+    "cell_data",
     "infer_supercell_matrix",
-    "primitive_data",
     "supercell_data",
-    "validate_primitive_arrays",
+    "validate_cell_arrays",
 ]

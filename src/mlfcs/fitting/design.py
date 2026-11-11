@@ -132,7 +132,7 @@ def _compile_order(
 ) -> OrderDesign:
     """Map translated orbit images and flatten rotated Cartesian bases for force evaluation.
 
-    Translations are primitive integer triples. Preserve orbit/image order and
+    Translations are cell lattice integer triples. Preserve orbit/image order and
     global parameter offsets; return readonly OrderDesign buffers. Cartesian
     row-action matrices are transposed for the tensor contraction convention.
     """
@@ -199,7 +199,7 @@ class ForceDesign:
     ----------
     cluster_map : ClusterMap
         Supercell relation retained by reference. The map already guarantees
-        that the supercell distinguishes all primitive parameters.
+        that the supercell distinguishes all cell parameters.
 
     Notes
     -----
@@ -234,7 +234,7 @@ class ForceDesign:
 
     @property
     def n_parameters(self) -> int:
-        """Total primitive parameter count, including every order in the cluster space."""
+        """Total cell parameter count, including every order in the cluster space."""
         return self.cluster_map.cluster_space.n_parameters
 
     def allocate_workspace(self):

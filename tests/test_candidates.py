@@ -31,10 +31,10 @@ from mlfcs.cluster_space.records import Cluster
 )
 def test_candidates_match_reference_labels_and_order(order, body_mode, atoms, cutoff):
     """Compare anchored labels and enumeration order for one material and truncation."""
-    primitive = ClusterSpace(atoms, cutoffs={2: 0.01})
+    cell = ClusterSpace(atoms, cutoffs={2: 0.01})
     body = 1 if body_mode == "onsite" else order
     settings = {"order": order, "cutoff": cutoff, "max_body_order": body}
-    labels = enumerate_candidate_labels(primitive.cell, primitive.scaled_positions, **settings)
+    labels = enumerate_candidate_labels(cell.cell, cell.scaled_positions, **settings)
     actual = [Cluster.from_labels(row).labels for row in labels]
-    expected = [cluster.labels for cluster in reference_candidates(primitive, **settings)]
+    expected = [cluster.labels for cluster in reference_candidates(cell, **settings)]
     assert actual == expected

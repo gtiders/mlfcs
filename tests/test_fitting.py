@@ -66,22 +66,22 @@ def ar_mapping(orders=(2,)) -> tuple[ClusterMap, Atoms]:
 
     orders is a tuple of integers >= 2. Return the identity-cell ClusterMap
     and its reference ASE Atoms; the cell length is one angstrom."""
-    primitive_atoms = bulk("Ar", "sc", a=1.0)
-    primitive = primitive_atoms
+    cell_atoms = bulk("Ar", "sc", a=1.0)
+    cell = cell_atoms
     space = ClusterSpace(
-        primitive,
+        cell,
         cutoffs={order: 0.1 for order in orders},
         max_body_orders={order: 1 for order in orders},
         symprec=1e-05,
     )
-    supercell_atoms = primitive_atoms.copy()
+    supercell = cell_atoms.copy()
     return (
-        ClusterMap(space, supercell_atoms, supercell_matrix=np.eye(3, dtype=np.int64)),
-        supercell_atoms,
+        ClusterMap(space, supercell, supercell_matrix=np.eye(3, dtype=np.int64)),
+        supercell,
     )
 
 
-def evaluated(supercell_atoms: Atoms, displacements, force) -> tuple[Atoms, ...]:
+def evaluated(supercell: Atoms, displacements, force) -> tuple[Atoms, ...]:
     """Create displaced ASE snapshots with forces from a supplied formula.
 
     displacements contains (n_atoms, 3) Cartesian arrays in angstrom. force
@@ -89,7 +89,7 @@ def evaluated(supercell_atoms: Atoms, displacements, force) -> tuple[Atoms, ...]
     snapshots carrying SinglePointCalculator results."""
     structures = []
     for displacement in displacements:
-        atoms = supercell_atoms.copy()
+        atoms = supercell.copy()
         atoms.positions += displacement
         atoms.calc = SinglePointCalculator(atoms, forces=force(np.asarray(displacement)))
         structures.append(atoms)
@@ -126,7 +126,7 @@ def representative_tensors(model, order: int) -> dict[int, np.ndarray]:
 
 def test_normal_fit_recovers_harmonic_stiffness() -> None:
     """Verify normal fit recovers harmonic stiffness."""
-    mapping, supercell_atoms = ar_mapping()
+    mapping, supercell = ar_mapping()
     stiffness = 2.5
     displacements = [
         [[0.01, 0.0, 0.0]],
@@ -134,7 +134,7 @@ def test_normal_fit_recovers_harmonic_stiffness() -> None:
         [[0.0, 0.0, 0.03]],
         [[0.01, -0.02, 0.03]],
     ]
-    structures = evaluated(supercell_atoms, displacements, lambda value: -stiffness * value)
+    structures = evaluated(supercell, displacements, lambda value: -stiffness * value)
     system = FitSystem(ForceDataset(mapping, iter(structures)))
     merged = FitSystem(ForceDataset(mapping, structures[:2])) + FitSystem(
         ForceDataset(mapping, structures[2:])
@@ -189,18 +189,18 @@ def test_residual_handles_roundoff_in_normal_statistics():
 
 def test_joint_orders_preserve_the_complete_system() -> None:
     """Verify joint orders preserve the complete system."""
-    primitive_atoms = Atoms(
+    cell_atoms = Atoms(
         numbers=[1, 2],
         scaled_positions=[[0.0, 0.0, 0.0], [0.17, 0.31, 0.23]],
         cell=[[3.1, 0.2, 0.1], [0.1, 3.7, 0.3], [0.2, 0.1, 4.2]],
         pbc=True,
     )
-    primitive = primitive_atoms
+    cell = cell_atoms
     space = ClusterSpace(
-        primitive, cutoffs={2: 0.01, 3: 0.01}, max_body_orders={2: 1, 3: 1}, symprec=1e-05
+        cell, cutoffs={2: 0.01, 3: 0.01}, max_body_orders={2: 1, 3: 1}, symprec=1e-05
     )
-    supercell_atoms = primitive_atoms.copy()
-    mapping = ClusterMap(space, supercell_atoms, supercell_matrix=np.eye(3, dtype=np.int64))
+    supercell = cell_atoms.copy()
+    mapping = ClusterMap(space, supercell, supercell_matrix=np.eye(3, dtype=np.int64))
     second = np.zeros((2, 3, 3))
     third = np.zeros((2, 3, 3, 3))
     for site in range(2):
@@ -220,7 +220,7 @@ def test_joint_orders_preserve_the_complete_system() -> None:
 
     rng = np.random.default_rng(7)
     displacements = rng.normal(scale=0.03, size=(20, 2, 3))
-    structures = evaluated(supercell_atoms, displacements, force)
+    structures = evaluated(supercell, displacements, force)
     system = FitSystem(ForceDataset(mapping, structures))
     assert system.cluster_space.orders == (2, 3)
     assert system.unobserved_parameters == ()

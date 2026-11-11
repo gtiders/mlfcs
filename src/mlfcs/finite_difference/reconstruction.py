@@ -1,4 +1,4 @@
-"""Recover primitive force constants from ordered finite-difference samples."""
+"""Recover reference-cell force constants from ordered finite-difference samples."""
 
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ def reconstruct_force_constants(
     finite_difference: FiniteDifference,
     dataset: ForceDataset,
 ) -> ForceConstants:
-    """Recover one primitive force-constant order from finite-difference forces.
+    """Recover one reference-cell force-constant order from finite-difference forces.
 
     Dataset frames must follow the canonical sampling order defined by
     ``finite_difference``. This ordering is assumed and is not inferred from
@@ -40,7 +40,7 @@ def reconstruct_force_constants(
     through the even central-difference error expansion.
 
     Representative Cartesian tensor components are converted to the physical
-    parameter coordinates of the primitive symmetry orbits. If acoustic
+    parameter coordinates of the cell symmetry orbits. If acoustic
     coordinates are available for this order, the reconstructed parameter
     vector is projected onto that constrained subspace by least squares.
 

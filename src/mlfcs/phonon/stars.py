@@ -63,7 +63,7 @@ class StarPlan:
 
     Scalar star-invariant quantities can be expanded by star membership alone,
     but positional-gauge matrices require the full symmetry route. For each
-    full-grid member, this plan combines the primitive space-group operation,
+    full-grid member, this plan combines the cell space-group operation,
     optional time reversal, and reciprocal-lattice shift into the site-dependent
     phase needed to transform its irreducible representative matrix. Full-grid
     matrices are generated on demand rather than stored by the plan.
@@ -79,12 +79,12 @@ class StarPlan:
         For reciprocal-lattice shift ``G`` and fractional motif position ``s_i``,
         the phase associated with site ``i`` is
         ``exp(2*pi*i*G·s_i)``. The supplied stars and cluster space must describe
-        the same primitive motif.
+        the same cell motif.
         """
         if not isinstance(stars, QStars) or not isinstance(space, ClusterSpace):
             raise TypeError("stars and space must be QStars and a ClusterSpace")
         if stars.symmetry.site_permutations.shape[1] != len(space.atomic_numbers):
-            raise ValueError("star symmetry and primitive have different motif sizes")
+            raise ValueError("star symmetry and cell have different motif sizes")
         shifts = np.asarray(
             [stars.member_shift(member) for member in range(stars.grid.size)],
             dtype=np.float64,

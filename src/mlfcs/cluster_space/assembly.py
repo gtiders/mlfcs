@@ -1,4 +1,4 @@
-"""Assembly of primitive cluster-space records from symmetry and invariants."""
+"""Assembly of cell cluster-space records from symmetry and invariants."""
 
 from __future__ import annotations
 
@@ -14,14 +14,14 @@ from mlfcs.cluster_space.orbits import ClusterRegistry, compute_orbit_actions
 from mlfcs.cluster_space.records import Cluster, Orbit, OrderBlock
 from mlfcs.foundation.arrays import require_allocation
 from mlfcs.foundation.tensors import tensor_dimension
-from mlfcs.geometry.structure import primitive_data
-from mlfcs.geometry.symmetry import PrimitiveSymmetry, discover_symmetry
+from mlfcs.geometry.structure import cell_data
+from mlfcs.geometry.symmetry import CellSymmetry, discover_symmetry
 
 _PHASE_REPORT_SECONDS = 0.25
 _PROGRESS_SECONDS = 15.0
 
 
-def _independent_sites(symmetry: PrimitiveSymmetry) -> int:
+def _independent_sites(symmetry: CellSymmetry) -> int:
     """Count motif-site equivalence classes under the discovered operations.
 
     ``site_permutations[operation, site]`` is the image of one site, so each
@@ -76,7 +76,7 @@ def _tensor_frame(cell: np.ndarray, order: int) -> np.ndarray:
 def _build_order(
     cell: np.ndarray,
     scaled_positions: np.ndarray,
-    symmetry: PrimitiveSymmetry,
+    symmetry: CellSymmetry,
     *,
     order: int,
     cutoff: float,
@@ -190,7 +190,7 @@ def construct_space(
     cutoffs: Mapping[int, float],
     max_body_orders: Mapping[int, int],
 ):
-    """Discover primitive symmetry and build contiguous multi-order orbit/parameter blocks.
+    """Discover cell symmetry and build contiguous multi-order orbit/parameter blocks.
 
     Cutoff and body-order mappings must cover the same nonempty orders. Orders
     are constructed ascending; return (symmetry, blocks, orbits) without owning
@@ -272,30 +272,30 @@ def construct_space(
     return symmetry, tuple(blocks), tuple(all_orbits)
 
 
-def assemble_parts(primitive_atoms, *, cutoffs, max_body_orders, symprec):
-    """Derive validated record parts for a primitive cluster space.
+def assemble_parts(cell_atoms, *, cutoffs, max_body_orders, symprec):
+    """Derive validated record parts for a cell cluster space.
 
     ``cutoffs`` and ``max_body_orders`` are already normalized integer-keyed
     mappings with identical key sets. Acoustic preparation is not performed
     here; the record constructor requests it separately.
     """
-    primitive = primitive_data(primitive_atoms, symprec)
+    cell = cell_data(cell_atoms, symprec)
     symmetry, blocks, orbits = construct_space(
-        primitive.cell,
-        primitive.scaled_positions,
-        primitive.atomic_numbers,
-        primitive.symprec,
+        cell.cell,
+        cell.scaled_positions,
+        cell.atomic_numbers,
+        cell.symprec,
         cutoffs=cutoffs,
         max_body_orders=max_body_orders,
     )
     return {
-        "cell": primitive.cell,
-        "scaled_positions": primitive.scaled_positions,
-        "atomic_numbers": primitive.atomic_numbers,
-        "symprec": primitive.symprec,
+        "cell": cell.cell,
+        "scaled_positions": cell.scaled_positions,
+        "atomic_numbers": cell.atomic_numbers,
+        "symprec": cell.symprec,
         "symmetry": symmetry,
         "blocks": blocks,
         "orbits": orbits,
-        "masses": primitive.masses,
+        "masses": cell.masses,
         "acoustic_coordinates": None,
     }

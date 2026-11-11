@@ -15,9 +15,9 @@ from mlfcs.fitting.design import ForceDesign
 @pytest.fixture(scope="module")
 def acoustic_mapping():
     """Prepare a nearest-neighbour Si model with independent FC2/3/4 ASR factors."""
-    primitive = bulk("Si", "diamond", a=5.43)
-    space = ClusterSpace(primitive, cutoffs={2: 3.0, 3: 3.0, 4: 3.0}, asr=True)
-    return ClusterMap(space, primitive.repeat((3, 3, 3)))
+    cell = bulk("Si", "diamond", a=5.43)
+    space = ClusterSpace(cell, cutoffs={2: 3.0, 3: 3.0, 4: 3.0}, asr=True)
+    return ClusterMap(space, cell.repeat((3, 3, 3)))
 
 
 def physical_vector(space, free):
@@ -69,7 +69,7 @@ def test_reduced_fit_preserves_physical_model(acoustic_mapping, representation):
     structures = []
     for _ in range(16):
         displacement = rng.normal(scale=0.08, size=(mapping.n_atoms, 3))
-        sample = mapping.supercell_atoms
+        sample = mapping.supercell
         sample.positions += displacement
         sample.calc = SinglePointCalculator(
             sample, forces=(design.matrix(displacement) @ theta).reshape(-1, 3)
@@ -104,7 +104,7 @@ def test_extrapolated_finite_difference_uses_acoustic_subspace(acoustic_mapping,
     sampling = FiniteDifference(mapping, order=order, disps=(0.03, 0.05))
     structures = []
     for sample in sampling.sow():
-        displacement = sample.positions - mapping.supercell_atoms.positions
+        displacement = sample.positions - mapping.supercell.positions
         sample.calc = SinglePointCalculator(
             sample, forces=(design.matrix(displacement) @ theta).reshape(-1, 3)
         )

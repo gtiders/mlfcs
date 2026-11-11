@@ -1,4 +1,4 @@
-"""Primitive-cell space-group actions on lattice sites and Cartesian tensors."""
+"""Cell space-group actions on lattice sites and Cartesian tensors."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ import numpy as np
 import spglib
 
 from mlfcs.foundation.arrays import as_int64_array, require_bound
-from mlfcs.geometry.lattice import Lattice, LatticeSite, match_primitive_site
+from mlfcs.geometry.lattice import Lattice, LatticeSite, match_cell_site
 
 
 def _readonly(values: object, *, dtype: object) -> np.ndarray:
@@ -29,7 +29,7 @@ def _readonly_int64(values: object, *, name: str) -> np.ndarray:
 def validate_site_actions(translations, rotations, shifts, *, reanchor=False):
     """Validate integer bounds for affine actions on lattice translations.
 
-    A primitive lattice translation ``n`` transforms as
+    A cell lattice translation ``n`` transforms as
 
         n' = n @ R.T + s,
 
@@ -56,12 +56,12 @@ def validate_site_actions(translations, rotations, shifts, *, reanchor=False):
                 (abs(int(v)) for v in np.asarray(operation_shifts).reshape(-1, 3)[:, j]), default=0
             )
             bound = max(bound, shift + sum(abs(int(rotation[j, k])) * maxima[k] for k in range(3)))
-    return require_bound("primitive site action", bound * (2 if reanchor else 1))
+    return require_bound("cell site action", bound * (2 if reanchor else 1))
 
 
 @dataclass(frozen=True, slots=True)
-class PrimitiveSymmetry:
-    """Space-group actions on a primitive motif and its periodic lattice sites.
+class CellSymmetry:
+    """Space-group actions on a cell motif and its periodic lattice sites.
 
     Spglib symmetry operations act on fractional row coordinates as
 
@@ -91,28 +91,28 @@ class PrimitiveSymmetry:
     symprec: float
 
     def __post_init__(self) -> None:
-        """Validate and normalize the primitive symmetry representation."""
-        rotations = _readonly_int64(self.rotations, name="primitive rotations")
+        """Validate and normalize the cell symmetry representation."""
+        rotations = _readonly_int64(self.rotations, name="cell rotations")
         translations = _readonly(self.translations, dtype=np.float64)
         cartesian = _readonly(self.cartesian_rotations, dtype=np.float64)
         permutations = _readonly_int64(self.site_permutations, name="site permutations")
         shifts = _readonly_int64(self.site_shifts, name="site shifts")
         count = len(rotations)
         if rotations.shape != (count, 3, 3):
-            raise ValueError("primitive rotations must have shape (n, 3, 3)")
+            raise ValueError("cell rotations must have shape (n, 3, 3)")
         if translations.shape != (count, 3) or cartesian.shape != (count, 3, 3):
-            raise ValueError("primitive symmetry representations have inconsistent shapes")
+            raise ValueError("cell symmetry representations have inconsistent shapes")
         if permutations.ndim != 2 or shifts.shape != (*permutations.shape, 3):
-            raise ValueError("primitive site actions have inconsistent shapes")
+            raise ValueError("cell site actions have inconsistent shapes")
         if permutations.shape[0] != count:
-            raise ValueError("every primitive operation must act on the motif")
+            raise ValueError("every cell operation must act on the motif")
         if not np.all(np.isfinite(translations)) or not np.all(np.isfinite(cartesian)):
-            raise ValueError("primitive symmetry representations must be finite")
+            raise ValueError("cell symmetry representations must be finite")
         expected = np.arange(permutations.shape[1], dtype=np.int64)
         if not np.array_equal(
             np.sort(permutations, axis=1), np.broadcast_to(expected, permutations.shape)
         ):
-            raise ValueError("every primitive operation must permute every motif site exactly once")
+            raise ValueError("every cell operation must permute every motif site exactly once")
         if not np.isfinite(self.symprec) or self.symprec <= 0.0:
             raise ValueError("symprec must be a positive finite length in angstrom")
         object.__setattr__(self, "rotations", rotations)
@@ -125,7 +125,7 @@ class PrimitiveSymmetry:
 
     @property
     def size(self) -> int:
-        """Number of affine operations acting on the primitive motif."""
+        """Number of affine operations acting on the cell motif."""
         return len(self.rotations)
 
     def transform_site(self, operation: int, label: LatticeSite) -> LatticeSite:
@@ -138,7 +138,7 @@ class PrimitiveSymmetry:
         Raises
         ------
         IndexError
-            If the operation or primitive motif index is outside its valid range.
+            If the operation or cell motif index is outside its valid range.
         OverflowError
             If the transformed lattice translation exceeds the supported integer
             range.
@@ -147,8 +147,8 @@ class PrimitiveSymmetry:
         if not 0 <= operation < self.size:
             raise IndexError("symmetry operation is outside the group")
         if not 0 <= site < self.site_permutations.shape[1]:
-            raise IndexError("primitive site is outside the motif")
-        translation = as_int64_array(label.translation, name="primitive translation")
+            raise IndexError("cell site is outside the motif")
+        translation = as_int64_array(label.translation, name="cell translation")
         validate_site_actions(
             translation.reshape(1, 3),
             self.rotations[operation : operation + 1],
@@ -161,14 +161,14 @@ class PrimitiveSymmetry:
         )
 
 
-def discover_symmetry(cell, scaled_positions, atomic_numbers, symprec) -> PrimitiveSymmetry:
-    """Discover primitive-cell space-group actions and motif-site mappings.
+def discover_symmetry(cell, scaled_positions, atomic_numbers, symprec) -> CellSymmetry:
+    """Discover cell space-group actions and motif-site mappings.
 
     Spglib operations act on fractional row coordinates as
 
         x' = x @ R.T + t.
 
-    For every operation and primitive motif site ``i``, this function finds
+    For every operation and cell motif site ``i``, this function finds
     the unique same-species motif site ``sigma(i)`` and integer shift ``s(i)``
     satisfying
 
@@ -183,18 +183,18 @@ def discover_symmetry(cell, scaled_positions, atomic_numbers, symprec) -> Primit
     Parameters
     ----------
     cell
-        Primitive lattice vectors as rows, shape ``(3, 3)``, in angstrom.
+        Cell lattice vectors as rows, shape ``(3, 3)``, in angstrom.
     scaled_positions
         Fractional motif coordinates of shape ``(n_atoms, 3)``.
     atomic_numbers
-        Atomic numbers in primitive motif order.
+        Atomic numbers in cell motif order.
     symprec
         Positive Cartesian matching tolerance in angstrom.
 
     Returns
     -------
-    PrimitiveSymmetry
-        Primitive symmetry operations together with motif permutations,
+    CellSymmetry
+        Cell symmetry operations together with motif permutations,
         lattice shifts and Cartesian rotations.
 
     Raises
@@ -209,7 +209,7 @@ def discover_symmetry(cell, scaled_positions, atomic_numbers, symprec) -> Primit
     )
     if dataset is None:
         raise ValueError(
-            "spglib could not determine primitive symmetry "
+            "spglib could not determine cell symmetry "
             f"for {len(atomic_numbers)} atoms at symprec {symprec:g} angstrom"
         )
 
@@ -225,7 +225,7 @@ def discover_symmetry(cell, scaled_positions, atomic_numbers, symprec) -> Primit
     for operation, (rotation, translation) in enumerate(zip(rotations, translations, strict=True)):
         transformed = scaled_positions @ rotation.T + translation
         for site, position in enumerate(transformed):
-            matched, shift = match_primitive_site(
+            matched, shift = match_cell_site(
                 cell,
                 scaled_positions,
                 atomic_numbers,
@@ -233,13 +233,13 @@ def discover_symmetry(cell, scaled_positions, atomic_numbers, symprec) -> Primit
                 atomic_numbers[site],
                 tolerance=symprec,
                 geometry=geometry,
-                context=f"operation {operation} maps primitive site {site}",
+                context=f"operation {operation} maps cell site {site}",
             )
             permutations[operation, site] = matched
             shifts[operation, site] = shift
 
-    return PrimitiveSymmetry(
-        rotations=_readonly_int64(rotations, name="primitive rotations"),
+    return CellSymmetry(
+        rotations=_readonly_int64(rotations, name="cell rotations"),
         translations=_readonly(translations, dtype=np.float64),
         cartesian_rotations=_readonly(cartesian, dtype=np.float64),
         site_permutations=_readonly_int64(permutations, name="site permutations"),

@@ -11,7 +11,7 @@ from scipy.constants import angstrom, atomic_mass, electron_volt
 
 from mlfcs.cluster_space import ClusterSpace
 from mlfcs.force_constants import ForceConstants
-from mlfcs.geometry.symmetry import PrimitiveSymmetry
+from mlfcs.geometry.symmetry import CellSymmetry
 from mlfcs.phonon import Harmonic, QGrid, QStars, StarPlan
 from mlfcs.phonon.grid import _integer_matmul, rotate_q_labels
 
@@ -85,7 +85,7 @@ def test_cubic_stars_partition_the_grid() -> None:
 
 def test_time_reversal_pairs_only_the_labels_it_reaches() -> None:
     """Verify time reversal pairs only the labels it reaches."""
-    identity = PrimitiveSymmetry(
+    identity = CellSymmetry(
         rotations=np.eye(3, dtype=np.int32)[None, :, :],
         translations=np.zeros((1, 3)),
         cartesian_rotations=np.eye(3)[None, :, :],
@@ -265,7 +265,7 @@ def test_mass_assignment_preserves_model_values():
     space = ClusterSpace(atoms, cutoffs={2: 3.0})
     atoms.set_masses([1.0, 2.0])
     np.testing.assert_array_equal(space.masses, [28.0, 29.0])
-    detached = space.primitive_atoms
+    detached = space.cell_atoms
     detached.set_masses([1.0, 2.0])
     np.testing.assert_array_equal(space.masses, [28.0, 29.0])
     source = np.array([56.0, 58.0])

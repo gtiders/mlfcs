@@ -17,13 +17,13 @@ class LatticeSite:
     """Unique address for one atom in an infinitely periodic crystal.
 
     A lattice site is specified by ``(site, translation)``:
-    - ``site``: index of the atom inside the primitive unit cell (i)
+    - ``site``: index of the atom inside the reference cell (i)
     - ``translation``: integer lattice vector ``n = (tx, ty, tz)``,
-      counting how many primitive cell steps to translate.
+      counting how many reference-cell steps to translate.
 
     With row-wise lattice basis vectors, its Cartesian position is:
         r(i, n) = (s_i + n) @ cell
-    where s_i is the fractional coordinate of atom i inside the primitive cell.
+    where s_i is the fractional coordinate of atom i inside the reference cell.
 
     Important: ``translation`` is an integer lattice offset, **not**
     a Cartesian displacement in real space.
@@ -35,7 +35,7 @@ class LatticeSite:
     def __post_init__(self) -> None:
         """Validate and normalize lattice-site address."""
         if self.site < 0:
-            raise ValueError("primitive site must be non-negative")
+            raise ValueError("cell site must be non-negative")
         if len(self.translation) != 3 or any(
             not isinstance(value, (int, np.integer)) for value in self.translation
         ):
@@ -44,7 +44,7 @@ class LatticeSite:
         object.__setattr__(self, "translation", tuple(int(value) for value in self.translation))
 
 
-def match_primitive_site(
+def match_cell_site(
     cell,
     scaled_positions,
     atomic_numbers,
@@ -98,12 +98,12 @@ def match_primitive_site(
     candidates = np.flatnonzero(np.asarray(atomic_numbers) == species)
     prefix = f"{context}: " if context else ""
     if not len(candidates):
-        raise ValueError(f"{prefix}no primitive site carries species {species}")
+        raise ValueError(f"{prefix}no cell site carries species {species}")
     differences = (np.asarray(position, dtype=np.float64) - scaled_positions[candidates]) @ cell
     matches, shifts = geometry.matching_images(differences, tolerance=tolerance)
     if len(matches) != 1:
         raise ValueError(
-            f"{prefix}position matches {len(matches)} primitive sites "
+            f"{prefix}position matches {len(matches)} cell sites "
             f"within tolerance {tolerance:g} angstrom"
         )
     return int(candidates[matches[0]]), tuple(-int(value) for value in shifts[0])
@@ -359,4 +359,4 @@ def _transform_image_shifts(left: np.ndarray, right: np.ndarray) -> np.ndarray:
     return result
 
 
-__all__ = ["Lattice", "LatticeSite", "match_primitive_site"]
+__all__ = ["Lattice", "LatticeSite", "match_cell_site"]

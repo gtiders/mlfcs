@@ -1,6 +1,6 @@
 """Construct symmetry orbits and stabilizers of force-constant clusters.
 
-A cluster is acted on by primitive-cell space-group operations together with
+A cluster is acted on by cell space-group operations together with
 allowed tensor-index permutations. Each transformed image is re-anchored to
 remove the common lattice translation. Distinct images form the cluster orbit,
 while actions that return the representative define its stabilizer.
@@ -11,7 +11,7 @@ from numba import njit
 
 from mlfcs.cluster_space.records import Cluster
 from mlfcs.foundation.arrays import as_int64_array, require_allocation
-from mlfcs.geometry.symmetry import PrimitiveSymmetry
+from mlfcs.geometry.symmetry import CellSymmetry
 
 
 @njit(cache=True)
@@ -95,7 +95,7 @@ def transform_cluster(
 ) -> np.ndarray:
     """Apply space-group and tensor-index actions to a cluster.
 
-    For a tensor slot with lattice label ``(i, n)``, a primitive symmetry
+    For a tensor slot with lattice label ``(i, n)``, a cell symmetry
     operation ``g`` maps
 
         i -> sigma_g(i)
@@ -117,7 +117,7 @@ def transform_cluster(
     rotations
         Integer lattice rotations of shape ``(s, 3, 3)``.
     site_permutations
-        Primitive-site permutations of shape ``(s, N)``.
+        Cell-site permutations of shape ``(s, N)``.
     site_shifts
         Lattice image shifts of shape ``(s, N, 3)``.
     axis_permutations
@@ -189,12 +189,12 @@ class ClusterRegistry:
 
 
 def _prepare_cluster_labels(
-    labels: tuple[tuple[int, int, int, int], ...], symmetry: PrimitiveSymmetry
+    labels: tuple[tuple[int, int, int, int], ...], symmetry: CellSymmetry
 ) -> np.ndarray:
-    """Validate cluster labels for primitive symmetry transformations.
+    """Validate cluster labels for cell symmetry transformations.
 
     ``labels`` must have shape ``(p, 4)`` with rows ``(site, tx, ty, tz)``.
-    Site indices must refer to the primitive motif, and all affine symmetry
+    Site indices must refer to the cell motif, and all affine symmetry
     transformations and subsequent re-anchoring must remain within the
     supported integer range.
 
@@ -206,12 +206,12 @@ def _prepare_cluster_labels(
     Raises
     ------
     ValueError
-        If the label layout or primitive-site indices are invalid.
+        If the label layout or cell-site indices are invalid.
     OverflowError
         If a transformed or re-anchored lattice translation cannot be
         represented safely.
     """
-    array = as_int64_array(labels, name="primitive cluster labels")
+    array = as_int64_array(labels, name="cell cluster labels")
     from mlfcs.geometry.symmetry import validate_site_actions
 
     if array.ndim != 2 or array.shape[1] != 4 or not len(array):
@@ -220,7 +220,7 @@ def _prepare_cluster_labels(
         )
     if np.any(array[:, 0] < 0) or np.any(array[:, 0] >= symmetry.site_permutations.shape[1]):
         raise ValueError(
-            f"cluster label site {int(array[:, 0].max())} lies outside the primitive motif of "
+            f"cluster label site {int(array[:, 0].max())} lies outside the cell motif of "
             f"{symmetry.site_permutations.shape[1]} sites"
         )
     validate_site_actions(
@@ -231,7 +231,7 @@ def _prepare_cluster_labels(
 
 def compute_orbit_actions(
     cluster: Cluster,
-    symmetry: PrimitiveSymmetry,
+    symmetry: CellSymmetry,
     permutation_values: tuple[tuple[int, ...], ...],
     permutation_array: np.ndarray,
 ) -> tuple[
@@ -243,7 +243,7 @@ def compute_orbit_actions(
 ]:
     """Construct the symmetry orbit and stabilizer of a cluster.
 
-    Every primitive-cell symmetry operation is combined with every allowed
+    Every cell symmetry operation is combined with every allowed
     tensor-axis permutation and applied to ``cluster``. Transformed images are
     re-anchored so that clusters differing only by a common lattice
     translation have the same representation.
@@ -257,7 +257,7 @@ def compute_orbit_actions(
     cluster
         Representative force-constant cluster.
     symmetry
-        Primitive-cell symmetry operations acting on motif sites and lattice
+        Cell symmetry operations acting on motif sites and lattice
         translations.
     permutation_values
         Allowed tensor-axis permutations as Python tuples.
@@ -273,7 +273,7 @@ def compute_orbit_actions(
         label of each distinct image, in the same row order as ``operations``
         and ``permutations``.
     operations
-        Primitive symmetry-operation index associated with each retained image.
+        Cell symmetry-operation index associated with each retained image.
     permutations
         Tensor-axis permutation associated with each retained image.
     stabilizers
@@ -283,7 +283,7 @@ def compute_orbit_actions(
     Raises
     ------
     RuntimeError
-        If no stabilizer action is found, which indicates an invalid primitive
+        If no stabilizer action is found, which indicates an invalid cell
         symmetry description because the identity action must stabilize every
         cluster.
     """
@@ -312,5 +312,5 @@ def compute_orbit_actions(
         for index in stabilizer_indices
     )
     if not stabilizers:
-        raise RuntimeError("the primitive symmetry group does not contain the identity action")
+        raise RuntimeError("the cell symmetry group does not contain the identity action")
     return representative, transformed[indices], operations, permutations, stabilizers

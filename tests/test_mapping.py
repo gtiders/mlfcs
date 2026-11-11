@@ -34,25 +34,25 @@ def test_structure_snapshots_preserve_geometry_and_masses():
     mapping = ClusterMap(space, explicit, supercell_matrix=np.diag([2, 1, 1]))
     atoms.positions[:] = 4.0
     explicit.positions[:] = 5.0
-    primitive_snapshot = space.primitive_atoms
-    supercell_snapshot = mapping.supercell_atoms
-    np.testing.assert_array_equal(primitive_snapshot.get_masses(), [42.0])
+    cell_snapshot = space.cell_atoms
+    supercell_snapshot = mapping.supercell
+    np.testing.assert_array_equal(cell_snapshot.get_masses(), [42.0])
     np.testing.assert_array_equal(supercell_snapshot.get_masses(), [42.0, 42.0])
-    primitive_snapshot.positions[:] = 7.0
-    primitive_snapshot.set_masses([9.0])
+    cell_snapshot.positions[:] = 7.0
+    cell_snapshot.set_masses([9.0])
     supercell_snapshot.positions[:] = 8.0
     supercell_snapshot.set_masses([10.0, 10.0])
-    np.testing.assert_array_equal(space.primitive_atoms.get_masses(), [42.0])
-    np.testing.assert_array_equal(mapping.supercell_atoms.get_masses(), [42.0, 42.0])
-    assert not np.allclose(space.primitive_atoms.positions, 7.0)
-    assert not np.allclose(mapping.supercell_atoms.positions, 8.0)
+    np.testing.assert_array_equal(space.cell_atoms.get_masses(), [42.0])
+    np.testing.assert_array_equal(mapping.supercell.get_masses(), [42.0, 42.0])
+    assert not np.allclose(space.cell_atoms.positions, 7.0)
+    assert not np.allclose(mapping.supercell.positions, 8.0)
     assert space.orders == (2,)
     assert space.block(2).max_body_order == 2
     for value in (
         space.atomic_numbers,
         mapping.supercell_matrix,
         mapping.atomic_numbers,
-        mapping.primitive_site_indices,
+        mapping.cell_site_indices,
         mapping.lattice_translations,
         mapping.quotient_labels,
         *mapping.image_atom_indices,
@@ -64,9 +64,9 @@ def test_structure_snapshots_preserve_geometry_and_masses():
 def test_supercell_quotients_identify_periodic_sites() -> None:
     """Verify supercell quotients identify periodic sites."""
     atoms = bulk("Ar", "sc", a=1.0)
-    primitive = ClusterSpace(atoms, symprec=1e-05, cutoffs={2: 0.01})
-    supercell_atoms = atoms.repeat((2, 2, 2))
-    cell = ClusterMap(primitive, supercell_atoms, supercell_matrix=np.diag([2, 2, 2]))
+    cell = ClusterSpace(atoms, symprec=1e-05, cutoffs={2: 0.01})
+    supercell = atoms.repeat((2, 2, 2))
+    cell = ClusterMap(cell, supercell, supercell_matrix=np.diag([2, 2, 2]))
     assert cell.atom_index(LatticeSite(0, (2, -2, 0))) == cell.atom_index(LatticeSite(0))
     assert len({cell.quotient(tuple(value)) for value in cell.lattice_translations}) == 8
     assert len(cell.translation_representatives) == 8
@@ -75,7 +75,7 @@ def test_supercell_quotients_identify_periodic_sites() -> None:
         (
             tuple((int(value) for value in translation))
             for site, translation in zip(
-                cell.primitive_site_indices, cell.lattice_translations, strict=True
+                cell.cell_site_indices, cell.lattice_translations, strict=True
             )
             if site == 0
         )
@@ -85,8 +85,8 @@ def test_supercell_quotients_identify_periodic_sites() -> None:
 def test_cluster_map_rejection_reports_the_folded_directions() -> None:
     """Verify the aliasing rejection names the rank loss of a folded supercell."""
     atoms = bulk("Ar", "sc", a=1.0)
-    primitive = atoms
-    space = ClusterSpace(primitive, cutoffs={2: 1.1}, max_body_orders={2: 2}, symprec=1e-05)
+    cell = atoms
+    space = ClusterSpace(cell, cutoffs={2: 1.1}, max_body_orders={2: 2}, symprec=1e-05)
     with pytest.raises(ValueError, match=r"rank \d+ for \d+ parameters"):
         ClusterMap(space, atoms, supercell_matrix=np.eye(3, dtype=np.int64))
     large_map = ClusterMap(space, atoms.repeat((3, 3, 3)), supercell_matrix=np.diag([3, 3, 3]))
@@ -113,14 +113,14 @@ def test_mapped_labels_maps_large_cancelling_coordinates() -> None:
     np.testing.assert_array_equal(prepared.lookup(labels, translations), 0)
 
 
-def test_supercell_matrix_inference_handles_skewed_primitive_cell() -> None:
-    """Verify supercell matrix inference handles skewed primitive cell."""
-    primitive_atoms = bulk("Ar", "sc", a=1.0)
-    primitive_atoms.set_cell([[1.0, 0.0, 0.0], [100.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
-    space = ClusterSpace(primitive_atoms, cutoffs={2: 0.001}, symprec=0.01)
-    supercell_atoms = primitive_atoms.copy()
-    cell = supercell_atoms.cell.array.copy()
+def test_supercell_matrix_inference_handles_skewed_cell() -> None:
+    """Verify supercell matrix inference handles skewed cell."""
+    cell_atoms = bulk("Ar", "sc", a=1.0)
+    cell_atoms.set_cell([[1.0, 0.0, 0.0], [100.0, 1.0, 0.0], [0.0, 0.0, 1.0]])
+    space = ClusterSpace(cell_atoms, cutoffs={2: 0.001}, symprec=0.01)
+    supercell = cell_atoms.copy()
+    cell = supercell.cell.array.copy()
     cell[0, 1] += 0.006
-    supercell_atoms.set_cell(cell)
-    mapped = ClusterMap(space, supercell_atoms)
+    supercell.set_cell(cell)
+    mapped = ClusterMap(space, supercell)
     np.testing.assert_array_equal(mapped.supercell_matrix, np.eye(3, dtype=np.int64))

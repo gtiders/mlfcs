@@ -138,7 +138,7 @@ class HarmonicMeshResult:
 
 
 class Harmonic:
-    """Harmonic lattice dynamics constructed from primitive-cell FC2.
+    """Harmonic lattice dynamics constructed from cell FC2.
 
     The model Fourier transforms second-order force constants into
     mass-weighted dynamical matrices in the positional gauge,
@@ -166,13 +166,13 @@ class Harmonic:
         self._terms = terms
         self._tensors = tensors
         print(
-            f"Harmonic prepared: primitive atoms {model.cluster_space.n_atoms}, "
+            f"Harmonic prepared: cell atoms {model.cluster_space.n_atoms}, "
             f"terms {len(terms.first_sites)}, {perf_counter() - started:.2f} s"
         )
 
     @property
     def masses(self) -> np.ndarray:
-        """Primitive-site masses in atomic mass units."""
+        """Cell-site masses in atomic mass units."""
         return self._masses
 
     def dynamical_matrices(self, qpoints: object) -> np.ndarray:
@@ -238,7 +238,7 @@ class Harmonic:
 
         ``mesh`` may be three positive mesh sizes, a nonsingular integer
         supercell matrix, or an existing ``QGrid``. Reduction uses the subgroup
-        preserving the primitive mass assignment and optionally includes time
+        preserving the cell mass assignment and optionally includes time
         reversal. The result stores irreducible frequencies and integer star
         weights; full-grid frequencies are expanded on demand.
         """
@@ -264,13 +264,13 @@ class Harmonic:
     ) -> HarmonicBandResult:
         """Evaluate phonon frequencies along a labelled reciprocal-space path.
 
-        If ``path`` is omitted, ASE selects the default path for the primitive
+        If ``path`` is omitted, ASE selects the default path for the cell
         Bravais lattice. A string such as ``"GX,LG"`` selects named points,
         with commas separating disconnected pieces. ``npoints`` sets the target
         sampling count over the complete path.
 
         A sampled ASE ``BandPath`` may be supplied when it uses the model's
-        primitive-cell basis. The result includes fractional q points, signed
+        cell basis. The result includes fractional q points, signed
         frequencies, path distances, connected segments, and plotting ticks.
         This method does not apply a non-analytical long-range correction.
         """
@@ -279,7 +279,7 @@ class Harmonic:
             if npoints is not None:
                 raise ValueError("npoints cannot be supplied with a sampled BandPath")
             if not np.allclose(path.cell, cell, rtol=1e-10, atol=1e-10):
-                raise ValueError("BandPath must use the model's primitive cell basis")
+                raise ValueError("BandPath must use the model's cell basis")
             prepared = path
         else:
             if path is not None and not isinstance(path, str):

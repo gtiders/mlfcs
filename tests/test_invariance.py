@@ -20,18 +20,18 @@ def physical_fc2_moments(model: ForceConstants) -> tuple[float, float]:
     outer product. Antisymmetrize the first moment on its last two axes and
     the globally summed second moment under exchange of axis pairs. Return
     their maximum magnitudes in eV/angstrom and eV."""
-    primitive = model.cluster_space
-    first_moment = np.zeros((primitive.n_atoms, 3, 3, 3))
-    second_moment = np.zeros((primitive.n_atoms, 3, 3, 3, 3))
+    cell = model.cluster_space
+    first_moment = np.zeros((cell.n_atoms, 3, 3, 3))
+    second_moment = np.zeros((cell.n_atoms, 3, 3, 3, 3))
     values = expand_lattice_tensors(model, 2)
     for sites, translations, tensor in zip(
         values.sites, values.translations, values.tensors, strict=True
     ):
         first, second = sites
         vector = (
-            primitive.cartesian_positions[second]
-            - primitive.cartesian_positions[first]
-            + np.asarray(translations[0]) @ primitive.cell
+            cell.cartesian_positions[second]
+            - cell.cartesian_positions[first]
+            + np.asarray(translations[0]) @ cell.cell
         )
         first_moment[first] += tensor[:, :, None] * vector[None, None, :]
         second_moment[first] += (
@@ -48,9 +48,9 @@ def physical_fc2_moments(model: ForceConstants) -> tuple[float, float]:
 
 def test_rotational_projection_preserves_higher_orders() -> None:
     """Verify rotational moments, idempotence and unchanged higher orders."""
-    primitive = bulk("Ar", "sc", a=1.0)
+    cell = bulk("Ar", "sc", a=1.0)
     space = ClusterSpace(
-        primitive, cutoffs={2: 1.1, 3: 1.1}, max_body_orders={2: 2, 3: 3}, symprec=1e-05, asr=True
+        cell, cutoffs={2: 1.1, 3: 1.1}, max_body_orders={2: 2, 3: 3}, symprec=1e-05, asr=True
     )
     rng = np.random.default_rng(12)
     model = ForceConstants(
@@ -90,9 +90,9 @@ def test_rotational_projection_preserves_higher_orders() -> None:
 
 def test_rotation_defaults_to_born_huang() -> None:
     """Verify rotation defaults to born huang."""
-    primitive = bulk("Ar", "sc", a=1.0)
+    cell = bulk("Ar", "sc", a=1.0)
     space = ClusterSpace(
-        primitive, cutoffs={2: 1.1}, max_body_orders={2: 2}, symprec=1e-05, asr=True
+        cell, cutoffs={2: 1.1}, max_body_orders={2: 2}, symprec=1e-05, asr=True
     )
     model = ForceConstants(space, {2: np.ones(space.n_parameters)})
     born_only = model.enforce_rotation()
@@ -116,9 +116,9 @@ def test_rotational_rank_uses_measured_geometry_not_symprec(
     cell[1, 1] -= cell_error
     positions[0, 1] -= 2 * site_error
     positions[1:, 0] -= site_error
-    primitive = Atoms(numbers=[42, 16, 16], cell=cell, scaled_positions=positions, pbc=True)
+    cell = Atoms(numbers=[42, 16, 16], cell=cell, scaled_positions=positions, pbc=True)
     space = ClusterSpace(
-        primitive, cutoffs={2: 8.0}, max_body_orders={2: 2}, symprec=symprec, asr=True
+        cell, cutoffs={2: 8.0}, max_body_orders={2: 2}, symprec=symprec, asr=True
     )
     coordinates = space.acoustic_coordinates(2)
     # Match the physical coefficient scale of the measured-geometry fixture;

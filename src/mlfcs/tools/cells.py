@@ -1,7 +1,7 @@
 """Cell construction and crystallographic standardization utilities.
 
 Supercells follow phonopy's historical old-style atom order without requiring
-phonopy at runtime. Standard primitive and conventional cells come from
+phonopy at runtime. Standard cell and conventional cells come from
 spglib, together with the basis transformation applied to the input cell.
 """
 
@@ -111,7 +111,7 @@ def _build_supercell(atoms: Atoms, matrix: np.ndarray, *, symprec: float) -> Ato
 
 
 def build_supercell(
-    primitive: Atoms,
+    cell: Atoms,
     matrix: object,
     *,
     symprec: float = 1e-5,
@@ -121,19 +121,19 @@ def build_supercell(
     ``matrix`` may be three positive integer repetitions or a nonsingular
     integer matrix in row convention,
 
-        ``cell_super = matrix @ primitive.cell``.
+        ``cell_super = matrix @ cell.cell``.
 
     The result uses the site-major ordering of phonopy's historical
     ``is_old_style=True`` construction. Coincident boundary images are merged
-    within ``symprec``, a Cartesian tolerance in angstrom. The primitive must
+    within ``symprec``, a Cartesian tolerance in angstrom. The cell must
     be periodic in all three directions and the matrix must have positive
     determinant. The implementation uses ASE and NumPy without importing
     phonopy.
     """
-    if not isinstance(primitive, Atoms):
-        raise TypeError("primitive must be an ASE Atoms object")
-    if not np.all(primitive.pbc):
-        raise ValueError("primitive must be periodic in all three directions")
+    if not isinstance(cell, Atoms):
+        raise TypeError("cell must be an ASE Atoms object")
+    if not np.all(cell.pbc):
+        raise ValueError("cell must be periodic in all three directions")
     supercell_matrix = _matrix(matrix)
     determinant = _determinant(supercell_matrix)
     if determinant <= 0:
@@ -141,7 +141,7 @@ def build_supercell(
     symprec = float(symprec)
     if not np.isfinite(symprec) or symprec <= 0.0:
         raise ValueError(f"symprec must be a finite positive length in angstrom, got {symprec!r}")
-    return _build_supercell(primitive, supercell_matrix, symprec=symprec)
+    return _build_supercell(cell, supercell_matrix, symprec=symprec)
 
 
 @dataclass(frozen=True, slots=True)
@@ -165,7 +165,7 @@ class StandardizedCell:
 
 
 def standard_primitive(atoms: Atoms, *, symprec: float = 1e-5) -> StandardizedCell:
-    """Return the spglib-standardized primitive cell and its basis change.
+    """Return the spglib-standardized cell and its basis change.
 
     ``symprec`` is the Cartesian symmetry tolerance in angstrom. Spglib
     standardizes and idealizes the geometry; masses are averaged by chemical

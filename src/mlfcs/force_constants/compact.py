@@ -1,4 +1,4 @@
-"""Primitive-first force-constant tensors, periodic folding and blockwise composition."""
+"""Cell-first force-constant tensors, periodic folding and blockwise composition."""
 
 from __future__ import annotations
 
@@ -79,12 +79,12 @@ def _accumulate_forces(result, tensors, displacements, first, second):
 
 @dataclass(frozen=True, slots=True, init=False)
 class CompactForceConstants:
-    """Force-constant tensors anchored on primitive sites of a periodic supercell.
+    """Force-constant tensors anchored on cell sites of a periodic supercell.
 
     ``source`` is a ForceConstants model or a mapping from tensor order to
     already folded arrays. For order p, folded arrays have atom axes
-    (N_primitive, N_supercell, ..., N_supercell), followed by p Cartesian axes.
-    Their first atom is the zero-translation primitive representative, not
+    (N_cell, N_supercell, ..., N_supercell), followed by p Cartesian axes.
+    Their first atom is the zero-translation cell representative, not
     necessarily the first corresponding atom in the input supercell.
 
     Values are energy derivatives in eV/angstrom**p, without mass weighting
@@ -143,7 +143,7 @@ class CompactForceConstants:
 
     @property
     def cluster_space(self):
-        """Primitive geometry used to interpret tensor labels."""
+        """Cell geometry used to interpret tensor labels."""
         if self.cluster_map is not None:
             return self.cluster_map.cluster_space
         return self._sources[0].cluster_space
@@ -183,7 +183,7 @@ class CompactForceConstants:
         return order
 
     def _lattice_index(self, source_index, order):
-        """Group orbit-image references by unambiguous primitive lattice labels."""
+        """Group orbit-image references by unambiguous cell lattice labels."""
         key = ("lattice", source_index, order)
         if key not in self._indices:
             model = self._sources[source_index]
@@ -261,7 +261,7 @@ class CompactForceConstants:
         return (first,) + (self.cluster_map.n_atoms,) * (order - 1)
 
     def compact_blocks(self, order, *, max_bytes=DEFAULT_BLOCK_BYTES):
-        """Yield primitive-first atom slices and complete Cartesian tensor blocks.
+        """Yield cell-first atom slices and complete Cartesian tensor blocks.
 
         The workspace budget covers tensor output, one consumer copy and
         action temporaries, excluding source arrays and derived label indices.
@@ -280,7 +280,7 @@ class CompactForceConstants:
         shape = self._shape(order, full=True)
         tail_shape = (1,) + shape[1:]
         labels = np.column_stack(
-            (self.cluster_map.primitive_site_indices, self.cluster_map.lattice_translations)
+            (self.cluster_map.cell_site_indices, self.cluster_map.lattice_translations)
         )
         for first in range(shape[0]):
             origin = self.cluster_map.lattice_translations[first]
@@ -289,13 +289,13 @@ class CompactForceConstants:
             )
             translated = self.cluster_map.map_labels(labels, translation)[:, 0]
             for slices in _tiles(tail_shape, capacity):
-                axes = (np.array([self.cluster_map.primitive_site_indices[first]]),) + tuple(
+                axes = (np.array([self.cluster_map.cell_site_indices[first]]),) + tuple(
                     translated[axis] for axis in slices[1:]
                 )
                 yield (slice(first, first + 1), *slices[1:]), self._compact_block(order, axes)
 
     def compact_array(self, order):
-        """Materialize primitive-first tensors in eV/angstrom**order."""
+        """Materialize cell-first tensors in eV/angstrom**order."""
         order = self._require_order(order)
         shape = self._shape(order) + (3,) * order
         require_allocation("compact tensor array", shape)

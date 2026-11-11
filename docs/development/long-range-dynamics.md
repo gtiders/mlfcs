@@ -64,7 +64,7 @@ phonon = Harmonic(short_model, long_range=ewald)
 bands = phonon.frequencies(qpoints, gamma_direction=[1, 0, 0])
 ```
 
-`gamma_direction` 建议明确为笛卡尔方向，只影响 Γ 点极限。Ewald 仍绑定一个 mapping，用于训练力与 compact 输出；未来原胞 q 求和复用其电学参数和同一局域修正。Harmonic 知道长程动力学贡献，ForceConstants 不知道 Ewald。
+`gamma_direction` 建议明确为笛卡尔方向，只影响 Γ 点极限。Ewald 仍绑定一个 mapping，用于训练力与 compact 输出；未来参考胞 q 求和复用其电学参数和同一局域修正。Harmonic 知道长程动力学贡献，ForceConstants 不知道 Ewald。
 
 实现前需要保存或重新组织 Ewald 当前初始化中未保留的局域修正和 onsite 数据；不能只读取 `_tensors`。任意 q 算法还需要证明相位、Γ/self 约定及收敛处理一致。网格约化必须同时保持质量、电学张量和总动力学矩阵对称性；SCPH 接入另作阶段，不随谐波接口隐式启用。
 

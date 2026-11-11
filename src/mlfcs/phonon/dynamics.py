@@ -21,9 +21,9 @@ THZ_PER_SQRT_EV_PER_A2_AMU = np.sqrt(electron_volt / (angstrom**2 * atomic_mass)
 
 @dataclass(frozen=True, slots=True)
 class DynamicalTerms:
-    """Geometry and mass data for the Fourier expansion of primitive FC2 terms.
+    """Geometry and mass data for the Fourier expansion of cell FC2 terms.
 
-    Each entry represents an expanded pair interaction between primitive
+    Each entry represents an expanded pair interaction between cell
     motif sites ``i`` and ``j`` with fractional separation
 
         d = n + s_j - s_i,
@@ -90,10 +90,10 @@ def prepare_dynamical_terms(model: ForceConstants) -> tuple[DynamicalTerms, Latt
 def prepare_fc2_bases(
     cluster_space, terms: DynamicalTerms
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Expand primitive FC2 orbit bases into Fourier-term image order.
+    """Expand cell FC2 orbit bases into Fourier-term image order.
 
     Each symmetry image receives the Cartesian basis obtained by rotating and
-    permuting its primitive orbit basis. For each term, ``offsets`` and
+    permuting its cell orbit basis. For each term, ``offsets`` and
     ``dimensions`` select the corresponding coefficient slice
     ``coefficients[offset:offset + dimension]`` in the global FC2 parameter
     vector. ``terms`` must have been prepared from this cluster space.
@@ -129,7 +129,7 @@ def translation_complement(masses: np.ndarray) -> np.ndarray:
     In mass-weighted Cartesian coordinates, rigid translations span vectors
     proportional to ``sqrt(m_i)`` along x, y, and z. Return an orthonormal
     complement with shape ``(3*N, 3*(N-1))`` for positive per-site masses in
-    atomic mass units. A single-site primitive cell has an empty complement.
+    atomic mass units. A single-site cell has an empty complement.
     """
     count = len(masses)
     if count == 1:

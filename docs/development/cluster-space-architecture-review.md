@@ -184,7 +184,7 @@ cluster_space/
 
 ## 8. 不建议做的事
 
-- 不要把 `Orbit`/`ClusterSpace` 变成 Rust 对象：跨包字段访问是事实接口，且 `primitive_atoms` 需要 ASE。
+- 不要把 `Orbit`/`ClusterSpace` 变成 Rust 对象：跨包字段访问是事实接口，且 `cell_atoms` 需要 ASE。
 - 不要为了"能换 Rust"先重写算法：先搬边界，再换实现，测试与 oracle 不动。
 - 不要把 `component_parameterization`（LAPACK QR/`cond`）与 `project`（SciPy LSMR 回调）拉进 Rust 边界，除非同时自己实现 QR 与迭代求解。
 - 不要保留 `object.__setattr__` 写私有字段的跨包后门，即使它在 `load` 中"很方便"。

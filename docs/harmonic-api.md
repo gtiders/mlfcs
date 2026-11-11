@@ -21,7 +21,7 @@ print("参考胞质量：", phonon.masses)
 
 `phonon.model` 是关联的力常数模型，`phonon.masses` 是按模型参考胞原子顺序排列的只读质量数组，单位为原子质量单位。`Harmonic` 不需要另一个 mapping，也不接受超胞 FC2 数组或 `CompactForceConstants` 作为构造输入。
 
-频率计算始终以模型的参考晶胞为基底。代码中沿用 `primitive` 命名，但输入参考胞不必是最小原胞。若使用较大的周期参考胞，其倒格基、布里渊区及声子支数也相对于这个胞定义，谱中会出现相应的能带折叠。
+频率计算始终以模型的参考胞为基底。代码中参考胞使用 `cell` 命名；输入参考胞不必是最小原胞。若使用较大的周期参考胞，其倒格基、布里渊区及声子支数也相对于这个胞定义，谱中会出现相应的能带折叠。
 
 ## 2. 先算几个 q 点
 
@@ -65,7 +65,7 @@ print("ASE 选取的路径：", bands.path)
 ### 指定标签与断开的路径
 
 ```python
-# 对本章的 fcc Al 原胞，G、X、L 是 ASE 的特殊点标签。
+# 对本章的 fcc Al 参考胞，G、X、L 是 ASE 的特殊点标签。
 bands = phonon.run_band_path("GX,LG", npoints=200)
 ```
 
@@ -112,7 +112,7 @@ plt.show()
 比较两个模型时，可以先准备一份 ASE `BandPath`，然后交给各自的谐波对象，确保 q 点完全相同：
 
 ```python
-path = model.cluster_space.primitive_atoms.cell.bandpath(
+path = model.cluster_space.cell_atoms.cell.bandpath(
     "GAB",
     special_points={
         "G": [0, 0, 0],
@@ -227,9 +227,9 @@ import matplotlib.pyplot as plt
 from mlfcs import ClusterSpace, ClusterMap, FiniteDifference, ForceDataset
 from mlfcs.phonon import Harmonic
 
-primitive = bulk("Al", "fcc", a=4.05)
-space = ClusterSpace(primitive, cutoffs={2: 4.0}, asr=True)
-mapping = ClusterMap(space, space.primitive_atoms.repeat((3, 3, 3)))
+cell = bulk("Al", "fcc", a=4.05)
+space = ClusterSpace(cell, cutoffs={2: 4.0}, asr=True)
+mapping = ClusterMap(space, space.cell_atoms.repeat((3, 3, 3)))
 fd = FiniteDifference(mapping, order=2, disps=(0.01, 0.02))
 
 calculated = []

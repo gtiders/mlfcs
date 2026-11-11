@@ -1,4 +1,4 @@
-"""Primitive force constants in cluster-space coordinates."""
+"""Reference-cell force constants in cluster-space coordinates."""
 
 from __future__ import annotations
 
@@ -21,12 +21,12 @@ if TYPE_CHECKING:
 
 @dataclass(frozen=True, slots=True)
 class ForceConstants:
-    """Immutable primitive force-constant coefficients in physical component coordinates.
+    """Immutable reference-cell force-constant coefficients in physical component coordinates.
 
     Parameters
     ----------
     cluster_space : ClusterSpace
-        Primitive geometry and canonical parameter schema, retained by reference.
+        Cell geometry and canonical parameter schema, retained by reference.
     coefficients : mapping of int to array_like
         Present tensor orders and finite physical parameter vectors. Each order
         must match its block dimension. Values are copied into readonly float64
@@ -116,10 +116,10 @@ class ForceConstants:
         return cls(space, coefficients)
 
     def save(self, file: str | os.PathLike[str]) -> Path:
-        """Atomically save primitive geometry, bases, masses and coefficients as HDF5.
+        """Atomically save cell geometry, bases, masses and coefficients as HDF5.
 
         file is a path-like target with any extension, conventionally .mlfcs.
-        Return its absolute Path. Native format version 5 stores int64 and
+        Return its absolute Path. Native format version 6 stores int64 and
         float64 arrays without executable object encoding. I/O errors propagate;
         a failed write leaves an existing target unchanged.
         """
@@ -134,10 +134,10 @@ class ForceConstants:
 
     @classmethod
     def load(cls, file: str | os.PathLike[str]) -> ForceConstants:
-        """Load a validated native version-five HDF5 force-constant model.
+        """Load a validated native version-six HDF5 force-constant model.
 
         file is a path-like input. Restore physical coefficients and readonly
-        primitive geometry, masses and bases without repeating orbit construction.
+        cell geometry, masses and bases without repeating orbit construction.
         Raise ValueError for unsupported formats or invalid stored arrays/layout;
         file-access errors propagate. Legacy pickle files are not supported.
         """
@@ -168,7 +168,7 @@ class ForceConstants:
             Target file; parent directories are created.
         cluster_map : ClusterMap, optional
             Matching supercell relation required for phonopy and phono3py.
-            ShengBTE uses primitive lattice data and needs no map.
+            ShengBTE uses the reference-cell lattice data and needs no map.
             Callers own map/model compatibility.
         format : {'phonopy', 'phono3py', 'shengbte'}
             phonopy supports FC2; phono3py FC3; ShengBTE FC3/FC4.

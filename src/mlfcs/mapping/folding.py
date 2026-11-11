@@ -1,8 +1,8 @@
 """Assess structural parameter aliasing induced by supercell folding.
 
-Primitive cluster images that fold onto the same ordered tuple of supercell
+Cell cluster images that fold onto the same ordered tuple of supercell
 atoms are summed into the same rows of an integer linear map. The rank of
-that map determines which primitive force-constant parameter directions
+that map determines which reference-cell force-constant parameter directions
 remain distinguishable in a given supercell, independently of any training
 data.
 """
@@ -71,9 +71,9 @@ def _matrix_rank(matrix: object) -> int:
 
 @dataclass(frozen=True, slots=True)
 class RankInfo:
-    """Structural identifiability of primitive parameters in a supercell.
+    """Structural identifiability of cell parameters in a supercell.
 
-    ``parameters`` is the number of primitive force-constant parameters before
+    ``parameters`` is the number of reference-cell force-constant parameters before
     folding, while ``rank`` is the dimension that remains distinguishable
     after all symmetry images are mapped onto supercell atom tuples. The rank
     is exact over the rationals. ``aliases`` counts repeated folded images and
@@ -86,12 +86,12 @@ class RankInfo:
 
     @property
     def nullity(self) -> int:
-        """Number of primitive parameters lost by supercell folding."""
+        """Number of cell parameters lost by supercell folding."""
         return self.parameters - self.rank
 
     @property
     def full(self) -> bool:
-        """Whether folding preserves every primitive parameter direction."""
+        """Whether folding preserves every cell parameter direction."""
         return self.rank == self.parameters
 
 
@@ -100,7 +100,7 @@ def group_folded_images(image_atom_indices, orbit_indices):
 
     Each orbit image is represented by the ordered tuple of supercell atoms
     reached by its tensor slots. Images with identical tuples accumulate into
-    the same rows of the folded linear map and may therefore alias primitive
+    the same rows of the folded linear map and may therefore alias cell
     parameter directions.
 
     Returns
@@ -116,15 +116,15 @@ def group_folded_images(image_atom_indices, orbit_indices):
 
 
 def folded_rank(cluster_space, image_atom_indices, order=None):
-    """Compute the structural rank of primitive parameters after supercell folding.
+    """Compute the structural rank of cell parameters after supercell folding.
 
-    Each symmetry image of a primitive orbit contributes a transformed tensor
+    Each symmetry image of a cell orbit contributes a transformed tensor
     basis to the ordered tuple of supercell atoms onto which that image folds.
     Contributions reaching the same tuple are summed, producing an integer
-    linear map from primitive force-constant parameters to folded supercell
+    linear map from reference-cell force-constant parameters to folded supercell
     tensor components.
 
-    The rational rank of this map is the number of primitive parameter
+    The rational rank of this map is the number of cell parameter
     directions that remain distinguishable in the chosen supercell. Its
     nullity therefore measures parameter directions lost purely through
     periodic folding, independently of displacement patterns or training data.
@@ -132,7 +132,7 @@ def folded_rank(cluster_space, image_atom_indices, order=None):
     Parameters
     ----------
     cluster_space
-        Primitive force-constant parameter space.
+        Reference-cell force-constant parameter space.
     image_atom_indices
         For each global orbit, integer arrays of shape
         ``(n_images, tensor_order)`` giving the supercell atom tuple of every
@@ -144,7 +144,7 @@ def folded_rank(cluster_space, image_atom_indices, order=None):
     Returns
     -------
     RankInfo
-        Number of primitive parameters, exact folded rank, and image-alias
+        Number of cell parameters, exact folded rank, and image-alias
         count.
     """
     if order is None:
@@ -238,7 +238,7 @@ def accumulate_folded(out, basis, row_start, column_start):
 
     ``basis`` holds the lattice-coordinate tensor basis of one orbit image; it
     is added to the row block of its folded supercell atom tuple and to the
-    parameter columns of its primitive orbit. ``folded_rank`` validates the
+    parameter columns of its cell orbit. ``folded_rank`` validates the
     per-tuple accumulation bounds before entry.
     """
     for i in range(basis.shape[0]):

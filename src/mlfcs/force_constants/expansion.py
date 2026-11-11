@@ -1,4 +1,4 @@
-"""Primitive-lattice expansion shared by output and invariance rules."""
+"""Cell-lattice expansion shared by output and invariance rules."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from mlfcs.foundation.tensors import rotate_tensor
 
 @dataclass(frozen=True, slots=True)
 class LatticeForceConstants:
-    """Cartesian tensors expanded onto anchored primitive-lattice labels.
+    """Cartesian tensors expanded onto anchored cell-lattice labels.
 
     Each entry represents an energy-derivative tensor at periodic motif sites,
     with the first site anchored at zero lattice translation. ``translations``

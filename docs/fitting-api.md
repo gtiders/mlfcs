@@ -8,7 +8,7 @@
 
 ## 1. 把数据交给拟合系统
 
-如果原胞、参考超胞和带力构型已经保存在文件中，可以这样准备：
+如果参考胞、参考超胞和带力构型已经保存在文件中，可以这样准备：
 
 ```python
 from ase.io import read, iread
@@ -243,18 +243,18 @@ from ase.calculators.emt import EMT
 from ase.calculators.singlepoint import SinglePointCalculator
 from mlfcs import ClusterSpace, ClusterMap, ForceDataset, FitSystem
 
-primitive = bulk("Al", "fcc", a=4.05)
+cell = bulk("Al", "fcc", a=4.05)
 space = ClusterSpace(
-    primitive,
+    cell,
     cutoffs={2: 4.0, 3: 3.0},
     max_body_orders={2: 2, 3: 3},
     asr=True,
 )
-mapping = ClusterMap(space, space.primitive_atoms.repeat((3, 3, 3)))
+mapping = ClusterMap(space, space.cell_atoms.repeat((3, 3, 3)))
 
 structures = []
 for seed in range(24):
-    sample = mapping.supercell_atoms
+    sample = mapping.supercell
     sample.rattle(stdev=0.01 + 0.01 * (seed % 3), seed=seed)
     sample.calc = EMT()
     forces = sample.get_forces()

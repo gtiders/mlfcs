@@ -219,7 +219,7 @@ class SCPH:
     Parameters
     ----------
     model : ForceConstants
-        Primitive model containing FC2 and FC4 on the same cluster space.
+        Reference-cell model containing FC2 and FC4 on the same cluster space.
         FC3 does not enter this approximation.
     mesh : QGrid or array_like of integers, shape (3,) or (3, 3)
         Positive diagonal mesh sizes or a supercell row matrix/grid.

@@ -39,7 +39,7 @@ def _freeze(values):
 def _validate_inputs(space, born, dielectric, rtol, atol):
     """Validate Born charges and the electronic dielectric tensor.
 
-    Born charges must be neutral and transform consistently under the primitive
+    Born charges must be neutral and transform consistently under the cell
     space group. The dielectric tensor must be symmetric, positive definite,
     and invariant under the same Cartesian symmetry operations.
     """
@@ -50,7 +50,7 @@ def _validate_inputs(space, born, dielectric, rtol, atol):
     born = _freeze(born)
     dielectric = _freeze(dielectric)
     if born.shape != (space.n_atoms, 3, 3) or not np.all(np.isfinite(born)):
-        raise ValueError("born_charges must be finite with shape (primitive_atoms, 3, 3)")
+        raise ValueError("born_charges must be finite with shape (cell_atoms, 3, 3)")
     if dielectric.shape != (3, 3) or not np.all(np.isfinite(dielectric)):
         raise ValueError("dielectric must be finite with shape (3, 3)")
     if not np.isfinite(rtol) or not 0 < rtol < 1 or not np.isfinite(atol) or atol <= 0:
@@ -69,11 +69,11 @@ def _validate_inputs(space, born, dielectric, rtol, atol):
         # Stored Cartesian rotations act on row vectors; tensors below use columns.
         transformed = np.einsum("ab,ibc,cd->iad", rotation.T, born, rotation)
         if not np.allclose(transformed, born[permutation], rtol=tolerance, atol=tolerance):
-            raise ValueError("born_charges are inconsistent with primitive symmetry")
+            raise ValueError("born_charges are inconsistent with cell symmetry")
         if not np.allclose(
             rotation.T @ dielectric @ rotation, dielectric, rtol=tolerance, atol=tolerance
         ):
-            raise ValueError("dielectric is inconsistent with primitive symmetry")
+            raise ValueError("dielectric is inconsistent with cell symmetry")
     return born, dielectric
 
 
@@ -211,7 +211,7 @@ def _converged_fc2(cell, positions, anchors, sites, born, epsilon, alpha, rtol, 
 
 
 def _antisymmetric(values):
-    """Extract xy, xz and yz antisymmetric components in primitive-site order."""
+    """Extract xy, xz and yz antisymmetric components in cell-site order."""
     return np.stack(
         (
             values[:, 0, 1] - values[:, 1, 0],
@@ -301,9 +301,9 @@ def _supercell_tensors(mapping, born, epsilon, alpha, correction, onsite, rtol, 
     )
     compact = _converged_fc2(
         mapping.cell,
-        mapping.supercell_atoms.positions,
+        mapping.supercell.positions,
         anchors,
-        mapping.primitive_site_indices,
+        mapping.cell_site_indices,
         born,
         epsilon,
         alpha,
@@ -324,7 +324,7 @@ def _supercell_tensors(mapping, born, epsilon, alpha, correction, onsite, rtol, 
     anchor_labels = np.column_stack(
         (np.arange(space.n_atoms), np.zeros((space.n_atoms, 3), dtype=np.int64))
     )
-    for atom, site in enumerate(mapping.primitive_site_indices):
+    for atom, site in enumerate(mapping.cell_site_indices):
         translation = as_int64_array(
             [[-int(value) for value in mapping.lattice_translations[atom]]],
             name="Ewald inverse translation",
@@ -340,10 +340,10 @@ def _supercell_tensors(mapping, born, epsilon, alpha, correction, onsite, rtol, 
 class DipoleEwald:
     """Long-range harmonic dipole model for a fixed periodic supercell.
 
-        The model evaluates screened dipole-dipole FC2 from primitive Born
+        The model evaluates screened dipole-dipole FC2 from cell Born
         effective charges and the electronic dielectric tensor using three-
         dimensional Ewald summation. Omitting the reciprocal zero vector imposes
-        zero macroscopic electric field. Born charges use primitive-site order,
+        zero macroscopic electric field. Born charges use cell-site order,
         polarization then displacement axes, and elementary-charge units. The
         dielectric tensor is expressed in Cartesian coordinates.
 
@@ -386,7 +386,7 @@ class DipoleEwald:
 
         ``born_charges[i, alpha, beta]`` is the polarization response along
         Cartesian direction ``alpha`` to displacement along ``beta`` for
-        primitive site ``i``. ``dielectric`` is the electronic dielectric
+        cell site ``i``. ``dielectric`` is the electronic dielectric
         tensor in the same Cartesian frame. ``rtol`` and ``atol`` set the Ewald
         convergence and residual tolerances; ``atol`` has FC2 units.
         """
@@ -396,7 +396,7 @@ class DipoleEwald:
         born, epsilon = _validate_inputs(space, born_charges, dielectric, rtol, atol)
         screened_volume = abs(np.linalg.det(space.cell)) / sqrt(np.linalg.det(epsilon))
         alpha = sqrt(pi) / screened_volume ** (1 / 3)
-        primitive = _converged_fc2(
+        cell = _converged_fc2(
             space.cell,
             space.cartesian_positions,
             np.arange(space.n_atoms),
@@ -407,7 +407,7 @@ class DipoleEwald:
             rtol,
             atol,
         )
-        correction, onsite, norm = _local_correction(space, primitive.sum(axis=1), rtol, atol)
+        correction, onsite, norm = _local_correction(space, cell.sum(axis=1), rtol, atol)
         tensors, asr = _supercell_tensors(
             cluster_map,
             born,

@@ -49,7 +49,7 @@ class FitSystem:
     Notes
     -----
     Displacements are minimum-image Cartesian vectors in angstrom. Force rows
-    are atom-major x/y/z in eV/angstrom; columns follow canonical primitive
+    are atom-major x/y/z in eV/angstrom; columns follow canonical cell
     parameters unless ASR preparation is enabled, in which case they follow the
     order-local free acoustic coordinates. ForceDesign includes force signs, Taylor
     factorials and translated orbit images.
@@ -66,7 +66,7 @@ class FitSystem:
     TypeError
         The input is not a ForceDataset.
     ValueError
-        The supercell cannot distinguish all primitive parameters.
+        The supercell cannot distinguish all cell parameters.
     OverflowError
         An actual equation/workspace allocation exceeds representable capacity.
 

@@ -54,7 +54,7 @@ def test_blocks_and_full_translation_preserve_image_sums(mapped_tensors, order):
         tails = tuple(
             mapping.atom_index(
                 LatticeSite(
-                    int(mapping.primitive_site_indices[atom]),
+                    int(mapping.cell_site_indices[atom]),
                     tuple(
                         int(t) - int(o) for t, o in zip(mapping.lattice_translations[atom], origin)
                     ),
@@ -63,7 +63,7 @@ def test_blocks_and_full_translation_preserve_image_sums(mapped_tensors, order):
             for atom in atoms[1:]
         )
         np.testing.assert_allclose(
-            full[atoms], expected[(mapping.primitive_site_indices[first], *tails)], atol=1e-15
+            full[atoms], expected[(mapping.cell_site_indices[first], *tails)], atol=1e-15
         )
 
 
